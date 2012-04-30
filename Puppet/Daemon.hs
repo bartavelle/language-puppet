@@ -7,6 +7,7 @@ import Control.Concurrent
 import Control.Concurrent.Chan
 import System.Posix.Files
 import Control.Monad.State
+import System.Log.Logger
 import qualified Data.Map as Map
 
 data QType = QNode | QDefine | QClass deriving (Show, Ord, Eq)
@@ -32,7 +33,7 @@ master prefs chan getstmts = do
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)
                 Right x -> writeChan respchan (RCatalog $ Left $ show x)
-        _ -> print "Bad message type!"
+        _ -> errorM "Puppet.Daemon.master" "Bad message type"
     master prefs chan getstmts
 
 getCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String Catalog)
