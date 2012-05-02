@@ -105,6 +105,7 @@ data ParsedCacheResponse
     = CacheError String
     | CacheEntry ([Statement], Map.Map FilePath FileStatus)
     | NoCacheEntry
+    | CacheUpdated
     
 --initParsedDaemon :: Prefs -> IO (QType -> String -> IO (Either String, ([Statement], Map.Map FilePath ClockTime) ))
 initParsedDaemon :: Prefs -> IO ( QType -> String -> ErrorT String IO ParsedCacheResponse, QType -> String -> IO ( ParsedCacheResponse ) )
@@ -126,11 +127,14 @@ updateParsedInformation :: Chan ParsedCacheQuery -> QType -> String -> IO (Parse
 updateParsedInformation _ _ _ = return $ CacheError "not implemented"
 
 parsedmaster prefs controlchan = do
-    curmap <- get
     curmsg <- liftIO $ readChan controlchan
     case curmsg of
         GetParsedData qtype name respchan -> do
-            --liftIO $ writeChan respchan NoCacheEntry
-            liftIO $ writeChan respchan NoCacheEntry
-        _ -> error "wtf"
+            curmap <- get
+            case (Map.lookup (qtype, name) curmap) of
+                Just x  -> liftIO $ writeChan respchan (CacheEntry x)
+                Nothing -> liftIO $ writeChan respchan NoCacheEntry
+        UpdateParsedData qtype name val respchan -> do
+            modify (Map.insert (qtype, name) val)
+            liftIO $ writeChan respchan CacheUpdated
     parsedmaster prefs controlchan
