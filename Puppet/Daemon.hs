@@ -3,13 +3,15 @@ module Puppet.Daemon (initDaemon) where
 import Puppet.Preferences
 import Puppet.Interpreter.Types
 import Puppet.DSL.Types
+import Puppet.DSL.Loader
 import Control.Concurrent
 import Control.Concurrent.Chan
 import System.Posix.Files
 import Control.Monad.State
 import Control.Monad.Error
 import qualified System.Log.Logger as LOG
-import Data.List
+import Data.List 
+import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
 
@@ -71,15 +73,30 @@ initParserDaemon prefs = do
 -- extracts data from a filestatus
 extractFStatus fs = (deviceID fs, fileID fs, modificationTime fs, fileSize fs)
 
+getFileInfo :: FilePath -> IO (Maybe FileStatus)
+getFileInfo fpath = do
+    fexists <- fileExist fpath
+    if fexists
+        then do
+            stat <- getFileStatus fpath
+            return $ Just stat
+        else return Nothing
+
+getFirstFileInfo :: Maybe (FilePath, FileStatus) -> FilePath -> IO (Maybe (FilePath, FileStatus))
+getFirstFileInfo (Just x) _ = return $ Just x
+getFirstFileInfo Nothing  y = do
+    stat <- getFileInfo y
+    case stat of
+        Just x ->  return $ Just (y, x)
+        Nothing -> return Nothing
+
 -- checks whether data pointed but the filepath has the corresponding file status
 checkFileInfo :: (FilePath, FileStatus) -> ErrorT String IO Bool
 checkFileInfo (fpath, fstatus) = do
-    fexists <- liftIO $ fileExist fpath
-    if fexists
-        then do
-            nfstatus <- liftIO $ getFileStatus fpath
-            return (extractFStatus nfstatus == extractFStatus fstatus)
-        else return False
+    stat <- liftIO $ getFileInfo fpath
+    case stat of
+        Just nfstatus -> return (extractFStatus nfstatus == extractFStatus fstatus)
+        Nothing -> return False
 
 checkFileInfos :: [(FilePath, FileStatus)] -> ErrorT String IO Bool
 checkFileInfos filemap = do
@@ -96,15 +113,18 @@ compilefilelist prefs _ name = moduleInfo ++ [manifest prefs ++ "/site.pp"]
                    | otherwise = [modules prefs ++ "/" ++ (head nameparts) ++ "/templates/" ++ (DLU.join "/" (tail nameparts))]
         nameparts = DLU.split "::" name
 
-findFile :: Prefs -> QType -> String -> ErrorT String IO FilePath
+findFile :: Prefs -> QType -> String -> ErrorT String IO (FilePath, FileStatus)
 findFile prefs qtype resname = do
     let filelist = compilefilelist prefs qtype resname
-    liftIO $ print filelist
-    throwError "TODO findFile"
+    fileinfo <- liftIO $ foldlM (getFirstFileInfo) Nothing filelist
+    case fileinfo of
+        Just x -> return x
+        Nothing -> throwError ("Could not find file for " ++ show qtype ++ " " ++ resname)
 
 reparseStatements :: Prefs -> (QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO [Statement]
 reparseStatements prefs updatepinfo qtype nodename = do
-    fname <- findFile prefs qtype nodename
+    (fname, fstatus) <- findFile prefs qtype nodename
+    parsed <- parseFile fname
     liftIO $ logError "TODO"
     return []
 

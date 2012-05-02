@@ -45,13 +45,13 @@ Cabal-version:       >=1.2
 
 Library
   -- Modules exported by the library.
-  Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types, Puppet.Daemon, Puppet.Preferences
+  Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Preferences, Puppet.DSL.Loader
   
   -- Packages needed in order to build this package.
   Build-depends:       base,parsec,MissingH,containers,pretty,mtl,unix,hslogger
   
   -- Modules not exported by this package.
-  -- Other-modules:       
+  Other-modules:       Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
