@@ -10,6 +10,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import qualified System.Log.Logger as LOG
 import Data.List
+import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
 
 data QType = QNode | QDefine | QClass deriving (Show, Ord, Eq)
@@ -87,8 +88,24 @@ checkFileInfos filemap = do
         [] -> return False
         x  -> return $ and x
 
+compilefilelist :: Prefs -> QType -> String -> [FilePath]
+compilefilelist prefs QNode name = [manifest prefs ++ "/site.pp"]
+compilefilelist prefs _ name = moduleInfo ++ [manifest prefs ++ "/site.pp"]
+    where
+        moduleInfo | nameparts == [] = []
+                   | otherwise = [modules prefs ++ "/" ++ (head nameparts) ++ "/templates/" ++ (DLU.join "/" (tail nameparts))]
+        nameparts = DLU.split "::" name
+
+findFile :: Prefs -> QType -> String -> ErrorT String IO FilePath
+findFile prefs qtype resname = do
+    let filelist = compilefilelist prefs qtype resname
+    liftIO $ print filelist
+    throwError "TODO findFile"
+
 reparseStatements :: Prefs -> (QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO [Statement]
 reparseStatements prefs updatepinfo qtype nodename = do
+    fname <- findFile prefs qtype nodename
+    liftIO $ logError "TODO"
     return []
 
 handlePRequest :: Prefs -> ( QType -> String -> ErrorT String IO CacheEntry, QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO [Statement]
