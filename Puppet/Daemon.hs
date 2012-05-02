@@ -7,6 +7,7 @@ import Control.Concurrent
 import Control.Concurrent.Chan
 import System.Posix.Files
 import Control.Monad.State
+import Control.Monad.Error
 import System.Log.Logger
 import qualified Data.Map as Map
 
@@ -53,17 +54,38 @@ data ParserMessage
 initParserDaemon :: Prefs -> IO (QType -> String -> IO (Either String [Statement]) )
 initParserDaemon prefs = do
     controlChan <- newChan
-    forkIO (pmaster prefs controlChan)
+    getparsed <- initParsedDaemon prefs
+    forkIO (pmaster prefs controlChan (getparsed))
     return (getStatements controlChan)
 
-pmaster :: Prefs -> Chan ParserMessage -> IO ()
-pmaster prefs chan = do
+
+handlePRequest :: Prefs -> Chan ParserMessage -> ( QType -> String -> ErrorT String IO ParsedCacheResponse, QType -> String -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO [Statement]
+handlePRequest prefs chan (getpinfo, updatepinfo) qtype nodename = do
+    cachedinfo <- getpinfo qtype nodename
+    return []
+
+
+pmaster :: Prefs -> Chan ParserMessage -> ( QType -> String -> ErrorT String IO ParsedCacheResponse, QType -> String -> IO ( ParsedCacheResponse ) ) -> IO ()
+pmaster prefs chan cachefuncs = do
     pmessage <- readChan chan
     case pmessage of
         QStatement (qtype, nodename, respchan) -> do
-            writeChan respchan $ RStatement $ Left "parser unimplemented"
-        _ -> print "Bad message type!"
-    pmaster prefs chan
+            out <- runErrorT $ handlePRequest prefs chan cachefuncs qtype nodename 
+            case out of
+                Left x -> writeChan respchan $ RStatement $ Left x
+                Right y -> writeChan respchan $ RStatement $ Right y
+        _ -> print "bad message type!"
+{-
+    pmessage <- readChan chan
+    case pmessage of
+        QStatement (qtype, nodename, respchan) -> do
+            cachedinfo <- getcache qtype nodename
+            case cachedinfo of
+                CacheError x -> writeChan respchan $ RStatement $ Left x
+                NoCacheEntry -> writeChan respchan $ RStatement $ Left "no cache entry"
+                CacheEntry (statements, fileinfos) -> writeChan respchan $ RStatement $ Left "cache entry found"
+        _ -> print "Bad message type!" -}
+    pmaster prefs chan cachefuncs
 
 getStatements :: Chan ParserMessage -> QType -> String -> IO (Either String [Statement])
 getStatements channel qtype classname = do
@@ -79,22 +101,36 @@ getStatements channel qtype classname = do
 data ParsedCacheQuery
     = GetParsedData QType String (Chan ParsedCacheResponse)
     | UpdateParsedData QType String ([Statement], Map.Map FilePath FileStatus) (Chan ParsedCacheResponse)
-type ParsedCacheResponse = Either String ([Statement], Map.Map FilePath FileStatus)
+data ParsedCacheResponse
+    = CacheError String
+    | CacheEntry ([Statement], Map.Map FilePath FileStatus)
+    | NoCacheEntry
     
 --initParsedDaemon :: Prefs -> IO (QType -> String -> IO (Either String, ([Statement], Map.Map FilePath ClockTime) ))
-initParsedDaemon :: Prefs -> IO ( ParsedCacheQuery -> IO ( ParsedCacheResponse ), ParsedCacheQuery -> IO ( ParsedCacheResponse ) )
+initParsedDaemon :: Prefs -> IO ( QType -> String -> ErrorT String IO ParsedCacheResponse, QType -> String -> IO ( ParsedCacheResponse ) )
 initParsedDaemon prefs = do
     controlChan <- newChan
     forkIO ( evalStateT (parsedmaster prefs controlChan) Map.empty )
     return (getParsedInformation controlChan, updateParsedInformation controlChan)
 
-getParsedInformation :: Chan ParsedCacheQuery -> ParsedCacheQuery -> IO (ParsedCacheResponse)
-getParsedInformation _ _ = return $ Left "unimplemented"
+getParsedInformation :: Chan ParsedCacheQuery -> QType -> String -> ErrorT String IO ParsedCacheResponse
+getParsedInformation cchan qtype name = do
+    respchan <- liftIO newChan
+    liftIO $ writeChan cchan $ GetParsedData qtype name respchan
+    out <- liftIO $ readChan respchan
+    case out of
+        CacheError x -> throwError x
+        y -> return y
 
-updateParsedInformation :: Chan ParsedCacheQuery -> ParsedCacheQuery -> IO (ParsedCacheResponse)
-updateParsedInformation _ _ = return $ Left "unimplemented"
+updateParsedInformation :: Chan ParsedCacheQuery -> QType -> String -> IO (ParsedCacheResponse)
+updateParsedInformation _ _ _ = return $ CacheError "not implemented"
 
 parsedmaster prefs controlchan = do
     curmap <- get
     curmsg <- liftIO $ readChan controlchan
+    case curmsg of
+        GetParsedData qtype name respchan -> do
+            --liftIO $ writeChan respchan NoCacheEntry
+            liftIO $ writeChan respchan NoCacheEntry
+        _ -> error "wtf"
     parsedmaster prefs controlchan
