@@ -119,18 +119,27 @@ findFile prefs qtype resname = do
     fileinfo <- liftIO $ foldlM (getFirstFileInfo) Nothing filelist
     case fileinfo of
         Just x -> return x
-        Nothing -> throwError ("Could not find file for " ++ show qtype ++ " " ++ resname)
+        Nothing -> throwError ("Could not find file for " ++ show qtype ++ " " ++ resname ++ " when looking in " ++ (show filelist))
 
-reparseStatements :: Prefs -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
-reparseStatements prefs updatepinfo qtype nodename = do
-    (fname, fstatus) <- findFile prefs qtype nodename
+{-
+ given a filename and a file status, will parse this file and update the cache with the parsed values
+ -}
+loadUpdateFile :: String -> FileStatus -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> ErrorT String IO [(TopLevelType, String, Statement)]
+loadUpdateFile fname fstatus updatepinfo = do
+    parsed <- parseFile fname
     parsed <- parseFile fname
     let toplevels = map convertTopLevel parsed
         oktoplevels = rights toplevels
         badtoplevels = lefts toplevels
-        searchstatement = find (\(qt,nm,_) -> (qt == qtype) && (nm == nodename)) oktoplevels
     liftIO $ mapM (\x -> logError ("Unsupported top level statement: " ++ (show x))) badtoplevels
     liftIO $ mapM (\(rtype, resname, resstatement) -> updatepinfo rtype resname (resstatement, [(fname, fstatus)])) oktoplevels
+    return oktoplevels
+
+reparseStatements :: Prefs -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
+reparseStatements prefs updatepinfo qtype nodename = do
+    (fname, fstatus) <- findFile prefs qtype nodename
+    oktoplevels <- loadUpdateFile fname fstatus updatepinfo
+    let searchstatement = find (\(qt,nm,_) -> (qt == qtype) && (nm == nodename)) oktoplevels
     case searchstatement of
         Just (_,_,x) -> return x
         Nothing -> throwError ("Could not find correct top level statement for " ++ (show qtype) ++ " " ++ nodename)
