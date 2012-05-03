@@ -1,6 +1,7 @@
 module Puppet.Interpreter.Types where
 
 import Puppet.DSL.Types
+import Text.Parsec.Pos
 import qualified Data.Map as Map
 
 type Catalog =[CResource]
@@ -18,10 +19,9 @@ data CResource = CResource {
     crid :: Int,
     crname :: String,
     crtype :: String,
-    crparams :: [(String, ResolvedValue)],
+    crparams :: [(String, Either Expression ResolvedValue)],
 	relations :: [(LinkType, String, String)], -- (relation, resname, resname)
     crvirtuality :: Virtuality,
-    filename :: String,
-    fileline :: Int
+    pos :: SourcePos
     } deriving(Show)
 

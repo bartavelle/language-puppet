@@ -11,27 +11,32 @@ import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
 
+type ResDefaults = Map.Map String (Map.Map String (Either Expression ResolvedValue, SourcePos))
+type ScopeName = String
+
 data ScopeState = ScopeState {
-    curScope :: [String],
+    curScope :: [ScopeName],
     curVariables :: Map.Map String (Either Expression ResolvedValue, SourcePos),
     curClasses :: Map.Map String SourcePos,
     curCatalog :: [CResource],
-    curDefaults :: Map.Map String (Map.Map String (ResolvedValue, SourcePos)),
+    curDefaults :: Map.Map ScopeName ResDefaults,
+    curResId :: Int,
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement)
 }
 
-modifyScope     f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState (f curscope) curvariables curclasses curcatalog curdefaults gsf
-modifyVariables f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope (f curvariables) curclasses curcatalog curdefaults gsf
-modifyClasses   f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope curvariables (f curclasses) curcatalog curdefaults gsf
-modifyCatalogs  f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope curvariables curclasses (f curcatalog) curdefaults gsf
-modifyDefaults  f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope curvariables curclasses curcatalog (f curdefaults) gsf
+modifyScope     f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid gsf) = ScopeState (f curscope) curvariables curclasses curcatalog curdefaults rid gsf
+modifyVariables f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid gsf) = ScopeState curscope (f curvariables) curclasses curcatalog curdefaults rid gsf
+modifyClasses   f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid gsf) = ScopeState curscope curvariables (f curclasses) curcatalog curdefaults rid gsf
+modifyCatalogs  f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid gsf) = ScopeState curscope curvariables curclasses (f curcatalog) curdefaults rid gsf
+modifyDefaults  f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid gsf) = ScopeState curscope curvariables curclasses curcatalog (f curdefaults) rid gsf
+incrementResId    (ScopeState curscope curvariables curclasses curcatalog curdefaults rid gsf) = ScopeState curscope curvariables curclasses curcatalog curdefaults (rid + 1) gsf
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String Catalog)
 getCatalog getstatements nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty [] Map.empty getstatements)
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty [] Map.empty 1 getstatements)
     case output of
         Left x -> return $ Left x
         Right y -> return $ Right (curCatalog finalstate)
@@ -58,6 +63,10 @@ getstatement qtype name = do
 pushScope name  = modify (modifyScope (\x -> [name] ++ x))
 popScope        = modify (modifyScope tail)
 addLoaded name position = modify (modifyClasses (Map.insert name position))
+getNextId = do
+    curscope <- get
+    put $ incrementResId curscope
+    return (curResId curscope)
 
 -- throws an error if a class is already loaded
 checkLoaded name = do
@@ -85,6 +94,10 @@ evaluateStatements (Node name stmts _) = do
 evaluateStatements (Include includename _) = getstatement TopClass includename >>= evaluateStatements
 evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty
 
+evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
+    resid <- getNextId
+    return []
+
 evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
 
 -- function used to load defines / class variables into the global context
@@ -109,12 +122,12 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     mapM (loadClassVariable position inputparams) parameters
     
     -- load inherited classes
-    inheritedstatements <- case inherits of
+    case inherits of
         Just parentclass -> throwError ("Inheritance not implemented at " ++ (show position))
-        Nothing -> return []
-    -- mark as loaded
-    
+        Nothing -> return ()
+
     -- parse statements
+    res <- mapM (evaluateStatements) statements
     popScope
-    return inheritedstatements
+    return (concat res)
 
