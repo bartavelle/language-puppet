@@ -16,8 +16,6 @@ import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
 
-data QType = QNode | QDefine | QClass deriving (Show, Ord, Eq)
-
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
     = QCatalog (String, Facts, Chan DaemonMessage)
@@ -36,13 +34,13 @@ initDaemon prefs = do
     forkIO (master prefs controlChan (getstmts))
     return (getCatalog controlChan)
 
-master :: Prefs -> Chan DaemonMessage -> (QType -> String -> IO (Either String Statement)) -> IO ()
+master :: Prefs -> Chan DaemonMessage -> (TopLevelType -> String -> IO (Either String Statement)) -> IO ()
 master prefs chan getstmts = do
     message <- readChan chan
     case message of
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
-            stmts <- getstmts QNode nodename
+            stmts <- getstmts TopNode nodename
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)
                 Right x -> writeChan respchan (RCatalog $ Left $ show x)
@@ -60,10 +58,10 @@ getCatalog channel nodename facts = do
 
 -- this daemon returns a list of statements when asked for a top class/define name
 data ParserMessage
-    = QStatement (QType, String, Chan ParserMessage)
+    = QStatement (TopLevelType, String, Chan ParserMessage)
     | RStatement (Either String Statement)
 
-initParserDaemon :: Prefs -> IO (QType -> String -> IO (Either String Statement) )
+initParserDaemon :: Prefs -> IO (TopLevelType -> String -> IO (Either String Statement) )
 initParserDaemon prefs = do
     logDebug "initParserDaemon"
     controlChan <- newChan
@@ -106,15 +104,15 @@ checkFileInfos filemap = do
         [] -> return False
         x  -> return $ and x
 
-compilefilelist :: Prefs -> QType -> String -> [FilePath]
-compilefilelist prefs QNode name = [manifest prefs ++ "/site.pp"]
+compilefilelist :: Prefs -> TopLevelType -> String -> [FilePath]
+compilefilelist prefs TopNode name = [manifest prefs ++ "/site.pp"]
 compilefilelist prefs _ name = moduleInfo ++ [manifest prefs ++ "/site.pp"]
     where
         moduleInfo | nameparts == [] = []
                    | otherwise = [modules prefs ++ "/" ++ (head nameparts) ++ "/templates/" ++ (DLU.join "/" (tail nameparts))]
         nameparts = DLU.split "::" name
 
-findFile :: Prefs -> QType -> String -> ErrorT String IO (FilePath, FileStatus)
+findFile :: Prefs -> TopLevelType -> String -> ErrorT String IO (FilePath, FileStatus)
 findFile prefs qtype resname = do
     let filelist = compilefilelist prefs qtype resname
     fileinfo <- liftIO $ foldlM (getFirstFileInfo) Nothing filelist
@@ -122,13 +120,7 @@ findFile prefs qtype resname = do
         Just x -> return x
         Nothing -> throwError ("Could not find file for " ++ show qtype ++ " " ++ resname)
 
-convertTopLevel :: Statement -> Either Statement (QType, String, Statement)
-convertTopLevel x@(Node name _ _) = Right (QNode, name, x)
-convertTopLevel x@(ClassDeclaration name _ _ _ _) = Right (QClass, name, x)
-convertTopLevel x@(DefineDeclaration name _ _ _) = Right (QDefine, name, x)
-convertTopLevel x = Left x
-
-reparseStatements :: Prefs -> (QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO Statement
+reparseStatements :: Prefs -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
 reparseStatements prefs updatepinfo qtype nodename = do
     (fname, fstatus) <- findFile prefs qtype nodename
     parsed <- parseFile fname
@@ -142,7 +134,7 @@ reparseStatements prefs updatepinfo qtype nodename = do
         Just (_,_,x) -> return x
         Nothing -> throwError ("Could not find correct top level statement for " ++ (show qtype) ++ " " ++ nodename)
 
-handlePRequest :: Prefs -> ( QType -> String -> ErrorT String IO (Maybe CacheEntry), QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO Statement
+handlePRequest :: Prefs -> ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry), TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
 handlePRequest prefs (getpinfo, updatepinfo) qtype nodename = do
     res <- getpinfo qtype nodename
     case res of
@@ -153,7 +145,7 @@ handlePRequest prefs (getpinfo, updatepinfo) qtype nodename = do
                 else reparseStatements prefs updatepinfo qtype nodename
         Nothing -> reparseStatements prefs updatepinfo qtype nodename
 
-pmaster :: Prefs -> Chan ParserMessage -> ( QType -> String -> ErrorT String IO (Maybe CacheEntry), QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> IO ()
+pmaster :: Prefs -> Chan ParserMessage -> ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry), TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> IO ()
 pmaster prefs chan cachefuncs = do
     pmessage <- readChan chan
     case pmessage of
@@ -165,7 +157,7 @@ pmaster prefs chan cachefuncs = do
         _ -> logError "Bad message type received by Puppet.Daemon.pmaster"
     pmaster prefs chan cachefuncs
 
-getStatements :: Chan ParserMessage -> QType -> String -> IO (Either String Statement)
+getStatements :: Chan ParserMessage -> TopLevelType -> String -> IO (Either String Statement)
 getStatements channel qtype classname = do
     respchan <- newChan
     writeChan channel $ QStatement (qtype, classname, respchan)
@@ -176,8 +168,8 @@ getStatements channel qtype classname = do
 
 type CacheEntry = (Statement, [(FilePath, FileStatus)])
 data ParsedCacheQuery
-    = GetParsedData QType String (Chan ParsedCacheResponse)
-    | UpdateParsedData QType String CacheEntry (Chan ParsedCacheResponse)
+    = GetParsedData TopLevelType String (Chan ParsedCacheResponse)
+    | UpdateParsedData TopLevelType String CacheEntry (Chan ParsedCacheResponse)
 data ParsedCacheResponse
     = CacheError String
     | RCacheEntry CacheEntry
@@ -185,14 +177,14 @@ data ParsedCacheResponse
     | CacheUpdated
     
 -- this one is singleton, and is used to cache de parsed values, along with the file names they depend on
-initParsedDaemon :: Prefs -> IO ( QType -> String -> ErrorT String IO (Maybe CacheEntry), QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) )
+initParsedDaemon :: Prefs -> IO ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry), TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) )
 initParsedDaemon prefs = do
     logDebug "initParsedDaemon"
     controlChan <- newChan
     forkIO ( evalStateT (parsedmaster prefs controlChan) Map.empty )
     return (getParsedInformation controlChan, updateParsedInformation controlChan)
 
-getParsedInformation :: Chan ParsedCacheQuery -> QType -> String -> ErrorT String IO (Maybe CacheEntry)
+getParsedInformation :: Chan ParsedCacheQuery -> TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry)
 getParsedInformation cchan qtype name = do
     respchan <- liftIO newChan
     liftIO $ writeChan cchan $ GetParsedData qtype name respchan
@@ -203,7 +195,7 @@ getParsedInformation cchan qtype name = do
         CacheError x  -> throwError x
         _             -> throwError "Unknown cache response type"
 
-updateParsedInformation :: Chan ParsedCacheQuery -> QType -> String -> CacheEntry -> IO (ParsedCacheResponse)
+updateParsedInformation :: Chan ParsedCacheQuery -> TopLevelType -> String -> CacheEntry -> IO (ParsedCacheResponse)
 updateParsedInformation pchannel qtype name centry = do
     respchan <- newChan
     writeChan pchannel $ UpdateParsedData qtype name centry respchan
