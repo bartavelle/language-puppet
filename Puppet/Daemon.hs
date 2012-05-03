@@ -11,6 +11,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import qualified System.Log.Logger as LOG
 import Data.List 
+import Data.Either (rights, lefts)
 import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
@@ -121,15 +122,25 @@ findFile prefs qtype resname = do
         Just x -> return x
         Nothing -> throwError ("Could not find file for " ++ show qtype ++ " " ++ resname)
 
-extractTopLevel :: [Statement] -> [(QType, String, Statement)]
-extractTopLevel x = [(QNode, "x", head x)]
+convertTopLevel :: Statement -> Either Statement (QType, String, Statement)
+convertTopLevel x@(Node name _ _) = Right (QNode, name, x)
+convertTopLevel x@(ClassDeclaration name _ _ _ _) = Right (QClass, name, x)
+convertTopLevel x@(DefineDeclaration name _ _ _) = Right (QDefine, name, x)
+convertTopLevel x = Left x
 
 reparseStatements :: Prefs -> (QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO Statement
 reparseStatements prefs updatepinfo qtype nodename = do
     (fname, fstatus) <- findFile prefs qtype nodename
     parsed <- parseFile fname
-    liftIO $ mapM (\(rtype, resname, resstatement) -> updatepinfo rtype resname (resstatement, [(fname, fstatus)])) (extractTopLevel parsed)
-    return $ head parsed
+    let toplevels = map convertTopLevel parsed
+        oktoplevels = rights toplevels
+        badtoplevels = lefts toplevels
+        searchstatement = find (\(qt,nm,_) -> (qt == qtype) && (nm == nodename)) oktoplevels
+    liftIO $ mapM (\x -> logError ("Unsupported top level statement: " ++ (show x))) badtoplevels
+    liftIO $ mapM (\(rtype, resname, resstatement) -> updatepinfo rtype resname (resstatement, [(fname, fstatus)])) oktoplevels
+    case searchstatement of
+        Just (_,_,x) -> return x
+        Nothing -> throwError ("Could not find correct top level statement for " ++ (show qtype) ++ " " ++ nodename)
 
 handlePRequest :: Prefs -> ( QType -> String -> ErrorT String IO (Maybe CacheEntry), QType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> QType -> String -> ErrorT String IO Statement
 handlePRequest prefs (getpinfo, updatepinfo) qtype nodename = do
