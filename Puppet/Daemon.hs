@@ -2,6 +2,7 @@ module Puppet.Daemon (initDaemon) where
 
 import Puppet.Preferences
 import Puppet.Interpreter.Types
+import Puppet.Interpreter.Catalog
 import Puppet.DSL.Types
 import Puppet.DSL.Loader
 import Control.Concurrent
@@ -32,7 +33,7 @@ initDaemon prefs = do
     controlChan <- newChan
     getstmts <- initParserDaemon prefs
     forkIO (master prefs controlChan (getstmts))
-    return (getCatalog controlChan)
+    return (gCatalog controlChan)
 
 master :: Prefs -> Chan DaemonMessage -> (TopLevelType -> String -> IO (Either String Statement)) -> IO ()
 master prefs chan getstmts = do
@@ -40,15 +41,15 @@ master prefs chan getstmts = do
     case message of
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
-            stmts <- getstmts TopNode nodename
+            stmts <- getCatalog (getstmts) nodename facts
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)
-                Right x -> writeChan respchan (RCatalog $ Left $ show x)
+                Right x -> writeChan respchan (RCatalog $ Right x)
         _ -> logError "Bad message type for master"
     master prefs chan getstmts
 
-getCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String Catalog)
-getCatalog channel nodename facts = do
+gCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String Catalog)
+gCatalog channel nodename facts = do
     respchan <- newChan
     writeChan channel $ QCatalog (nodename, facts, respchan)
     response <- readChan respchan
