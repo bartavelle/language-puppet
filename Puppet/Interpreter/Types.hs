@@ -4,14 +4,14 @@ import Puppet.DSL.Types
 import qualified Data.Map as Map
 
 type Catalog =[CResource]
-type Facts = Map.Map String Value
+type Facts = Map.Map String ResolvedValue
 
 data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show)
 
 data ResolvedValue
-    = SimpleParamString String
-    | SimpleParamArray [ResolvedValue]
-    | SimpleParamHash [(String, ResolvedValue)]
+    = ResolvedParamString String
+    | ResolvedParamArray [ResolvedValue]
+    | ResolvedParamHash [(String, ResolvedValue)]
     deriving(Show)
 
 data CResource = CResource {
