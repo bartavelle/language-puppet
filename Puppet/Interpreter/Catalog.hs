@@ -14,17 +14,17 @@ import qualified Data.Map as Map
 data ScopeState = ScopeState {
     curScope :: [String],
     curVariables :: Map.Map String (Either Expression ResolvedValue, SourcePos),
-    curClasses :: Map.Map String (String, SourcePos),
+    curClasses :: Map.Map String SourcePos,
     curCatalog :: [CResource],
     curDefaults :: Map.Map String (Map.Map String (ResolvedValue, SourcePos)),
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement)
 }
 
-modifyScope (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf)     f = ScopeState (f curscope) curvariables curclasses curcatalog curdefaults gsf
-modifyVariables (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) f = ScopeState curscope (f curvariables) curclasses curcatalog curdefaults gsf
-modifyClasses (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf)   f = ScopeState curscope curvariables (f curclasses) curcatalog curdefaults gsf
-modifyCatalogs (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf)  f = ScopeState curscope curvariables curclasses (f curcatalog) curdefaults gsf
-modifyDefaults (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf)  f = ScopeState curscope curvariables curclasses curcatalog (f curdefaults) gsf
+modifyScope     f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState (f curscope) curvariables curclasses curcatalog curdefaults gsf
+modifyVariables f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope (f curvariables) curclasses curcatalog curdefaults gsf
+modifyClasses   f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope curvariables (f curclasses) curcatalog curdefaults gsf
+modifyCatalogs  f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope curvariables curclasses (f curcatalog) curdefaults gsf
+modifyDefaults  f (ScopeState curscope curvariables curclasses curcatalog curdefaults gsf) = ScopeState curscope curvariables curclasses curcatalog (f curdefaults) gsf
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String Catalog)
 getCatalog getstatements nodename facts = do
@@ -45,7 +45,6 @@ computeCatalog getstatements nodename = do
         Left x -> throwError x
         Right nodestmts -> evaluateStatements nodestmts
 
--- State alteration functions
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
 getstatement qtype name = do
     curcontext <- get
@@ -54,10 +53,27 @@ getstatement qtype name = do
     case estatement of
         Left x -> throwError x
         Right y -> return y
-pushScope name  = modify (\s -> modifyScope s (\x -> [name] ++ x))
-popScope        = modify (\s -> modifyScope s tail)
+
+-- State alteration functions
+pushScope name  = modify (modifyScope (\x -> [name] ++ x))
+popScope        = modify (modifyScope tail)
+addLoaded name position = modify (modifyClasses (Map.insert name position))
+
+-- throws an error if a class is already loaded
+checkLoaded name = do
+    curscope <- get
+    case (Map.lookup name (curClasses curscope)) of
+        Nothing -> return ()
+        Just thispos -> throwError ("Class " ++ name ++ " already loaded at " ++ (show thispos))
+
+
+putVariable k v = do
+    throwError "Must implement scope stacking as putVariable"
+    modify (modifyVariables (Map.insert k v))
 
 -- The actual meat
+
+-- node
 evaluateStatements :: Statement -> CatalogMonad Catalog
 evaluateStatements (Node name stmts _) = do
     pushScope "::"
@@ -65,6 +81,40 @@ evaluateStatements (Node name stmts _) = do
     popScope
     return (concat res)
 
+-- include
 evaluateStatements (Include includename _) = getstatement TopClass includename >>= evaluateStatements
+evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty
 
 evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
+
+-- function used to load defines / class variables into the global context
+loadClassVariable :: SourcePos -> Map.Map String (Either Expression ResolvedValue, SourcePos) -> (String, Maybe Expression) -> CatalogMonad ()
+loadClassVariable position inputs (paramname, defaultvalue) = do
+    let inputvalue = Map.lookup paramname inputs
+    case (inputvalue, defaultvalue) of
+        (Just x , _      ) -> putVariable paramname x
+        (Nothing, Just y ) -> putVariable paramname (Left y, position)
+        (Nothing, Nothing) -> throwError $ "Must define parameter " ++ paramname ++ " at " ++ (show position)
+    return ()
+
+-- class
+-- ClassDeclaration String (Maybe String) [(String, Maybe Expression)] [Statement] SourcePos
+-- nom, heritage, parametres, contenu
+evaluateClass :: Statement -> Map.Map String (Either Expression ResolvedValue, SourcePos) -> CatalogMonad Catalog
+evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams = do
+    checkLoaded classname
+    addLoaded classname position
+    pushScope classname
+    -- add variables
+    mapM (loadClassVariable position inputparams) parameters
+    
+    -- load inherited classes
+    inheritedstatements <- case inherits of
+        Just parentclass -> throwError ("Inheritance not implemented at " ++ (show position))
+        Nothing -> return []
+    -- mark as loaded
+    
+    -- parse statements
+    popScope
+    return inheritedstatements
+
