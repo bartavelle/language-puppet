@@ -15,13 +15,25 @@ data ResolvedValue
     | ResolvedParamHash [(String, ResolvedValue)]
     deriving(Show)
 
+type GeneralValue = Either Expression ResolvedValue
+type GeneralString = Either Expression String
+
 data CResource = CResource {
     crid :: Int,
-    crname :: String,
+    crname :: Either Expression String,
     crtype :: String,
-    crparams :: [(String, Either Expression ResolvedValue)],
-	relations :: [(LinkType, String, String)], -- (relation, resname, resname)
+    crparams :: [(GeneralString, GeneralValue)],
+	relations :: [(LinkType, GeneralValue, GeneralValue)], -- (relation, resname, resname)
     crvirtuality :: Virtuality,
     pos :: SourcePos
     } deriving(Show)
+
+generalizeValueE :: Expression -> GeneralValue
+generalizeValueE e = Left e
+generalizeValueR :: ResolvedValue -> GeneralValue
+generalizeValueR e = Right e
+generalizeStringE :: Expression -> GeneralString
+generalizeStringE s = Left s
+generalizeStringS :: String -> GeneralString
+generalizeStringS s = Right s
 
