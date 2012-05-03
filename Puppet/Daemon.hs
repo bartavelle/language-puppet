@@ -110,7 +110,7 @@ compilefilelist prefs TopNode name = [manifest prefs ++ "/site.pp"]
 compilefilelist prefs _ name = moduleInfo ++ [manifest prefs ++ "/site.pp"]
     where
         moduleInfo | nameparts == [] = []
-                   | otherwise = [modules prefs ++ "/" ++ (head nameparts) ++ "/templates/" ++ (DLU.join "/" (tail nameparts))]
+                   | otherwise = [modules prefs ++ "/" ++ (head nameparts) ++ "/manifests/" ++ (DLU.join "/" (tail nameparts)) ++ ".pp"]
         nameparts = DLU.split "::" name
 
 findFile :: Prefs -> TopLevelType -> String -> ErrorT String IO (FilePath, FileStatus)
