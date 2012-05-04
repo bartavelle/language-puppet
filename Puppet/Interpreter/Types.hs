@@ -12,6 +12,7 @@ data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show)
 data ResolvedValue
     = ResolvedString String
     | ResolvedInt   Integer
+    | ResolvedRReference String ResolvedValue
     | ResolvedArray [ResolvedValue]
     | ResolvedHash [(String, ResolvedValue)]
     deriving(Show)

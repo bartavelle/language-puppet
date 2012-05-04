@@ -21,37 +21,37 @@ data ScopeState = ScopeState {
     curScope :: [ScopeName],
     curVariables :: Map.Map String (GeneralValue, SourcePos),
     curClasses :: Map.Map String SourcePos,
-    curCatalog :: [CResource],
     curDefaults :: Map.Map ScopeName ResDefaults,
     curResId :: Int,
     curPos :: SourcePos,
+    netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement)
 }
 
-modifyScope     f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid pos gsf)
-    = ScopeState (f curscope) curvariables curclasses curcatalog curdefaults rid pos gsf
-modifyVariables f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid pos gsf)
-    = ScopeState curscope (f curvariables) curclasses curcatalog curdefaults rid pos gsf
-modifyClasses   f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid pos gsf)
-    = ScopeState curscope curvariables (f curclasses) curcatalog curdefaults rid pos gsf
-modifyCatalogs  f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid pos gsf)
-    = ScopeState curscope curvariables curclasses (f curcatalog) curdefaults rid pos gsf
-modifyDefaults  f (ScopeState curscope curvariables curclasses curcatalog curdefaults rid pos gsf)
-    = ScopeState curscope curvariables curclasses curcatalog (f curdefaults) rid pos gsf
-incrementResId    (ScopeState curscope curvariables curclasses curcatalog curdefaults rid pos gsf)
-    = ScopeState curscope curvariables curclasses curcatalog curdefaults (rid + 1) pos gsf
-setStatePos  npos (ScopeState curscope curvariables curclasses curcatalog curdefaults rid pos gsf)
-    = ScopeState curscope curvariables curclasses curcatalog curdefaults rid npos gsf
+modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
+    = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf
+modifyVariables f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
+    = ScopeState curscope (f curvariables) curclasses curdefaults rid pos ntl gsf
+modifyClasses   f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
+    = ScopeState curscope curvariables (f curclasses) curdefaults rid pos ntl gsf
+modifyDefaults  f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
+    = ScopeState curscope curvariables curclasses (f curdefaults) rid pos ntl gsf
+incrementResId    (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
+    = ScopeState curscope curvariables curclasses curdefaults (rid + 1) pos ntl gsf
+setStatePos  npos (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
+    = ScopeState curscope curvariables curclasses curdefaults rid npos ntl gsf
+modifyNestedTopLvl f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
+    = ScopeState curscope curvariables curclasses curdefaults rid pos (f ntl) gsf
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String Catalog)
 getCatalog getstatements nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty [] Map.empty 1 (initialPos "dummy") getstatements)
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty Map.empty 1 (initialPos "dummy") Map.empty getstatements)
     case output of
         Left x -> return $ Left x
-        Right y -> return $ Right (curCatalog finalstate)
+        Right y -> return output
 
 type CatalogMonad = ErrorT String (StateT ScopeState IO)
 
@@ -85,6 +85,8 @@ getPos = get >>= return . curPos
 putVariable k v = do
     curscope <- getScope
     modify (modifyVariables (Map.insert (curscope ++ "::" ++ k) v))
+getVariable vname = get >>= return . Map.lookup vname . curVariables
+addNestedTopLevel rtype rname rstatement = modify( modifyNestedTopLvl (Map.insert (rtype, rname) rstatement) )
 
 -- throws an error if a class is already loaded
 checkLoaded name = do
@@ -107,6 +109,9 @@ evaluateStatements (Node name stmts position) = do
 -- include
 evaluateStatements (Include includename _) = getstatement TopClass includename >>= evaluateStatements
 evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty
+evaluateStatements n@(DefineDeclaration dtype dargs dstatements dpos) = do
+    addNestedTopLevel TopDefine dtype n
+    return []
 
 evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
     setPos position
@@ -127,6 +132,10 @@ evaluateStatements (VariableAssignment vname vexpr position) = do
     rvexpr <- tryResolveExpression vexpr
     putVariable vname (rvexpr, position)
     return []
+
+evaluateStatements (MainFunctionCall fname fargs position) = do
+    setPos position
+    executeFunction fname (map resolveExpression fargs)
 
 evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
 
@@ -214,19 +223,40 @@ resolveExpressionString x = do
 tryResolveValue :: Value -> CatalogMonad GeneralValue
 tryResolveValue (Literal x) = return $ Right $ ResolvedString x
 tryResolveValue (Integer x) = return $ Right $ ResolvedInt x
-tryResolveValue (VariableReference vname) = throwError ("Not implemented $" ++ vname)
-    
+
+tryResolveValue n@(ResourceReference rtype vals) = do
+    rvals <- tryResolveExpression vals
+    case rvals of
+        Right resolved -> return $ Right $ ResolvedRReference rtype resolved
+        _              -> return $ Left $ Value n
+
+tryResolveValue n@(VariableReference vname) = do
+    -- TODO check scopes !!!
+    var <- getVariable vname
+    case var of
+        Just (Left e, pos) -> tryResolveExpression e
+        Just (Right r, pos) -> return $ Right r
+        Nothing -> return $ Left $ Value n
+
 tryResolveValue n@(Interpolable x) = do
     resolved <- mapM tryResolveValueString x
     if (null $ lefts resolved)
         then return $ Right $ ResolvedString $ concat $ rights resolved
         else return $ Left $ Value n
+
 tryResolveValue n@(PuppetHash (Parameters x)) = do
     resolvedKeys <- mapM (tryResolveExpressionString . fst) x
     resolvedValues <- mapM (tryResolveExpression . snd) x
     if ((null $ lefts resolvedKeys) && (null $ rights resolvedKeys))
         then return $ Right $ ResolvedHash $ zip (rights resolvedKeys) (rights resolvedValues)
         else return $ Left $ Value n
+
+tryResolveValue n@(PuppetArray expressions) = do
+    resolvedExpressions <- mapM tryResolveExpression expressions
+    if (null $ lefts resolvedExpressions)
+        then return $ Right $ ResolvedArray $ rights resolvedExpressions
+        else return $ Left $ Value n
+
 tryResolveValue x = do
     pos <- getPos
     throwError ("tryResolveValue not implemented at " ++ show pos ++ " for " ++ show x)
@@ -239,7 +269,16 @@ tryResolveValueString x = do
         Right (ResolvedInt    i) -> return $ Right (show i)
         Right v                  -> throwError ("Can't resolve valuestring for " ++ show x)
         Left  v                  -> return $ Left v
-
+{-
+resolveValue :: Value -> ResolvedValue
+resolveValue v = do
+    res <- tryResolveValue v
+    case res of
+        Left x -> do
+            pos <- getPos
+            throwError ("Could not resolve the value " ++ show x ++ " at " ++ show pos)
+        Right y -> return y
+-}
 getRelationParameterType :: GeneralString -> Maybe LinkType
 getRelationParameterType (Right "require" ) = Just RRequire
 getRelationParameterType (Right "notify"  ) = Just RNotify
@@ -247,3 +286,6 @@ getRelationParameterType (Right "before"  ) = Just RBefore
 getRelationParameterType (Right "register") = Just RRegister
 getRelationParameterType _                  = Nothing
 
+executeFunction a b = do
+    liftIO $ putStrLn $ "executeFunction " ++ show a
+    return []
