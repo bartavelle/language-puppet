@@ -127,7 +127,6 @@ findFile prefs qtype resname = do
 loadUpdateFile :: String -> FileStatus -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> ErrorT String IO [(TopLevelType, String, Statement)]
 loadUpdateFile fname fstatus updatepinfo = do
     parsed <- parseFile fname
-    parsed <- parseFile fname
     let toplevels = map convertTopLevel parsed
         oktoplevels = rights toplevels
         badtoplevels = lefts toplevels
