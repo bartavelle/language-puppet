@@ -8,6 +8,7 @@ import Puppet.Interpreter.Types
 
 import Data.List
 import Data.Maybe (isJust, fromJust)
+import Data.Either (lefts, rights)
 import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
@@ -146,20 +147,24 @@ evaluateClass :: Statement -> Map.Map String (GeneralValue, SourcePos) -> Catalo
 evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams = do
     setPos position
     checkLoaded classname
-    addLoaded classname position
     pushScope classname
     -- add variables
     mapM (loadClassVariable position inputparams) parameters
     
     -- load inherited classes
-    case inherits of
-        Just parentclass -> throwError ("Inheritance not implemented at " ++ (show position))
-        Nothing -> return ()
+    inherited <- case inherits of
+        Just parentclass -> do
+            mystatement <- getstatement TopClass parentclass
+            case mystatement of
+                ClassDeclaration _ ni np ns no -> evaluateClass (ClassDeclaration classname ni np ns no) Map.empty
+                _ -> throwError "Should not happen : TopClass return something else than a ClassDeclaration in evaluateClass"
+        Nothing -> return []
+    addLoaded classname position
 
     -- parse statements
     res <- mapM (evaluateStatements) statements
     popScope
-    return (concat res)
+    return $ inherited ++ (concat res)
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
 tryResolveExpression e = tryResolveGeneralValue (Left e)
@@ -181,7 +186,7 @@ tryResolveExpressionString :: Expression -> CatalogMonad GeneralString
 tryResolveExpressionString s = do
     resolved <- tryResolveExpression s
     case resolved of
-        Right (ResolvedParamString s) -> return $ Right s
+        Right (ResolvedString s) -> return $ Right s
         Right e                       -> do
             p <- getPos
             throwError ("'" ++ show e ++ "' will not resolve to a string at " ++ show p)
@@ -201,16 +206,39 @@ resolveExpressionString :: Expression -> CatalogMonad String
 resolveExpressionString x = do
     resolved <- resolveExpression x
     case resolved of
-        ResolvedParamString s -> return s
+        ResolvedString s -> return s
         e                     -> do
             p <- getPos
             throwError ("Can't resolve expression '" ++ show e ++ "' to a string at " ++ show p)
 
 tryResolveValue :: Value -> CatalogMonad GeneralValue
-tryResolveValue (Literal x) = return $ Right $ ResolvedParamString x
+tryResolveValue (Literal x) = return $ Right $ ResolvedString x
+tryResolveValue (Integer x) = return $ Right $ ResolvedInt x
+tryResolveValue (VariableReference vname) = throwError ("Not implemented $" ++ vname)
+    
+tryResolveValue n@(Interpolable x) = do
+    resolved <- mapM tryResolveValueString x
+    if (null $ lefts resolved)
+        then return $ Right $ ResolvedString $ concat $ rights resolved
+        else return $ Left $ Value n
+tryResolveValue n@(PuppetHash (Parameters x)) = do
+    resolvedKeys <- mapM (tryResolveExpressionString . fst) x
+    resolvedValues <- mapM (tryResolveExpression . snd) x
+    if ((null $ lefts resolvedKeys) && (null $ rights resolvedKeys))
+        then return $ Right $ ResolvedHash $ zip (rights resolvedKeys) (rights resolvedValues)
+        else return $ Left $ Value n
 tryResolveValue x = do
     pos <- getPos
     throwError ("tryResolveValue not implemented at " ++ show pos ++ " for " ++ show x)
+
+tryResolveValueString :: Value -> CatalogMonad GeneralString
+tryResolveValueString x = do
+    r <- tryResolveValue x
+    case r of
+        Right (ResolvedString v) -> return $ Right v
+        Right (ResolvedInt    i) -> return $ Right (show i)
+        Right v                  -> throwError ("Can't resolve valuestring for " ++ show x)
+        Left  v                  -> return $ Left v
 
 getRelationParameterType :: GeneralString -> Maybe LinkType
 getRelationParameterType (Right "require" ) = Just RRequire

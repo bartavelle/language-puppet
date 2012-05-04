@@ -10,9 +10,10 @@ type Facts = Map.Map String ResolvedValue
 data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show)
 
 data ResolvedValue
-    = ResolvedParamString String
-    | ResolvedParamArray [ResolvedValue]
-    | ResolvedParamHash [(String, ResolvedValue)]
+    = ResolvedString String
+    | ResolvedInt   Integer
+    | ResolvedArray [ResolvedValue]
+    | ResolvedHash [(String, ResolvedValue)]
     deriving(Show)
 
 type GeneralValue = Either Expression ResolvedValue
