@@ -8,6 +8,8 @@ import Puppet.DSL.Loader
 import Control.Concurrent
 import Control.Concurrent.Chan
 import System.Posix.Files
+import System.FilePath.Glob  (globDir, compile)
+import System.FilePath.Posix (takeDirectory)
 import Control.Monad.State
 import Control.Monad.Error
 import qualified System.Log.Logger as LOG
@@ -124,24 +126,41 @@ findFile prefs qtype resname = do
 {-
  given a filename and a file status, will parse this file and update the cache with the parsed values
  -}
-loadUpdateFile :: String -> FileStatus -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> ErrorT String IO [(TopLevelType, String, Statement)]
+loadUpdateFile :: FilePath -> FileStatus -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> ErrorT String IO ([Statement], [(TopLevelType, String, Statement)])
 loadUpdateFile fname fstatus updatepinfo = do
+    liftIO $ logDebug ("Loading file " ++ fname)
     parsed <- parseFile fname
     let toplevels = map convertTopLevel parsed
         oktoplevels = rights toplevels
-        badtoplevels = lefts toplevels
+        othertoplevels = lefts toplevels
+        (imports, badtoplevels) = partition isImport othertoplevels
+        isImport (Import _ _) = True
+        isImport _ = False
     liftIO $ mapM (\x -> logError ("Unsupported top level statement: " ++ (show x))) badtoplevels
     liftIO $ mapM (\(rtype, resname, resstatement) -> updatepinfo rtype resname (resstatement, [(fname, fstatus)])) oktoplevels
-    return oktoplevels
+    return (imports, oktoplevels)
 
 reparseStatements :: Prefs -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
 reparseStatements prefs updatepinfo qtype nodename = do
     (fname, fstatus) <- findFile prefs qtype nodename
-    oktoplevels <- loadUpdateFile fname fstatus updatepinfo
-    let searchstatement = find (\(qt,nm,_) -> (qt == qtype) && (nm == nodename)) oktoplevels
+    (imports, oktoplevels) <- loadUpdateFile fname fstatus updatepinfo
+    imported <- mapM (loadImport prefs updatepinfo (takeDirectory fname)) imports >>= return . concat
+    let searchstatement = find (\(qt,nm,_) -> (qt == qtype) && (nm == nodename)) (oktoplevels ++ imported)
     case searchstatement of
         Just (_,_,x) -> return x
         Nothing -> throwError ("Could not find correct top level statement for " ++ (show qtype) ++ " " ++ nodename)
+
+loadImport :: Prefs -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> FilePath -> Statement -> ErrorT String IO [(TopLevelType, String, Statement)]
+loadImport prefs updatepinfo fdir (Import importstring pos) = do
+    matched <- liftIO $ globDir [compile importstring] fdir >>= return . concat . fst
+    fileinfos <- liftIO $ mapM getFileInfo matched
+    let fpathinfos = zip matched fileinfos
+        goodpathinfos = concatMap unjust fpathinfos
+        unjust (a, Just b) = [(a,b)]
+        unjust _ = []
+    mapM (\(fname, finfo) -> loadUpdateFile fname finfo updatepinfo) goodpathinfos >>= return . concatMap snd
+
+loadImport _ _ _ _ = throwError "Bad statement type passed to loadImport"
 
 handlePRequest :: Prefs -> ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry), TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
 handlePRequest prefs (getpinfo, updatepinfo) qtype nodename = do
