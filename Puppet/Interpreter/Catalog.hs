@@ -73,6 +73,7 @@ getstatement qtype name = do
 -- State alteration functions
 pushScope name  = modify (modifyScope (\x -> [name] ++ x))
 popScope        = modify (modifyScope tail)
+getScope        = get >>= return . head . curScope
 addLoaded name position = modify (modifyClasses (Map.insert name position))
 getNextId = do
     curscope <- get
@@ -80,6 +81,9 @@ getNextId = do
     return (curResId curscope)
 setPos pos = modify (setStatePos pos)
 getPos = get >>= return . curPos
+putVariable k v = do
+    curscope <- getScope
+    modify (modifyVariables (Map.insert (curscope ++ "::" ++ k) v))
 
 -- throws an error if a class is already loaded
 checkLoaded name = do
@@ -87,11 +91,6 @@ checkLoaded name = do
     case (Map.lookup name (curClasses curscope)) of
         Nothing -> return ()
         Just thispos -> throwError ("Class " ++ name ++ " already loaded at " ++ (show thispos))
-
-
-putVariable k v = do
-    throwError "Must implement scope stacking as putVariable"
-    modify (modifyVariables (Map.insert k v))
 
 -- The actual meat
 
@@ -121,6 +120,12 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             filteredrelations
         (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
     return [CResource resid (Left rname) rtype realparams relations virtuality position]
+
+evaluateStatements (VariableAssignment vname vexpr position) = do
+    setPos position
+    rvexpr <- tryResolveExpression vexpr
+    putVariable vname (rvexpr, position)
+    return []
 
 evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
 
@@ -157,9 +162,20 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     return (concat res)
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
-tryResolveExpression e = do
+tryResolveExpression e = tryResolveGeneralValue (Left e)
+
+tryResolveGeneralValue :: GeneralValue -> CatalogMonad GeneralValue
+tryResolveGeneralValue n@(Right _) = return n
+tryResolveGeneralValue n@(Left BTrue) = return n
+tryResolveGeneralValue n@(Left BFalse) = return n
+tryResolveGeneralValue n@(Left (Value x)) = tryResolveValue x
+tryResolveGeneralValue n@(Left (ResolvedResourceReference _ _)) = return n
+tryResolveGeneralValue n@(Left (Error x)) = do
+    pos <- getPos
+    throwError (x ++ " at " ++ show pos)
+tryResolveGeneralValue e = do
     p <- getPos
-    throwError ("tryResolveExpression not implemented at " ++ show p)
+    throwError ("tryResolveExpression not implemented at " ++ show p ++ " for " ++ show e)
 
 tryResolveExpressionString :: Expression -> CatalogMonad GeneralString
 tryResolveExpressionString s = do
@@ -190,6 +206,11 @@ resolveExpressionString x = do
             p <- getPos
             throwError ("Can't resolve expression '" ++ show e ++ "' to a string at " ++ show p)
 
+tryResolveValue :: Value -> CatalogMonad GeneralValue
+tryResolveValue (Literal x) = return $ Right $ ResolvedParamString x
+tryResolveValue x = do
+    pos <- getPos
+    throwError ("tryResolveValue not implemented at " ++ show pos ++ " for " ++ show x)
 
 getRelationParameterType :: GeneralString -> Maybe LinkType
 getRelationParameterType (Right "require" ) = Just RRequire
