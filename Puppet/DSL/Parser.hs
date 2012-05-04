@@ -472,6 +472,13 @@ puppetChains = do { pos <- getPosition
     ; return $ map (\((n1,v1),(n2,v2)) -> DependenceChain (n1,v1) (n2,v2) pos) refpairs
     }
 
+puppetImport = do { pos <- getPosition
+    ; string "import"
+    ; whiteSpace
+    ; pattern <- puppetLiteral
+    ; return [Import pattern pos]
+    }
+
 stmtparser = variableAssignment
     <|> try (puppetInclude)
     <|> try (puppetRequire)
@@ -483,6 +490,7 @@ stmtparser = variableAssignment
     <|> try (puppetCaseCondition)
     <|> try (puppetMainFunctionCall)
     <|> try (puppetChains)
+    <|> puppetImport
     <|> puppetClassDefinition
     <|> puppetDefine
     <|> nodeDeclaration

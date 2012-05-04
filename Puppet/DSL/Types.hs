@@ -33,6 +33,7 @@ data Statement
     = Node String [Statement] SourcePos
     | VariableAssignment String Expression SourcePos
     | Include String SourcePos
+    | Import String SourcePos
     | Require String SourcePos
     | Resource String Expression [(Expression, Expression)] Virtuality SourcePos -- type name params
     | ResourceDefault String [(Expression, Expression)] SourcePos -- type params
