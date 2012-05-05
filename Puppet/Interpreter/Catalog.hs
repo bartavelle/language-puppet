@@ -142,6 +142,27 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
                 (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
             return [CResource resid (Left rname) rtype realparams relations virtuality position]
 
+evaluateStatements (ResourceDefault dtype dvals position) = do
+    setPos position
+    liftIO $ putStrLn "TODO : ResourceDefault not handled!"
+    return []
+evaluateStatements (DependenceChain r1 r2 position) = do
+    setPos position
+    liftIO $ putStrLn "TODO : DependenceChain not handled!"
+    return []
+evaluateStatements (ResourceOverride rtype rname vals position) = do
+    setPos position
+    liftIO $ putStrLn "TODO : ResourceOverride not handled!"
+    return []
+evaluateStatements (ResourceCollection rtype e1 e2 position) = do
+    setPos position
+    liftIO $ putStrLn "TODO : ResourceCollection not handled!"
+    return []
+evaluateStatements (VirtualResourceCollection rtype e1 e2 position) = do
+    setPos position
+    liftIO $ putStrLn "TODO : VirtualResourceCollection not handled!"
+    return []
+
 evaluateStatements (VariableAssignment vname vexpr position) = do
     setPos position
     rvexpr <- tryResolveExpression vexpr
@@ -218,6 +239,23 @@ tryResolveGeneralValue (Left (EqualOperation a b)) = do
     case (ra, rb) of
         (Right rra, Right rrb) -> return $ Right $ ResolvedBool $ compareRValues rra rrb
         _ -> return $ Left $ EqualOperation a b
+tryResolveGeneralValue n@(Left (OrOperation a b)) = do
+    ra <- tryResolveBoolean $ Left a
+    rb <- tryResolveBoolean $ Left b
+    case (ra, rb) of
+        (Right (ResolvedBool rra), Right (ResolvedBool rrb)) -> return $ Right $ ResolvedBool $ rra || rrb
+        _ -> return n
+tryResolveGeneralValue n@(Left (AndOperation a b)) = do
+    ra <- tryResolveBoolean $ Left a
+    rb <- tryResolveBoolean $ Left b
+    case (ra, rb) of
+        (Right (ResolvedBool rra), Right (ResolvedBool rrb)) -> return $ Right $ ResolvedBool $ rra && rrb
+        _ -> return n
+tryResolveGeneralValue n@(Left (NotOperation x)) = do
+    rx <- tryResolveBoolean $ Left x
+    case rx of
+        Right (ResolvedBool b) -> return $ Right $ ResolvedBool $ (not b)
+        _ -> return rx
 tryResolveGeneralValue (Left (DifferentOperation a b)) = do
     res <- tryResolveGeneralValue (Left (EqualOperation a b))
     case res of
@@ -273,6 +311,7 @@ tryResolveValue n@(VariableReference vname) = do
         Just (Left e, pos) -> tryResolveExpression e
         Just (Right r, pos) -> return $ Right r
         Nothing -> do
+            -- TODO : check that there are no "::"
             curscp <- getScope
             let varnamescp = curscp ++ "::" ++ vname
             varscp <- getVariable varnamescp
@@ -307,6 +346,8 @@ tryResolveValue n@(PuppetArray expressions) = do
 -- TODO
 tryResolveValue n@(FunctionCall "fqdn_rand" [v1, v2]) = return $ Right $ ResolvedInt 1
 tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
+tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue n@(FunctionCall "regsubst" _) = return $ Right $ ResolvedString "TODO"
 
 tryResolveValue x = do
     pos <- getPos
@@ -356,9 +397,21 @@ compareRValues (ResolvedInt a) (ResolvedString b) | and $ map isDigit b = a == (
                                                   | otherwise = False
 compareRValues a b = a == b
 
+-- used to handle the special cases when we know it is a boolean context
+tryResolveBoolean :: GeneralValue -> CatalogMonad GeneralValue
+tryResolveBoolean v = do
+    rv <- tryResolveGeneralValue v
+    case rv of
+        Right (ResolvedString "") -> return $ Right $ ResolvedBool False
+        Right (ResolvedString _) -> return $ Right $ ResolvedBool True
+        Right (ResolvedInt 0) -> return $ Right $ ResolvedBool False
+        Right (ResolvedInt _) -> return $ Right $ ResolvedBool True
+        Left (Value (VariableReference _)) -> return $ Right $ ResolvedBool False
+        _ -> return rv
+ 
 resolveBoolean :: GeneralValue -> CatalogMonad Bool
 resolveBoolean v = do
-    rv <- tryResolveGeneralValue v
+    rv <- tryResolveBoolean v
     case rv of
         Right (ResolvedBool x) -> return x
         n -> do
