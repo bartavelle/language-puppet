@@ -12,10 +12,11 @@ data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show)
 data ResolvedValue
     = ResolvedString String
     | ResolvedInt   Integer
+    | ResolvedBool Bool
     | ResolvedRReference String ResolvedValue
     | ResolvedArray [ResolvedValue]
     | ResolvedHash [(String, ResolvedValue)]
-    deriving(Show)
+    deriving(Show, Eq)
 
 type GeneralValue = Either Expression ResolvedValue
 type GeneralString = Either Expression String

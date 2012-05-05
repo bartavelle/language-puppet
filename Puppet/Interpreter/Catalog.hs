@@ -2,11 +2,12 @@ module Puppet.Interpreter.Catalog (
     getCatalog
     ) where
 
-import Puppet.Preferences
+import Puppet.Init
 import Puppet.DSL.Types
 import Puppet.Interpreter.Types
 
 import Data.List
+import Data.Char (isDigit)
 import Data.Maybe (isJust, fromJust)
 import Data.Either (lefts, rights)
 import Text.Parsec.Pos
@@ -112,20 +113,34 @@ evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty
 evaluateStatements n@(DefineDeclaration dtype dargs dstatements dpos) = do
     addNestedTopLevel TopDefine dtype n
     return []
+evaluateStatements (ConditionalStatement exprs pos) = do
+    setPos pos
+    trues <- filterM (\(expr, _) -> resolveBoolean (Left expr)) exprs
+    case trues of
+        ((_,stmts):xs) -> mapM evaluateStatements stmts >>= return . concat
+        _ -> return []
 
 evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
     setPos position
     resid <- getNextId
-    rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
-    let realparams = filteredparams
-        relations = map (
-            \(reltype, relval) -> 
-                (fromJust $ getRelationParameterType reltype,
-                generalizeValueE rname,
-                relval))
-            filteredrelations
-        (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
-    return [CResource resid (Left rname) rtype realparams relations virtuality position]
+    case rtype of
+        "class" -> do
+            rparameters <- mapM (\(a,b) -> do { pa <- resolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
+            classname <- resolveExpressionString rname
+            topstatement <- getstatement TopClass classname
+            let classparameters = Map.fromList $ map (\(pname, pvalue) -> (pname, (pvalue, position))) rparameters
+            evaluateClass topstatement classparameters
+        _ -> do
+            rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
+            let realparams = filteredparams
+                relations = map (
+                    \(reltype, relval) -> 
+                        (fromJust $ getRelationParameterType reltype,
+                        generalizeValueE rname,
+                        relval))
+                    filteredrelations
+                (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
+            return [CResource resid (Left rname) rtype realparams relations virtuality position]
 
 evaluateStatements (VariableAssignment vname vexpr position) = do
     setPos position
@@ -143,10 +158,12 @@ evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
 loadClassVariable :: SourcePos -> Map.Map String (GeneralValue, SourcePos) -> (String, Maybe Expression) -> CatalogMonad ()
 loadClassVariable position inputs (paramname, defaultvalue) = do
     let inputvalue = Map.lookup paramname inputs
-    case (inputvalue, defaultvalue) of
-        (Just x , _      ) -> putVariable paramname x
-        (Nothing, Just y ) -> putVariable paramname (Left y, position)
+    (v, vpos) <- case (inputvalue, defaultvalue) of
+        (Just x , _      ) -> return x
+        (Nothing, Just y ) -> return (Left y, position)
         (Nothing, Nothing) -> throwError $ "Must define parameter " ++ paramname ++ " at " ++ (show position)
+    rv <- tryResolveGeneralValue v
+    putVariable paramname (rv, vpos)
     return ()
 
 -- class
@@ -180,16 +197,35 @@ tryResolveExpression e = tryResolveGeneralValue (Left e)
 
 tryResolveGeneralValue :: GeneralValue -> CatalogMonad GeneralValue
 tryResolveGeneralValue n@(Right _) = return n
-tryResolveGeneralValue n@(Left BTrue) = return n
-tryResolveGeneralValue n@(Left BFalse) = return n
+tryResolveGeneralValue n@(Left BTrue) = return $ Right $ ResolvedBool True
+tryResolveGeneralValue n@(Left BFalse) = return $ Right $ ResolvedBool False
 tryResolveGeneralValue n@(Left (Value x)) = tryResolveValue x
 tryResolveGeneralValue n@(Left (ResolvedResourceReference _ _)) = return n
 tryResolveGeneralValue n@(Left (Error x)) = do
     pos <- getPos
     throwError (x ++ " at " ++ show pos)
+tryResolveGeneralValue n@(Left (ConditionalValue checkedvalue (Value (PuppetHash (Parameters hash))))) = do
+    rcheck <- resolveExpression checkedvalue
+    rhash <- mapM (\(vn, vv) -> do { rvn <- resolveExpression vn; rvv <- resolveExpression vv; return (rvn, rvv) }) hash
+    case (filter (\(a,_) -> (a == ResolvedString "default") || (compareRValues a rcheck)) rhash) of
+        [] -> do
+            pos <- getPos
+            throwError ("No value could be selected at " ++ show pos ++ " when comparing to " ++ show rcheck)
+        ((_,x):xs) -> return $ Right x
+tryResolveGeneralValue (Left (EqualOperation a b)) = do
+    ra <- tryResolveExpression a
+    rb <- tryResolveExpression b
+    case (ra, rb) of
+        (Right rra, Right rrb) -> return $ Right $ ResolvedBool $ compareRValues rra rrb
+        _ -> return $ Left $ EqualOperation a b
+tryResolveGeneralValue (Left (DifferentOperation a b)) = do
+    res <- tryResolveGeneralValue (Left (EqualOperation a b))
+    case res of
+        Right (ResolvedBool x) -> return (Right $ ResolvedBool $ not x)
+        _ -> return res
 tryResolveGeneralValue e = do
     p <- getPos
-    throwError ("tryResolveExpression not implemented at " ++ show p ++ " for " ++ show e)
+    throwError ("tryResolveGeneralValue not implemented at " ++ show p ++ " for " ++ show e)
 
 tryResolveExpressionString :: Expression -> CatalogMonad GeneralString
 tryResolveExpressionString s = do
@@ -236,7 +272,18 @@ tryResolveValue n@(VariableReference vname) = do
     case var of
         Just (Left e, pos) -> tryResolveExpression e
         Just (Right r, pos) -> return $ Right r
-        Nothing -> return $ Left $ Value n
+        Nothing -> do
+            curscp <- getScope
+            let varnamescp = curscp ++ "::" ++ vname
+            varscp <- getVariable varnamescp
+            case varscp of
+                Just (Left e, pos) -> tryResolveExpression e
+                Just (Right r, pos) -> return $ Right r
+                Nothing -> do
+                    state <- get
+                    liftIO $ print ("Could not resolve " ++ varnamescp)
+                    liftIO $ mapM print (Map.toList $ curVariables state)
+                    return $ Left $ Value $ VariableReference varnamescp
 
 tryResolveValue n@(Interpolable x) = do
     resolved <- mapM tryResolveValueString x
@@ -247,7 +294,7 @@ tryResolveValue n@(Interpolable x) = do
 tryResolveValue n@(PuppetHash (Parameters x)) = do
     resolvedKeys <- mapM (tryResolveExpressionString . fst) x
     resolvedValues <- mapM (tryResolveExpression . snd) x
-    if ((null $ lefts resolvedKeys) && (null $ rights resolvedKeys))
+    if ((null $ lefts resolvedKeys) && (null $ lefts resolvedValues))
         then return $ Right $ ResolvedHash $ zip (rights resolvedKeys) (rights resolvedValues)
         else return $ Left $ Value n
 
@@ -256,6 +303,10 @@ tryResolveValue n@(PuppetArray expressions) = do
     if (null $ lefts resolvedExpressions)
         then return $ Right $ ResolvedArray $ rights resolvedExpressions
         else return $ Left $ Value n
+
+-- TODO
+tryResolveValue n@(FunctionCall "fqdn_rand" [v1, v2]) = return $ Right $ ResolvedInt 1
+tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 
 tryResolveValue x = do
     pos <- getPos
@@ -269,8 +320,8 @@ tryResolveValueString x = do
         Right (ResolvedInt    i) -> return $ Right (show i)
         Right v                  -> throwError ("Can't resolve valuestring for " ++ show x)
         Left  v                  -> return $ Left v
-{-
-resolveValue :: Value -> ResolvedValue
+
+resolveValue :: Value -> CatalogMonad ResolvedValue
 resolveValue v = do
     res <- tryResolveValue v
     case res of
@@ -278,7 +329,16 @@ resolveValue v = do
             pos <- getPos
             throwError ("Could not resolve the value " ++ show x ++ " at " ++ show pos)
         Right y -> return y
--}
+
+resolveValueString :: Value -> CatalogMonad String
+resolveValueString v = do
+    res <- tryResolveValueString v
+    case res of
+        Left x -> do
+            pos <- getPos
+            throwError ("Could not resolve the value " ++ show x ++ " to a string at " ++ show pos)
+        Right y -> return y
+
 getRelationParameterType :: GeneralString -> Maybe LinkType
 getRelationParameterType (Right "require" ) = Just RRequire
 getRelationParameterType (Right "notify"  ) = Just RNotify
@@ -289,3 +349,18 @@ getRelationParameterType _                  = Nothing
 executeFunction a b = do
     liftIO $ putStrLn $ "executeFunction " ++ show a
     return []
+
+compareRValues :: ResolvedValue -> ResolvedValue -> Bool
+compareRValues (ResolvedString a) (ResolvedInt b) = compareRValues (ResolvedInt b) (ResolvedString a)
+compareRValues (ResolvedInt a) (ResolvedString b) | and $ map isDigit b = a == (read b)
+                                                  | otherwise = False
+compareRValues a b = a == b
+
+resolveBoolean :: GeneralValue -> CatalogMonad Bool
+resolveBoolean v = do
+    rv <- tryResolveGeneralValue v
+    case rv of
+        Right (ResolvedBool x) -> return x
+        n -> do
+            pos <- getPos
+            throwError ("Could not resolve " ++ show rv ++ " as a boolean at " ++ show pos)
