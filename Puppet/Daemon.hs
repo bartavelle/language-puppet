@@ -1,6 +1,6 @@
 module Puppet.Daemon (initDaemon) where
 
-import Puppet.Preferences
+import Puppet.Init
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.Catalog
 import Puppet.DSL.Types
@@ -111,7 +111,7 @@ compilefilelist :: Prefs -> TopLevelType -> String -> [FilePath]
 compilefilelist prefs TopNode name = [manifest prefs ++ "/site.pp"]
 compilefilelist prefs _ name = moduleInfo ++ [manifest prefs ++ "/site.pp"]
     where
-        moduleInfo | nameparts == [] = []
+        moduleInfo | length nameparts == 1 = [modules prefs ++ "/" ++ name ++ "/manifests/init.pp"]
                    | otherwise = [modules prefs ++ "/" ++ (head nameparts) ++ "/manifests/" ++ (DLU.join "/" (tail nameparts)) ++ ".pp"]
         nameparts = DLU.split "::" name
 

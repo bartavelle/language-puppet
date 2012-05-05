@@ -1,6 +1,8 @@
-module Puppet.Preferences where
+module Puppet.Init where
 
 import System.IO
+import Puppet.Interpreter.Types
+import qualified Data.Map as Map
 
 data Prefs = Prefs {
     manifest :: FilePath,
@@ -12,4 +14,7 @@ data Prefs = Prefs {
 
 genPrefs :: String -> Prefs
 genPrefs basedir = Prefs (basedir ++ "/manifests") (basedir ++ "/modules") (basedir ++ "/templates") 1 1
+
+genFacts :: [(String,String)] -> Facts
+genFacts = Map.fromList . map (\(a,b) -> (a, ResolvedString b))
 
