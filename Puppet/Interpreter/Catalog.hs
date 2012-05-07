@@ -346,6 +346,7 @@ tryResolveValue n@(PuppetArray expressions) = do
         else return $ Left $ Value n
 
 -- TODO
+tryResolveValue n@(FunctionCall "fqdn_rand" [v1]) = return $ Right $ ResolvedInt 1
 tryResolveValue n@(FunctionCall "fqdn_rand" [v1, v2]) = return $ Right $ ResolvedInt 1
 tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
