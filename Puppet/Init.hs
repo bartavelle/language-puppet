@@ -16,5 +16,5 @@ genPrefs :: String -> Prefs
 genPrefs basedir = Prefs (basedir ++ "/manifests") (basedir ++ "/modules") (basedir ++ "/templates") 1 1
 
 genFacts :: [(String,String)] -> Facts
-genFacts = Map.fromList . map (\(a,b) -> (a, ResolvedString b))
+genFacts = Map.fromList . concatMap (\(a,b) -> [(a, ResolvedString b), ("::" ++ a, ResolvedString b)])
 
