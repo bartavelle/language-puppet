@@ -43,7 +43,8 @@ master prefs chan getstmts = do
     case message of
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
-            stmts <- getCatalog (getstmts) nodename facts
+            (stmts, warnings) <- getCatalog (getstmts) nodename facts
+            mapM logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)
                 Right x -> writeChan respchan (RCatalog $ Right x)

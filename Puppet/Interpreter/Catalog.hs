@@ -26,33 +26,34 @@ data ScopeState = ScopeState {
     curResId :: Int,
     curPos :: SourcePos,
     netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
-    getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement)
+    getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
+    getWarnings :: [String]
 }
 
-modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
-    = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf
-modifyVariables f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
-    = ScopeState curscope (f curvariables) curclasses curdefaults rid pos ntl gsf
-modifyClasses   f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
-    = ScopeState curscope curvariables (f curclasses) curdefaults rid pos ntl gsf
-modifyDefaults  f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
-    = ScopeState curscope curvariables curclasses (f curdefaults) rid pos ntl gsf
-incrementResId    (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
-    = ScopeState curscope curvariables curclasses curdefaults (rid + 1) pos ntl gsf
-setStatePos  npos (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
-    = ScopeState curscope curvariables curclasses curdefaults rid npos ntl gsf
-modifyNestedTopLvl f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf)
-    = ScopeState curscope curvariables curclasses curdefaults rid pos (f ntl) gsf
+modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
+    = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf wrn
+modifyVariables f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
+    = ScopeState curscope (f curvariables) curclasses curdefaults rid pos ntl gsf wrn
+modifyClasses   f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
+    = ScopeState curscope curvariables (f curclasses) curdefaults rid pos ntl gsf wrn
+modifyDefaults  f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
+    = ScopeState curscope curvariables curclasses (f curdefaults) rid pos ntl gsf wrn
+incrementResId    (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
+    = ScopeState curscope curvariables curclasses curdefaults (rid + 1) pos ntl gsf wrn
+setStatePos  npos (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
+    = ScopeState curscope curvariables curclasses curdefaults rid npos ntl gsf wrn
+modifyNestedTopLvl f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
+    = ScopeState curscope curvariables curclasses curdefaults rid pos (f ntl) gsf wrn
 
-getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String Catalog)
+getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String Catalog, [String])
 getCatalog getstatements nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty Map.empty 1 (initialPos "dummy") Map.empty getstatements)
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty Map.empty 1 (initialPos "dummy") Map.empty getstatements [])
     case output of
-        Left x -> return $ Left x
-        Right y -> return output
+        Left x -> return (Left x, getWarnings finalstate)
+        Right y -> return (output, getWarnings finalstate)
 
 type CatalogMonad = ErrorT String (StateT ScopeState IO)
 
@@ -88,6 +89,9 @@ putVariable k v = do
     modify (modifyVariables (Map.insert (curscope ++ "::" ++ k) v))
 getVariable vname = get >>= return . Map.lookup vname . curVariables
 addNestedTopLevel rtype rname rstatement = modify( modifyNestedTopLvl (Map.insert (rtype, rname) rstatement) )
+addWarning nwrn = do
+    (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn) <- get
+    put (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf (wrn++[nwrn]))
 
 -- finds out if a resource name refers to a define
 checkDefine :: String -> CatalogMonad (Maybe Statement)
@@ -161,23 +165,23 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
 
 evaluateStatements (ResourceDefault dtype dvals position) = do
     setPos position
-    liftIO $ putStrLn "TODO : ResourceDefault not handled!"
+    addWarning "TODO : ResourceDefault not handled!"
     return []
 evaluateStatements (DependenceChain r1 r2 position) = do
     setPos position
-    liftIO $ putStrLn "TODO : DependenceChain not handled!"
+    addWarning "TODO : DependenceChain not handled!"
     return []
 evaluateStatements (ResourceOverride rtype rname vals position) = do
     setPos position
-    liftIO $ putStrLn "TODO : ResourceOverride not handled!"
+    addWarning "TODO : ResourceOverride not handled!"
     return []
 evaluateStatements (ResourceCollection rtype e1 e2 position) = do
     setPos position
-    liftIO $ putStrLn "TODO : ResourceCollection not handled!"
+    addWarning "TODO : ResourceCollection not handled!"
     return []
 evaluateStatements (VirtualResourceCollection rtype e1 e2 position) = do
     setPos position
-    liftIO $ putStrLn "TODO : VirtualResourceCollection not handled!"
+    addWarning "TODO : VirtualResourceCollection not handled!"
     return []
 
 evaluateStatements (VariableAssignment vname vexpr position) = do
@@ -338,7 +342,7 @@ tryResolveValue n@(VariableReference vname) = do
                 Just (Right r, pos) -> return $ Right r
                 Nothing -> do
                     state <- get
-                    liftIO $ print ("Could not resolve " ++ varnamescp)
+                    addWarning ("Could not resolve " ++ varnamescp)
                     return $ Left $ Value $ VariableReference varnamescp
 
 tryResolveValue n@(Interpolable x) = do
@@ -406,7 +410,7 @@ getRelationParameterType (Right "register") = Just RRegister
 getRelationParameterType _                  = Nothing
 
 executeFunction a b = do
-    liftIO $ putStrLn $ "executeFunction " ++ show a
+    addWarning $ "executeFunction " ++ show a
     return []
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
