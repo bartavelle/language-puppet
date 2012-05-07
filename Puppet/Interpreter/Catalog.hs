@@ -94,7 +94,9 @@ checkLoaded name = do
     curscope <- get
     case (Map.lookup name (curClasses curscope)) of
         Nothing -> return ()
-        Just thispos -> throwError ("Class " ++ name ++ " already loaded at " ++ (show thispos))
+        Just thispos -> do
+            curpos <- getPos
+            throwError ("Class " ++ name ++ " already loaded at " ++ (show thispos) ++ " [" ++ (show curpos) ++ "]")
 
 -- The actual meat
 
@@ -108,7 +110,7 @@ evaluateStatements (Node name stmts position) = do
     return (concat res)
 
 -- include
-evaluateStatements (Include includename _) = getstatement TopClass includename >>= evaluateStatements
+evaluateStatements (Include includename position) = setPos position >> getstatement TopClass includename >>= evaluateStatements
 evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty
 evaluateStatements n@(DefineDeclaration dtype dargs dstatements dpos) = do
     addNestedTopLevel TopDefine dtype n
@@ -192,8 +194,9 @@ loadClassVariable position inputs (paramname, defaultvalue) = do
 -- nom, heritage, parametres, contenu
 evaluateClass :: Statement -> Map.Map String (GeneralValue, SourcePos) -> CatalogMonad Catalog
 evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams = do
-    setPos position
+    oldpos <- getPos
     checkLoaded classname
+    setPos position
     pushScope classname
     -- add variables
     mapM (loadClassVariable position inputparams) parameters
@@ -206,7 +209,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
                 ClassDeclaration _ ni np ns no -> evaluateClass (ClassDeclaration classname ni np ns no) Map.empty
                 _ -> throwError "Should not happen : TopClass return something else than a ClassDeclaration in evaluateClass"
         Nothing -> return []
-    addLoaded classname position
+    addLoaded classname oldpos
 
     -- parse statements
     res <- mapM (evaluateStatements) statements
