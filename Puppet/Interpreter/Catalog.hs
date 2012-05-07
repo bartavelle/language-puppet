@@ -89,6 +89,21 @@ putVariable k v = do
 getVariable vname = get >>= return . Map.lookup vname . curVariables
 addNestedTopLevel rtype rname rstatement = modify( modifyNestedTopLvl (Map.insert (rtype, rname) rstatement) )
 
+-- finds out if a resource name refers to a define
+checkDefine :: String -> CatalogMonad (Maybe Statement)
+checkDefine dname = do
+    curstate <- get
+    let ntop = netstedtoplevels curstate
+        getsmts = getStatementsFunction curstate
+        check = Map.lookup (TopDefine, dname) ntop
+    case check of
+        Just x -> return $ Just x
+        Nothing -> do
+            def1 <- liftIO $ getsmts TopDefine dname
+            case def1 of
+                Left err -> return Nothing
+                Right s -> return $ Just s
+
 -- throws an error if a class is already loaded
 checkLoaded name = do
     curscope <- get
