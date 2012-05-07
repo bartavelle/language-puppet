@@ -324,7 +324,6 @@ tryResolveValue n@(VariableReference vname) = do
                 Nothing -> do
                     state <- get
                     liftIO $ print ("Could not resolve " ++ varnamescp)
-                    liftIO $ mapM print (Map.toList $ curVariables state)
                     return $ Left $ Value $ VariableReference varnamescp
 
 tryResolveValue n@(Interpolable x) = do
