@@ -31,6 +31,16 @@ data CResource = CResource {
     pos :: SourcePos
     } deriving(Show)
 
+data RResource = RResource {
+    rrid :: Int,
+    rrname :: String,
+    rrtype :: String,
+    rrparams :: [(String, ResolvedValue)],
+	rrelations :: [(LinkType, String, String)], -- (relation, resname, resname)
+    rrvirtuality :: Virtuality,
+    rrpos :: SourcePos
+    } deriving(Show)
+
 generalizeValueE :: Expression -> GeneralValue
 generalizeValueE e = Left e
 generalizeValueR :: ResolvedValue -> GeneralValue

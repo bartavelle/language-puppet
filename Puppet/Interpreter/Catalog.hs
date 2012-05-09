@@ -337,6 +337,27 @@ tryResolveGeneralValue (Left (DifferentOperation a b)) = do
     case res of
         Right (ResolvedBool x) -> return (Right $ ResolvedBool $ not x)
         _ -> return res
+tryResolveGeneralValue (Left (LookupOperation a b)) = do
+    ra <- tryResolveExpression a
+    rb <- tryResolveExpressionString b
+    pos <- getPos
+    case (ra, rb) of
+        (Right (ResolvedArray ar), Right num) -> if (and $ map isDigit num)
+            then do
+                let nnum = read num :: Int
+                if(length ar >= nnum)
+                    then throwError ("Invalid array index " ++ num ++ " at " ++ show pos)
+                    else return $ Right (ar !! nnum)
+            else throwError ("Bad array index " ++ num ++ " at " ++ show pos)
+        (Right (ResolvedHash ar), Right idx) -> do
+            let filtered = filter (\(ResolvedString a,_) -> a == idx)
+            case filtered of
+                [] -> throwError "TODO"
+                [(_,x)] -> return $ Right $ x
+        (_, Left y) -> throwError ("Could not resolve index " ++ show y ++ " at " ++ show pos)
+        (Left x, _) -> throwError ("Could not resolve " ++ show x ++ " at " ++ show pos)
+
+            
 tryResolveGeneralValue e = do
     p <- getPos
     throwError ("tryResolveGeneralValue not implemented at " ++ show p ++ " for " ++ show e)
@@ -492,7 +513,7 @@ tryResolveBoolean v = do
         Right (ResolvedInt 0) -> return $ Right $ ResolvedBool False
         Right (ResolvedInt _) -> return $ Right $ ResolvedBool True
         Left (Value (VariableReference _)) -> return $ Right $ ResolvedBool False
-        Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the empty string
+        Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the empty string
         _ -> return rv
  
 resolveBoolean :: GeneralValue -> CatalogMonad Bool
