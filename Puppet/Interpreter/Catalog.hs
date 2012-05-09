@@ -122,14 +122,12 @@ partitionParamsRelations rparameters resname = (realparams, relations)
                 filteredrelations
             (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
 
--- throws an error if a class is already loaded
+-- TODO check whether parameters changed
 checkLoaded name = do
     curscope <- get
     case (Map.lookup name (curClasses curscope)) of
-        Nothing -> return ()
-        Just thispos -> do
-            curpos <- getPos
-            throwError ("Class " ++ name ++ " already loaded at " ++ (show thispos) ++ " [" ++ (show curpos) ++ "]")
+        Nothing -> return False
+        Just thispos -> return True
 
 -- apply default values to a resource
 applyDefaults :: CResource -> CatalogMonad CResource
@@ -266,28 +264,31 @@ loadClassVariable position inputs (paramname, defaultvalue) = do
 -- nom, heritage, parametres, contenu
 evaluateClass :: Statement -> Map.Map String (GeneralValue, SourcePos) -> CatalogMonad Catalog
 evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams = do
-    oldpos <- getPos
-    checkLoaded classname
-    setPos position
-    pushScope classname
-    -- add variables
-    mapM (loadClassVariable position inputparams) parameters
-    
-    -- load inherited classes
-    inherited <- case inherits of
-        Just parentclass -> do
-            mystatement <- getstatement TopClass parentclass
-            case mystatement of
-                ClassDeclaration _ ni np ns no -> evaluateClass (ClassDeclaration classname ni np ns no) Map.empty
-                _ -> throwError "Should not happen : TopClass return something else than a ClassDeclaration in evaluateClass"
-        Nothing -> return []
-    addLoaded classname oldpos
+    isloaded <- checkLoaded classname
+    if isloaded
+        then return []
+        else do
+        oldpos <- getPos
+        setPos position
+        pushScope classname
+        -- add variables
+        mapM (loadClassVariable position inputparams) parameters
+        
+        -- load inherited classes
+        inherited <- case inherits of
+            Just parentclass -> do
+                mystatement <- getstatement TopClass parentclass
+                case mystatement of
+                    ClassDeclaration _ ni np ns no -> evaluateClass (ClassDeclaration classname ni np ns no) Map.empty
+                    _ -> throwError "Should not happen : TopClass return something else than a ClassDeclaration in evaluateClass"
+            Nothing -> return []
+        addLoaded classname oldpos
 
-    -- parse statements
-    res <- mapM (evaluateStatements) statements
-    nres <- handleDelayedActions (concat res)
-    popScope
-    return $ inherited ++ nres
+        -- parse statements
+        res <- mapM (evaluateStatements) statements
+        nres <- handleDelayedActions (concat res)
+        popScope
+        return $ inherited ++ nres
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
 tryResolveExpression e = tryResolveGeneralValue (Left e)
