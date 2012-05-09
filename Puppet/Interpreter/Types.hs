@@ -23,7 +23,7 @@ type GeneralString = Either Expression String
 
 data CResource = CResource {
     crid :: Int,
-    crname :: Either Expression String,
+    crname :: GeneralString,
     crtype :: String,
     crparams :: [(GeneralString, GeneralValue)],
 	relations :: [(LinkType, GeneralValue, GeneralValue)], -- (relation, resname, resname)

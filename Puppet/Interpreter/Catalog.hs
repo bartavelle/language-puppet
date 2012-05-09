@@ -11,18 +11,18 @@ import Data.Char (isDigit)
 import Data.Maybe (isJust, fromJust)
 import Data.Either (lefts, rights)
 import Text.Parsec.Pos
+import Control.Monad (foldM)
 import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
 
-type ResDefaults = Map.Map String (Map.Map String (GeneralValue, SourcePos))
 type ScopeName = String
 
 data ScopeState = ScopeState {
     curScope :: [ScopeName],
     curVariables :: Map.Map String (GeneralValue, SourcePos),
     curClasses :: Map.Map String SourcePos,
-    curDefaults :: Map.Map ScopeName ResDefaults,
+    curDefaults :: [Statement],
     curResId :: Int,
     curPos :: SourcePos,
     netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
@@ -44,13 +44,15 @@ setStatePos  npos (ScopeState curscope curvariables curclasses curdefaults rid p
     = ScopeState curscope curvariables curclasses curdefaults rid npos ntl gsf wrn
 modifyNestedTopLvl f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
     = ScopeState curscope curvariables curclasses curdefaults rid pos (f ntl) gsf wrn
+emptyDefaults     (ScopeState curscope curvariables curclasses _ rid pos ntl gsf wrn)
+    = ScopeState curscope curvariables curclasses [] rid pos ntl gsf wrn
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String Catalog, [String])
 getCatalog getstatements nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty Map.empty 1 (initialPos "dummy") Map.empty getstatements [])
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [])
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right y -> return (output, getWarnings finalstate)
@@ -75,6 +77,7 @@ getstatement qtype name = do
 
 -- State alteration functions
 pushScope name  = modify (modifyScope (\x -> [name] ++ x))
+pushDefaults name  = modify (modifyDefaults (\x -> [name] ++ x))
 popScope        = modify (modifyScope tail)
 getScope        = get >>= return . head . curScope
 addLoaded name position = modify (modifyClasses (Map.insert name position))
@@ -117,7 +120,46 @@ checkLoaded name = do
             curpos <- getPos
             throwError ("Class " ++ name ++ " already loaded at " ++ (show thispos) ++ " [" ++ (show curpos) ++ "]")
 
+-- apply default values to a resource
+applyDefaults :: CResource -> CatalogMonad CResource
+applyDefaults res = do
+    defs <- get >>= return . curDefaults 
+    foldM applyDefaults' res defs
+
+applyDefaults' :: CResource -> Statement -> CatalogMonad CResource            
+applyDefaults' r@(CResource id rname rtype rparams rrelations rvirtuality rpos) (ResourceDefault dtype defs dpos) = do
+    rdefs <- mapM (\(a,b) -> do { ra <- resolveExpressionString a; rb <- resolveExpression b; return (ra, rb); }) defs
+    rrparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra, rb); }) rparams
+    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs False 
+    if (dtype == rtype)
+        then return $ CResource id rname rtype nparams nrelations rvirtuality rpos
+        else return r
+applyDefaults' r@(CResource id rname rtype rparams rrelations rvirtuality rpos) (ResourceOverride dtype dname defs dpos) = do
+    srname <- resolveGeneralString rname
+    sdname <- resolveExpressionString dname
+    rdefs <- mapM (\(a,b) -> do { ra <- resolveExpressionString a; rb <- resolveExpression b; return (ra, rb); }) defs
+    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs True
+    if ((dtype == rtype) && (srname == sdname))
+        then return $ CResource id rname rtype nparams nrelations rvirtuality rpos
+        else return r
+
+mergeParams :: ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)]) -> [(String, ResolvedValue)] -> Bool -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
+mergeParams (srcparams, srcrels) defs override = let
+    cdefs = map (\(a,b) -> (Right a, Right b)) defs :: [(GeneralString, GeneralValue)]
+    msrc  = Map.fromList srcparams
+    mdefs = Map.fromList cdefs
+    in if override
+        then ([], [])
+        else ([], [])
+
 -- The actual meat
+
+-- handling delayed actions (such as defaults)
+handleDelayedActions :: Catalog -> CatalogMonad Catalog
+handleDelayedActions res = do
+    dres <- mapM applyDefaults res
+    modify emptyDefaults
+    return dres
 
 -- node
 evaluateStatements :: Statement -> CatalogMonad Catalog
@@ -125,8 +167,9 @@ evaluateStatements (Node name stmts position) = do
     setPos position
     pushScope "::"
     res <- mapM (evaluateStatements) stmts
+    nres <- handleDelayedActions (concat res)
     popScope
-    return (concat res)
+    return nres
 
 -- include
 evaluateStatements (Include includename position) = setPos position >> getstatement TopClass includename >>= evaluateStatements
@@ -163,17 +206,15 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
                 (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
             return [CResource resid (Left rname) rtype realparams relations virtuality position]
 
-evaluateStatements (ResourceDefault dtype dvals position) = do
-    setPos position
-    addWarning "TODO : ResourceDefault not handled!"
+evaluateStatements x@(ResourceDefault _ _ _ ) = do
+    pushDefaults x
     return []
 evaluateStatements (DependenceChain r1 r2 position) = do
     setPos position
     addWarning "TODO : DependenceChain not handled!"
     return []
-evaluateStatements (ResourceOverride rtype rname vals position) = do
-    setPos position
-    addWarning "TODO : ResourceOverride not handled!"
+evaluateStatements x@(ResourceOverride _ _ _ _) = do
+    pushDefaults x
     return []
 evaluateStatements (ResourceCollection rtype e1 e2 position) = do
     setPos position
@@ -232,8 +273,9 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
 
     -- parse statements
     res <- mapM (evaluateStatements) statements
+    nres <- handleDelayedActions (concat res)
     popScope
-    return $ inherited ++ (concat res)
+    return $ inherited ++ nres
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
 tryResolveExpression e = tryResolveGeneralValue (Left e)
@@ -286,6 +328,15 @@ tryResolveGeneralValue (Left (DifferentOperation a b)) = do
 tryResolveGeneralValue e = do
     p <- getPos
     throwError ("tryResolveGeneralValue not implemented at " ++ show p ++ " for " ++ show e)
+
+resolveGeneralValue :: GeneralValue -> CatalogMonad ResolvedValue
+resolveGeneralValue e = do
+    x <- tryResolveGeneralValue e
+    case x of
+        Left n -> do
+            pos <- getPos
+            throwError ("Could not resolve " ++ show n ++ " at " ++ show pos)
+        Right p -> return p
 
 tryResolveExpressionString :: Expression -> CatalogMonad GeneralString
 tryResolveExpressionString s = do
@@ -440,3 +491,7 @@ resolveBoolean v = do
         n -> do
             pos <- getPos
             throwError ("Could not resolve " ++ show rv ++ " as a boolean at " ++ show pos)
+
+resolveGeneralString :: GeneralString -> CatalogMonad String
+resolveGeneralString (Right x) = return x
+resolveGeneralString (Left y) = resolveExpressionString y
