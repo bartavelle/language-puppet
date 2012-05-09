@@ -31,8 +31,6 @@ data ScopeState = ScopeState {
     getWarnings :: [String]
 }
 
-data nativetypes = Set.fromList ["file","group","user","package","service"]
-
 modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
     = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf wrn
 modifyVariables f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
@@ -174,10 +172,34 @@ mergeParams (srcparams, srcrels) defs override rname = let
 
 -- The actual meat
 
+evaluateDefine :: CResource -> CatalogMonad [CResource]
+evaluateDefine r@(CResource id rname rtype rparams rrelations rvirtuality rpos) = do
+    isdef <- checkDefine rtype
+    case isdef of
+        Nothing -> return [r]
+        Just (DefineDeclaration dtype args dstmts dpos) -> do
+            oldpos <- getPos
+            setPos dpos
+            pushScope $ "#DEFINE#" ++ dtype
+            -- add variables
+            rrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
+            let expr = gs2gv rname
+                mparams = Map.fromList rrparams
+            putVariable "title" (expr, rpos)
+            putVariable "name" (expr, rpos)
+            mapM (loadClassVariable rpos mparams) args
+ 
+            -- parse statements
+            res <- mapM (evaluateStatements) dstmts
+            nres <- handleDelayedActions (concat res)
+            popScope
+            return nres
+        
+
 -- handling delayed actions (such as defaults)
 handleDelayedActions :: Catalog -> CatalogMonad Catalog
 handleDelayedActions res = do
-    dres <- mapM applyDefaults res
+    dres <- mapM applyDefaults res >>= mapM evaluateDefine >>= return . concat
     modify emptyDefaults
     return dres
 
@@ -216,8 +238,10 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             evaluateClass topstatement classparameters
         _ -> do
             rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
-            let (realparams, relations) = partitionParamsRelations rparameters (generalizeValueE rname)
-            return [CResource resid (Left rname) rtype realparams relations virtuality position]
+            rrname <- tryResolveGeneralValue (generalizeValueE rname)
+            srname <- tryResolveExpressionString rname
+            let (realparams, relations) = partitionParamsRelations rparameters rrname
+            return [CResource resid (srname) rtype realparams relations virtuality position]
 
 evaluateStatements x@(ResourceDefault _ _ _ ) = do
     pushDefaults x
@@ -542,3 +566,7 @@ resolveBoolean v = do
 resolveGeneralString :: GeneralString -> CatalogMonad String
 resolveGeneralString (Right x) = return x
 resolveGeneralString (Left y) = resolveExpressionString y
+
+gs2gv :: GeneralString -> GeneralValue
+gs2gv (Left e)  = Left e
+gs2gv (Right s) = Right $ ResolvedString s
