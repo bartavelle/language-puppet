@@ -285,7 +285,7 @@ puppetNumeric = do { v <- naturalOrFloat
 puppetResourceGroup = do { virtcount <- many (char '@')
     ; v <- puppetQualifiedName
     ; symbol "{"
-    ; x <- (resourceArrayDeclaration <|> resourceDeclaration) `sepEndBy` symbol ";"
+    ; x <- (resourceArrayDeclaration <|> resourceDeclaration) `sepEndBy` (symbol ";" <|> symbol ",")
     ; symbol "}"
     ; case virtcount of
         "" -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Normal pos)) (concat x)
@@ -316,7 +316,7 @@ puppetResourceCollection = do { pos <- getPosition
 resourceArrayDeclaration = do { pos <- getPosition
     ; v <- puppetArrayRaw
     ; symbol ":"
-    ; x <- puppetAssignment `sepBy` symbol ","
+    ; x <- puppetAssignment `sepEndBy` symbol ","
     ; return $ map (\nm -> (nm, x, pos)) v
     }
 
@@ -324,7 +324,7 @@ resourceDeclaration = do { pos <- getPosition
     ; v <- (puppetVariableReference <|> try puppetLiteralValue <|> puppetInterpolableString )
     ; whiteSpace
     ; symbol ":"
-    ; x <- puppetAssignment `sepBy` symbol ","
+    ; x <- puppetAssignment `sepEndBy` symbol ","
     ; return [(v, x, pos)]
     }
 
