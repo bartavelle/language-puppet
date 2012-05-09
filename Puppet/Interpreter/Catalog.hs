@@ -15,6 +15,7 @@ import Control.Monad (foldM)
 import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 type ScopeName = String
 
@@ -29,6 +30,8 @@ data ScopeState = ScopeState {
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
     getWarnings :: [String]
 }
+
+data nativetypes = Set.fromList ["file","group","user","package","service"]
 
 modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
     = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf wrn
@@ -219,12 +222,12 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
 evaluateStatements x@(ResourceDefault _ _ _ ) = do
     pushDefaults x
     return []
+evaluateStatements x@(ResourceOverride _ _ _ _) = do
+    pushDefaults x
+    return []
 evaluateStatements (DependenceChain r1 r2 position) = do
     setPos position
     addWarning "TODO : DependenceChain not handled!"
-    return []
-evaluateStatements x@(ResourceOverride _ _ _ _) = do
-    pushDefaults x
     return []
 evaluateStatements (ResourceCollection rtype e1 e2 position) = do
     setPos position
