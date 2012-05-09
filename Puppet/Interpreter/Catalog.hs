@@ -350,7 +350,7 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
                     else return $ Right (ar !! nnum)
             else throwError ("Bad array index " ++ num ++ " at " ++ show pos)
         (Right (ResolvedHash ar), Right idx) -> do
-            let filtered = filter (\(ResolvedString a,_) -> a == idx)
+            let filtered = filter (\(a,_) -> a == idx) ar
             case filtered of
                 [] -> throwError "TODO"
                 [(_,x)] -> return $ Right $ x
