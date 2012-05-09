@@ -381,6 +381,7 @@ tryResolveExpressionString s = do
     resolved <- tryResolveExpression s
     case resolved of
         Right (ResolvedString s) -> return $ Right s
+        Right (ResolvedInt i) -> return $ Right (show i)
         Right e                       -> do
             p <- getPos
             throwError ("'" ++ show e ++ "' will not resolve to a string at " ++ show p)
