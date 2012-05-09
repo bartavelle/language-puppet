@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 type Catalog =[CResource]
 type Facts = Map.Map String ResolvedValue
 
-data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show)
+data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show, Ord, Eq)
 
 data ResolvedValue
     = ResolvedString String
@@ -16,7 +16,7 @@ data ResolvedValue
     | ResolvedRReference String ResolvedValue
     | ResolvedArray [ResolvedValue]
     | ResolvedHash [(String, ResolvedValue)]
-    deriving(Show, Eq)
+    deriving(Show, Eq, Ord)
 
 type GeneralValue = Either Expression ResolvedValue
 type GeneralString = Either Expression String

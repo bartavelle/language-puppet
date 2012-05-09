@@ -111,6 +111,17 @@ checkDefine dname = do
                 Left err -> return Nothing
                 Right s -> return $ Just s
 
+partitionParamsRelations :: [(GeneralString, GeneralValue)] -> GeneralValue -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
+partitionParamsRelations rparameters resname = (realparams, relations)
+    where   realparams = filteredparams
+            relations = map (
+                \(reltype, relval) -> 
+                    (fromJust $ getRelationParameterType reltype,
+                    resname,
+                    relval))
+                filteredrelations
+            (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
+
 -- throws an error if a class is already loaded
 checkLoaded name = do
     curscope <- get
@@ -127,30 +138,38 @@ applyDefaults res = do
     foldM applyDefaults' res defs
 
 applyDefaults' :: CResource -> Statement -> CatalogMonad CResource            
-applyDefaults' r@(CResource id rname rtype rparams rrelations rvirtuality rpos) (ResourceDefault dtype defs dpos) = do
-    rdefs <- mapM (\(a,b) -> do { ra <- resolveExpressionString a; rb <- resolveExpression b; return (ra, rb); }) defs
+applyDefaults' r@(CResource id rname rtype rparams rrelations rvirtuality rpos) d@(ResourceDefault dtype defs dpos) = do
+    srname <- resolveGeneralString rname
+    rdefs <- mapM (\(a,b) -> do { ra <- tryResolveExpressionString a; rb <- tryResolveExpression b; return (ra, rb); }) defs
     rrparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra, rb); }) rparams
-    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs False 
+    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs False srname
     if (dtype == rtype)
         then return $ CResource id rname rtype nparams nrelations rvirtuality rpos
         else return r
 applyDefaults' r@(CResource id rname rtype rparams rrelations rvirtuality rpos) (ResourceOverride dtype dname defs dpos) = do
     srname <- resolveGeneralString rname
     sdname <- resolveExpressionString dname
-    rdefs <- mapM (\(a,b) -> do { ra <- resolveExpressionString a; rb <- resolveExpression b; return (ra, rb); }) defs
-    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs True
+    rdefs <- mapM (\(a,b) -> do { ra <- tryResolveExpressionString a; rb <- tryResolveExpression b; return (ra, rb); }) defs
+    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs True srname
     if ((dtype == rtype) && (srname == sdname))
         then return $ CResource id rname rtype nparams nrelations rvirtuality rpos
         else return r
 
-mergeParams :: ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)]) -> [(String, ResolvedValue)] -> Bool -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
-mergeParams (srcparams, srcrels) defs override = let
-    cdefs = map (\(a,b) -> (Right a, Right b)) defs :: [(GeneralString, GeneralValue)]
-    msrc  = Map.fromList srcparams
-    mdefs = Map.fromList cdefs
-    in if override
-        then ([], [])
-        else ([], [])
+mergeParams :: ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)]) -> [(GeneralString, GeneralValue)] -> Bool -> String -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
+mergeParams (srcparams, srcrels) defs override rname = let
+    (dstparams, dstrels) = partitionParamsRelations defs (Right $ ResolvedString rname)
+    srcprm = Map.fromList srcparams
+    srcrel = Map.fromList $ map (\(a,b,c) -> ((a,b),c)) srcrels
+    dstprm = Map.fromList dstparams
+    dstrel = Map.fromList $ map (\(a,b,c) -> ((a,b),c)) dstrels
+    prm = if override
+        then Map.toList $ Map.union dstprm srcprm
+        else Map.toList $ Map.union srcprm dstprm
+    rel = if override
+        then Map.toList $ Map.union dstrel srcrel
+        else Map.toList $ Map.union srcrel dstrel
+    mrel = map (\((a,b),c) -> (a,b,c)) rel
+    in (prm, mrel)
 
 -- The actual meat
 
@@ -196,14 +215,7 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             evaluateClass topstatement classparameters
         _ -> do
             rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
-            let realparams = filteredparams
-                relations = map (
-                    \(reltype, relval) -> 
-                        (fromJust $ getRelationParameterType reltype,
-                        generalizeValueE rname,
-                        relval))
-                    filteredrelations
-                (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
+            let (realparams, relations) = partitionParamsRelations rparameters (generalizeValueE rname)
             return [CResource resid (Left rname) rtype realparams relations virtuality position]
 
 evaluateStatements x@(ResourceDefault _ _ _ ) = do
