@@ -243,7 +243,8 @@ evaluateStatements (VariableAssignment vname vexpr position) = do
 
 evaluateStatements (MainFunctionCall fname fargs position) = do
     setPos position
-    executeFunction fname (map resolveExpression fargs)
+    rargs <- mapM resolveExpression fargs
+    executeFunction fname rargs
 
 evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
 
@@ -494,8 +495,16 @@ getRelationParameterType (Right "before"  ) = Just RBefore
 getRelationParameterType (Right "register") = Just RRegister
 getRelationParameterType _                  = Nothing
 
+executeFunction :: String -> [ResolvedValue] -> CatalogMonad Catalog
+executeFunction "fail" [ResolvedString errmsg] = do
+    pos <- getPos
+    throwError ("Error: " ++ errmsg ++ " at " ++ show pos)
+executeFunction "fail" args = do
+    pos <- getPos
+    throwError ("Error: " ++ show args ++ " at " ++ show pos)
 executeFunction a b = do
-    addWarning $ "executeFunction " ++ show a
+    pos <- getPos
+    addWarning $ "Function " ++ a ++ " not handled at " ++ show pos
     return []
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
