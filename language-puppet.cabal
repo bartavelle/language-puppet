@@ -51,7 +51,7 @@ Library
   Build-depends:       base,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob
   
   -- Modules not exported by this package.
-  Other-modules:       Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types
+  Other-modules:       Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types, Puppet.Interpreter.Functions
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         

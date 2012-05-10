@@ -4,6 +4,7 @@ module Puppet.Interpreter.Catalog (
 
 import Puppet.Init
 import Puppet.DSL.Types
+import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
 import Data.List
@@ -16,6 +17,16 @@ import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+
+-- Int handling stuff
+isInt :: String -> Bool
+isInt = and . map isDigit
+readint :: String -> CatalogMonad Integer
+readint x = if (isInt x)
+    then return (read x)
+    else do
+        pos <- getPos
+        throwError ("Expected an integer instead of '" ++ x ++ "' at " ++ show pos)
 
 modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
     = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf wrn
@@ -43,8 +54,6 @@ getCatalog getstatements nodename facts = do
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right y -> return (output, getWarnings finalstate)
-
-type CatalogMonad = ErrorT String (StateT ScopeState IO)
 
 computeCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> CatalogMonad Catalog
 computeCatalog getstatements nodename = do
@@ -361,7 +370,7 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
     rb <- tryResolveExpressionString b
     pos <- getPos
     case (ra, rb) of
-        (Right (ResolvedArray ar), Right num) -> if (and $ map isDigit num)
+        (Right (ResolvedArray ar), Right num) -> if (isInt num)
             then do
                 let nnum = read num :: Int
                 if(length ar >= nnum)
@@ -416,7 +425,8 @@ resolveExpressionString x = do
     resolved <- resolveExpression x
     case resolved of
         ResolvedString s -> return s
-        e                     -> do
+        ResolvedInt i -> return (show i)
+        e -> do
             p <- getPos
             throwError ("Can't resolve expression '" ++ show e ++ "' to a string at " ++ show p)
 
@@ -469,8 +479,14 @@ tryResolveValue n@(PuppetArray expressions) = do
         else return $ Left $ Value n
 
 -- TODO
-tryResolveValue n@(FunctionCall "fqdn_rand" [v1]) = return $ Right $ ResolvedInt 1
-tryResolveValue n@(FunctionCall "fqdn_rand" [v1, v2]) = return $ Right $ ResolvedInt 1
+tryResolveValue n@(FunctionCall "fqdn_rand" args) = if (null args)
+    then do
+        pos <- getPos
+        throwError ("Empty argument list in fqdn_rand call at " ++ show pos)
+    else do
+        nargs <- mapM resolveExpressionString args
+        max <- readint (head nargs)
+        fqdn_rand max (tail nargs) >>= return . Right . ResolvedInt
 tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall "regsubst" _) = return $ Right $ ResolvedString "TODO"
@@ -531,7 +547,7 @@ executeFunction a b = do
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
 compareRValues (ResolvedString a) (ResolvedInt b) = compareRValues (ResolvedInt b) (ResolvedString a)
-compareRValues (ResolvedInt a) (ResolvedString b) | and $ map isDigit b = a == (read b)
+compareRValues (ResolvedInt a) (ResolvedString b) | isInt b = a == (read b)
                                                   | otherwise = False
 compareRValues a b = a == b
 

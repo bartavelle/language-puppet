@@ -2,6 +2,8 @@ module Puppet.Interpreter.Types where
 
 import Puppet.DSL.Types
 import Text.Parsec.Pos
+import Control.Monad.State
+import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -57,6 +59,8 @@ data ScopeState = ScopeState {
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
     getWarnings :: [String]
 }
+
+type CatalogMonad = ErrorT String (StateT ScopeState IO)
 
 generalizeValueE :: Expression -> GeneralValue
 generalizeValueE e = Left e
