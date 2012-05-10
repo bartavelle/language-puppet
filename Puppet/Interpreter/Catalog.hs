@@ -488,6 +488,7 @@ tryResolveValue n@(FunctionCall "fqdn_rand" [v1, v2]) = return $ Right $ Resolve
 tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall "regsubst" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue n@(FunctionCall "file" _) = return $ Right $ ResolvedString "TODO"
 
 tryResolveValue x = do
     pos <- getPos
