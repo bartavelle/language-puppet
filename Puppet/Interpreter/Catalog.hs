@@ -370,13 +370,12 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
     rb <- tryResolveExpressionString b
     pos <- getPos
     case (ra, rb) of
-        (Right (ResolvedArray ar), Right num) -> if (isInt num)
-            then do
-                let nnum = read num :: Int
-                if(length ar >= nnum)
-                    then throwError ("Invalid array index " ++ num ++ " at " ++ show pos)
-                    else return $ Right (ar !! nnum)
-            else throwError ("Bad array index " ++ num ++ " at " ++ show pos)
+        (Right (ResolvedArray ar), Right num) -> do
+            nnum <- readint num
+            let nnum = read num :: Int
+            if(length ar >= nnum)
+                then throwError ("Invalid array index " ++ num ++ " at " ++ show pos)
+                else return $ Right (ar !! nnum)
         (Right (ResolvedHash ar), Right idx) -> do
             let filtered = filter (\(a,_) -> a == idx) ar
             case filtered of
@@ -489,7 +488,18 @@ tryResolveValue n@(FunctionCall "fqdn_rand" args) = if (null args)
         fqdn_rand max (tail nargs) >>= return . Right . ResolvedInt
 tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
-tryResolveValue n@(FunctionCall "regsubst" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
+    rstr   <- tryResolveExpressionString str
+    rsrc   <- tryResolveExpressionString src
+    rdst   <- tryResolveExpressionString dst
+    rflags <- tryResolveExpressionString flags
+    case (rstr, rsrc, rdst, rflags) of
+        (Right sstr, Right ssrc, Right sdst, Right sflags) -> regsubst sstr ssrc sdst sflags >>= return . Right . ResolvedString
+tryResolveValue n@(FunctionCall "regsubst" [str, src, dst]) = tryResolveValue (FunctionCall "regsubst" [str, src, dst, Value $ Literal ""])
+tryResolveValue n@(FunctionCall "regsubst" args) = do
+    pos <- getPos
+    throwError ("Bad argument count for regsubst " ++ show args ++ " at " ++ show pos)
+       
 tryResolveValue n@(FunctionCall "file" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall fname _) = do
     pos <- getPos
