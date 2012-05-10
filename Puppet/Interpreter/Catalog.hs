@@ -459,8 +459,8 @@ tryResolveValue n@(VariableReference vname) = do
                 Just (Left e, pos) -> tryResolveExpression e
                 Just (Right r, pos) -> return $ Right r
                 Nothing -> do
-                    state <- get
-                    addWarning ("Could not resolve " ++ varnamescp)
+                    pos <- getPos
+                    addWarning ("Could not resolve " ++ varnamescp ++ " at " ++ show pos)
                     return $ Left $ Value $ VariableReference varnamescp
 
 tryResolveValue n@(Interpolable x) = do
