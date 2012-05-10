@@ -17,6 +17,8 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+nativetypes = Set.fromList ["augeas","computer","cron","exec","file","filebucket","group","host","interface","k5login","macauthorization","mailalias","maillist","mcx","mount","nagioscommand","nagioscontact","nagioscontactgroup","nagioshost","nagioshostdependency","nagioshostescalation","nagioshostextinfo","nagioshostgroup","nagiosservice","nagiosservicedependency","nagiosserviceescalation","nagiosserviceextinfo","nagiosservicegroup","nagiostimeperiod","notify","package","resources","router","schedule","scheduledtask","selboolean","selmodule","service","sshauthorizedkey","sshkey","stage","tidy","user","vlan","yumrepo","zfs","zone","zpool"]
+
 type ScopeName = String
 
 data ScopeState = ScopeState {
@@ -99,7 +101,9 @@ addWarning nwrn = do
 
 -- finds out if a resource name refers to a define
 checkDefine :: String -> CatalogMonad (Maybe Statement)
-checkDefine dname = do
+checkDefine dname = if Set.member dname nativetypes
+  then return Nothing
+  else do
     curstate <- get
     let ntop = netstedtoplevels curstate
         getsmts = getStatementsFunction curstate
