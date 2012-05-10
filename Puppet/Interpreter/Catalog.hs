@@ -395,7 +395,7 @@ resolveGeneralValue e = do
     case x of
         Left n -> do
             pos <- getPos
-            throwError ("Could not resolve " ++ show n ++ " at " ++ show pos)
+            throwError ("Could not resolveGeneralValue " ++ show n ++ " at " ++ show pos)
         Right p -> return p
 
 tryResolveExpressionString :: Expression -> CatalogMonad GeneralString
