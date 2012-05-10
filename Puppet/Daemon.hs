@@ -110,7 +110,7 @@ checkFileInfos filemap = do
 
 compilefilelist :: Prefs -> TopLevelType -> String -> [FilePath]
 compilefilelist prefs TopNode name = [manifest prefs ++ "/site.pp"]
-compilefilelist prefs _ name = moduleInfo ++ [manifest prefs ++ "/site.pp"]
+compilefilelist prefs _ name = moduleInfo
     where
         moduleInfo | length nameparts == 1 = [modules prefs ++ "/" ++ name ++ "/manifests/init.pp"]
                    | otherwise = [modules prefs ++ "/" ++ (head nameparts) ++ "/manifests/" ++ (DLU.join "/" (tail nameparts)) ++ ".pp"]
