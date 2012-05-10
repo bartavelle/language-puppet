@@ -475,6 +475,9 @@ tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString 
 tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall "regsubst" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall "file" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue n@(FunctionCall fname _) = do
+    pos <- getPos
+    throwError ("Function " ++ fname ++ " not implemented at " ++ show pos)
 
 tryResolveValue x = do
     pos <- getPos
