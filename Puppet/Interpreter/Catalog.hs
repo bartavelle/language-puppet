@@ -17,22 +17,6 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-nativetypes = Set.fromList ["augeas","computer","cron","exec","file","filebucket","group","host","interface","k5login","macauthorization","mailalias","maillist","mcx","mount","nagioscommand","nagioscontact","nagioscontactgroup","nagioshost","nagioshostdependency","nagioshostescalation","nagioshostextinfo","nagioshostgroup","nagiosservice","nagiosservicedependency","nagiosserviceescalation","nagiosserviceextinfo","nagiosservicegroup","nagiostimeperiod","notify","package","resources","router","schedule","scheduledtask","selboolean","selmodule","service","sshauthorizedkey","sshkey","stage","tidy","user","vlan","yumrepo","zfs","zone","zpool"]
-
-type ScopeName = String
-
-data ScopeState = ScopeState {
-    curScope :: [ScopeName],
-    curVariables :: Map.Map String (GeneralValue, SourcePos),
-    curClasses :: Map.Map String SourcePos,
-    curDefaults :: [Statement],
-    curResId :: Int,
-    curPos :: SourcePos,
-    netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
-    getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
-    getWarnings :: [String]
-}
-
 modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
     = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf wrn
 modifyVariables f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
@@ -113,7 +97,9 @@ checkDefine dname = if Set.member dname nativetypes
         Nothing -> do
             def1 <- liftIO $ getsmts TopDefine dname
             case def1 of
-                Left err -> return Nothing
+                Left err -> do
+                    pos <- getPos
+                    throwError ("Could not find the definition of " ++ dname ++ " at " ++ show pos)
                 Right s -> return $ Just s
 
 partitionParamsRelations :: [(GeneralString, GeneralValue)] -> GeneralValue -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
