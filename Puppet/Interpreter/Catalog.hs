@@ -177,9 +177,8 @@ mergeParams (srcparams, srcrels) defs override rname = let
 evaluateDefine :: CResource -> CatalogMonad [CResource]
 evaluateDefine r@(CResource id rname rtype rparams rrelations rvirtuality rpos) = do
     isdef <- checkDefine rtype
-    case isdef of
-        Nothing -> return [r]
-        Just (DefineDeclaration dtype args dstmts dpos) -> do
+    case (rvirtuality, isdef) of
+        (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> do
             oldpos <- getPos
             setPos dpos
             pushScope $ "#DEFINE#" ++ dtype
@@ -196,6 +195,7 @@ evaluateDefine r@(CResource id rname rtype rparams rrelations rvirtuality rpos) 
             nres <- handleDelayedActions (concat res)
             popScope
             return nres
+        _ -> return [r]
         
 
 -- handling delayed actions (such as defaults)
