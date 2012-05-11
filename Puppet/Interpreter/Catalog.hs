@@ -385,7 +385,7 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
                 [] -> throwError "TODO"
                 [(_,x)] -> return $ Right $ x
         (_, Left y) -> throwError ("Could not resolve index " ++ show y ++ " at " ++ show pos)
-        (Left x, _) -> throwError ("Could not resolve " ++ show x ++ " at " ++ show pos)
+        (Left x, _) -> throwError ("Could not resolve lookup " ++ show x ++ " at " ++ show pos)
 
             
 tryResolveGeneralValue e = do
@@ -458,7 +458,7 @@ tryResolveValue n@(VariableReference vname) = do
                 Just (Right r, pos) -> return $ Right r
                 Nothing -> do
                     pos <- getPos
-                    addWarning ("Could not resolve " ++ varnamescp ++ " at " ++ show pos)
+                    addWarning ("Could not resolveValue " ++ varnamescp ++ " at " ++ show pos)
                     return $ Left $ Value $ VariableReference varnamescp
 
 tryResolveValue n@(Interpolable x) = do
