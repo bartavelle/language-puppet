@@ -22,14 +22,14 @@ import qualified Data.Map as Map
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
     = QCatalog (String, Facts, Chan DaemonMessage)
-    | RCatalog (Either String Catalog)
+    | RCatalog (Either String FinalCatalog)
 
 logDebug = LOG.debugM "Puppet.Daemon"
 logInfo = LOG.infoM "Puppet.Daemon"
 logWarning = LOG.warningM "Puppet.Daemon"
 logError = LOG.errorM "Puppet.Daemon"
 
-initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String Catalog) )
+initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog) )
 initDaemon prefs = do
     logDebug "initDaemon"
     controlChan <- newChan
@@ -51,7 +51,7 @@ master prefs chan getstmts = do
         _ -> logError "Bad message type for master"
     master prefs chan getstmts
 
-gCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String Catalog)
+gCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String FinalCatalog)
 gCatalog channel nodename facts = do
     respchan <- newChan
     writeChan channel $ QCatalog (nodename, facts, respchan)

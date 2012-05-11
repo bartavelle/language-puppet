@@ -45,7 +45,7 @@ modifyNestedTopLvl f (ScopeState curscope curvariables curclasses curdefaults ri
 emptyDefaults     (ScopeState curscope curvariables curclasses _ rid pos ntl gsf wrn)
     = ScopeState curscope curvariables curclasses [] rid pos ntl gsf wrn
 
-getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String Catalog, [String])
+getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String FinalCatalog, [String])
 getCatalog getstatements nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
@@ -55,12 +55,15 @@ getCatalog getstatements nodename facts = do
         Left x -> return (Left x, getWarnings finalstate)
         Right y -> return (output, getWarnings finalstate)
 
-computeCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> CatalogMonad Catalog
+computeCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> CatalogMonad FinalCatalog
 computeCatalog getstatements nodename = do
     nodestatements <- liftIO $ getstatements TopNode nodename
     case nodestatements of
         Left x -> throwError x
-        Right nodestmts -> evaluateStatements nodestmts
+        Right nodestmts -> evaluateStatements nodestmts >>= finalResolution
+
+finalResolution :: Catalog -> CatalogMonad FinalCatalog
+finalResolution cat = return Map.empty
 
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
 getstatement qtype name = do
