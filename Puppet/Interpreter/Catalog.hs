@@ -62,8 +62,21 @@ computeCatalog getstatements nodename = do
         Left x -> throwError x
         Right nodestmts -> evaluateStatements nodestmts >>= finalResolution
 
+finalizeResource :: CResource -> CatalogMonad RResource
+finalizeResource (CResource cid cname ctype cparams crelations _ cpos) = do
+    setPos cpos
+    rname <- resolveGeneralString cname
+    rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
+    rrelations <- mapM(\(l,a,b) -> do { ra <- resolveGeneralValueString a;  rb <- resolveGeneralValueString b; return (l,(ctype, rname), (ra,rb)); }) crelations
+    return $ RResource cid rname ctype rparams rrelations cpos
+
+
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
-finalResolution cat = return Map.empty
+finalResolution cat = do
+    let (real, allvirtual) = partition (\x -> crvirtuality x == Normal) cat
+    let (virtual, exported) = partition (\x -> crvirtuality x == Virtual) allvirtual
+    resolved <- mapM finalizeResource real
+    return Map.empty
 
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
 getstatement qtype name = do
@@ -401,16 +414,24 @@ resolveGeneralValue e = do
             throwError ("Could not resolveGeneralValue " ++ show n ++ " at " ++ show pos)
         Right p -> return p
 
+resolveGeneralValueString :: GeneralValue -> CatalogMonad String
+resolveGeneralValueString e = do
+    resolveGeneralValue e >>= rstring
+
 tryResolveExpressionString :: Expression -> CatalogMonad GeneralString
 tryResolveExpressionString s = do
     resolved <- tryResolveExpression s
     case resolved of
-        Right (ResolvedString s) -> return $ Right s
-        Right (ResolvedInt i) -> return $ Right (show i)
-        Right e                       -> do
+        Right e -> rstring e >>= return . Right
+        Left  e -> return $ Left e
+
+rstring :: ResolvedValue -> CatalogMonad String
+rstring resolved = case resolved of
+        ResolvedString s -> return s
+        ResolvedInt i    -> return (show i)
+        e                -> do
             p <- getPos
             throwError ("'" ++ show e ++ "' will not resolve to a string at " ++ show p)
-        Left  e                       -> return $ Left e
 
 resolveExpression :: Expression -> CatalogMonad ResolvedValue
 resolveExpression e = do
