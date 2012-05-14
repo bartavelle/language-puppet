@@ -34,16 +34,19 @@ data CResource = CResource {
     pos :: SourcePos
     } deriving(Show)
 
-type ResIdentifier = (String, String)
+type ResIdentifier = (String, String) -- type, name
+
+type Relation  = (LinkType, ResIdentifier, ResIdentifier) -- (relation, src, dst)
 
 data RResource = RResource {
     rrid :: Int,
     rrname :: String,
     rrtype :: String,
     rrparams :: [(String, ResolvedValue)],
-	rrelations :: [(LinkType, ResIdentifier, ResIdentifier)], -- (relation, src, dst)
+	rrelations :: [Relation],
     rrpos :: SourcePos
     } deriving(Show)
+    
 
 type FinalCatalog = Map.Map ResIdentifier RResource
 

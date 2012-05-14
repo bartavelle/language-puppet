@@ -62,21 +62,27 @@ computeCatalog getstatements nodename = do
         Left x -> throwError x
         Right nodestmts -> evaluateStatements nodestmts >>= finalResolution
 
-finalizeResource :: CResource -> CatalogMonad RResource
+resolveRelation :: ResIdentifier -> (LinkType, GeneralValue, GeneralValue) -> CatalogMonad Relation
+resolveRelation srcres (l,a,b) = do
+    ra <- resolveGeneralValueString a
+    rb <- resolveGeneralValueString b
+    return (l,srcres, (ra,rb))
+
+finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
 finalizeResource (CResource cid cname ctype cparams crelations _ cpos) = do
     setPos cpos
     rname <- resolveGeneralString cname
     rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
-    rrelations <- mapM(\(l,a,b) -> do { ra <- resolveGeneralValueString a;  rb <- resolveGeneralValueString b; return (l,(ctype, rname), (ra,rb)); }) crelations
-    return $ RResource cid rname ctype rparams rrelations cpos
+    rrelations <- mapM (resolveRelation (ctype, rname)) crelations
+    return $ ((ctype, rname), RResource cid rname ctype rparams rrelations cpos)
 
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
     let (real, allvirtual) = partition (\x -> crvirtuality x == Normal) cat
     let (virtual, exported) = partition (\x -> crvirtuality x == Virtual) allvirtual
-    resolved <- mapM finalizeResource real
-    return Map.empty
+    resolved <- mapM finalizeResource real >>= return . Map.fromList
+    return resolved
 
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
 getstatement qtype name = do
@@ -130,12 +136,12 @@ checkDefine dname = if Set.member dname nativetypes
 partitionParamsRelations :: [(GeneralString, GeneralValue)] -> GeneralValue -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
 partitionParamsRelations rparameters resname = (realparams, relations)
     where   realparams = filteredparams
-            relations = map (
-                \(reltype, relval) -> 
-                    (fromJust $ getRelationParameterType reltype,
-                    resname,
-                    relval))
-                filteredrelations
+            relations = concatMap convertrelation filteredrelations
+            convertrelation :: (GeneralString, GeneralValue) -> [(LinkType, GeneralValue, GeneralValue)]
+            convertrelation (reltype, Right (ResolvedArray rs))         = concatMap (\x -> convertrelation (reltype, Right x)) rs
+            convertrelation (reltype, Right (ResolvedRReference rt rv)) = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
+            convertrelation (reltype, Right (ResolvedString "undef"))   = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
+            convertrelation x = error (show x)
             (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
 
 -- TODO check whether parameters changed
