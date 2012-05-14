@@ -28,22 +28,14 @@ readint x = if (isInt x)
         pos <- getPos
         throwError ("Expected an integer instead of '" ++ x ++ "' at " ++ show pos)
 
-modifyScope     f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
-    = ScopeState (f curscope) curvariables curclasses curdefaults rid pos ntl gsf wrn
-modifyVariables f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
-    = ScopeState curscope (f curvariables) curclasses curdefaults rid pos ntl gsf wrn
-modifyClasses   f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
-    = ScopeState curscope curvariables (f curclasses) curdefaults rid pos ntl gsf wrn
-modifyDefaults  f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
-    = ScopeState curscope curvariables curclasses (f curdefaults) rid pos ntl gsf wrn
-incrementResId    (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
-    = ScopeState curscope curvariables curclasses curdefaults (rid + 1) pos ntl gsf wrn
-setStatePos  npos (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
-    = ScopeState curscope curvariables curclasses curdefaults rid npos ntl gsf wrn
-modifyNestedTopLvl f (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn)
-    = ScopeState curscope curvariables curclasses curdefaults rid pos (f ntl) gsf wrn
-emptyDefaults     (ScopeState curscope curvariables curclasses _ rid pos ntl gsf wrn)
-    = ScopeState curscope curvariables curclasses [] rid pos ntl gsf wrn
+modifyScope     f sc = sc { curScope     = f $ curScope sc }
+modifyVariables f sc = sc { curVariables = f $ curVariables sc }
+modifyClasses   f sc = sc { curClasses   = f $ curClasses sc }
+modifyDefaults  f sc = sc { curDefaults  = f $ curDefaults sc }
+incrementResId    sc = sc { curResId     = (curResId sc) + 1 }
+setStatePos  npos sc = sc { curPos       = npos }
+modifyNestedTopLvl f sc = sc { netstedtoplevels = f $ netstedtoplevels sc }
+emptyDefaults     sc = sc { curDefaults  = [] }
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String FinalCatalog, [String])
 getCatalog getstatements nodename facts = do
