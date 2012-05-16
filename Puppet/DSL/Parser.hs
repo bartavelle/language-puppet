@@ -7,7 +7,6 @@
  unhandled :
     plusignment
     if without parens
-    resource declaration ending with , (instead of ; or nothing)
     File['nagios_htpasswd', 'nagios_cgi_cfg'] { group => 'www-data' }    ( liste de overrides )
 -}
 
