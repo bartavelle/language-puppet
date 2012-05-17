@@ -45,7 +45,7 @@ data RResource = RResource {
     rrparams :: [(String, ResolvedValue)],
 	rrelations :: [Relation],
     rrpos :: SourcePos
-    } deriving(Show)
+    } deriving(Show, Ord, Eq)
     
 
 type FinalCatalog = Map.Map ResIdentifier RResource
