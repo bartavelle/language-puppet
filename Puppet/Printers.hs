@@ -8,7 +8,7 @@ import Puppet.Interpreter.Types
 import qualified Data.Map as Map
 import Data.List
 
-showRes (CResource crid rname rtype params relations virtuality pos) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show relations ++ " " ++ show virtuality
+showRes (CResource crid rname rtype params virtuality pos) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show virtuality
 showRRes (RResource crid rname rtype params relations pos) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show relations
 
 showFCatalog :: FinalCatalog -> String
@@ -42,8 +42,8 @@ showuniqueres res = rtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
                 ++ commaretsep (map showparams (sort params))
                 ++ commareqs ((null rels) || (null params))
                 ++ commaretsep (map showrequire (sort rels)) ++ ";\n"
-        commareqs c | c                 = ""
-                    | otherwise         = ",\n"
-        showparams  (name, val)         = "        " ++ name ++ " => " ++ showValue val
-        showrequire (ltype, src, dst)   = "        " ++ show ltype ++ " " ++ show dst
-        rtype                           = rrtype (head res)
+        commareqs c | c             = ""
+                    | otherwise     = ",\n"
+        showparams  (name, val)     = "        " ++ name ++ " => " ++ showValue val
+        showrequire (ltype, dst)    = "        " ++ show ltype ++ " " ++ show dst
+        rtype                       = rrtype (head res)

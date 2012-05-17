@@ -29,14 +29,13 @@ data CResource = CResource {
     crname :: GeneralString,
     crtype :: String,
     crparams :: [(GeneralString, GeneralValue)],
-	relations :: [(LinkType, GeneralValue, GeneralValue)], -- (relation, resname, resname)
     crvirtuality :: Virtuality,
     pos :: SourcePos
     } deriving(Show)
 
 type ResIdentifier = (String, String) -- type, name
 
-type Relation  = (LinkType, ResIdentifier, ResIdentifier) -- (relation, src, dst)
+type Relation  = (LinkType, ResIdentifier) -- (relation, dst)
 
 data RResource = RResource {
     rrid :: Int,
@@ -54,6 +53,8 @@ nativetypes = Set.fromList (["augeas","computer","cron","exec","file","filebucke
 
 type ScopeName = String
 
+data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord, Eq)
+
 data ScopeState = ScopeState {
     curScope :: [ScopeName],
     curVariables :: Map.Map String (GeneralValue, SourcePos),
@@ -63,7 +64,11 @@ data ScopeState = ScopeState {
     curPos :: SourcePos,
     netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
-    getWarnings :: [String]
+    getWarnings :: [String],
+    curCollect :: [CResource -> Bool], -- this stores collection functions
+    -- this stores unresolved relationships, because the original string name 
+    -- fieds are [ ( [dstrelations], srcresource, type, pos ) ]
+    unresolvedRels :: [([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)] 
 }
 
 type CatalogMonad = ErrorT String (StateT ScopeState IO)

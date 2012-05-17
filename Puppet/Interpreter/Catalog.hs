@@ -28,21 +28,24 @@ readint x = if (isInt x)
         pos <- getPos
         throwError ("Expected an integer instead of '" ++ x ++ "' at " ++ show pos)
 
-modifyScope     f sc = sc { curScope     = f $ curScope sc }
-modifyVariables f sc = sc { curVariables = f $ curVariables sc }
-modifyClasses   f sc = sc { curClasses   = f $ curClasses sc }
-modifyDefaults  f sc = sc { curDefaults  = f $ curDefaults sc }
-incrementResId    sc = sc { curResId     = (curResId sc) + 1 }
-setStatePos  npos sc = sc { curPos       = npos }
+modifyScope     f sc = sc { curScope       = f $ curScope sc }
+modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
+modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
+modifyDefaults  f sc = sc { curDefaults    = f $ curDefaults sc }
+incrementResId    sc = sc { curResId       = (curResId sc) + 1 }
+setStatePos  npos sc = sc { curPos         = npos }
 modifyNestedTopLvl f sc = sc { netstedtoplevels = f $ netstedtoplevels sc }
-emptyDefaults     sc = sc { curDefaults  = [] }
+emptyDefaults     sc = sc { curDefaults    = [] }
+pushWarning     t sc = sc { getWarnings    = (getWarnings sc) ++ [t] }
+pushCollect   r   sc = sc { curCollect     = r : (curCollect sc) }
+pushUnresRel  r   sc = sc { unresolvedRels = r : (unresolvedRels sc) }
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String FinalCatalog, [String])
 getCatalog getstatements nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [])
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [])
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right y -> return (output, getWarnings finalstate)
@@ -54,18 +57,14 @@ computeCatalog getstatements nodename = do
         Left x -> throwError x
         Right nodestmts -> evaluateStatements nodestmts >>= finalResolution
 
-resolveRelation :: ResIdentifier -> (LinkType, GeneralValue, GeneralValue) -> CatalogMonad Relation
-resolveRelation srcres (l,a,b) = do
-    ra <- resolveGeneralValueString a
-    rb <- resolveGeneralValueString b
-    return (l,srcres, (ra,rb))
-
 finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
-finalizeResource (CResource cid cname ctype cparams crelations _ cpos) = do
+finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     setPos cpos
     rname <- resolveGeneralString cname
     rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
-    rrelations <- mapM (resolveRelation (ctype, rname)) crelations
+    -- add collected relations
+    -- TODO
+    let rrelations = []
     return $ ((ctype, rname), RResource cid rname ctype rparams rrelations cpos)
 
 
@@ -74,6 +73,7 @@ finalResolution cat = do
     let (real, allvirtual) = partition (\x -> crvirtuality x == Normal) cat
     let (virtual, exported) = partition (\x -> crvirtuality x == Virtual) allvirtual
     resolved <- mapM finalizeResource real >>= return . Map.fromList
+    get >>= return . unresolvedRels >>= liftIO . (mapM print)
     return resolved
 
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
@@ -102,9 +102,13 @@ putVariable k v = do
     modify (modifyVariables (Map.insert (curscope ++ "::" ++ k) v))
 getVariable vname = get >>= return . Map.lookup vname . curVariables
 addNestedTopLevel rtype rname rstatement = modify( modifyNestedTopLvl (Map.insert (rtype, rname) rstatement) )
-addWarning nwrn = do
-    (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf wrn) <- get
-    put (ScopeState curscope curvariables curclasses curdefaults rid pos ntl gsf (wrn++[nwrn]))
+addWarning nwrn   = modify (pushWarning nwrn)
+addCollect ncol   = modify (pushCollect ncol)
+-- this pushes the relations only if they exist
+addUnresRel ncol@(rels, _, _, _)  = do
+    if null rels
+        then return ()
+        else modify (pushUnresRel ncol)
 
 -- finds out if a resource name refers to a define
 checkDefine :: String -> CatalogMonad (Maybe Statement)
@@ -140,7 +144,7 @@ partitionParamsRelations rparameters resname = (realparams, relations)
 checkLoaded name = do
     curscope <- get
     case (Map.lookup name (curClasses curscope)) of
-        Nothing -> return False
+        Nothing      -> return False
         Just thispos -> return True
 
 -- apply default values to a resource
@@ -150,43 +154,42 @@ applyDefaults res = do
     foldM applyDefaults' res defs
 
 applyDefaults' :: CResource -> Statement -> CatalogMonad CResource            
-applyDefaults' r@(CResource id rname rtype rparams rrelations rvirtuality rpos) d@(ResourceDefault dtype defs dpos) = do
+applyDefaults' r@(CResource id rname rtype rparams rvirtuality rpos) d@(ResourceDefault dtype defs dpos) = do
     srname <- resolveGeneralString rname
     rdefs <- mapM (\(a,b) -> do { ra <- tryResolveExpressionString a; rb <- tryResolveExpression b; return (ra, rb); }) defs
     rrparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra, rb); }) rparams
-    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs False srname
+    let (nparams, nrelations) = mergeParams rparams rdefs False srname
     if (dtype == rtype)
-        then return $ CResource id rname rtype nparams nrelations rvirtuality rpos
+        then do
+            addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
+            return $ CResource id rname rtype nparams rvirtuality rpos
         else return r
-applyDefaults' r@(CResource id rname rtype rparams rrelations rvirtuality rpos) (ResourceOverride dtype dname defs dpos) = do
+applyDefaults' r@(CResource id rname rtype rparams rvirtuality rpos) (ResourceOverride dtype dname defs dpos) = do
     srname <- resolveGeneralString rname
     sdname <- resolveExpressionString dname
     rdefs <- mapM (\(a,b) -> do { ra <- tryResolveExpressionString a; rb <- tryResolveExpression b; return (ra, rb); }) defs
-    let (nparams, nrelations) = mergeParams (rparams, rrelations) rdefs True srname
+    let (nparams, nrelations) = mergeParams rparams rdefs True srname
     if ((dtype == rtype) && (srname == sdname))
-        then return $ CResource id rname rtype nparams nrelations rvirtuality rpos
+        then do
+            addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
+            return $ CResource id rname rtype nparams rvirtuality rpos
         else return r
 
-mergeParams :: ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)]) -> [(GeneralString, GeneralValue)] -> Bool -> String -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
-mergeParams (srcparams, srcrels) defs override rname = let
+-- merge defaults and actual parameters depending on the override flag
+mergeParams :: [(GeneralString, GeneralValue)] -> [(GeneralString, GeneralValue)] -> Bool -> String -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
+mergeParams srcparams defs override rname = let
     (dstparams, dstrels) = partitionParamsRelations defs (Right $ ResolvedString rname)
     srcprm = Map.fromList srcparams
-    srcrel = Map.fromList $ map (\(a,b,c) -> ((a,b),c)) srcrels
     dstprm = Map.fromList dstparams
-    dstrel = Map.fromList $ map (\(a,b,c) -> ((a,b),c)) dstrels
     prm = if override
         then Map.toList $ Map.union dstprm srcprm
         else Map.toList $ Map.union srcprm dstprm
-    rel = if override
-        then Map.toList $ Map.union dstrel srcrel
-        else Map.toList $ Map.union srcrel dstrel
-    mrel = map (\((a,b),c) -> (a,b,c)) rel
-    in (prm, mrel)
+    in (prm, dstrels)
 
 -- The actual meat
 
 evaluateDefine :: CResource -> CatalogMonad [CResource]
-evaluateDefine r@(CResource id rname rtype rparams rrelations rvirtuality rpos) = do
+evaluateDefine r@(CResource id rname rtype rparams rvirtuality rpos) = do
     isdef <- checkDefine rtype
     case (rvirtuality, isdef) of
         (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> do
@@ -254,7 +257,10 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             rrname <- tryResolveGeneralValue (generalizeValueE rname)
             srname <- tryResolveExpressionString rname
             let (realparams, relations) = partitionParamsRelations rparameters rrname
-            return [CResource resid (srname) rtype realparams relations virtuality position]
+            -- push all the unresolved relations
+            -- this can't be resolved here because srname could only be solvable later
+            addUnresRel (relations, (rtype, srname), UNormal, position)
+            return [CResource resid srname rtype realparams virtuality position]
 
 evaluateStatements x@(ResourceDefault _ _ _ ) = do
     pushDefaults x
@@ -330,19 +336,17 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         res <- mapM (evaluateStatements) statements
         nres <- handleDelayedActions (concat res)
         popScope
+        mapM (addClassDependency classname) nres
         return $
-            [CResource resid (Right classname) "class" [] [] Normal position]
+            [CResource resid (Right classname) "class" [] Normal position]
             ++ inherited
-            ++ map (addClassDependency classname) nres
+            ++ nres
 
-addClassDependency :: String -> CResource -> CResource
-addClassDependency cname resource = resource { relations = nrelations }
-    where
-    rtype = crtype resource
-    currelations = relations resource
-    reqclass = filter (\(linktype, restype, _) -> (linktype == RRequire) && (restype == (Right (ResolvedString "class")))) currelations
-    nrelations  | (rtype /= "class") && (null reqclass) = (RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname) : currelations
-                | otherwise       = currelations
+addClassDependency :: String -> CResource -> CatalogMonad ()
+addClassDependency cname (CResource _ rname rtype _ _ pos) = addUnresRel (
+    [(RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname)]
+    , (rtype, rname)
+    , UPlus, pos)
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
 tryResolveExpression e = tryResolveGeneralValue (Left e)
