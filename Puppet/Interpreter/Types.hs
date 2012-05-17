@@ -65,8 +65,9 @@ data ScopeState = ScopeState {
     netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
     getWarnings :: [String],
-    curCollect :: [CResource -> Bool], -- this stores collection functions
-    -- this stores unresolved relationships, because the original string name 
+    -- this stores the collection functions
+    curCollect :: [CResource -> Bool],
+    -- this stores unresolved relationships, because the original string name can't be resolved
     -- fieds are [ ( [dstrelations], srcresource, type, pos ) ]
     unresolvedRels :: [([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)] 
 }

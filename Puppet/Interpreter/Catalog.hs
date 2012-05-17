@@ -105,6 +105,8 @@ addNestedTopLevel rtype rname rstatement = modify( modifyNestedTopLvl (Map.inser
 addWarning nwrn   = modify (pushWarning nwrn)
 addCollect ncol   = modify (pushCollect ncol)
 -- this pushes the relations only if they exist
+-- the parameter is of the form
+-- ( [dstrelations], srcresource, type, pos )
 addUnresRel ncol@(rels, _, _, _)  = do
     if null rels
         then return ()
@@ -245,6 +247,7 @@ evaluateStatements (ConditionalStatement exprs pos) = do
 evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
     setPos position
     case rtype of
+        -- checks whether we are handling a parametrized class
         "class" -> do
             rparameters <- mapM (\(a,b) -> do { pa <- resolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
             classname <- resolveExpressionString rname
@@ -257,8 +260,7 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             rrname <- tryResolveGeneralValue (generalizeValueE rname)
             srname <- tryResolveExpressionString rname
             let (realparams, relations) = partitionParamsRelations rparameters rrname
-            -- push all the unresolved relations
-            -- this can't be resolved here because srname could only be solvable later
+            -- push all the relations
             addUnresRel (relations, (rtype, srname), UNormal, position)
             return [CResource resid srname rtype realparams virtuality position]
 
@@ -268,9 +270,11 @@ evaluateStatements x@(ResourceDefault _ _ _ ) = do
 evaluateStatements x@(ResourceOverride _ _ _ _) = do
     pushDefaults x
     return []
-evaluateStatements (DependenceChain r1 r2 position) = do
+evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) position) = do
     setPos position
-    addWarning "TODO : DependenceChain not handled!"
+    gdstname <- tryResolveExpression dstname
+    gsrcname <- tryResolveExpressionString srcname
+    addUnresRel ( [(RRequire, Right $ ResolvedString dsttype, gdstname)], (srctype, gsrcname), UPlus, position )
     return []
 evaluateStatements (ResourceCollection rtype e1 e2 position) = do
     setPos position
@@ -315,12 +319,11 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     if isloaded
         then return []
         else do
-        resid <- getNextId
-        oldpos <- getPos
-        setPos position
-        pushScope classname
-        -- add variables
-        mapM (loadClassVariable position inputparams) parameters
+        resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
+        oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
+        setPos position    
+        pushScope classname -- sets the scope
+        mapM (loadClassVariable position inputparams) parameters -- add variables for parametrized classes
         
         -- load inherited classes
         inherited <- case inherits of
@@ -335,8 +338,11 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         -- parse statements
         res <- mapM (evaluateStatements) statements
         nres <- handleDelayedActions (concat res)
+        mapM (addClassDependency classname) nres    -- this adds a dummy dependency to this class
+                                                    -- for all resources that do not already depend on a class
+                                                    -- this is probably not puppet perfect with resources that
+                                                    -- depend explicitely on a class
         popScope
-        mapM (addClassDependency classname) nres
         return $
             [CResource resid (Right classname) "class" [] Normal position]
             ++ inherited
@@ -592,7 +598,7 @@ executeFunction "fail" args = do
     throwError ("Error: " ++ show args ++ " at " ++ show pos)
 executeFunction a b = do
     pos <- getPos
-    addWarning $ "Function " ++ a ++ " not handled at " ++ show pos
+    addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show pos
     return []
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
