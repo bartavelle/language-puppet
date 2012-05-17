@@ -241,7 +241,6 @@ evaluateStatements (ConditionalStatement exprs pos) = do
 
 evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
     setPos position
-    resid <- getNextId
     case rtype of
         "class" -> do
             rparameters <- mapM (\(a,b) -> do { pa <- resolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
@@ -250,6 +249,7 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             let classparameters = Map.fromList $ map (\(pname, pvalue) -> (pname, (pvalue, position))) rparameters
             evaluateClass topstatement classparameters
         _ -> do
+            resid <- getNextId
             rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
             rrname <- tryResolveGeneralValue (generalizeValueE rname)
             srname <- tryResolveExpressionString rname
@@ -309,6 +309,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     if isloaded
         then return []
         else do
+        resid <- getNextId
         oldpos <- getPos
         setPos position
         pushScope classname
@@ -329,7 +330,19 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         res <- mapM (evaluateStatements) statements
         nres <- handleDelayedActions (concat res)
         popScope
-        return $ inherited ++ nres
+        return $
+            [CResource resid (Right classname) "class" [] [] Normal position]
+            ++ inherited
+            ++ map (addClassDependency classname) nres
+
+addClassDependency :: String -> CResource -> CResource
+addClassDependency cname resource = resource { relations = nrelations }
+    where
+    rtype = crtype resource
+    currelations = relations resource
+    reqclass = filter (\(linktype, restype, _) -> (linktype == RRequire) && (restype == (Right (ResolvedString "class")))) currelations
+    nrelations  | (rtype /= "class") && (null reqclass) = (RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname) : currelations
+                | otherwise       = currelations
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
 tryResolveExpression e = tryResolveGeneralValue (Left e)
