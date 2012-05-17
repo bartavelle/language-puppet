@@ -510,6 +510,7 @@ tryResolveValue n@(FunctionCall "fqdn_rand" args) = if (null args)
         fqdn_rand max (tail nargs) >>= return . Right . ResolvedInt
 tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue n@(FunctionCall "inline_template" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
     rsrc   <- tryResolveExpressionString src
@@ -594,6 +595,8 @@ tryResolveBoolean v = do
         Right (ResolvedInt _) -> return $ Right $ ResolvedBool True
         Left (Value (VariableReference _)) -> return $ Right $ ResolvedBool False
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the empty string
+        Left (EqualOperation (Value (VariableReference _)) (Value (Literal "true"))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the string "true"
+        Left (EqualOperation (Value (VariableReference _)) (Value (Literal "false"))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the string "false"
         _ -> return rv
  
 resolveBoolean :: GeneralValue -> CatalogMonad Bool
