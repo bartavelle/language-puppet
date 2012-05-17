@@ -37,7 +37,13 @@ showValue (ResolvedHash h) = "{" ++ commasep (map (\(k,v) -> k ++ " => " ++ show
 showuniqueres :: [RResource] -> String
 showuniqueres res = rtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
     where
-        showrres (RResource crid rname rtype params relations pos)  =
-            "    " ++ show rname ++ ":" ++ " #" ++ show pos ++ "\n" ++ commaretsep (map showparams (sort params)) ++ ";\n"
-        showparams (name, val) = "        " ++ name ++ " => " ++ showValue val
-        rtype = rrtype (head res)
+        showrres (RResource crid rname rtype params rels pos)  =
+            "    " ++ show rname ++ ":" ++ " #" ++ show pos ++ "\n"
+                ++ commaretsep (map showparams (sort params))
+                ++ commareqs ((null rels) || (null params))
+                ++ commaretsep (map showrequire (sort rels)) ++ ";\n"
+        commareqs c | c                 = ""
+                    | otherwise         = ",\n"
+        showparams  (name, val)         = "        " ++ name ++ " => " ++ showValue val
+        showrequire (ltype, src, dst)   = "        " ++ show ltype ++ " " ++ show dst
+        rtype                           = rrtype (head res)
