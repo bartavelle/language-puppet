@@ -66,7 +66,7 @@ data ScopeState = ScopeState {
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
     getWarnings :: [String],
     -- this stores the collection functions
-    curCollect :: [CResource -> Bool],
+    curCollect :: [CResource -> CatalogMonad Bool],
     -- this stores unresolved relationships, because the original string name can't be resolved
     -- fieds are [ ( [dstrelations], srcresource, type, pos ) ]
     unresolvedRels :: [([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)] 

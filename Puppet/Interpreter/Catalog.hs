@@ -18,6 +18,10 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+throwPosError msg = do
+    pos <- getPos
+    throwError (msg ++ " at " ++ show pos)
+
 -- Int handling stuff
 isInt :: String -> Bool
 isInt = and . map isDigit
@@ -67,12 +71,14 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     let rrelations = []
     return $ ((ctype, rname), RResource cid rname ctype rparams rrelations cpos)
 
+collectionChecks :: CResource -> CatalogMonad Bool
+collectionChecks res = get >>= return . curCollect >>= mapM (\x -> x res) >>= return . or
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
-    let (real, allvirtual) = partition (\x -> crvirtuality x == Normal) cat
-    let (virtual, exported) = partition (\x -> crvirtuality x == Virtual) allvirtual
-    resolved <- mapM finalizeResource real >>= return . Map.fromList
+    let (real,  allvirtual) = partition (\x -> crvirtuality x == Normal)  cat
+    collected <- filterM collectionChecks allvirtual
+    resolved <- mapM finalizeResource (real ++ collected) >>= return . Map.fromList
     get >>= return . unresolvedRels >>= liftIO . (mapM print)
     return resolved
 
@@ -589,6 +595,19 @@ getRelationParameterType (Right "before"  ) = Just RBefore
 getRelationParameterType (Right "register") = Just RRegister
 getRelationParameterType _                  = Nothing
 
+-- this function saves a new condition for collection
+pushRealize :: ResolvedValue -> CatalogMonad ()
+pushRealize (ResolvedRReference rtype (ResolvedString rname)) = do
+    let myfunction :: CResource -> CatalogMonad Bool
+        myfunction = (\(CResource _ crname crtype _ _ _) -> do
+            srname <- resolveGeneralString crname
+            return ((srname == rname) && (crtype == rtype))
+            )
+    addCollect myfunction
+    return ()
+pushRealize (ResolvedRReference rtype x) = throwPosError (show x ++ " was not resolved to a string")
+pushRealize x                            = throwPosError ("A reference was expected instead of " ++ show x)
+
 executeFunction :: String -> [ResolvedValue] -> CatalogMonad Catalog
 executeFunction "fail" [ResolvedString errmsg] = do
     pos <- getPos
@@ -596,6 +615,7 @@ executeFunction "fail" [ResolvedString errmsg] = do
 executeFunction "fail" args = do
     pos <- getPos
     throwError ("Error: " ++ show args ++ " at " ++ show pos)
+executeFunction "realize" rlist = mapM pushRealize rlist >> return []
 executeFunction a b = do
     pos <- getPos
     addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show pos
