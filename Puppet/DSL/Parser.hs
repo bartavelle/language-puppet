@@ -307,8 +307,8 @@ puppetResourceCollection = do { pos <- getPosition
         ; return e
         })
     ; case chev of
-        "<" -> return [ ResourceCollection rtype e overrides pos ]
-        "<<" -> return [ VirtualResourceCollection rtype e overrides pos ]
+        "<" -> return [ VirtualResourceCollection rtype e overrides pos ]
+        "<<" -> return [ ResourceCollection rtype e overrides pos ]
         _ -> error $ "Invalid resource collection syntax at " ++ (show pos)
     }
 
