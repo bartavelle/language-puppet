@@ -29,14 +29,13 @@ data CResource = CResource {
     crname :: GeneralString,
     crtype :: String,
     crparams :: [(GeneralString, GeneralValue)],
-	relations :: [(LinkType, GeneralValue, GeneralValue)], -- (relation, resname, resname)
     crvirtuality :: Virtuality,
     pos :: SourcePos
     } deriving(Show)
 
 type ResIdentifier = (String, String) -- type, name
 
-type Relation  = (LinkType, ResIdentifier, ResIdentifier) -- (relation, src, dst)
+type Relation  = (LinkType, ResIdentifier) -- (relation, dst)
 
 data RResource = RResource {
     rrid :: Int,
@@ -45,14 +44,16 @@ data RResource = RResource {
     rrparams :: [(String, ResolvedValue)],
 	rrelations :: [Relation],
     rrpos :: SourcePos
-    } deriving(Show)
+    } deriving(Show, Ord, Eq)
     
 
 type FinalCatalog = Map.Map ResIdentifier RResource
 
-nativetypes = Set.fromList (["augeas","computer","cron","exec","file","filebucket","group","host","interface","k5login","macauthorization","mailalias","maillist","mcx","mount","nagios_command","nagios_contact","nagios_contactgroup","nagios_host","nagios_hostdependency","nagios_hostescalation","nagios_hostextinfo","nagios_hostgroup","nagios_service","nagios_servicedependency","nagios_serviceescalation","nagios_serviceextinfo","nagios_servicegroup","nagios_timeperiod","notify","package","resources","router","schedule","scheduledtask","selboolean","selmodule","service","sshauthorizedkey","sshkey","stage","tidy","user","vlan","yumrepo","zfs","zone","zpool"] ++ ["ssh_authorized_key_secure"])
+nativetypes = Set.fromList (["augeas","computer","cron","exec","file","filebucket","group","host","interface","k5login","macauthorization","mailalias","maillist","mcx","mount","nagios_command","nagios_contact","nagios_contactgroup","nagios_host","nagios_hostdependency","nagios_hostescalation","nagios_hostextinfo","nagios_hostgroup","nagios_service","nagios_servicedependency","nagios_serviceescalation","nagios_serviceextinfo","nagios_servicegroup","nagios_timeperiod","notify","package","resources","router","schedule","scheduledtask","selboolean","selmodule","service","sshauthorizedkey","sshkey","stage","tidy","user","vlan","yumrepo","zfs","zone","zpool"] ++ ["class", "ssh_authorized_key_secure"])
 
 type ScopeName = String
+
+data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord, Eq)
 
 data ScopeState = ScopeState {
     curScope :: [ScopeName],
@@ -63,7 +64,12 @@ data ScopeState = ScopeState {
     curPos :: SourcePos,
     netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
-    getWarnings :: [String]
+    getWarnings :: [String],
+    -- this stores the collection functions
+    curCollect :: [CResource -> CatalogMonad Bool],
+    -- this stores unresolved relationships, because the original string name can't be resolved
+    -- fieds are [ ( [dstrelations], srcresource, type, pos ) ]
+    unresolvedRels :: [([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)] 
 }
 
 type CatalogMonad = ErrorT String (StateT ScopeState IO)
