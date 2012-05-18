@@ -277,13 +277,9 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             ername <- tryResolveExpression rname
             srname <- tryResolveExpressionString rname
             let (realparams, relations) = partitionParamsRelations rparameters rrname
-                fullparams = foldl' addDefaultParameters realparams [(Right "title", ername),(Right "name", ername)]
-                addDefaultParameters params np@(nparamname, _) | defined = params
-                                                               | otherwise = np : params
-                    where defined = not $ null $ filter (\(cname, _) -> cname == nparamname) params
             -- push all the relations
             addUnresRel (relations, (rtype, srname), UNormal, position)
-            return [CResource resid srname rtype fullparams virtuality position]
+            return [CResource resid srname rtype realparams virtuality position]
 
 evaluateStatements x@(ResourceDefault _ _ _ ) = do
     pushDefaults x
@@ -297,12 +293,20 @@ evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) positi
     gsrcname <- tryResolveExpressionString srcname
     addUnresRel ( [(RRequire, Right $ ResolvedString dsttype, gdstname)], (srctype, gsrcname), UPlus, position )
     return []
-evaluateStatements (ResourceCollection rtype e1 e2 position) = do
+-- <<| |>>
+evaluateStatements (ResourceCollection rtype expr overrides position) = do
     setPos position
+    dummy <- if null overrides
+        then return 1
+        else throwPosError "Collection overrides not handled"
     addWarning "TODO : ResourceCollection not handled!"
     return []
-evaluateStatements (VirtualResourceCollection rtype e1 e2 position) = do
+-- <| |>
+evaluateStatements (VirtualResourceCollection rtype expr overrides position) = do
     setPos position
+    dummy <- if null overrides
+        then return 1
+        else throwPosError "Collection overrides not handled"
     addWarning "TODO : VirtualResourceCollection not handled!"
     return []
 
