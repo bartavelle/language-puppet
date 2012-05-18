@@ -49,7 +49,7 @@ getCatalog getstatements nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [])
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState ["::"] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [])
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right y -> return (output, getWarnings finalstate)
@@ -95,7 +95,11 @@ getstatement qtype name = do
 pushScope name  = modify (modifyScope (\x -> [name] ++ x))
 pushDefaults name  = modify (modifyDefaults (\x -> [name] ++ x))
 popScope        = modify (modifyScope tail)
-getScope        = get >>= return . head . curScope
+getScope        = do
+    scope <- get >>= return . curScope
+    if (null scope)
+        then throwError "empty scope, shouldn't happen"
+        else return $ head scope
 addLoaded name position = modify (modifyClasses (Map.insert name position))
 getNextId = do
     curscope <- get
@@ -231,10 +235,8 @@ handleDelayedActions res = do
 evaluateStatements :: Statement -> CatalogMonad Catalog
 evaluateStatements (Node name stmts position) = do
     setPos position
-    pushScope "::"
     res <- mapM (evaluateStatements) stmts
     nres <- handleDelayedActions (concat res)
-    popScope
     return nres
 
 -- include
