@@ -274,11 +274,16 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             resid <- getNextId
             rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
             rrname <- tryResolveGeneralValue (generalizeValueE rname)
+            ername <- tryResolveExpression rname
             srname <- tryResolveExpressionString rname
             let (realparams, relations) = partitionParamsRelations rparameters rrname
+                fullparams = foldl' addDefaultParameters realparams [(Right "title", ername),(Right "name", ername)]
+                addDefaultParameters params np@(nparamname, _) | defined = params
+                                                               | otherwise = np : params
+                    where defined = not $ null $ filter (\(cname, _) -> cname == nparamname) params
             -- push all the relations
             addUnresRel (relations, (rtype, srname), UNormal, position)
-            return [CResource resid srname rtype realparams virtuality position]
+            return [CResource resid srname rtype fullparams virtuality position]
 
 evaluateStatements x@(ResourceDefault _ _ _ ) = do
     pushDefaults x
