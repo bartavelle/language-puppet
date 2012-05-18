@@ -71,14 +71,22 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     let rrelations = []
     return $ ((ctype, rname), RResource cid rname ctype rparams rrelations cpos)
 
-collectionChecks :: CResource -> CatalogMonad Bool
-collectionChecks res = get >>= return . curCollect >>= mapM (\x -> x res) >>= return . or
+collectionChecks :: CResource -> CatalogMonad CResource
+collectionChecks res = do
+    if (crvirtuality res == Normal)
+        then return res
+        else do
+            isCollected <- get >>= return . curCollect >>= mapM (\x -> x res)
+            case (or isCollected) of
+                True -> return (res { crvirtuality = Normal })
+                False -> return res
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
-    let (real,  allvirtual) = partition (\x -> crvirtuality x == Normal)  cat
-    collected <- filterM collectionChecks allvirtual
-    resolved <- mapM finalizeResource (real ++ collected) >>= return . Map.fromList
+    collected <- mapM collectionChecks cat
+    let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  collected
+        (virtual,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
+    resolved <- mapM finalizeResource real >>= return . Map.fromList
     get >>= return . unresolvedRels >>= liftIO . (mapM print)
     return resolved
 
