@@ -4,6 +4,7 @@ module Puppet.Interpreter.Catalog (
 
 import Puppet.Init
 import Puppet.DSL.Types
+import Puppet.NativeTypes
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
@@ -132,7 +133,7 @@ addUnresRel ncol@(rels, _, _, _)  = do
 
 -- finds out if a resource name refers to a define
 checkDefine :: String -> CatalogMonad (Maybe Statement)
-checkDefine dname = if Set.member dname nativetypes
+checkDefine dname = if Map.member dname nativeTypes
   then return Nothing
   else do
     curstate <- get
