@@ -39,8 +39,8 @@ showuniqueres res = rtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
     where
         showrres (RResource crid rname rtype params rels pos)  =
             "    " ++ show rname ++ ":" ++ " #" ++ show pos ++ "\n"
-                ++ commaretsep (map showparams (sort params))
-                ++ commareqs ((null rels) || (null params))
+                ++ commaretsep (map showparams (Map.toList params))
+                ++ commareqs ((null rels) || (Map.null params))
                 ++ commaretsep (map showrequire (sort rels)) ++ ";\n"
         commareqs c | c             = ""
                     | otherwise     = ",\n"

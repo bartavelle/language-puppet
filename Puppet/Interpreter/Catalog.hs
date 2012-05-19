@@ -70,7 +70,7 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     -- add collected relations
     -- TODO
     let rrelations = []
-    return $ ((ctype, rname), RResource cid rname ctype rparams rrelations cpos)
+    return $ ((ctype, rname), RResource cid rname ctype (Map.fromList rparams) rrelations cpos)
 
 collectionChecks :: CResource -> CatalogMonad CResource
 collectionChecks res = do

@@ -41,7 +41,7 @@ data RResource = RResource {
     rrid :: Int,
     rrname :: String,
     rrtype :: String,
-    rrparams :: [(String, ResolvedValue)],
+    rrparams :: Map.Map String ResolvedValue,
 	rrelations :: [Relation],
     rrpos :: SourcePos
     } deriving(Show, Ord, Eq)

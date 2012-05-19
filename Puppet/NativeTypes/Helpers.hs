@@ -13,9 +13,5 @@ defaulttype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 defaulttype tname = (tname, defaultValidate)
 
 defaultValidate :: PuppetTypeValidate
-defaultValidate res = Right (res { rrparams = ((rrparams res) ++ name ++ title) } )
-    where
-        name    | True      = []
-                | otherwise = []
-        title   | True      = []
-                | otherwise = []
+defaultValidate res = Right res
+--(res { rrparams = ((rrparams res) ++ name ++ title) } )
