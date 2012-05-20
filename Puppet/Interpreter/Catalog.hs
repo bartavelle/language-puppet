@@ -5,6 +5,7 @@ module Puppet.Interpreter.Catalog (
 import Puppet.Init
 import Puppet.DSL.Types
 import Puppet.NativeTypes
+import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
@@ -62,6 +63,9 @@ computeCatalog getstatements nodename = do
         Left x -> throwError x
         Right nodestmts -> evaluateStatements nodestmts >>= finalResolution
 
+
+-- this validates the resolved resources
+-- it should only be called with native types or the validatefunction lookup with abord with an error
 finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
 finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     setPos cpos
@@ -70,7 +74,12 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     -- add collected relations
     -- TODO
     let rrelations = []
-    return $ ((ctype, rname), RResource cid rname ctype (Map.fromList rparams) rrelations cpos)
+        prefinalresource = RResource cid rname ctype (Map.fromList rparams) rrelations cpos
+        validatefunction = puppetvalidate (nativeTypes Map.! ctype)
+        validated = validatefunction prefinalresource
+    case validated of
+        Left err -> throwError (err ++ " for resource " ++ ctype ++ "[" ++ rname ++ "] at " ++ show cpos)
+        Right finalresource -> return $ ((ctype, rname), finalresource)
 
 collectionChecks :: CResource -> CatalogMonad CResource
 collectionChecks res = do
