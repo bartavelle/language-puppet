@@ -93,12 +93,27 @@ collectionChecks res = do
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
+    liftIO $ putStrLn $ "FINAL RESOLUTION"
     collected <- mapM collectionChecks cat
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  collected
         (virtual,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
-    resolved <- mapM finalizeResource real >>= return . Map.fromList
-    get >>= return . unresolvedRels >>= liftIO . (mapM print)
+    liftIO $ mapM print real
+    resolved <- mapM finalizeResource real >>= createResourceMap
+    --get >>= return . unresolvedRels >>= liftIO . (mapM print)
     return resolved
+
+createResourceMap :: [(ResIdentifier, RResource)] -> CatalogMonad FinalCatalog
+createResourceMap = foldM insertres Map.empty
+    where
+        insertres curmap (resid, res) = let
+            oldres = Map.lookup resid curmap
+            newmap = Map.insert resid res curmap
+            in case (rrtype res, oldres) of
+                ("class", _) -> return newmap
+                (_, Just r ) -> throwError $ "Resource already defined:"
+                    ++ "\n\t" ++ (rrtype r)   ++ "[" ++ (rrname r)   ++ "] at " ++ show (rrpos r)
+                    ++ "\n\t" ++ (rrtype res) ++ "[" ++ (rrname res) ++ "] at " ++ show (rrpos res)
+                (_, Nothing) -> return newmap
 
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
 getstatement qtype name = do
@@ -259,7 +274,7 @@ evaluateStatements (Node name stmts position) = do
 
 -- include
 evaluateStatements (Include includename position) = setPos position >> getstatement TopClass includename >>= evaluateStatements
-evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty
+evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty Nothing
 evaluateStatements n@(DefineDeclaration dtype dargs dstatements dpos) = do
     addNestedTopLevel TopDefine dtype n
     return []
@@ -272,6 +287,7 @@ evaluateStatements (ConditionalStatement exprs pos) = do
 
 evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
     setPos position
+    liftIO $ putStrLn $ "\t" ++  rtype ++ " " ++ show rname ++ " " ++ show position
     case rtype of
         -- checks whether we are handling a parametrized class
         "class" -> do
@@ -279,7 +295,7 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
             classname <- resolveExpressionString rname
             topstatement <- getstatement TopClass classname
             let classparameters = Map.fromList $ map (\(pname, pvalue) -> (pname, (pvalue, position))) rparameters
-            evaluateClass topstatement classparameters
+            evaluateClass topstatement classparameters Nothing
         _ -> do
             resid <- getNextId
             rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
@@ -348,9 +364,12 @@ loadClassVariable position inputs (paramname, defaultvalue) = do
 -- class
 -- ClassDeclaration String (Maybe String) [(String, Maybe Expression)] [Statement] SourcePos
 -- nom, heritage, parametres, contenu
-evaluateClass :: Statement -> Map.Map String (GeneralValue, SourcePos) -> CatalogMonad Catalog
-evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams = do
-    isloaded <- checkLoaded classname
+evaluateClass :: Statement -> Map.Map String (GeneralValue, SourcePos) -> Maybe String -> CatalogMonad Catalog
+evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams actualname = do
+    liftIO $ putStrLn $ "CLASS " ++ classname
+    isloaded <- case actualname of
+        Nothing -> checkLoaded classname
+        Just x  -> checkLoaded x
     if isloaded
         then return []
         else do
@@ -365,10 +384,12 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
             Just parentclass -> do
                 mystatement <- getstatement TopClass parentclass
                 case mystatement of
-                    ClassDeclaration _ ni np ns no -> evaluateClass (ClassDeclaration classname ni np ns no) Map.empty
+                    ClassDeclaration _ ni np ns no -> evaluateClass (ClassDeclaration classname ni np ns no) Map.empty (Just parentclass)
                     _ -> throwError "Should not happen : TopClass return something else than a ClassDeclaration in evaluateClass"
             Nothing -> return []
-        addLoaded classname oldpos
+        case actualname of
+            Nothing -> addLoaded classname oldpos
+            Just x  -> addLoaded x oldpos
 
         -- parse statements
         res <- mapM (evaluateStatements) statements
