@@ -336,7 +336,8 @@ evaluateStatements (ResourceCollection rtype expr overrides position) = do
     dummy <- if null overrides
         then return 1
         else throwPosError "Collection overrides not handled"
-    addWarning "TODO : ResourceCollection not handled!"
+    func <- collectionFunction Exported rtype expr
+    addCollect func
     return []
 -- <| |>
 evaluateStatements (VirtualResourceCollection rtype expr overrides position) = do
@@ -344,7 +345,8 @@ evaluateStatements (VirtualResourceCollection rtype expr overrides position) = d
     dummy <- if null overrides
         then return 1
         else throwPosError "Collection overrides not handled"
-    addWarning "TODO : VirtualResourceCollection not handled!"
+    func <- collectionFunction Exported rtype expr
+    addCollect func
     return []
 
 evaluateStatements (VariableAssignment vname vexpr position) = do
@@ -721,3 +723,30 @@ resolveGeneralString (Left y) = resolveExpressionString y
 gs2gv :: GeneralString -> GeneralValue
 gs2gv (Left e)  = Left e
 gs2gv (Right s) = Right $ ResolvedString s
+
+collectionFunction :: Virtuality -> String -> Expression -> CatalogMonad (CResource -> CatalogMonad Bool)
+collectionFunction virt rtype exprs = do
+    finalfunc <- case exprs of
+        BTrue -> return (\_ -> return True)
+        EqualOperation a b -> do
+            ra <- resolveExpression a
+            rb <- resolveExpression b
+            paramname <- case ra of
+                ResolvedString pname -> return pname
+                _ -> throwPosError $ "We only support collection of the form 'parameter == value'" 
+            let ntype = Map.lookup rtype nativeTypes
+            paramset <- case ntype of
+                Just (PuppetTypeMethods _ ps) -> return ps
+                Nothing                       -> throwPosError $ "Unknown type " ++ rtype
+            if Set.notMember paramname paramset
+                then throwPosError "x"
+                else return ()
+            return (\r -> do
+                throwError "TODO, compare values"
+            )
+    return (\res -> 
+        if ((crtype res == rtype) && (crvirtuality res == virt))
+            then finalfunc res
+            else return False
+        )
+
