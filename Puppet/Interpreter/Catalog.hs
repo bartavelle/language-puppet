@@ -73,6 +73,9 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
     -- add collected relations
     -- TODO
+    if Map.member ctype nativeTypes == False
+        then throwPosError $ "Can't find native type " ++ ctype
+        else return ()
     let rrelations = []
         prefinalresource = RResource cid rname ctype (Map.fromList rparams) rrelations cpos
         validatefunction = puppetvalidate (nativeTypes Map.! ctype)
@@ -94,8 +97,8 @@ collectionChecks res = do
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
     liftIO $ putStrLn $ "FINAL RESOLUTION"
-    collected <- mapM collectionChecks cat
-    let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  collected
+    collected <- mapM collectionChecks cat >>= mapM evaluateDefine
+    let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
         (virtual,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
     liftIO $ mapM print real
     resolved <- mapM finalizeResource real >>= createResourceMap
