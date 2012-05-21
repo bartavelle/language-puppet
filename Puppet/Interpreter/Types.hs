@@ -19,6 +19,7 @@ data ResolvedValue
     | ResolvedRReference String ResolvedValue
     | ResolvedArray [ResolvedValue]
     | ResolvedHash [(String, ResolvedValue)]
+    | ResolvedUndefined
     deriving(Show, Eq, Ord)
 
 type GeneralValue = Either Expression ResolvedValue

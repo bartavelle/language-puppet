@@ -182,10 +182,11 @@ partitionParamsRelations rparameters resname = (realparams, relations)
     where   realparams = filteredparams
             relations = concatMap convertrelation filteredrelations
             convertrelation :: (GeneralString, GeneralValue) -> [(LinkType, GeneralValue, GeneralValue)]
+            convertrelation (_,       Right ResolvedUndefined)          = []
             convertrelation (reltype, Right (ResolvedArray rs))         = concatMap (\x -> convertrelation (reltype, Right x)) rs
             convertrelation (reltype, Right (ResolvedRReference rt rv)) = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
             convertrelation (reltype, Right (ResolvedString "undef"))   = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
-            convertrelation x = error (show x)
+            convertrelation x = error ("partitionParamsRelations error : " ++ show x)
             (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
 
 -- TODO check whether parameters changed
@@ -609,6 +610,8 @@ tryResolveValue n@(FunctionCall "file" _) = return $ Right $ ResolvedString "TOD
 tryResolveValue n@(FunctionCall fname _) = do
     pos <- getPos
     throwError ("Function " ++ fname ++ " not implemented at " ++ show pos)
+
+tryResolveValue Undefined = return $ Right $ ResolvedUndefined
 
 tryResolveValue x = do
     pos <- getPos

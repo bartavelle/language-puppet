@@ -69,6 +69,7 @@ table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
             , [ Infix ( reservedOp "?" >> return ConditionalValue ) AssocLeft ]
             ]
 term = parens exprparser
+    <|> puppetUndefined
     <|> puppetVariableOrHashLookup
     <|> puppetNumeric
     <|> puppetArray
@@ -273,6 +274,11 @@ stringEscape '"' = '"'
 stringEscape '\\' = '\\'
 stringEscape '$' = '$'
 stringEscape x = error $ "unknown escape pattern \\" ++ [x]
+
+puppetUndefined = do
+    string "undef"
+    whiteSpace
+    return $ Value $ Undefined
 
 puppetNumeric = do { v <- naturalOrFloat
     ; return (case v of

@@ -22,7 +22,7 @@ defaulttype tname = (tname, PuppetTypeMethods defaultValidate)
 defaultValidate :: PuppetTypeValidate
 defaultValidate res = Right (res { rrparams = newparams } )
     where
-        newparams = Map.union defaults  (rrparams res) 
+        newparams = Map.filter (/= ResolvedUndefined) $ Map.union defaults (rrparams res) 
         defaults  = Map.fromList [("name", nm),("title", nm)]
         nm = ResolvedString $ rrname res
 
