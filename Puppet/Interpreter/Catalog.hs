@@ -84,23 +84,30 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
         Left err -> throwError (err ++ " for resource " ++ ctype ++ "[" ++ rname ++ "] at " ++ show cpos)
         Right finalresource -> return $ ((ctype, rname), finalresource)
 
-collectionChecks :: CResource -> CatalogMonad CResource
+-- This checks if a resource is to be collected.
+-- This returns a list as it can either return the original
+-- resource, the resource with a "normal" virtuality, or both,
+-- for exported resources (so that they can still be found as collected)
+collectionChecks :: CResource -> CatalogMonad [CResource]
 collectionChecks res = do
     if (crvirtuality res == Normal)
-        then return res
+        then return [res]
         else do
             isCollected <- get >>= return . curCollect >>= mapM (\x -> x res)
-            case (or isCollected) of
-                True -> return (res { crvirtuality = Normal })
-                False -> return res
+            case (or isCollected, crvirtuality res) of
+                (True, Exported)    -> return [res { crvirtuality = Normal }, res]
+                (True, _)           -> return [res { crvirtuality = Normal }     ]
+                (False, _)          -> return [res                               ]
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
     liftIO $ putStrLn $ "FINAL RESOLUTION"
-    collected <- mapM collectionChecks cat >>= mapM evaluateDefine
+    collected <- mapM collectionChecks cat >>= mapM evaluateDefine . concat
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
         (virtual,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
-    liftIO $ mapM print real
+    --export stuff
+    liftIO $ print "EXPORTED:"
+    liftIO $ mapM print exported
     resolved <- mapM finalizeResource real >>= createResourceMap
     --get >>= return . unresolvedRels >>= liftIO . (mapM print)
     return resolved

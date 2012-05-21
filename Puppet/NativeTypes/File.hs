@@ -4,13 +4,13 @@ import Puppet.NativeTypes.Helpers
 import Control.Monad.Error
 import Puppet.Interpreter.Types
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
-nativeFile = [("file", PuppetTypeMethods validateFile)]
+nativeFile = [("file", PuppetTypeMethods validateFile parameterset)]
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-
-validateFile :: PuppetTypeValidate
-validateFile = defaultValidate >=> parameterFunctions
+parameterset = Set.fromList $ map fst parameterfunctions
+parameterfunctions = 
     [("backup"      , [string])
     ,("checksum"    , [values ["md5", "md5lite", "mtime", "ctime", "none"]])
     ,("content"     , [string])
@@ -29,7 +29,11 @@ validateFile = defaultValidate >=> parameterFunctions
     ,("replace"     , [string, values ["true","false"]])
     ,("sourceselect", [values ["first","all"]])
     ,("target"      , [string])
-    ] >=> validateSourceOrContent
+    ,("source"      , [])
+    ]
+
+validateFile :: PuppetTypeValidate
+validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent
 
 
 validateSourceOrContent :: PuppetTypeValidate
