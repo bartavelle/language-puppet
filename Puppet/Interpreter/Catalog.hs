@@ -13,6 +13,7 @@ import Data.List
 import Data.Char (isDigit)
 import Data.Maybe (isJust, fromJust)
 import Data.Either (lefts, rights)
+import Data.String.Utils (startswith)
 import Text.Parsec.Pos
 import Control.Monad (foldM)
 import Control.Monad.State
@@ -152,7 +153,10 @@ setPos pos = modify (setStatePos pos)
 getPos = get >>= return . curPos
 putVariable k v = do
     curscope <- getScope
-    modify (modifyVariables (Map.insert (curscope ++ "::" ++ k) v))
+    let qualified = startswith "::" k
+        kk  | qualified || (curscope == "::") = k
+            | otherwise = "::" ++ k
+    modify (modifyVariables (Map.insert (curscope ++ kk) v))
 getVariable vname = get >>= return . Map.lookup vname . curVariables
 addNestedTopLevel rtype rname rstatement = modify( modifyNestedTopLvl (Map.insert (rtype, rname) rstatement) )
 addWarning nwrn   = modify (pushWarning nwrn)
