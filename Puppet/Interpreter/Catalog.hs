@@ -9,6 +9,8 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
+import Erb.Compute
+
 import Data.List
 import Data.Char (isDigit)
 import Data.Maybe (isJust, fromJust)
@@ -605,7 +607,13 @@ tryResolveValue n@(FunctionCall "fqdn_rand" args) = if (null args)
         max <- readint (head nargs)
         fqdn_rand max (tail nargs) >>= return . Right . ResolvedInt
 tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
-tryResolveValue n@(FunctionCall "template" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue n@(FunctionCall "template" [name]) = do
+    fname <- tryResolveExpressionString name
+    case fname of
+        Left x -> throwPosError $ "Can't resolve template path " ++ show x
+        Right filename -> do
+            vars <- get >>= mapM (\(varname, (varval, _)) -> do { rvarval <- tryResolveGeneralValue varval; return (varname, rvarval) }) . Map.toList . curVariables
+            liftIO (computeTemplate filename vars) >>= return . Right . ResolvedString 
 tryResolveValue n@(FunctionCall "inline_template" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
