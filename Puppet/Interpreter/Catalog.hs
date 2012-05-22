@@ -618,7 +618,7 @@ tryResolveValue n@(FunctionCall "regsubst" args) = do
 tryResolveValue n@(FunctionCall "file" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall fname _) = do
     pos <- getPos
-    throwError ("Function " ++ fname ++ " not implemented at " ++ show pos)
+    throwError ("FunctionCall " ++ fname ++ " not implemented at " ++ show pos)
 
 tryResolveValue Undefined = return $ Right $ ResolvedUndefined
 
@@ -674,13 +674,26 @@ pushRealize (ResolvedRReference rtype x) = throwPosError (show x ++ " was not re
 pushRealize x                            = throwPosError ("A reference was expected instead of " ++ show x)
 
 executeFunction :: String -> [ResolvedValue] -> CatalogMonad Catalog
-executeFunction "fail" [ResolvedString errmsg] = do
-    pos <- getPos
-    throwError ("Error: " ++ errmsg ++ " at " ++ show pos)
-executeFunction "fail" args = do
-    pos <- getPos
-    throwError ("Error: " ++ show args ++ " at " ++ show pos)
+executeFunction "fail" [ResolvedString errmsg] = throwPosError ("Error: " ++ errmsg)
+executeFunction "fail" args = throwPosError ("Error: " ++ show args)
 executeFunction "realize" rlist = mapM pushRealize rlist >> return []
+executeFunction "create_resources" [rtype, rdefs] = do
+    rrtype <- case rtype of
+        ResolvedString x -> return x
+        _                -> throwPosError $ "Resource type must be a string and not " ++ show rtype
+    arghash <- case rdefs of
+        ResolvedHash x -> return x
+        _              -> throwPosError $ "Resource definition must be a hash, and not " ++ show rdefs 
+    pos <- getPos
+    let prestatements = map (\(rname, rargs) -> (Value $ Literal rname, resolved2expression rargs)) arghash
+    resources <- mapM (\(resname, pval) -> do
+            realargs <- case pval of
+                Value (PuppetHash (Parameters h)) -> return h
+                _                    -> throwPosError "This should not happen, create_resources argument is not a hash"
+            return $ Resource rrtype resname realargs Normal pos
+        ) prestatements
+    mapM evaluateStatements resources >>= return . concat
+executeFunction "create_resources" x = throwPosError ("Bad arguments to create_resources: " ++ show x)
 executeFunction a b = do
     pos <- getPos
     addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show pos
@@ -757,4 +770,14 @@ collectionFunction virt rtype exprs = do
             then finalfunc res
             else return False
             )
+
+
+resolved2expression :: ResolvedValue -> Expression
+resolved2expression (ResolvedString str) = Value $ Literal str
+resolved2expression (ResolvedInt i) = Value $ Integer i
+resolved2expression (ResolvedBool True) = BTrue
+resolved2expression (ResolvedBool False) = BFalse
+resolved2expression (ResolvedRReference rtype name) = Value $ ResourceReference rtype (resolved2expression name)
+resolved2expression (ResolvedArray vals) = Value $ PuppetArray $ map resolved2expression vals
+resolved2expression (ResolvedHash hash) = Value $ PuppetHash $ Parameters $ map (\(s,v) -> (Value $ Literal s, resolved2expression v)) hash
 
