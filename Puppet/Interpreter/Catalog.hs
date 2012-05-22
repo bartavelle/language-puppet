@@ -96,7 +96,7 @@ collectionChecks res = do
             isCollected <- get >>= return . curCollect >>= mapM (\x -> x res)
             case (or isCollected, crvirtuality res) of
                 (True, Exported)    -> return [res { crvirtuality = Normal }, res]
-                (True, _)           -> return [res { crvirtuality = Normal }     ]
+                (True,  _)          -> return [res { crvirtuality = Normal }     ]
                 (False, _)          -> return [res                               ]
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
@@ -345,7 +345,7 @@ evaluateStatements (VirtualResourceCollection rtype expr overrides position) = d
     dummy <- if null overrides
         then return 1
         else throwPosError "Collection overrides not handled"
-    func <- collectionFunction Exported rtype expr
+    func <- collectionFunction Virtual rtype expr
     addCollect func
     return []
 
@@ -697,10 +697,11 @@ tryResolveBoolean :: GeneralValue -> CatalogMonad GeneralValue
 tryResolveBoolean v = do
     rv <- tryResolveGeneralValue v
     case rv of
-        Right (ResolvedString "") -> return $ Right $ ResolvedBool False
-        Right (ResolvedString _) -> return $ Right $ ResolvedBool True
-        Right (ResolvedInt 0) -> return $ Right $ ResolvedBool False
-        Right (ResolvedInt _) -> return $ Right $ ResolvedBool True
+        Right (ResolvedString "")   -> return $ Right $ ResolvedBool False
+        Right (ResolvedString _)    -> return $ Right $ ResolvedBool True
+        Right (ResolvedInt 0)       -> return $ Right $ ResolvedBool False
+        Right (ResolvedInt _)       -> return $ Right $ ResolvedBool True
+        Right (ResolvedUndefined)   -> return $ Right $ ResolvedBool False
         Left (Value (VariableReference _)) -> return $ Right $ ResolvedBool False
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the empty string
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "true"))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the string "true"
@@ -734,19 +735,26 @@ collectionFunction virt rtype exprs = do
             paramname <- case ra of
                 ResolvedString pname -> return pname
                 _ -> throwPosError $ "We only support collection of the form 'parameter == value'" 
-            let ntype = Map.lookup rtype nativeTypes
-            paramset <- case ntype of
-                Just (PuppetTypeMethods _ ps) -> return ps
-                Nothing                       -> throwPosError $ "Unknown type " ++ rtype
-            if Set.notMember paramname paramset
-                then throwPosError "x"
+            defstatement <- checkDefine rtype
+            paramset <- case defstatement of
+                Nothing -> case (Map.lookup rtype nativeTypes) of
+                    Just (PuppetTypeMethods _ ps) -> return ps
+                    Nothing -> throwPosError $ "Unknown type " ++ rtype ++ " when trying to collect"
+                Just (DefineDeclaration _ params _ _) -> return $ Set.fromList $ map fst params
+            if (Set.notMember paramname paramset) && (paramname /= "tag")
+                then throwPosError $ "Parameter " ++ paramname ++ " is not a valid parameter. It should be in : " ++ show (Set.toList paramset)
                 else return ()
             return (\r -> do
-                throwError "TODO, compare values"
-            )
-    return (\res -> 
+                let param = filter (\x -> fst x == Right paramname) (crparams r)
+                if length param == 0
+                    then return False
+                    else do
+                        cmp <- resolveGeneralValue $ snd (head param)
+                        return (cmp == rb)
+                )
+    return (\res ->
         if ((crtype res == rtype) && (crvirtuality res == virt))
             then finalfunc res
             else return False
-        )
+            )
 
