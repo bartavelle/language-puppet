@@ -48,7 +48,7 @@ Library
   Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes
   
   -- Packages needed in order to build this package.
-  Build-depends:       base,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr
+  Build-depends:       base,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process
   
   -- Modules not exported by this package.
   Other-modules:       Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types, Puppet.Interpreter.Functions, Puppet.NativeTypes.Helpers,

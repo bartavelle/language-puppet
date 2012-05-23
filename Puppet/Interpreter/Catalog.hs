@@ -613,7 +613,12 @@ tryResolveValue n@(FunctionCall "template" [name]) = do
         Left x -> throwPosError $ "Can't resolve template path " ++ show x
         Right filename -> do
             vars <- get >>= mapM (\(varname, (varval, _)) -> do { rvarval <- tryResolveGeneralValue varval; return (varname, rvarval) }) . Map.toList . curVariables
-            liftIO (computeTemplate filename vars) >>= return . Right . ResolvedString 
+            scp <- getScope
+            tfilename <- getTemplateFile filename
+            out <- liftIO (computeTemplate tfilename scp vars)
+            case out of
+                Right x -> return $ Right $ ResolvedString x
+                Left err -> throwPosError err
 tryResolveValue n@(FunctionCall "inline_template" _) = return $ Right $ ResolvedString "TODO"
 tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
