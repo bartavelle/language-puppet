@@ -1,8 +1,9 @@
 require 'erb'
 
 class Scope
-    def initialize(scpv)
+    def initialize(scpv, ctx)
         @mvars = eval(scpv)
+        @context = ctx
     end
 
     def lookupvar(name)
@@ -10,8 +11,10 @@ class Scope
             @mvars[name]
         elsif has_variable?("::" + name)
             @mvars["::" + name]
+        elsif has_variable?(@context + "::" + name)
+            @mvars[@context + "::" + name]
         else
-            @mvars[@context ++ "::" ++ name]
+            :undef
         end
     end
 
@@ -21,8 +24,8 @@ class Scope
 end
 
 class ErbBinding
-    def initialize(scp)
-        @scope = Scope.new(scp)
+    def initialize(scp, ctx)
+        @scope = Scope.new(scp, ctx)
     end
     def get_binding
         return binding()
@@ -31,7 +34,6 @@ class ErbBinding
         @scope.has_variable?(name.to_s)
     end
     def method_missing(sname)
-        puts sname
         name = sname.to_s
         if name == 'scope'
             @scope
@@ -41,13 +43,13 @@ class ErbBinding
     end
 end
 
-context = $stdin.readline
+context = $stdin.readline.chomp!
 templatefile = $stdin.readline.chomp!
 varscope = $stdin.read
 content = IO.read(templatefile)
 
 nerb = ERB.new(content, nil, "-")
-binding = ErbBinding.new(varscope).get_binding
+binding = ErbBinding.new(varscope, context).get_binding
 
 out = nerb.result(binding)
 puts out
