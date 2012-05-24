@@ -21,6 +21,11 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+qualified []  = False
+qualified str = case isPrefixOf "::" str of
+    False -> qualified (tail str)
+    True  -> True
+
 throwPosError msg = do
     pos <- getPos
     throwError (msg ++ " at " ++ show pos)
@@ -153,8 +158,8 @@ setPos pos = modify (setStatePos pos)
 getPos = get >>= return . curPos
 putVariable k v = do
     curscope <- getScope
-    let qualified = startswith "::" k
-        kk  | qualified || (curscope == "::") = k
+    let qual = qualified k
+        kk  | qual || (curscope == "::") = k
             | otherwise = "::" ++ k
     modify (modifyVariables (Map.insert (curscope ++ kk) v))
 getVariable vname = get >>= return . Map.lookup vname . curVariables
@@ -559,15 +564,11 @@ tryResolveValue n@(ResourceReference rtype vals) = do
 tryResolveValue n@(VariableReference vname) = do
     -- TODO check scopes !!!
     var <- getVariable vname
-    let substringP _ []  = Nothing
-        substringP sub str = case isPrefixOf sub str of
-            False -> fmap (+1) $ substringP sub (tail str)
-            True  -> Just 0
-    case (var, substringP "::" vname) of
-        (Just (Left e, pos) , _     ) -> tryResolveExpression e
-        (Just (Right r, pos), _     ) -> return $ Right r
-        (Nothing            , Just _) -> return $ Left $ Value $ VariableReference vname -- already qualified
-        (Nothing            , _     ) -> do
+    case (var, qualified vname) of
+        (Just (Left e, pos) , _   ) -> tryResolveExpression e
+        (Just (Right r, pos), _   ) -> return $ Right r
+        (Nothing            , True) -> return $ Left $ Value $ VariableReference vname -- already qualified
+        (Nothing            , _   ) -> do
             -- TODO : check that there are no "::"
             curscp <- getScope
             let varnamescp = curscp ++ "::" ++ vname
