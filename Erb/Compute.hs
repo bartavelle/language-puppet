@@ -47,8 +47,12 @@ computeTemplate filename curcontext variables = do
         input = curcontext ++ "\n" ++ filename ++ "\n" ++ rubyvars
     ret <- safeReadProcessTimeout "ruby" ["/home/smarechal/gits/puppet/language-puppet/Erb/test.rb"] input 1000
     case ret of
-        Just x -> do
-            return $ Right x
+        Just (Right x) -> return $ Right x
+        Just (Left er) -> do
+            (tmpfilename, tmphandle) <- openTempFile "/tmp" "templatefail"
+            hPutStr tmphandle input
+            hClose tmphandle
+            return $ Left $ er ++ " - for template " ++ filename ++ " input in " ++ tmpfilename
         Nothing -> do
             return $ Left "Process did not terminate"
 

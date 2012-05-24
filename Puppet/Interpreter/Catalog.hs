@@ -567,11 +567,12 @@ tryResolveValue n@(VariableReference vname) = do
     case (var, qualified vname) of
         (Just (Left e, pos) , _   ) -> tryResolveExpression e
         (Just (Right r, pos), _   ) -> return $ Right r
-        (Nothing            , True) -> return $ Left $ Value $ VariableReference vname -- already qualified
+        (Nothing            , True) -> return $ Left $ Value n -- already qualified
         (Nothing            , _   ) -> do
             -- TODO : check that there are no "::"
             curscp <- getScope
-            let varnamescp = curscp ++ "::" ++ vname
+            let varnamescp  | curscp == "::" = "::" ++ vname
+                            | otherwise      = curscp ++ "::" ++ vname
             varscp <- getVariable varnamescp
             case varscp of
                 Just (Left e, pos) -> tryResolveExpression e

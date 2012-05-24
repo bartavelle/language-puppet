@@ -12,7 +12,7 @@ import System.Posix.Signals
 import System.Process
 import System.Process.Internals
 
-safeReadProcessTimeout :: String -> [String] -> String -> Int -> IO (Maybe String)
+safeReadProcessTimeout :: String -> [String] -> String -> Int -> IO (Maybe (Either String String))
 safeReadProcessTimeout prog args input tout = timeout (tout*1000) $ safeReadProcess prog args input
 
 safeCreateProcess :: String -> [String] -> StdStream -> StdStream -> StdStream
@@ -38,7 +38,7 @@ safeCreateProcess prog args streamIn streamOut streamErr fun = bracket
     fun
 {-# NOINLINE safeCreateProcess #-}
 
-safeReadProcess :: String -> [String] -> String -> IO String
+safeReadProcess :: String -> [String] -> String -> IO (Either String String)
 safeReadProcess prog args str =
     safeCreateProcess prog args CreatePipe CreatePipe Inherit
       (\(Just inh, Just outh, _, ph) -> do
@@ -51,14 +51,10 @@ safeReadProcess prog args str =
         -- wait on output
         takeMVar outMVar
         hClose outh
-        return output
--- The following would be great, if some programs did not return funny
--- exit codes!
---            ex <- waitForProcess ph
---            case ex of
---                ExitSuccess -> return output
---                ExitFailure r ->
---                    fail ("spawned process " ++ prog ++ " exit: " ++ show r)
+        ex <- waitForProcess ph
+        case ex of
+            ExitSuccess     -> return $ Right output
+            ExitFailure r   -> return $ Left $ prog ++ " " ++ show args ++ " failed, errorcode = " ++ show r
       )
 
 terminateProcessGroup :: ProcessHandle -> IO ()
