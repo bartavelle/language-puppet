@@ -5,6 +5,7 @@ import Puppet.Interpreter.Types
 import Puppet.Interpreter.Catalog
 import Puppet.DSL.Types
 import Puppet.DSL.Loader
+import Erb.Compute
 import Control.Concurrent
 import Control.Concurrent.Chan
 import System.Posix.Files
@@ -34,22 +35,23 @@ initDaemon prefs = do
     logDebug "initDaemon"
     controlChan <- newChan
     getstmts <- initParserDaemon prefs
-    forkIO (master prefs controlChan (getstmts))
+    templatefunc <- initTemplateDaemon prefs
+    forkIO (master prefs controlChan getstmts templatefunc)
     return (gCatalog controlChan)
 
-master :: Prefs -> Chan DaemonMessage -> (TopLevelType -> String -> IO (Either String Statement)) -> IO ()
-master prefs chan getstmts = do
+master :: Prefs -> Chan DaemonMessage -> (TopLevelType -> String -> IO (Either String Statement)) -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String)) -> IO ()
+master prefs chan getstmts gettemplate = do
     message <- readChan chan
     case message of
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
-            (stmts, warnings) <- getCatalog (getstmts) nodename facts
+            (stmts, warnings) <- getCatalog getstmts gettemplate nodename facts
             mapM logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)
                 Right x -> writeChan respchan (RCatalog $ Right x)
         _ -> logError "Bad message type for master"
-    master prefs chan getstmts
+    master prefs chan getstmts gettemplate
 
 gCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String FinalCatalog)
 gCatalog channel nodename facts = do

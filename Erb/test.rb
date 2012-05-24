@@ -41,17 +41,13 @@ class ErbBinding
     end
 end
 
-while 1
-    context = $stdin.readline
-    reqsize = $stdin.readline.to_i
-    varscope = $stdin.read(reqsize)
-    templatefile = $stdin.readline.chomp!
-    content = IO.read(templatefile)
+context = $stdin.readline
+templatefile = $stdin.readline.chomp!
+varscope = $stdin.read
+content = IO.read(templatefile)
 
-    nerb = ERB.new(content, nil, "-")
-    binding = ErbBinding.new(varscope).get_binding
+nerb = ERB.new(content, nil, "-")
+binding = ErbBinding.new(varscope).get_binding
 
-    out = nerb.result(binding)
-    puts out.lines.count
-    puts out
-end
+out = nerb.result(binding)
+puts out

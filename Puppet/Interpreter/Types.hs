@@ -68,7 +68,8 @@ data ScopeState = ScopeState {
     curCollect :: [CResource -> CatalogMonad Bool],
     -- this stores unresolved relationships, because the original string name can't be resolved
     -- fieds are [ ( [dstrelations], srcresource, type, pos ) ]
-    unresolvedRels :: [([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)] 
+    unresolvedRels :: [([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
+    computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String)
 }
 
 type CatalogMonad = ErrorT String (StateT ScopeState IO)

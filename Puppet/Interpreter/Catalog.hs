@@ -9,8 +9,6 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
-import Erb.Compute
-
 import Data.List
 import Data.Char (isDigit)
 import Data.Maybe (isJust, fromJust)
@@ -49,12 +47,12 @@ pushWarning     t sc = sc { getWarnings    = (getWarnings sc) ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : (curCollect sc) }
 pushUnresRel  r   sc = sc { unresolvedRels = r : (unresolvedRels sc) }
 
-getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> Facts -> IO (Either String FinalCatalog, [String])
-getCatalog getstatements nodename facts = do
+getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String)) -> String -> Facts -> IO (Either String FinalCatalog, [String])
+getCatalog getstatements gettemplate nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState ["::"] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [])
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState ["::"] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [] gettemplate)
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right y -> return (output, getWarnings finalstate)
@@ -614,8 +612,8 @@ tryResolveValue n@(FunctionCall "template" [name]) = do
         Right filename -> do
             vars <- get >>= mapM (\(varname, (varval, _)) -> do { rvarval <- tryResolveGeneralValue varval; return (varname, rvarval) }) . Map.toList . curVariables
             scp <- getScope
-            tfilename <- getTemplateFile filename
-            out <- liftIO (computeTemplate tfilename scp vars)
+            templatefunc <- get >>= return . computeTemplateFunction
+            out <- liftIO (templatefunc filename scp vars)
             case out of
                 Right x -> return $ Right $ ResolvedString x
                 Left err -> throwPosError err
