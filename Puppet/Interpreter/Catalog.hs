@@ -534,8 +534,7 @@ resolveExpression e = do
         Right r -> return r
         Left  x -> do
             p <- getPos
-            throwError ("Can't resolve expression '" ++ show x ++ "' at " ++ show p)
-
+            throwError ("Can't resolve expression '" ++ show x ++ "' at " ++ show p ++ " was '" ++ show e ++ "'")
 
 resolveExpressionString :: Expression -> CatalogMonad String
 resolveExpressionString x = do
@@ -560,10 +559,15 @@ tryResolveValue n@(ResourceReference rtype vals) = do
 tryResolveValue n@(VariableReference vname) = do
     -- TODO check scopes !!!
     var <- getVariable vname
-    case var of
-        Just (Left e, pos) -> tryResolveExpression e
-        Just (Right r, pos) -> return $ Right r
-        Nothing -> do
+    let substringP _ []  = Nothing
+        substringP sub str = case isPrefixOf sub str of
+            False -> fmap (+1) $ substringP sub (tail str)
+            True  -> Just 0
+    case (var, substringP "::" vname) of
+        (Just (Left e, pos) , _     ) -> tryResolveExpression e
+        (Just (Right r, pos), _     ) -> return $ Right r
+        (Nothing            , Just _) -> return $ Left $ Value $ VariableReference vname -- already qualified
+        (Nothing            , _     ) -> do
             -- TODO : check that there are no "::"
             curscp <- getScope
             let varnamescp = curscp ++ "::" ++ vname
