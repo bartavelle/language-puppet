@@ -13,6 +13,7 @@ import Control.Concurrent
 import Control.Concurrent.Chan
 import System.Posix.Files
 import System.Timeout
+import Paths_language_puppet (getDataFileName)
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, [(String, GeneralValue)])
 type TemplateAnswer = Either String String
@@ -45,7 +46,8 @@ computeTemplate :: String -> String -> [(String, GeneralValue)] -> IO TemplateAn
 computeTemplate filename curcontext variables = do
     let rubyvars = "{\n" ++ intercalate ",\n" (concatMap toRuby variables ) ++ "\n}\n"
         input = curcontext ++ "\n" ++ filename ++ "\n" ++ rubyvars
-    ret <- safeReadProcessTimeout "ruby" ["/home/smarechal/gits/puppet/language-puppet/Erb/test.rb"] input 1000
+    rubyscriptpath <- getDataFileName "ruby/calcerb.rb"
+    ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] input 1000
     case ret of
         Just (Right x) -> return $ Right x
         Just (Left er) -> do

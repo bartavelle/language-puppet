@@ -42,6 +42,9 @@ Build-type:          Simple
 -- Constraint on the version of Cabal needed to build this package.
 Cabal-version:       >=1.2
 
+Data-Files:
+  ruby/calcerb.rb
+
 
 Library
   -- Modules exported by the library.
@@ -52,7 +55,7 @@ Library
   
   -- Modules not exported by this package.
   Other-modules:       Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types, Puppet.Interpreter.Functions, Puppet.NativeTypes.Helpers,
-                        Puppet.NativeTypes.File, Erb.Compute, SafeProcess
+                        Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
