@@ -42,6 +42,8 @@ safeReadProcess :: String -> [String] -> String -> IO (Either String String)
 safeReadProcess prog args str =
     safeCreateProcess prog args CreatePipe CreatePipe Inherit
       (\(Just inh, Just outh, _, ph) -> do
+        hSetBinaryMode inh True
+        hSetBinaryMode outh True
         hPutStr inh str
         hClose inh
         -- fork a thread to consume output
