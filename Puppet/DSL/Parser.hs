@@ -116,12 +116,12 @@ puppetResourceReference = do { rtype <- puppetQualifiedReference
 puppetResourceOverride = do { pos <- getPosition
     ; rtype <- puppetQualifiedReference
     ; symbol "["
-    ; rname <- exprparser
+    ; rname <- exprparser `sepBy` (symbol ",")
     ; symbol "]"
     ; symbol "{"
     ; e <- puppetAssignment `sepEndBy` (symbol ",")
     ; symbol "}"
-    ; return [ ResourceOverride rtype rname e pos ]
+    ; return (map (\n -> ResourceOverride rtype n e pos) rname)
     }
 
 puppetInclude = do { pos <- getPosition
