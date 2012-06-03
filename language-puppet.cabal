@@ -47,6 +47,7 @@ Data-Files:
 
 
 Library
+    ghc-options:       -Wall -fno-warn-missing-signatures -fno-warn-unused-do-bind
   -- Modules exported by the library.
   Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes
   
