@@ -40,7 +40,7 @@ Build-type:          Simple
 -- Extra-source-files:  
 
 -- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.2
+Cabal-version:       >=1.8
 
 Data-Files:
   ruby/calcerb.rb
@@ -63,3 +63,9 @@ Library
 
   GHC-Prof-Options:     -auto-all
   
+Test-Suite test-lexer
+    hs-source-dirs: test
+    type:           exitcode-stdio-1.0
+    ghc-options:    -Wall
+    build-depends:   language-puppet,base,Glob,mtl
+    main-is:        main.hs
