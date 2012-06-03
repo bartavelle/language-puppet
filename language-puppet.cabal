@@ -55,7 +55,7 @@ Library
   
   -- Modules not exported by this package.
   Other-modules:       Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types, Puppet.Interpreter.Functions, Puppet.NativeTypes.Helpers,
-                        Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet
+                        Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
