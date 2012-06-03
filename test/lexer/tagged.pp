@@ -1,6 +1,6 @@
 # $Id$
 
-tag testing
+tag(testing)
 tag(funtest)
 
 class tagdefine {

@@ -7,7 +7,7 @@ class one {
 
 class two {
     File <| content == "one" |>
-    realize File["/tmp/virtualtest2"]
+    realize(File["/tmp/virtualtest2"])
     realize(File["/tmp/virtualtest3"], File["/tmp/virtualtest4"])
 }
 
