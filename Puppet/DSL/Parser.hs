@@ -68,6 +68,7 @@ table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
             ]
 term = parens exprparser
     <|> puppetUndefined
+    <|> puppetRegexpExpr
     <|> puppetVariableOrHashLookup
     <|> puppetNumeric
     <|> puppetArray
@@ -171,7 +172,7 @@ puppetHash = do { symbol "{"
     ; return $ Value (PuppetHash (Parameters e))
     }
 
-puppetAssignment = do { n <- puppetLiteralValue
+puppetAssignment = do { n <- puppetRegexpExpr <|> puppetVariableOrHashLookup <|> puppetLiteralValue
     ; symbol "=>"
     ; v <- exprparser
     ; return $ (n, v)
@@ -200,11 +201,6 @@ puppetVariable = do { char '$'
     ; return n
     }
 
-puppetVariableReference = do { v <- puppetVariable
-    ; whiteSpace
-    ; return $ Value (VariableReference v)
-    }
-
 variableAssignment = do { pos <- getPosition
     ; varname <- puppetVariable
     ; whiteSpace
@@ -229,6 +225,8 @@ puppetRegexp = do { symbol "/"
     ; symbol "/"
     ; return v
     }
+
+puppetRegexpExpr = puppetRegexp >>= return . Value . PuppetRegexp
 
 singleQuotedString = do { char '\''
     ; v <- many ( do { char '\\' ; x <- anyChar; return [x] } <|> many1 (noneOf "'\\") )
