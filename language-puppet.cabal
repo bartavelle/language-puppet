@@ -69,3 +69,11 @@ Test-Suite test-lexer
     ghc-options:    -Wall
     build-depends:   language-puppet,base,Glob,mtl
     main-is:        main.hs
+
+benchmark bench-lexer
+    hs-source-dirs: bench
+    type:           exitcode-stdio-1.0
+    ghc-options:    -Wall
+    build-depends:  language-puppet,base
+    main-is:        lexer.hs
+
