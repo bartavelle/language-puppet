@@ -5,7 +5,6 @@ import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 type Catalog =[CResource]
 type Facts = Map.Map String ResolvedValue

@@ -13,12 +13,10 @@
 import Data.Char
 import Text.Parsec
 import qualified Text.Parsec.Token as P
-import Text.Parsec.String
 import Text.Parsec.Expr
 import Text.Parsec.Language (emptyDef)
 import Data.List.Utils
 import Puppet.DSL.Types
-import Debug.Trace
 
 def = emptyDef
     { P.commentStart   = "/*"
@@ -34,8 +32,8 @@ def = emptyDef
 
 lexer       = P.makeTokenParser def
 parens      = P.parens lexer
-braces      = P.braces lexer
-operator    = P.operator lexer
+--braces      = P.braces lexer
+--operator    = P.operator lexer
 symbol      = P.symbol lexer
 reservedOp  = P.reservedOp lexer
 whiteSpace  = P.whiteSpace lexer
@@ -90,7 +88,7 @@ puppetVariableOrHashLookup = do { v <- puppetVariable
     ; hashlist <- many hashRef
     ; case hashlist of
         [] -> return $ Value (VariableReference v)
-        x -> return $ makeLookupOperation v hashlist
+        _ -> return $ makeLookupOperation v hashlist
     }
 
 makeLookupOperation :: String -> [Expression] -> Expression
@@ -293,9 +291,10 @@ puppetResourceGroup = do { virtcount <- many (char '@')
     ; x <- (resourceArrayDeclaration <|> resourceDeclaration) `sepEndBy` (symbol ";" <|> symbol ",")
     ; symbol "}"
     ; case virtcount of
-        "" -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Normal pos)) (concat x)
-        "@" -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Virtual pos)) (concat x)
-        "@@" -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Exported pos)) (concat x)
+        ""      -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Normal pos)) (concat x)
+        "@"     -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Virtual pos)) (concat x)
+        "@@"    -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Exported pos)) (concat x)
+        _       -> unexpected "Too many @'s"
     }
 
 -- todo parse resource collection properly
@@ -308,9 +307,9 @@ puppetResourceCollection = do { pos <- getPosition
     ; many1 (char '>')
     ; whiteSpace
     ; overrides <- option [] (do { symbol "{"
-        ; e <- puppetAssignment `sepEndBy` (symbol ",")
+        ; ne <- puppetAssignment `sepEndBy` (symbol ",")
         ; symbol "}"
-        ; return e
+        ; return ne
         })
     ; case chev of
         "<" -> return [ VirtualResourceCollection rtype e overrides pos ]
@@ -380,8 +379,8 @@ puppetDefine = do { pos <- getPosition
     }
     
 
-puppetIfStyleCondition = do { pos <- getPosition
-    ; symbol "("
+puppetIfStyleCondition = do { 
+      symbol "("
     ; cond <- exprparser
     ; symbol ")"
     ; symbol "{"
@@ -390,15 +389,15 @@ puppetIfStyleCondition = do { pos <- getPosition
     ; return (cond, concat e)
     }
     
-puppetElseIfCondition = do { pos <- getPosition
-    ; try (string "elsif")
+puppetElseIfCondition = do { 
+      try (string "elsif")
     ; whiteSpace
     ; out <- puppetIfStyleCondition
     ; return out
     }
 
-puppetElseCondition = do { pos <- getPosition
-    ; string "else"
+puppetElseCondition = do { 
+      string "else"
     ; whiteSpace
     ; symbol "{"
     ; e <- many stmtparser
@@ -415,8 +414,8 @@ puppetIfCondition = do { pos <- getPosition
     ; return [ConditionalStatement ([maincond] ++ others ++ [(BTrue, elsec)]) pos]
     }
 
-puppetCase = do { pos <- getPosition
-    ; compares <- exprparser `sepBy` symbol ","
+puppetCase = do { 
+      compares <- exprparser `sepBy` symbol ","
     ; symbol ":"
     ; symbol "{"
     ; st <- many stmtparser
@@ -424,8 +423,8 @@ puppetCase = do { pos <- getPosition
     ; return ( compares, concat st )
     }
 
-puppetRegexpCase = do { pos <- getPosition
-    ; expression <- puppetRegexp
+puppetRegexpCase = do {
+      expression <- puppetRegexp
     ; symbol ":"
     ; symbol "{"
     ; st <- many stmtparser
@@ -433,8 +432,8 @@ puppetRegexpCase = do { pos <- getPosition
     ; return ( [Value (PuppetRegexp expression)], concat st )
     }
 
-defaultCase = do { pos <- getPosition
-    ; string "default"
+defaultCase = do {
+      string "default"
     ; symbol ":"
     ; symbol "{"
     ; st <- many stmtparser
@@ -472,6 +471,7 @@ puppetMainFunctionCall = do { pos <- getPosition
 puppetChains = do { pos <- getPosition
     ; refs <- puppetResourceReference `sepBy1` symbol "->"
     ; let refToPair (Value (ResourceReference rtype name)) = (rtype, name)
+          refToPair x = error $ "Could not run refToPair on " ++ show x
     ; let pairs = map refToPair refs
     ; let refpairs = zip pairs (tail pairs)
     ; return $ map (\((n1,v1),(n2,v2)) -> DependenceChain (n1,v1) (n2,v2) pos) refpairs

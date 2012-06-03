@@ -3,16 +3,12 @@ module Erb.Compute(computeTemplate, getTemplateFile, initTemplateDaemon) where
 import Data.List
 import Puppet.Interpreter.Types
 import Puppet.Init
-import System.Process
 import SafeProcess
 import System.IO
-import System.Exit
 import qualified Data.List.Utils as DLU
 import Control.Monad.Error
 import Control.Concurrent
-import Control.Concurrent.Chan
 import System.Posix.Files
-import System.Timeout
 import Paths_language_puppet (getDataFileName)
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, [(String, GeneralValue)])
@@ -60,10 +56,10 @@ computeTemplate filename curcontext variables = do
 
 getTemplateFile :: String -> CatalogMonad String
 getTemplateFile rawpath = do
-    throwError "gni"
+    throwError rawpath
 
-toRuby (varname, Left _) = []
-toRuby (varname, Right ResolvedUndefined) = []
+toRuby (_, Left _) = []
+toRuby (_, Right ResolvedUndefined) = []
 toRuby (varname, Right varval) = ["\t" ++ show varname ++ " => " ++ toRuby' varval]
 toRuby' (ResolvedString str) = show str
 toRuby' (ResolvedInt i) = show i

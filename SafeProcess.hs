@@ -6,7 +6,6 @@ import Control.Concurrent
 import Control.Exception
 import System.Exit
 import System.IO
-import System.IO.Error
 import System.Timeout
 import System.Posix.Signals
 import System.Process
@@ -66,4 +65,4 @@ terminateProcessGroup ph = do
     case ph_ of
         OpenHandle pid -> do  -- pid is a POSIX pid
             signalProcessGroup 15 pid
-        otherwise -> return ()
+        _ -> return ()

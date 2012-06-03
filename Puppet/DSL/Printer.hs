@@ -12,7 +12,7 @@ showAST :: [Statement] -> String
 showAST x = render (vcat (map showStatement x))
 
 showStatement :: Statement -> Doc
-showStatement (Node name x pos) = text "node" <+> text name <+> lbrace $$ nest 4 (vcat (map showStatement x)) $$ rbrace
+showStatement (Node name x _) = text "node" <+> text name <+> lbrace $$ nest 4 (vcat (map showStatement x)) $$ rbrace
 showStatement (VariableAssignment name x _) = text "$" <> text name <+> text "=" <+> showExpression x
 showStatement (Include inc _) = text("include " ++ inc)
 showStatement (Require req _) = text("require " ++ req)
@@ -20,10 +20,10 @@ showStatement (Resource rtype rname params Normal _) = text (rtype) <+> lbrace <
 showStatement (Resource rtype rname params Virtual p) = text "@" <> showStatement (Resource rtype rname params Normal p)
 showStatement (Resource rtype rname params Exported p) = text "@@" <> showStatement (Resource rtype rname params Normal p)
 showStatement (ResourceDefault rtype params _) = text (rtype) <+> braces (showAssignments params)
-showStatement (ClassDeclaration cname Nothing params statements pos) = text "class" <+> text cname <+> parens ( hcat (punctuate (text ",") (map showOptionalParameter params)) ) <+> lbrace $$ nest 4 (vcat (map showStatement statements)) $$ rbrace
-showStatement (ClassDeclaration cname (Just parent) params statements pos) = text "class" <+> text cname <> parens ( hcat (punctuate (text ",") (map showOptionalParameter params)) ) <+> text "inherits" <+> text parent <+> lbrace $$ nest 4 (vcat (map showStatement statements)) $$ rbrace
-showStatement (DefineDeclaration cname params statements pos) = text "define" <+> text cname <+> parens ( hcat (punctuate (text ",") (map showOptionalParameter params)) ) <+> lbrace $$ nest 4 (vcat (map showStatement statements)) $$ rbrace
-showStatement (ConditionalStatement x pos) = text "CONDITION LIST" $$ nest 4 ( vcat (map showCondition x) )
+showStatement (ClassDeclaration cname Nothing params statements _) = text "class" <+> text cname <+> parens ( hcat (punctuate (text ",") (map showOptionalParameter params)) ) <+> lbrace $$ nest 4 (vcat (map showStatement statements)) $$ rbrace
+showStatement (ClassDeclaration cname (Just parent) params statements _) = text "class" <+> text cname <> parens ( hcat (punctuate (text ",") (map showOptionalParameter params)) ) <+> text "inherits" <+> text parent <+> lbrace $$ nest 4 (vcat (map showStatement statements)) $$ rbrace
+showStatement (DefineDeclaration cname params statements _) = text "define" <+> text cname <+> parens ( hcat (punctuate (text ",") (map showOptionalParameter params)) ) <+> lbrace $$ nest 4 (vcat (map showStatement statements)) $$ rbrace
+showStatement (ConditionalStatement x _) = text "CONDITION LIST" $$ nest 4 ( vcat (map showCondition x) )
 showStatement x = text (show x)
 
 showCondition :: (Expression, [Statement]) -> Doc
@@ -34,8 +34,10 @@ showOptionalParameter :: (String, Maybe Expression) -> Doc
 showOptionalParameter (param, Nothing) = text "$" <> text param
 showOptionalParameter (param, (Just e)) = text "$" <> text param <+> text "=" <+> showExpression e
 
+showExpressionBuilder :: String -> Expression -> Expression -> Doc
 showExpressionBuilder symb a b = char '(' <> showExpression a <+> text symb <+> showExpression b <> char ')'
 
+showExpression :: Expression -> Doc
 showExpression (Value x) = showValue x
 showExpression (ConditionalValue var conds) = showExpression var <+> text "=>" <+> showExpression conds
 showExpression (PlusOperation a b) = showExpressionBuilder "+" a b
@@ -71,7 +73,10 @@ showValue (PuppetHash (Parameters params)) = hang lbrace 2 (showAssignments para
 showValue (Integer x) = integer x
 showValue x = text (show x)
 
+showAssignments :: [(Expression, Expression)] -> Doc
 showAssignments params = vcat ( punctuate (text ", ") (map showAssignment params ) )
+
+showAssignment :: (Expression, Expression) -> Doc
 showAssignment (param, value) = showExpression param <+> text "=>" <+> showExpression value
 
 showVarMap :: Map.Map String (Expression, SourcePos) -> String

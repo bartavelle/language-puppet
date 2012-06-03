@@ -8,8 +8,8 @@ import Puppet.Interpreter.Types
 import qualified Data.Map as Map
 import Data.List
 
-showRes (CResource crid rname rtype params virtuality pos) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show virtuality
-showRRes (RResource crid rname rtype params relations pos) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show relations
+showRes (CResource _ rname rtype params virtuality _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show virtuality
+showRRes (RResource _ rname rtype params relations _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show relations
 
 showFCatalog :: FinalCatalog -> String
 showFCatalog rmap = let
@@ -33,12 +33,13 @@ showValue (ResolvedBool False) = "false"
 showValue (ResolvedRReference rt rn) = rt ++ "[" ++ showValue rn ++ "]"
 showValue (ResolvedArray ar) = "[" ++ commasep (map showValue ar) ++ "]"
 showValue (ResolvedHash h) = "{" ++ commasep (map (\(k,v) -> k ++ " => " ++ showValue v) h) ++ "}"
+showValue (ResolvedUndefined) = "undef"
 
 showuniqueres :: [RResource] -> String
-showuniqueres res = rtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
+showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
     where
-        showrres (RResource crid rname rtype params rels pos)  =
-            "    " ++ show rname ++ ":" ++ " #" ++ show pos ++ "\n"
+        showrres (RResource _ rname _ params rels mpos)  =
+            "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ "\n"
                 ++ commaretsep (map showparams (Map.toList params))
                 ++ commareqs ((null rels) || (Map.null params))
                 ++ commaretsep (map showrequire (sort rels)) ++ ";\n"
@@ -46,4 +47,4 @@ showuniqueres res = rtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
                     | otherwise     = ",\n"
         showparams  (name, val)     = "        " ++ name ++ " => " ++ showValue val
         showrequire (ltype, dst)    = "        " ++ show ltype ++ " " ++ show dst
-        rtype                       = rrtype (head res)
+        mrtype                      = rrtype (head res)

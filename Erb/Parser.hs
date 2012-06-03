@@ -4,7 +4,6 @@ import Text.Parsec.String
 import Text.Parsec.Prim
 import Text.Parsec.Char
 import Text.Parsec.Combinator
-import Puppet.Interpreter.Types
 import Text.Parsec.Language (emptyDef)
 import Erb.Ruby
 import Text.Parsec.Expr

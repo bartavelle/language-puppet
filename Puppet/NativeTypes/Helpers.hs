@@ -72,20 +72,20 @@ insertparam :: RResource -> String -> ResolvedValue -> RResource
 insertparam res param value = res { rrparams = Map.insert param value (rrparams res) }
 
 integer :: String -> PuppetTypeValidate
-integer param res = string param res >>= integer' param
+integer prm res = string prm res >>= integer' prm
     where
-        integer' param res = case (Map.lookup param (rrparams res)) of
-            Nothing -> Right res
+        integer' pr rs = case (Map.lookup pr (rrparams rs)) of
+            Nothing -> Right rs
             Just (ResolvedString x) -> if (all isDigit x)
-                then Right $ insertparam res param (ResolvedInt $ read x)
-                else Left $ "Parameter " ++ param ++ " should be a number"
-            Just (ResolvedInt _) -> Right res
-            _ -> Left $ "Parameter " ++ param ++ " must be an integer"
+                then Right $ insertparam rs pr (ResolvedInt $ read x)
+                else Left $ "Parameter " ++ pr ++ " should be a number"
+            Just (ResolvedInt _) -> Right rs
+            _ -> Left $ "Parameter " ++ pr ++ " must be an integer"
 
 parameterFunctions :: [(String, [String -> PuppetTypeValidate])] -> PuppetTypeValidate
-parameterFunctions argrules res = foldM parameterFunctions' res argrules
+parameterFunctions argrules rs = foldM parameterFunctions' rs argrules
     where
     parameterFunctions' :: RResource -> (String, [String -> PuppetTypeValidate]) -> Either String RResource
-    parameterFunctions' res (param, validationfunctions) = foldM (parameterFunctions'' param) res validationfunctions
+    parameterFunctions' r (param, validationfunctions) = foldM (parameterFunctions'' param) r validationfunctions
     parameterFunctions'' :: String -> RResource -> (String -> PuppetTypeValidate) -> Either String RResource
-    parameterFunctions'' param res validationfunction = validationfunction param res
+    parameterFunctions'' param r validationfunction = validationfunction param r

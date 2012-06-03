@@ -2,7 +2,6 @@ module Puppet.Interpreter.Catalog (
     getCatalog
     ) where
 
-import Puppet.Init
 import Puppet.DSL.Types
 import Puppet.NativeTypes
 import Puppet.NativeTypes.Helpers
@@ -13,9 +12,7 @@ import Data.List
 import Data.Char (isDigit)
 import Data.Maybe (isJust, fromJust)
 import Data.Either (lefts, rights)
-import Data.String.Utils (startswith)
 import Text.Parsec.Pos
-import Control.Monad (foldM)
 import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
@@ -27,8 +24,8 @@ qualified str = case isPrefixOf "::" str of
     True  -> True
 
 throwPosError msg = do
-    pos <- getPos
-    throwError (msg ++ " at " ++ show pos)
+    p <- getPos
+    throwError (msg ++ " at " ++ show p)
 
 -- Int handling stuff
 isInt :: String -> Bool
@@ -36,9 +33,7 @@ isInt = and . map isDigit
 readint :: String -> CatalogMonad Integer
 readint x = if (isInt x)
     then return (read x)
-    else do
-        pos <- getPos
-        throwError ("Expected an integer instead of '" ++ x ++ "' at " ++ show pos)
+    else throwPosError $ "Expected an integer instead of '" ++ x
 
 modifyScope     f sc = sc { curScope       = f $ curScope sc }
 modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
@@ -60,7 +55,7 @@ getCatalog getstatements gettemplate nodename facts = do
     (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState ["::"] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [] gettemplate)
     case output of
         Left x -> return (Left x, getWarnings finalstate)
-        Right y -> return (output, getWarnings finalstate)
+        Right _ -> return (output, getWarnings finalstate)
 
 computeCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> CatalogMonad FinalCatalog
 computeCatalog getstatements nodename = do
@@ -82,8 +77,8 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     if Map.member ctype nativeTypes == False
         then throwPosError $ "Can't find native type " ++ ctype
         else return ()
-    let rrelations = []
-        prefinalresource = RResource cid rname ctype (Map.fromList rparams) rrelations cpos
+    let mrrelations = []
+        prefinalresource = RResource cid rname ctype (Map.fromList rparams) mrrelations cpos
         validatefunction = puppetvalidate (nativeTypes Map.! ctype)
         validated = validatefunction prefinalresource
     case validated of
@@ -110,7 +105,7 @@ finalResolution cat = do
     liftIO $ putStrLn $ "FINAL RESOLUTION"
     collected <- mapM collectionChecks cat >>= mapM evaluateDefine . concat
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
-        (virtual,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
+        (_,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
     --export stuff
     liftIO $ print "EXPORTED:"
     liftIO $ mapM print exported
@@ -154,7 +149,7 @@ getNextId = do
     curscope <- get
     put $ incrementResId curscope
     return (curResId curscope)
-setPos pos = modify (setStatePos pos)
+setPos p = modify (setStatePos p)
 getPos = get >>= return . curPos
 putVariable k v = do
     curscope <- getScope
@@ -188,13 +183,11 @@ checkDefine dname = if Map.member dname nativeTypes
         Nothing -> do
             def1 <- liftIO $ getsmts TopDefine dname
             case def1 of
-                Left err -> do
-                    pos <- getPos
-                    throwError ("Could not find the definition of " ++ dname ++ " at " ++ show pos)
+                Left err -> throwPosError ("Could not find the definition of " ++ dname ++ " err = " ++ err)
                 Right s -> return $ Just s
 
-partitionParamsRelations :: [(GeneralString, GeneralValue)] -> GeneralValue -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
-partitionParamsRelations rparameters resname = (realparams, relations)
+partitionParamsRelations :: [(GeneralString, GeneralValue)] -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
+partitionParamsRelations rparameters = (realparams, relations)
     where   realparams = filteredparams
             relations = concatMap convertrelation filteredrelations
             convertrelation :: (GeneralString, GeneralValue) -> [(LinkType, GeneralValue, GeneralValue)]
@@ -209,8 +202,8 @@ partitionParamsRelations rparameters resname = (realparams, relations)
 checkLoaded name = do
     curscope <- get
     case (Map.lookup name (curClasses curscope)) of
-        Nothing      -> return False
-        Just thispos -> return True
+        Nothing -> return False
+        Just _  -> return True
 
 -- apply default values to a resource
 applyDefaults :: CResource -> CatalogMonad CResource
@@ -219,31 +212,31 @@ applyDefaults res = do
     foldM applyDefaults' res defs
 
 applyDefaults' :: CResource -> Statement -> CatalogMonad CResource            
-applyDefaults' r@(CResource id rname rtype rparams rvirtuality rpos) d@(ResourceDefault dtype defs dpos) = do
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ResourceDefault dtype defs dpos) = do
     srname <- resolveGeneralString rname
     rdefs <- mapM (\(a,b) -> do { ra <- tryResolveExpressionString a; rb <- tryResolveExpression b; return (ra, rb); }) defs
-    rrparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra, rb); }) rparams
-    let (nparams, nrelations) = mergeParams rparams rdefs False srname
+    let (nparams, nrelations) = mergeParams rparams rdefs False 
     if (dtype == rtype)
         then do
             addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
-            return $ CResource id rname rtype nparams rvirtuality rpos
+            return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
-applyDefaults' r@(CResource id rname rtype rparams rvirtuality rpos) (ResourceOverride dtype dname defs dpos) = do
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ResourceOverride dtype dname defs dpos) = do
     srname <- resolveGeneralString rname
     sdname <- resolveExpressionString dname
     rdefs <- mapM (\(a,b) -> do { ra <- tryResolveExpressionString a; rb <- tryResolveExpression b; return (ra, rb); }) defs
-    let (nparams, nrelations) = mergeParams rparams rdefs True srname
+    let (nparams, nrelations) = mergeParams rparams rdefs True
     if ((dtype == rtype) && (srname == sdname))
         then do
             addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
-            return $ CResource id rname rtype nparams rvirtuality rpos
+            return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
+applyDefaults' r d = throwError $ "Can't apply non default statement " ++ show d ++ " to resource " ++ show r
 
 -- merge defaults and actual parameters depending on the override flag
-mergeParams :: [(GeneralString, GeneralValue)] -> [(GeneralString, GeneralValue)] -> Bool -> String -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
-mergeParams srcparams defs override rname = let
-    (dstparams, dstrels) = partitionParamsRelations defs (Right $ ResolvedString rname)
+mergeParams :: [(GeneralString, GeneralValue)] -> [(GeneralString, GeneralValue)] -> Bool -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
+mergeParams srcparams defs override = let
+    (dstparams, dstrels) = partitionParamsRelations defs
     srcprm = Map.fromList srcparams
     dstprm = Map.fromList dstparams
     prm = if override
@@ -254,17 +247,17 @@ mergeParams srcparams defs override rname = let
 -- The actual meat
 
 evaluateDefine :: CResource -> CatalogMonad [CResource]
-evaluateDefine r@(CResource id rname rtype rparams rvirtuality rpos) = do
+evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = do
     isdef <- checkDefine rtype
     case (rvirtuality, isdef) of
         (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> do
-            oldpos <- getPos
+            --oldpos <- getPos
             setPos dpos
             pushScope $ "#DEFINE#" ++ dtype
             -- add variables
-            rrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
+            mrrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
             let expr = gs2gv rname
-                mparams = Map.fromList rrparams
+                mparams = Map.fromList mrrparams
             putVariable "title" (expr, rpos)
             putVariable "name" (expr, rpos)
             mapM (loadClassVariable rpos mparams) args
@@ -286,7 +279,7 @@ handleDelayedActions res = do
 
 -- node
 evaluateStatements :: Statement -> CatalogMonad Catalog
-evaluateStatements (Node name stmts position) = do
+evaluateStatements (Node _ stmts position) = do
     setPos position
     res <- mapM (evaluateStatements) stmts
     nres <- handleDelayedActions (concat res)
@@ -295,17 +288,17 @@ evaluateStatements (Node name stmts position) = do
 -- include
 evaluateStatements (Include includename position) = setPos position >> getstatement TopClass includename >>= evaluateStatements
 evaluateStatements x@(ClassDeclaration _ _ _ _ _) = evaluateClass x Map.empty Nothing
-evaluateStatements n@(DefineDeclaration dtype dargs dstatements dpos) = do
+evaluateStatements n@(DefineDeclaration dtype _ _ _) = do
     addNestedTopLevel TopDefine dtype n
     return []
-evaluateStatements (ConditionalStatement exprs pos) = do
-    setPos pos
+evaluateStatements (ConditionalStatement exprs position) = do
+    setPos position
     trues <- filterM (\(expr, _) -> resolveBoolean (Left expr)) exprs
     case trues of
-        ((_,stmts):xs) -> mapM evaluateStatements stmts >>= return . concat
+        ((_,stmts):_) -> mapM evaluateStatements stmts >>= return . concat
         _ -> return []
 
-evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
+evaluateStatements (Resource rtype rname parameters virtuality position) = do
     setPos position
     liftIO $ putStrLn $ "\t" ++  rtype ++ " " ++ show rname ++ " " ++ show position
     case rtype of
@@ -319,10 +312,8 @@ evaluateStatements x@(Resource rtype rname parameters virtuality position) = do
         _ -> do
             resid <- getNextId
             rparameters <- mapM (\(a,b) -> do { pa <- tryResolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
-            rrname <- tryResolveGeneralValue (generalizeValueE rname)
-            ername <- tryResolveExpression rname
             srname <- tryResolveExpressionString rname
-            let (realparams, relations) = partitionParamsRelations rparameters rrname
+            let (realparams, relations) = partitionParamsRelations rparameters
             -- push all the relations
             addUnresRel (relations, (rtype, srname), UNormal, position)
             return [CResource resid srname rtype realparams virtuality position]
@@ -342,8 +333,8 @@ evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) positi
 -- <<| |>>
 evaluateStatements (ResourceCollection rtype expr overrides position) = do
     setPos position
-    dummy <- if null overrides
-        then return 1
+    if null overrides
+        then return ()
         else throwPosError "Collection overrides not handled"
     func <- collectionFunction Exported rtype expr
     addCollect func
@@ -351,8 +342,8 @@ evaluateStatements (ResourceCollection rtype expr overrides position) = do
 -- <| |>
 evaluateStatements (VirtualResourceCollection rtype expr overrides position) = do
     setPos position
-    dummy <- if null overrides
-        then return 1
+    if null overrides
+        then return ()
         else throwPosError "Collection overrides not handled"
     func <- collectionFunction Virtual rtype expr
     addCollect func
@@ -373,9 +364,9 @@ evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
 
 -- function used to load defines / class variables into the global context
 loadClassVariable :: SourcePos -> Map.Map String (GeneralValue, SourcePos) -> (String, Maybe Expression) -> CatalogMonad ()
-loadClassVariable position inputs (paramname, defaultvalue) = do
+loadClassVariable position inputs (paramname, defvalue) = do
     let inputvalue = Map.lookup paramname inputs
-    (v, vpos) <- case (inputvalue, defaultvalue) of
+    (v, vpos) <- case (inputvalue, defvalue) of
         (Just x , _      ) -> return x
         (Nothing, Just y ) -> return (Left y, position)
         (Nothing, Nothing) -> throwError $ "Must define parameter " ++ paramname ++ " at " ++ (show position)
@@ -426,32 +417,30 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
             ++ inherited
             ++ nres
 
+evaluateClass x _ _ = throwError ("Someone managed to run evaluateClass against " ++ show x)
+
 addClassDependency :: String -> CResource -> CatalogMonad ()
-addClassDependency cname (CResource _ rname rtype _ _ pos) = addUnresRel (
+addClassDependency cname (CResource _ rname rtype _ _ position) = addUnresRel (
     [(RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname)]
     , (rtype, rname)
-    , UPlus, pos)
+    , UPlus, position)
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
 tryResolveExpression e = tryResolveGeneralValue (Left e)
 
 tryResolveGeneralValue :: GeneralValue -> CatalogMonad GeneralValue
 tryResolveGeneralValue n@(Right _) = return n
-tryResolveGeneralValue n@(Left BTrue) = return $ Right $ ResolvedBool True
-tryResolveGeneralValue n@(Left BFalse) = return $ Right $ ResolvedBool False
-tryResolveGeneralValue n@(Left (Value x)) = tryResolveValue x
+tryResolveGeneralValue   (Left BTrue) = return $ Right $ ResolvedBool True
+tryResolveGeneralValue   (Left BFalse) = return $ Right $ ResolvedBool False
+tryResolveGeneralValue   (Left (Value x)) = tryResolveValue x
 tryResolveGeneralValue n@(Left (ResolvedResourceReference _ _)) = return n
-tryResolveGeneralValue n@(Left (Error x)) = do
-    pos <- getPos
-    throwError (x ++ " at " ++ show pos)
-tryResolveGeneralValue n@(Left (ConditionalValue checkedvalue (Value (PuppetHash (Parameters hash))))) = do
+tryResolveGeneralValue   (Left (Error x)) = throwPosError x
+tryResolveGeneralValue   (Left (ConditionalValue checkedvalue (Value (PuppetHash (Parameters hash))))) = do
     rcheck <- resolveExpression checkedvalue
     rhash <- mapM (\(vn, vv) -> do { rvn <- resolveExpression vn; rvv <- resolveExpression vv; return (rvn, rvv) }) hash
     case (filter (\(a,_) -> (a == ResolvedString "default") || (compareRValues a rcheck)) rhash) of
-        [] -> do
-            pos <- getPos
-            throwError ("No value could be selected at " ++ show pos ++ " when comparing to " ++ show rcheck)
-        ((_,x):xs) -> return $ Right x
+        [] -> throwPosError ("No value could be selected when comparing to " ++ show rcheck)
+        ((_,x):_) -> return $ Right x
 tryResolveGeneralValue (Left (EqualOperation a b)) = do
     ra <- tryResolveExpression a
     rb <- tryResolveExpression b
@@ -470,7 +459,7 @@ tryResolveGeneralValue n@(Left (AndOperation a b)) = do
     case (ra, rb) of
         (Right (ResolvedBool rra), Right (ResolvedBool rrb)) -> return $ Right $ ResolvedBool $ rra && rrb
         _ -> return n
-tryResolveGeneralValue n@(Left (NotOperation x)) = do
+tryResolveGeneralValue   (Left (NotOperation x)) = do
     rx <- tryResolveBoolean $ Left x
     case rx of
         Right (ResolvedBool b) -> return $ Right $ ResolvedBool $ (not b)
@@ -483,39 +472,32 @@ tryResolveGeneralValue (Left (DifferentOperation a b)) = do
 tryResolveGeneralValue (Left (LookupOperation a b)) = do
     ra <- tryResolveExpression a
     rb <- tryResolveExpressionString b
-    pos <- getPos
     case (ra, rb) of
         (Right (ResolvedArray ar), Right num) -> do
-            nnum <- readint num
-            let nnum = read num :: Int
+            bnum <- readint num
+            let nnum = fromIntegral bnum
             if(length ar >= nnum)
-                then throwError ("Invalid array index " ++ num ++ " at " ++ show pos)
+                then throwPosError ("Invalid array index " ++ num)
                 else return $ Right (ar !! nnum)
         (Right (ResolvedHash ar), Right idx) -> do
-            let filtered = filter (\(a,_) -> a == idx) ar
+            let filtered = filter (\(x,_) -> x == idx) ar
             case filtered of
-                [] -> throwError "TODO"
+                [] -> throwError "TODO empty filtered"
                 [(_,x)] -> return $ Right $ x
-        (_, Left y) -> throwError ("Could not resolve index " ++ show y ++ " at " ++ show pos)
-        (Left x, _) -> throwError ("Could not resolve lookup " ++ show x ++ " at " ++ show pos)
+                x  -> throwPosError ("Hum, WTF tryResolveGeneralValue " ++ show x)
+        (_, Left y) -> throwPosError ("Could not resolve index " ++ show y)
+        (Left x, _) -> throwPosError ("Could not resolve lookup " ++ show x)
+        (Right x, _) -> throwPosError ("Could not resolve something that is not an array nor a hash, but " ++ show x)
 
             
-tryResolveGeneralValue e = do
-    p <- getPos
-    throwError ("tryResolveGeneralValue not implemented at " ++ show p ++ " for " ++ show e)
+tryResolveGeneralValue e = throwPosError ("tryResolveGeneralValue not implemented for " ++ show e)
 
 resolveGeneralValue :: GeneralValue -> CatalogMonad ResolvedValue
 resolveGeneralValue e = do
     x <- tryResolveGeneralValue e
     case x of
-        Left n -> do
-            pos <- getPos
-            throwError ("Could not resolveGeneralValue " ++ show n ++ " at " ++ show pos)
+        Left n -> throwPosError  ("Could not resolveGeneralValue " ++ show n)
         Right p -> return p
-
-resolveGeneralValueString :: GeneralValue -> CatalogMonad String
-resolveGeneralValueString e = do
-    resolveGeneralValue e >>= rstring
 
 tryResolveExpressionString :: Expression -> CatalogMonad GeneralString
 tryResolveExpressionString s = do
@@ -565,21 +547,21 @@ tryResolveValue n@(VariableReference vname) = do
     -- TODO check scopes !!!
     var <- getVariable vname
     case (var, qualified vname) of
-        (Just (Left e, pos) , _   ) -> tryResolveExpression e
-        (Just (Right r, pos), _   ) -> return $ Right r
-        (Nothing            , True) -> return $ Left $ Value n -- already qualified
-        (Nothing            , _   ) -> do
+        (Just (Left e, _ ), _   ) -> tryResolveExpression e
+        (Just (Right r, _), _   ) -> return $ Right r
+        (Nothing          , True) -> return $ Left $ Value n -- already qualified
+        (Nothing          , _   ) -> do
             -- TODO : check that there are no "::"
             curscp <- getScope
             let varnamescp  | curscp == "::" = "::" ++ vname
                             | otherwise      = curscp ++ "::" ++ vname
             varscp <- getVariable varnamescp
             case varscp of
-                Just (Left e, pos) -> tryResolveExpression e
-                Just (Right r, pos) -> return $ Right r
+                Just (Left e , _) -> tryResolveExpression e
+                Just (Right r, _) -> return $ Right r
                 Nothing -> do
-                    pos <- getPos
-                    addWarning ("Could not resolveValue " ++ varnamescp ++ " at " ++ show pos)
+                    position <- getPos
+                    addWarning ("Could not resolveValue " ++ varnamescp ++ " at " ++ show position)
                     return $ Left $ Value $ VariableReference varnamescp
 
 tryResolveValue n@(Interpolable x) = do
@@ -602,16 +584,14 @@ tryResolveValue n@(PuppetArray expressions) = do
         else return $ Left $ Value n
 
 -- TODO
-tryResolveValue n@(FunctionCall "fqdn_rand" args) = if (null args)
-    then do
-        pos <- getPos
-        throwError ("Empty argument list in fqdn_rand call at " ++ show pos)
+tryResolveValue   (FunctionCall "fqdn_rand" args) = if (null args)
+    then throwPosError "Empty argument list in fqdn_rand call"
     else do
-        nargs <- mapM resolveExpressionString args
-        max <- readint (head nargs)
-        fqdn_rand max (tail nargs) >>= return . Right . ResolvedInt
-tryResolveValue n@(FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
-tryResolveValue n@(FunctionCall "template" [name]) = do
+        nargs  <- mapM resolveExpressionString args
+        curmax <- readint (head nargs)
+        fqdn_rand curmax (tail nargs) >>= return . Right . ResolvedInt
+tryResolveValue   (FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
+tryResolveValue   (FunctionCall "template" [name]) = do
     fname <- tryResolveExpressionString name
     case fname of
         Left x -> throwPosError $ "Can't resolve template path " ++ show x
@@ -623,29 +603,24 @@ tryResolveValue n@(FunctionCall "template" [name]) = do
             case out of
                 Right x -> return $ Right $ ResolvedString x
                 Left err -> throwPosError err
-tryResolveValue n@(FunctionCall "inline_template" _) = return $ Right $ ResolvedString "TODO"
-tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
+tryResolveValue   (FunctionCall "inline_template" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue   (FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
     rsrc   <- tryResolveExpressionString src
     rdst   <- tryResolveExpressionString dst
     rflags <- tryResolveExpressionString flags
     case (rstr, rsrc, rdst, rflags) of
         (Right sstr, Right ssrc, Right sdst, Right sflags) -> regsubst sstr ssrc sdst sflags >>= return . Right . ResolvedString
-tryResolveValue n@(FunctionCall "regsubst" [str, src, dst]) = tryResolveValue (FunctionCall "regsubst" [str, src, dst, Value $ Literal ""])
-tryResolveValue n@(FunctionCall "regsubst" args) = do
-    pos <- getPos
-    throwError ("Bad argument count for regsubst " ++ show args ++ " at " ++ show pos)
+        x                                                  -> throwPosError ("Could not run regsubst because something here could not be resolved: " ++ show x)
+tryResolveValue   (FunctionCall "regsubst" [str, src, dst]) = tryResolveValue (FunctionCall "regsubst" [str, src, dst, Value $ Literal ""])
+tryResolveValue   (FunctionCall "regsubst" args) = throwPosError ("Bad argument count for regsubst " ++ show args)
        
-tryResolveValue n@(FunctionCall "file" _) = return $ Right $ ResolvedString "TODO"
-tryResolveValue n@(FunctionCall fname _) = do
-    pos <- getPos
-    throwError ("FunctionCall " ++ fname ++ " not implemented at " ++ show pos)
+tryResolveValue   (FunctionCall "file" _) = return $ Right $ ResolvedString "TODO file function"
+tryResolveValue   (FunctionCall fname _) = throwPosError ("FunctionCall " ++ fname ++ " not implemented")
 
 tryResolveValue Undefined = return $ Right $ ResolvedUndefined
 
-tryResolveValue x = do
-    pos <- getPos
-    throwError ("tryResolveValue not implemented at " ++ show pos ++ " for " ++ show x)
+tryResolveValue x = throwPosError ("tryResolveValue not implemented for " ++ show x)
 
 tryResolveValueString :: Value -> CatalogMonad GeneralString
 tryResolveValueString x = do
@@ -653,26 +628,8 @@ tryResolveValueString x = do
     case r of
         Right (ResolvedString v) -> return $ Right v
         Right (ResolvedInt    i) -> return $ Right (show i)
-        Right v                  -> throwError ("Can't resolve valuestring for " ++ show x)
+        Right v                  -> throwError ("Can't resolve valuestring for " ++ show v)
         Left  v                  -> return $ Left v
-
-resolveValue :: Value -> CatalogMonad ResolvedValue
-resolveValue v = do
-    res <- tryResolveValue v
-    case res of
-        Left x -> do
-            pos <- getPos
-            throwError ("Could not resolve the value " ++ show x ++ " at " ++ show pos)
-        Right y -> return y
-
-resolveValueString :: Value -> CatalogMonad String
-resolveValueString v = do
-    res <- tryResolveValueString v
-    case res of
-        Left x -> do
-            pos <- getPos
-            throwError ("Could not resolve the value " ++ show x ++ " to a string at " ++ show pos)
-        Right y -> return y
 
 getRelationParameterType :: GeneralString -> Maybe LinkType
 getRelationParameterType (Right "require" ) = Just RRequire
@@ -685,39 +642,39 @@ getRelationParameterType _                  = Nothing
 pushRealize :: ResolvedValue -> CatalogMonad ()
 pushRealize (ResolvedRReference rtype (ResolvedString rname)) = do
     let myfunction :: CResource -> CatalogMonad Bool
-        myfunction = (\(CResource _ crname crtype _ _ _) -> do
-            srname <- resolveGeneralString crname
-            return ((srname == rname) && (crtype == rtype))
+        myfunction = (\(CResource _ mcrname mcrtype _ _ _) -> do
+            srname <- resolveGeneralString mcrname
+            return ((srname == rname) && (mcrtype == rtype))
             )
     addCollect myfunction
     return ()
-pushRealize (ResolvedRReference rtype x) = throwPosError (show x ++ " was not resolved to a string")
-pushRealize x                            = throwPosError ("A reference was expected instead of " ++ show x)
+pushRealize (ResolvedRReference _ x) = throwPosError (show x ++ " was not resolved to a string")
+pushRealize x                        = throwPosError ("A reference was expected instead of " ++ show x)
 
 executeFunction :: String -> [ResolvedValue] -> CatalogMonad Catalog
 executeFunction "fail" [ResolvedString errmsg] = throwPosError ("Error: " ++ errmsg)
 executeFunction "fail" args = throwPosError ("Error: " ++ show args)
 executeFunction "realize" rlist = mapM pushRealize rlist >> return []
-executeFunction "create_resources" [rtype, rdefs] = do
-    rrtype <- case rtype of
+executeFunction "create_resources" [mrtype, rdefs] = do
+    mrrtype <- case mrtype of
         ResolvedString x -> return x
-        _                -> throwPosError $ "Resource type must be a string and not " ++ show rtype
+        _                -> throwPosError $ "Resource type must be a string and not " ++ show mrtype
     arghash <- case rdefs of
         ResolvedHash x -> return x
         _              -> throwPosError $ "Resource definition must be a hash, and not " ++ show rdefs 
-    pos <- getPos
+    position <- getPos
     let prestatements = map (\(rname, rargs) -> (Value $ Literal rname, resolved2expression rargs)) arghash
     resources <- mapM (\(resname, pval) -> do
             realargs <- case pval of
                 Value (PuppetHash (Parameters h)) -> return h
                 _                    -> throwPosError "This should not happen, create_resources argument is not a hash"
-            return $ Resource rrtype resname realargs Normal pos
+            return $ Resource mrrtype resname realargs Normal position
         ) prestatements
     mapM evaluateStatements resources >>= return . concat
 executeFunction "create_resources" x = throwPosError ("Bad arguments to create_resources: " ++ show x)
 executeFunction a b = do
-    pos <- getPos
-    addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show pos
+    position <- getPos
+    addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show position
     return []
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
@@ -747,9 +704,7 @@ resolveBoolean v = do
     rv <- tryResolveBoolean v
     case rv of
         Right (ResolvedBool x) -> return x
-        n -> do
-            pos <- getPos
-            throwError ("Could not resolve " ++ show rv ++ " as a boolean at " ++ show pos)
+        n -> throwPosError ("Could not resolve " ++ show n ++ "(was " ++ show rv ++ ") as a boolean")
 
 resolveGeneralString :: GeneralString -> CatalogMonad String
 resolveGeneralString (Right x) = return x
@@ -760,7 +715,7 @@ gs2gv (Left e)  = Left e
 gs2gv (Right s) = Right $ ResolvedString s
 
 collectionFunction :: Virtuality -> String -> Expression -> CatalogMonad (CResource -> CatalogMonad Bool)
-collectionFunction virt rtype exprs = do
+collectionFunction virt mrtype exprs = do
     finalfunc <- case exprs of
         BTrue -> return (\_ -> return True)
         EqualOperation a b -> do
@@ -769,12 +724,13 @@ collectionFunction virt rtype exprs = do
             paramname <- case ra of
                 ResolvedString pname -> return pname
                 _ -> throwPosError $ "We only support collection of the form 'parameter == value'" 
-            defstatement <- checkDefine rtype
+            defstatement <- checkDefine mrtype
             paramset <- case defstatement of
-                Nothing -> case (Map.lookup rtype nativeTypes) of
+                Nothing -> case (Map.lookup mrtype nativeTypes) of
                     Just (PuppetTypeMethods _ ps) -> return ps
-                    Nothing -> throwPosError $ "Unknown type " ++ rtype ++ " when trying to collect"
+                    Nothing -> throwPosError $ "Unknown type " ++ mrtype ++ " when trying to collect"
                 Just (DefineDeclaration _ params _ _) -> return $ Set.fromList $ map fst params
+                Just x -> throwPosError $ "Expected a DefineDeclaration here instead of " ++ show x
             if (Set.notMember paramname paramset) && (paramname /= "tag")
                 then throwPosError $ "Parameter " ++ paramname ++ " is not a valid parameter. It should be in : " ++ show (Set.toList paramset)
                 else return ()
@@ -786,8 +742,9 @@ collectionFunction virt rtype exprs = do
                         cmp <- resolveGeneralValue $ snd (head param)
                         return (cmp == rb)
                 )
+        x -> throwPosError $ "TODO : implement collection function for " ++ show x
     return (\res ->
-        if ((crtype res == rtype) && (crvirtuality res == virt))
+        if ((crtype res == mrtype) && (crvirtuality res == virt))
             then finalfunc res
             else return False
             )
@@ -798,7 +755,7 @@ resolved2expression (ResolvedString str) = Value $ Literal str
 resolved2expression (ResolvedInt i) = Value $ Integer i
 resolved2expression (ResolvedBool True) = BTrue
 resolved2expression (ResolvedBool False) = BFalse
-resolved2expression (ResolvedRReference rtype name) = Value $ ResourceReference rtype (resolved2expression name)
+resolved2expression (ResolvedRReference mrtype name) = Value $ ResourceReference mrtype (resolved2expression name)
 resolved2expression (ResolvedArray vals) = Value $ PuppetArray $ map resolved2expression vals
 resolved2expression (ResolvedHash hash) = Value $ PuppetHash $ Parameters $ map (\(s,v) -> (Value $ Literal s, resolved2expression v)) hash
-
+resolved2expression (ResolvedUndefined) = Value $ Undefined

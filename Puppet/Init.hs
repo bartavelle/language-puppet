@@ -1,6 +1,5 @@
 module Puppet.Init where
 
-import System.IO
 import Puppet.Interpreter.Types
 import qualified Data.Map as Map
 
