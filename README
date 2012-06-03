@@ -3,3 +3,4 @@ unsupported
 functions without parens
 top level stuff
 plusignment
+class { udp2log::logger:

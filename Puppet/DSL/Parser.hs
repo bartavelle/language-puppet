@@ -138,13 +138,13 @@ puppetRequire = do { pos <- getPosition
     }
 
 puppetQualifiedName = do { firstletter <- lower
-    ; parts <- identstring `sepEndBy` (string "::")
+    ; parts <- identstring `sepBy` (try $ string "::")
     ; whiteSpace
     ; return $ [firstletter] ++ (join "::" parts)
     }
 
 puppetQualifiedReference = do { firstletter <- upper <?> "Uppercase letter for a reference"
-    ; parts <- identstring `sepEndBy` (string "::")
+    ; parts <- identstring `sepBy` (string "::")
     ; whiteSpace
     ; return $ [toLower firstletter] ++ (join "::" $ map lowerFirstChar parts)
     }
@@ -181,9 +181,9 @@ puppetAssignment = do { n <- puppetRegexpExpr <|> puppetVariableOrHashLookup <|>
 nodeDeclaration = do { pos <- getPosition
     ; string "node"
     ; whiteSpace
-    ; n <- puppetLiteral
+    ; n <- puppetRegexp <|> puppetLiteral -- TODO HANDLE
     ; symbol "{"
-    ; e <- many1 stmtparser
+    ; e <- many stmtparser
     ; symbol "}"
     ; return [ Node n (concat e) pos ]
     }
@@ -214,6 +214,7 @@ variableAssignment = do { pos <- getPosition
 
 puppetLiteral = doubleQuotedString
     <|> singleQuotedString
+    <|> puppetQualifiedName
     <|> identifier
 
 puppetLiteralValue = do { v <- puppetLiteral
@@ -377,25 +378,24 @@ puppetDefine = do { pos <- getPosition
     }
     
 
-puppetIfStyleCondition = do { 
-      symbol "("
-    ; cond <- exprparser
-    ; symbol ")"
+puppetIfStyleCondition = do { hasparens <- optionMaybe (symbol "(")
+    ; cond <- exprparser <?> "Conditional expression"
+    ; case hasparens of
+        Nothing -> return ""
+        Just _  -> symbol ")"
     ; symbol "{"
     ; e <- many stmtparser
     ; symbol "}"
     ; return (cond, concat e)
     }
     
-puppetElseIfCondition = do { 
-      try (string "elsif")
+puppetElseIfCondition = do { reservedOp "elsif"
     ; whiteSpace
     ; out <- puppetIfStyleCondition
     ; return out
     }
 
-puppetElseCondition = do { 
-      string "else"
+puppetElseCondition = do { reservedOp "else"
     ; whiteSpace
     ; symbol "{"
     ; e <- many stmtparser
@@ -404,7 +404,7 @@ puppetElseCondition = do {
     }
 
 puppetIfCondition = do { pos <- getPosition
-    ; string "if"
+    ; reservedOp "if"
     ; whiteSpace
     ; maincond <- puppetIfStyleCondition
     ; others <- option [] (many puppetElseIfCondition)
@@ -448,7 +448,7 @@ condToExpression e (Value (PuppetRegexp regexp), stmts) = (RegexpOperation e (Va
 condToExpression e (cnd, stmts) = (EqualOperation e cnd, stmts)
 
 puppetCaseCondition = do { pos <- getPosition
-    ; string "case"
+    ; reservedOp "case"
     ; whiteSpace
     ; expr1 <- exprparser
     ; symbol "{"
@@ -489,14 +489,15 @@ stmtparser = variableAssignment
     <|> try (puppetResourceDefaults)
     <|> try (puppetResourceOverride)
     <|> try (puppetResourceCollection)
-    <|> try (puppetIfCondition)
-    <|> try (puppetCaseCondition)
+    <|> puppetIfCondition
+    <|> puppetCaseCondition
     <|> try (puppetMainFunctionCall)
     <|> try (puppetChains)
     <|> puppetImport
     <|> puppetClassDefinition
     <|> puppetDefine
     <|> nodeDeclaration
+    <?> "Statement"
 
 mparser = do {
         whiteSpace
