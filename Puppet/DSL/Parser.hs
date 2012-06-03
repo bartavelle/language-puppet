@@ -125,8 +125,8 @@ puppetResourceOverride = do { pos <- getPosition
 puppetInclude = do { pos <- getPosition
     ; string "include"
     ; whiteSpace
-    ; v <- puppetQualifiedName
-    ; return [ Include v pos ]
+    ; vs <- puppetQualifiedName `sepBy` (symbol ",")
+    ; return $ map (\v -> Include v pos) vs
     }
 
 puppetRequire = do { pos <- getPosition
@@ -325,7 +325,7 @@ resourceArrayDeclaration = do { pos <- getPosition
     }
 
 resourceDeclaration = do { pos <- getPosition
-    ; v <- (puppetVariableReference <|> try puppetLiteralValue <|> puppetInterpolableString )
+    ; v <- (puppetVariableOrHashLookup <|> try puppetLiteralValue <|> puppetInterpolableString )
     ; whiteSpace
     ; symbol ":"
     ; x <- puppetAssignment `sepEndBy` symbol ","
@@ -463,7 +463,7 @@ puppetMainFunctionCall = do { pos <- getPosition
     ; name <- identifier
     ; whiteSpace
     ; symbol "("
-    ; refs <- exprparser `sepBy` symbol ","
+    ; refs <- exprparser `sepEndBy` symbol ","
     ; symbol ")"
     ; return [MainFunctionCall name refs pos]
     }
