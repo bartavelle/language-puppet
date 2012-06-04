@@ -1,4 +1,5 @@
 require 'erb'
+require 'digest/md5'
 
 class Scope
     def initialize(scpv, ctx)
