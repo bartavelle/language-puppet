@@ -62,7 +62,7 @@ toRuby (_, Left _) = []
 toRuby (_, Right ResolvedUndefined) = []
 toRuby (varname, Right varval) = ["\t" ++ show varname ++ " => " ++ toRuby' varval]
 toRuby' (ResolvedString str) = show str
-toRuby' (ResolvedInt i) = show i
+toRuby' (ResolvedInt i) = "'" ++ show i ++ "'"
 toRuby' (ResolvedBool True) = "true"
 toRuby' (ResolvedBool False) = "false"
 toRuby' (ResolvedArray rr) = "[" ++ intercalate ", " (map toRuby' rr) ++ "]"
