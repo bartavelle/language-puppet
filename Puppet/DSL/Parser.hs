@@ -1,6 +1,7 @@
  module Puppet.DSL.Parser (
     parse,
-    mparser
+    mparser,
+    exprparser
 ) where
 
 {-
