@@ -21,6 +21,6 @@ testparser :: FilePath -> IO (String, Bool)
 testparser fp = do
     parsed <- runErrorT (parseFile fp)
     case parsed of
-        Right _ -> return ("PASS", False)
-        Left err -> return (err, True)
+        Right _ -> return ("PASS", True)
+        Left err -> return (err, False)
 
