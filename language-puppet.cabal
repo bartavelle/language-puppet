@@ -49,13 +49,13 @@ Data-Files:
 Library
     ghc-options:       -Wall -fno-warn-missing-signatures -fno-warn-unused-do-bind
   -- Modules exported by the library.
-  Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes
+  Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes, Puppet.DSL.Types
   
   -- Packages needed in order to build this package.
   Build-depends:       base,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process
   
   -- Modules not exported by this package.
-  Other-modules:       Puppet.DSL.Types, Puppet.Interpreter.Catalog, Puppet.Interpreter.Types, Puppet.Interpreter.Functions, Puppet.NativeTypes.Helpers,
+  Other-modules:       Puppet.Interpreter.Catalog, Puppet.Interpreter.Types, Puppet.Interpreter.Functions, Puppet.NativeTypes.Helpers,
                         Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
@@ -68,7 +68,14 @@ Test-Suite test-lexer
     type:           exitcode-stdio-1.0
     ghc-options:    -Wall
     build-depends:   language-puppet,base,Glob,mtl
-    main-is:        main.hs
+    main-is:        lexer.hs
+Test-Suite test-expr
+    hs-source-dirs: test
+    type:           exitcode-stdio-1.0
+    ghc-options:    -Wall
+    build-depends:   language-puppet,base,parsec
+    main-is:        expr.hs
+
 
 benchmark bench-lexer
     hs-source-dirs: bench
