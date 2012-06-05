@@ -48,14 +48,19 @@ lowerFirstChar x = [toLower $ head x] ++ (tail x)
 -- expression parser
 exprparser = buildExpressionParser table term <?> "expression"
         
-table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft 
-              , Infix ( reservedOp "-" >> return MinusOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "/" >> return DivOperation ) AssocLeft 
-              , Infix ( reservedOp "*" >> return MultiplyOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "<<" >> return ShiftLeftOperation ) AssocLeft 
-              , Infix ( reservedOp ">>" >> return ShiftRightOperation ) AssocLeft ]
+table =     [ 
+              [ Infix ( reservedOp "?" >> return ConditionalValue ) AssocLeft ]
+            , [ Prefix ( symbol "-" >> return NegOperation ) ]
+            , [ Prefix ( symbol "!" >> return NotOperation ) ]
+            , [ Infix ( reserved   "in" >> return IsElementOperation ) AssocLeft ]
             , [ Infix ( reserved   "and" >> return AndOperation ) AssocLeft 
               , Infix ( reserved   "or" >> return OrOperation ) AssocLeft ]
+            , [ Infix ( reservedOp "<<" >> return ShiftLeftOperation ) AssocLeft 
+              , Infix ( reservedOp ">>" >> return ShiftRightOperation ) AssocLeft ]
+            , [ Infix ( reservedOp "/" >> return DivOperation ) AssocLeft 
+              , Infix ( reservedOp "*" >> return MultiplyOperation ) AssocLeft ]
+            , [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft 
+              , Infix ( reservedOp "-" >> return MinusOperation ) AssocLeft ]
             , [ Infix ( reservedOp "==" >> return EqualOperation ) AssocLeft 
               , Infix ( reservedOp "!=" >> return DifferentOperation ) AssocLeft ]
             , [ Infix ( reservedOp ">" >> return AboveOperation ) AssocLeft 
@@ -64,10 +69,6 @@ table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
               , Infix ( reservedOp "<" >> return UnderOperation ) AssocLeft ]
             , [ Infix ( reservedOp "=~" >> return RegexpOperation ) AssocLeft 
               , Infix ( reservedOp "!~" >> return NotRegexpOperation ) AssocLeft ]
-            , [ Infix ( reserved   "in" >> return IsElementOperation ) AssocLeft ]
-            , [ Prefix ( symbol "!" >> return NotOperation ) ]
-            , [ Prefix ( symbol "-" >> return NegOperation ) ]
-            , [ Infix ( reservedOp "?" >> return ConditionalValue ) AssocLeft ]
             ]
 term = parens exprparser
     <|> puppetUndefined
