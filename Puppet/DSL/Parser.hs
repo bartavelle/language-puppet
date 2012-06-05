@@ -375,11 +375,7 @@ puppetDefine = do { pos <- getPosition
     }
     
 
-puppetIfStyleCondition = do { hasparens <- optionMaybe (symbol "(")
-    ; cond <- exprparser <?> "Conditional expression"
-    ; case hasparens of
-        Nothing -> return ""
-        Just _  -> symbol ")"
+puppetIfStyleCondition = do { cond <- exprparser <?> "Conditional expression"
     ; symbol "{"
     ; e <- many stmtparser
     ; symbol "}"
