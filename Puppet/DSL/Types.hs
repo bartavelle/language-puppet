@@ -74,4 +74,5 @@ data Expression
     | BTrue
     | BFalse
     | Error String
+    | IsElementOperation Expression Expression
     deriving(Show, Ord, Eq)

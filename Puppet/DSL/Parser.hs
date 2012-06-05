@@ -63,6 +63,7 @@ table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
               , Infix ( reservedOp "<" >> return UnderOperation ) AssocLeft ]
             , [ Infix ( reservedOp "=~" >> return RegexpOperation ) AssocLeft 
               , Infix ( reservedOp "!~" >> return NotRegexpOperation ) AssocLeft ]
+            , [ Infix ( reserved   "in" >> return IsElementOperation ) AssocLeft ]
             , [ Prefix ( symbol "!" >> return NotOperation ) ]
             , [ Prefix ( symbol "-" >> return NegOperation ) ]
             , [ Infix ( reservedOp "?" >> return ConditionalValue ) AssocLeft ]
