@@ -25,7 +25,7 @@ def = emptyDef
     , P.nestedComments = True
     , P.identStart     = letter
     , P.identLetter    = alphaNum <|> oneOf "_"
-    , P.reservedNames  = ["if", "else", "case", "elsif"]
+    , P.reservedNames  = ["if", "else", "case", "elsif", "and", "or", "in", "import", "include", "define", "require", "class", "node"]
     , P.reservedOpNames= ["=>","=","+","-","/","*","+>","->","~>","!"]
     , P.caseSensitive  = True
     } 
@@ -36,6 +36,7 @@ parens      = P.parens lexer
 --operator    = P.operator lexer
 symbol      = P.symbol lexer
 reservedOp  = P.reservedOp lexer
+reserved    = P.reserved lexer
 whiteSpace  = P.whiteSpace lexer
 -- stringLiteral = P.stringLiteral lexer
 naturalOrFloat     = P.naturalOrFloat lexer
@@ -52,8 +53,8 @@ table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
               , Infix ( reservedOp "*" >> return MultiplyOperation ) AssocLeft ]
             , [ Infix ( reservedOp "<<" >> return ShiftLeftOperation ) AssocLeft 
               , Infix ( reservedOp ">>" >> return ShiftRightOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "and" >> return AndOperation ) AssocLeft 
-              , Infix ( reservedOp "or" >> return OrOperation ) AssocLeft ]
+            , [ Infix ( reserved   "and" >> return AndOperation ) AssocLeft 
+              , Infix ( reserved   "or" >> return OrOperation ) AssocLeft ]
             , [ Infix ( reservedOp "==" >> return EqualOperation ) AssocLeft 
               , Infix ( reservedOp "!=" >> return DifferentOperation ) AssocLeft ]
             , [ Infix ( reservedOp ">" >> return AboveOperation ) AssocLeft 
@@ -124,8 +125,7 @@ puppetResourceOverride = do { pos <- getPosition
     }
 
 puppetInclude = do { pos <- getPosition
-    ; string "include"
-    ; whiteSpace
+    ; try $ reserved "include"
     ; vs <- puppetQualifiedName `sepBy` (symbol ",")
     ; return $ map (\v -> Include v pos) vs
     }
@@ -179,7 +179,7 @@ puppetAssignment = do { n <- puppetRegexpExpr <|> puppetVariableOrHashLookup <|>
     }
 
 nodeDeclaration = do { pos <- getPosition
-    ; string "node"
+    ; try $ reserved "node"
     ; whiteSpace
     ; n <- puppetRegexp <|> puppetLiteral -- TODO HANDLE
     ; symbol "{"
@@ -355,7 +355,7 @@ puppetClassParameters = do { symbol "("
     }
 
 puppetClassDefinition = do { pos <- getPosition
-    ; string "class"
+    ; try $ reserved "class"
     ; whiteSpace
     ; cname <- puppetQualifiedName
     ; params <- option [] puppetClassParameters
@@ -367,8 +367,7 @@ puppetClassDefinition = do { pos <- getPosition
     }
 
 puppetDefine = do { pos <- getPosition
-    ; string "define"
-    ; whiteSpace
+    ; try $ reserved "define"
     ; cname <- puppetQualifiedName
     ; params <- option [] puppetClassParameters
     ; symbol "{"
@@ -460,14 +459,16 @@ puppetCaseCondition = do { pos <- getPosition
 puppetMainFunctionCall = do { pos <- getPosition
     ; name <- identifier
     ; whiteSpace
-    ; symbol "("
+    ; hasParens <- optionMaybe $ symbol "("
     ; refs <- exprparser `sepEndBy` symbol ","
-    ; symbol ")"
+    ; case hasParens of
+        Just _ -> symbol ")"
+        _      -> return ""
     ; return [MainFunctionCall name refs pos]
     }
 
 puppetChains = do { pos <- getPosition
-    ; refs <- puppetResourceReference `sepBy1` symbol "->"
+    ; refs <- try (puppetResourceReference `sepBy1` symbol "->")
     ; let refToPair (Value (ResourceReference rtype name)) = (rtype, name)
           refToPair x = error $ "Could not run refToPair on " ++ show x
     ; let pairs = map refToPair refs
@@ -476,27 +477,26 @@ puppetChains = do { pos <- getPosition
     }
 
 puppetImport = do { pos <- getPosition
-    ; string "import"
-    ; whiteSpace
+    ; try $ reserved "import"
     ; pattern <- puppetLiteral
     ; return [Import pattern pos]
     }
 
 stmtparser = variableAssignment
-    <|> try (puppetInclude)
-    <|> try (puppetRequire)
+    <|> puppetInclude
+    <|> puppetRequire
+    <|> puppetImport
+    <|> nodeDeclaration
+    <|> puppetDefine
+    <|> puppetIfCondition
+    <|> puppetCaseCondition
     <|> try (puppetResourceGroup)
     <|> try (puppetResourceDefaults)
     <|> try (puppetResourceOverride)
     <|> try (puppetResourceCollection)
-    <|> puppetIfCondition
-    <|> puppetCaseCondition
-    <|> try (puppetMainFunctionCall)
-    <|> try (puppetChains)
-    <|> puppetImport
     <|> puppetClassDefinition
-    <|> puppetDefine
-    <|> nodeDeclaration
+    <|> puppetChains
+    <|> puppetMainFunctionCall
     <?> "Statement"
 
 mparser = do {
