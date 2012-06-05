@@ -24,6 +24,11 @@ data DaemonMessage
     = QCatalog (String, Facts, Chan DaemonMessage)
     | RCatalog (Either String FinalCatalog)
 
+-- nbstats nbrequests
+data DaemonStats = DaemonStats Int Integer
+    deriving (Show)
+
+
 logDebug = LOG.debugM "Puppet.Daemon"
 --logInfo = LOG.infoM "Puppet.Daemon"
 logWarning = LOG.warningM "Puppet.Daemon"
@@ -200,6 +205,7 @@ type CacheEntry = (Statement, [(FilePath, FileStatus)])
 data ParsedCacheQuery
     = GetParsedData TopLevelType String (Chan ParsedCacheResponse)
     | UpdateParsedData TopLevelType String CacheEntry (Chan ParsedCacheResponse)
+    | GetStats (Chan DaemonStats)
 data ParsedCacheResponse
     = CacheError String
     | RCacheEntry CacheEntry
@@ -211,7 +217,7 @@ initParsedDaemon :: Prefs -> IO ( TopLevelType -> String -> ErrorT String IO (Ma
 initParsedDaemon prefs = do
     logDebug "initParsedDaemon"
     controlChan <- newChan
-    forkIO ( evalStateT (parsedmaster prefs controlChan) Map.empty )
+    forkIO ( evalStateT (parsedmaster prefs controlChan) (Map.empty, 0 :: Integer) )
     return (getParsedInformation controlChan, updateParsedInformation controlChan)
 
 getParsedInformation :: Chan ParsedCacheQuery -> TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry)
@@ -231,16 +237,21 @@ updateParsedInformation pchannel qtype name centry = do
     writeChan pchannel $ UpdateParsedData qtype name centry respchan
     readChan respchan
 
+-- state : (parsed statements map, nbrequests)
 parsedmaster prefs controlchan = do
     curmsg <- liftIO $ readChan controlchan
     case curmsg of
+        GetStats respchan -> do
+            (curmap, nbrequests) <- get
+            liftIO $ writeChan respchan $ DaemonStats (Map.size curmap) nbrequests
         GetParsedData qtype name respchan -> do
-            curmap <- get
+            (curmap, _) <- get
+            modify (\(mp, rq) -> (mp, rq + 1))
             case (Map.lookup (qtype, name) curmap) of
                 Just x  -> liftIO $ writeChan respchan (RCacheEntry x)
                 Nothing -> liftIO $ writeChan respchan NoCacheEntry
         UpdateParsedData qtype name val respchan -> do
             liftIO $ logDebug ("Updating parsed cache for " ++ show qtype ++ " " ++ name)
-            modify (Map.insert (qtype, name) val)
+            modify (\(mp, rq) -> (Map.insert (qtype, name) val mp, rq+1))
             liftIO $ writeChan respchan CacheUpdated
     parsedmaster prefs controlchan
