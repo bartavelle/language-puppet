@@ -191,17 +191,12 @@ nodeDeclaration = do { pos <- getPosition
     }
 
 -- no trailing whiteSpace
-puppetVariable = do { char '$'
-    ; n <- do { char '{'
-        ; o <- many1 (noneOf("}"))
-        ; char '}'
-        ; return o
-        } 
-    <|> do { o <- many1 ( try (string "::") <|> identstring )
-        ; return $ concat o
-        }
-    ; return n
-    }
+puppetVariable = do
+    char '$'
+    choice
+        [ do { char '{' ; o <- many1 $ noneOf "}" ; char '}' ; return o }
+        , do { s <- option "" (string "::") ; o <- identstring `sepBy` (try $ string "::") ; return $ s ++ (join "::" o) }
+        ]
 
 variableAssignment = do { pos <- getPosition
     ; varname <- puppetVariable
@@ -247,15 +242,16 @@ doubleQuotedString = do { char '"'
 
 puppetInterpolableString = do { char '"'
     ; v <- many (
-        do { x <- doubleQuotedStringContent
-            ; return $ Literal x
-            }
-        <|> try ( do { x <- puppetVariable
+        try ( do { x <- puppetVariable
             ; return $ VariableReference x
             } )
+        <|> do { x <- doubleQuotedStringContent
+            ; return $ Literal x
+            }
         <|> do { char '$'
             ; return $ Literal "$"
             }
+        <?> "Interpolable string content"
         )
     ; char '"'
     ; whiteSpace
@@ -326,7 +322,7 @@ resourceArrayDeclaration = do { pos <- getPosition
     }
 
 resourceDeclaration = do { pos <- getPosition
-    ; v <- (puppetVariableOrHashLookup <|> try puppetLiteralValue <|> puppetInterpolableString )
+    ; v <- (puppetVariableOrHashLookup <|> puppetInterpolableString <|> puppetLiteralValue )
     ; whiteSpace
     ; symbol ":"
     ; x <- puppetAssignment `sepEndBy` symbol ","
