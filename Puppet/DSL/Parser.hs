@@ -109,9 +109,11 @@ identifier = do {
 
 puppetResourceReference = do { rtype <- puppetQualifiedReference
     ; symbol "["
-    ; rname <- exprparser
+    ; rnames <- exprparser `sepBy` (symbol ",")
     ; symbol "]"
-    ; return $ Value (ResourceReference rtype rname)
+    ; if length rnames == 1
+        then return $ Value (ResourceReference rtype (head rnames))
+        else return $ Value $ PuppetArray $ map (\rname -> Value $ ResourceReference rtype rname) rnames
     }
 
 puppetResourceOverride = do { pos <- getPosition
