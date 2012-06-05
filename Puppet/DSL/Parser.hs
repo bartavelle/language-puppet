@@ -71,6 +71,7 @@ table =     [
               , Infix ( reservedOp "!~" >> return NotRegexpOperation ) AssocLeft ]
             ]
 term = parens exprparser
+    <|> puppetInterpolableString
     <|> puppetUndefined
     <|> puppetRegexpExpr
     <|> puppetVariableOrHashLookup
@@ -79,8 +80,8 @@ term = parens exprparser
     <|> puppetHash
     <|> try puppetResourceReference
     <|> try puppetFunctionCall
-    <|> try puppetLiteralValue
-    <|> puppetInterpolableString
+    <|> puppetLiteralValue
+    <?> "Expression terminal"
 
 hashRef = do { symbol "["
     ; e <- exprparser
@@ -131,7 +132,7 @@ puppetResourceOverride = do { pos <- getPosition
 
 puppetInclude = do { pos <- getPosition
     ; try $ reserved "include"
-    ; vs <- puppetQualifiedName `sepBy` (symbol ",")
+    ; vs <- (puppetQualifiedName <|> puppetLiteral) `sepBy` (symbol ",")
     ; return $ map (\v -> Include v pos) vs
     }
 
@@ -141,7 +142,8 @@ puppetRequire = do { pos <- getPosition
     ; return $ map (\x -> Require x pos) v
     }
 
-puppetQualifiedName = do { firstletter <- lower
+puppetQualifiedName = do { optional (string "::")
+    ; firstletter <- lower
     ; parts <- identstring `sepBy` (try $ string "::")
     ; whiteSpace
     ; return $ [firstletter] ++ (join "::" parts)
@@ -220,10 +222,10 @@ puppetLiteralValue = do { v <- puppetLiteral
     ; return (Value (Literal v))
     }
 
-puppetRegexp = do { symbol "/"
-    ; v <- many (noneOf "/")
+puppetRegexp = do { char '/'
+    ; v <- many ( do { char '\\' ; x <- anyChar; return ['\\', x] } <|> many1 (noneOf "/\\") )
     ; symbol "/"
-    ; return v
+    ; return $ concat v
     }
 
 puppetRegexpExpr = puppetRegexp >>= return . Value . PuppetRegexp
@@ -273,7 +275,7 @@ stringEscape '$' = '$'
 stringEscape x = error $ "unknown escape pattern \\" ++ [x]
 
 puppetUndefined = do
-    string "undef"
+    try $ string "undef"
     whiteSpace
     return $ Value $ Undefined
 
@@ -356,7 +358,6 @@ puppetClassParameters = do { symbol "("
 
 puppetClassDefinition = do { pos <- getPosition
     ; try $ reserved "class"
-    ; whiteSpace
     ; cname <- puppetQualifiedName
     ; params <- option [] puppetClassParameters
     ; cparent <- optionMaybe ( do { string "inherits"; whiteSpace ; p <- puppetQualifiedName; return p } )
@@ -501,3 +502,4 @@ mparser = do {
         ; eof
         ; return $ concat result
 }
+
