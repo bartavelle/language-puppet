@@ -134,10 +134,9 @@ puppetInclude = do { pos <- getPosition
     }
 
 puppetRequire = do { pos <- getPosition
-    ; string "require"
-    ; whiteSpace
-    ; v <- puppetLiteral
-    ; return [ Require v pos ]
+    ; try $ reserved "require"
+    ; v <- puppetLiteral `sepBy` (symbol ",")
+    ; return $ map (\x -> Require x pos) v
     }
 
 puppetQualifiedName = do { firstletter <- lower
