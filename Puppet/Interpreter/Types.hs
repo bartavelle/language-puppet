@@ -12,12 +12,12 @@ type Facts = Map.Map String ResolvedValue
 data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show, Ord, Eq)
 
 data ResolvedValue
-    = ResolvedString String
-    | ResolvedInt   Integer
-    | ResolvedBool Bool
-    | ResolvedRReference String ResolvedValue
-    | ResolvedArray [ResolvedValue]
-    | ResolvedHash [(String, ResolvedValue)]
+    = ResolvedString !String
+    | ResolvedInt   !Integer
+    | ResolvedBool !Bool
+    | ResolvedRReference !String !ResolvedValue
+    | ResolvedArray ![ResolvedValue]
+    | ResolvedHash ![(String, ResolvedValue)]
     | ResolvedUndefined
     deriving(Show, Eq, Ord)
 
@@ -38,12 +38,12 @@ type ResIdentifier = (String, String) -- type, name
 type Relation  = (LinkType, ResIdentifier) -- (relation, dst)
 
 data RResource = RResource {
-    rrid :: Int,
-    rrname :: String,
-    rrtype :: String,
-    rrparams :: Map.Map String ResolvedValue,
-	rrelations :: [Relation],
-    rrpos :: SourcePos
+    rrid :: !Int,
+    rrname :: !String,
+    rrtype :: !String,
+    rrparams :: !(Map.Map String ResolvedValue),
+	rrelations :: ![Relation],
+    rrpos :: !SourcePos
     } deriving(Show, Ord, Eq)
     
 
@@ -54,20 +54,20 @@ type ScopeName = String
 data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord, Eq)
 
 data ScopeState = ScopeState {
-    curScope :: [ScopeName],
-    curVariables :: Map.Map String (GeneralValue, SourcePos),
-    curClasses :: Map.Map String SourcePos,
-    curDefaults :: [Statement],
-    curResId :: Int,
-    curPos :: SourcePos,
-    netstedtoplevels :: Map.Map (TopLevelType, String) Statement,
+    curScope :: ![ScopeName],
+    curVariables :: !(Map.Map String (GeneralValue, SourcePos)),
+    curClasses :: !(Map.Map String SourcePos),
+    curDefaults :: ![Statement],
+    curResId :: !Int,
+    curPos :: !SourcePos,
+    netstedtoplevels :: !(Map.Map (TopLevelType, String) Statement),
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
-    getWarnings :: [String],
+    getWarnings :: ![String],
     -- this stores the collection functions
-    curCollect :: [CResource -> CatalogMonad Bool],
+    curCollect :: ![CResource -> CatalogMonad Bool],
     -- this stores unresolved relationships, because the original string name can't be resolved
     -- fieds are [ ( [dstrelations], srcresource, type, pos ) ]
-    unresolvedRels :: [([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
+    unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
     computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String)
 }
 
