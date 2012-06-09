@@ -360,6 +360,10 @@ evaluateStatements (MainFunctionCall fname fargs position) = do
     rargs <- mapM resolveExpression fargs
     executeFunction fname rargs
 
+evaluateStatements (TopContainer toplevels curstatement) = do
+    mapM (\(fname, stmt) -> evaluateClass stmt Map.empty (Just fname)) toplevels
+    evaluateStatements curstatement
+
 evaluateStatements x = throwError ("Can't evaluate " ++ (show x))
 
 -- function used to load defines / class variables into the global context

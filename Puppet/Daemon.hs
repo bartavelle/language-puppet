@@ -18,6 +18,7 @@ import Data.Either (rights, lefts)
 import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
+import Text.Parsec.Pos (initialPos)
 
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
@@ -30,7 +31,7 @@ data DaemonStats = DaemonStats Int Integer
 
 
 logDebug = LOG.debugM "Puppet.Daemon"
---logInfo = LOG.infoM "Puppet.Daemon"
+logInfo = LOG.infoM "Puppet.Daemon"
 logWarning = LOG.warningM "Puppet.Daemon"
 logError = LOG.errorM "Puppet.Daemon"
 
@@ -43,7 +44,11 @@ initDaemon prefs = do
     forkIO (master prefs controlChan getstmts templatefunc)
     return (gCatalog controlChan)
 
-master :: Prefs -> Chan DaemonMessage -> (TopLevelType -> String -> IO (Either String Statement)) -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String)) -> IO ()
+master :: Prefs
+    -> Chan DaemonMessage
+    -> (TopLevelType -> String -> IO (Either String Statement))
+    -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
+    -> IO ()
 master prefs chan getstmts gettemplate = do
     message <- readChan chan
     case message of
@@ -125,8 +130,14 @@ findFile prefs qtype resname = do
         Just x -> return x
         Nothing -> throwError ("Could not find file for " ++ show qtype ++ " " ++ resname ++ " when looking in " ++ (show filelist))
 
+globImport :: FilePath -> Statement -> IO [FilePath]
+globImport origfile (Import importname _) = globDir [compile importname] (takeDirectory origfile) >>= return . concat . fst
+globImport _ _ = return []
+
 {-
  given a filename and a file status, will parse this file and update the cache with the parsed values
+
+ it must also parse all required files and store everything about them before returning
  -}
 loadUpdateFile :: FilePath -> FileStatus -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> ErrorT String IO ([Statement], [(TopLevelType, String, Statement)])
 loadUpdateFile fname fstatus updatepinfo = do
@@ -135,26 +146,34 @@ loadUpdateFile fname fstatus updatepinfo = do
     let toplevels = map convertTopLevel parsed
         oktoplevels = rights toplevels
         othertoplevels = lefts toplevels
-        (imports, badtoplevels) = partition isImport othertoplevels
+        (imports, spurioustoplevels) = partition isImport othertoplevels
         isImport (Import _ _) = True
         isImport _ = False
-    liftIO $ mapM (\x -> logError ("Unsupported top level statement: " ++ (show x))) badtoplevels
-    liftIO $ mapM (\(rtype, resname, resstatement) -> updatepinfo rtype resname (resstatement, fname, fstatus)) oktoplevels
+    relatedtops <- liftIO $ mapM (globImport fname) imports >>= return . concat
+        -- save this spurious top levels
+    if null spurioustoplevels
+        then return ()
+        else do
+            liftIO ( updatepinfo TopSpurious fname (ClassDeclaration "::" Nothing [] spurioustoplevels (initialPos fname), fname, fstatus, relatedtops) >> return () )
+            liftIO $ logWarning ("Spurious top level statement in file " ++ fname ++ ", expect bugs in case you modify them" )
+    -- saves all good top levels
+    liftIO $ mapM (\(rtype, resname, resstatement) -> updatepinfo rtype resname (resstatement, fname, fstatus, relatedtops)) oktoplevels
     return (imports, oktoplevels)
 
 reparseStatements :: Prefs -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
 reparseStatements prefs updatepinfo qtype nodename = do
     (fname, fstatus) <- findFile prefs qtype nodename
     (imports, oktoplevels) <- loadUpdateFile fname fstatus updatepinfo
-    imported <- mapM (loadImport updatepinfo (takeDirectory fname)) imports >>= return . concat
+    imported <- mapM (loadImport updatepinfo fname) imports >>= return . concat
     let searchstatement = find (\(qt,nm,_) -> (qt == qtype) && (nm == nodename)) (oktoplevels ++ imported)
     case searchstatement of
         Just (_,_,x) -> return x
         Nothing -> throwError ("Could not find correct top level statement for " ++ (show qtype) ++ " " ++ nodename)
 
 loadImport :: (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> FilePath -> Statement -> ErrorT String IO [(TopLevelType, String, Statement)]
-loadImport updatepinfo fdir (Import importstring _) = do
-    matched <- liftIO $ globDir [compile importstring] fdir >>= return . concat . fst
+loadImport updatepinfo fdir mimport = do
+    matched <- liftIO $ globImport fdir mimport
+    -- globDir [compile importstring] fdir >>= return . concat . fst
     fileinfos <- liftIO $ mapM getFileInfo matched
     let fpathinfos = zip matched fileinfos
         goodpathinfos = concatMap unjust fpathinfos
@@ -162,7 +181,17 @@ loadImport updatepinfo fdir (Import importstring _) = do
         unjust _ = []
     mapM (\(fname, finfo) -> loadUpdateFile fname finfo updatepinfo) goodpathinfos >>= return . concatMap snd
 
-loadImport _ _ _ = throwError "Bad statement type passed to loadImport"
+loadRelated :: 
+       ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry) )
+    -> FilePath
+    -> ErrorT String IO [(String, Statement)]
+loadRelated getpinfo filename = do
+    res <- getpinfo TopSpurious filename
+    case res of
+        Nothing -> return []
+        Just (stmts, _, _, related) -> do
+            relstatements <- mapM (loadRelated getpinfo) related >>= return . concat
+            return $ (filename,stmts):relstatements
 
 handlePRequest :: Prefs ->
     ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry)
@@ -172,12 +201,20 @@ handlePRequest :: Prefs ->
 handlePRequest prefs (getpinfo, updatepinfo, invalidateinfo) qtype nodename = do
     res <- getpinfo qtype nodename
     case res of
-        Just (stmts, fpath, fstatus) -> do
+        Just (stmts, fpath, fstatus, related) -> do
+            -- for this to work, everything must be cached
+            -- this is buggy as the required stuff will not be invalidated properly
+            relstatements <- mapM (loadRelated getpinfo) (fpath:related) >>= return . concat
             isfileinfoaccurate <- checkFileInfo fpath fstatus
-            if isfileinfoaccurate
-                then return stmts
-                else reparseStatements prefs updatepinfo qtype nodename
-        Nothing -> reparseStatements prefs updatepinfo qtype nodename
+            statements <- if isfileinfoaccurate
+                            then return stmts
+                            else do
+                                liftIO $ invalidateinfo fpath
+                                reparseStatements prefs updatepinfo qtype nodename
+            if null relstatements
+                then return statements
+                else return (TopContainer relstatements statements)
+        Nothing -> reparseStatements prefs updatepinfo qtype nodename >> handlePRequest prefs (getpinfo, updatepinfo, invalidateinfo) qtype nodename
 
 pmaster :: Prefs -> Chan ParserMessage ->
     ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry)
@@ -204,7 +241,9 @@ getStatements channel qtype classname = do
         RStatement x -> return x
         _            -> return $ Left "Bad answer from the pmaster"
 
-type CacheEntry = (Statement, FilePath, FileStatus)
+-- this is a cache entry, it stores a top level statement, the path of the corresponding file and its status
+-- it also stores a list of top level statements that are related
+type CacheEntry = (Statement, FilePath, FileStatus, [FilePath])
 data ParsedCacheQuery
     = GetParsedData TopLevelType String (Chan ParsedCacheResponse)
     | UpdateParsedData TopLevelType String CacheEntry (Chan ParsedCacheResponse)
@@ -269,7 +308,7 @@ parsedmaster prefs controlchan = do
             case (Map.lookup (qtype, name) curmap) of
                 Just x  -> liftIO $ writeChan respchan (RCacheEntry x)
                 Nothing -> liftIO $ writeChan respchan NoCacheEntry
-        UpdateParsedData qtype name val@(_, filepath, filestatus) respchan -> do
+        UpdateParsedData qtype name val@(_, filepath, filestatus, _) respchan -> do
             liftIO $ logDebug ("Updating parsed cache for " ++ show qtype ++ " " ++ name)
             (mp, fm, rq) <- get
             let 

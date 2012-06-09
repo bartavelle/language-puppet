@@ -4,7 +4,7 @@ import Text.Parsec.Pos
 
 data Parameters = Parameters [(Expression, Expression)] deriving(Show, Ord, Eq)
 
-data TopLevelType = TopNode | TopDefine | TopClass deriving (Show, Ord, Eq)
+data TopLevelType = TopNode | TopDefine | TopClass | TopSpurious deriving (Show, Ord, Eq)
 convertTopLevel :: Statement -> Either Statement (TopLevelType, String, Statement)
 convertTopLevel x@(Node name _ _)                 = Right (TopNode, name, x)
 convertTopLevel x@(ClassDeclaration name _ _ _ _) = Right (TopClass, name, x)
@@ -45,6 +45,7 @@ data Statement
     | VirtualResourceCollection String !Expression ![(Expression, Expression)] SourcePos
     | DependenceChain !(String,Expression) !(String,Expression) SourcePos
     | MainFunctionCall String ![Expression] SourcePos
+    | TopContainer ![(String, Statement)] !Statement -- magic statement that is used to embody the spurious top level statements
     deriving(Show, Ord, Eq)
 
 
