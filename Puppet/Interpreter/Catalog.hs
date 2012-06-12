@@ -596,6 +596,13 @@ tryResolveValue   (FunctionCall "fqdn_rand" args) = if (null args)
         nargs  <- mapM resolveExpressionString args
         curmax <- readint (head nargs)
         fqdn_rand curmax (tail nargs) >>= return . Right . ResolvedInt
+tryResolveValue   (FunctionCall "mysql_password" args) = if (length args /= 1)
+    then throwPosError "mysql_password takes a single argument"
+    else do
+        es <- tryResolveExpressionString (head args)
+        case es of
+            Right s -> mysql_password s >>= return . Right . ResolvedString
+            Left  u -> return $ Left u
 tryResolveValue   (FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 tryResolveValue   (FunctionCall "template" [name]) = do
     fname <- tryResolveExpressionString name

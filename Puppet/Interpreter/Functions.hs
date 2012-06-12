@@ -1,6 +1,12 @@
-module Puppet.Interpreter.Functions (fqdn_rand,regsubst) where
+module Puppet.Interpreter.Functions 
+    (fqdn_rand
+    ,regsubst
+    ,mysql_password
+    ) where
 
 import Data.Hash.MD5
+import qualified Crypto.Hash.SHA1 as SHA1
+import qualified Data.ByteString.Char8 as BS
 import Data.String.Utils (join)
 import Text.RegexPR
 import Puppet.Interpreter.Types
@@ -14,6 +20,11 @@ fqdn_rand n args = return (hash `mod` n)
     where
         fullstring = Data.String.Utils.join ":" args
         hash = md5i $ Str fullstring
+
+mysql_password :: String -> CatalogMonad String
+mysql_password pwd = return $ '*':hash
+    where
+        hash = BS.unpack $ SHA1.hash (BS.pack pwd)
 
 regsubst :: String -> String -> String -> String -> CatalogMonad String
 regsubst str src dst flags = do

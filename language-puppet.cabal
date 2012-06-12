@@ -53,7 +53,7 @@ Library
                        Puppet.Interpreter.Types, Puppet.Interpreter.Catalog
   
   -- Packages needed in order to build this package.
-  Build-depends:       base,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process
+  Build-depends:       base,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring,cryptohash
   
   -- Modules not exported by this package.
   Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.Helpers,
