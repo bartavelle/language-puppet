@@ -400,7 +400,7 @@ puppetElseCondition = do { reservedOp "else"
     }
 
 puppetIfCondition = do { pos <- getPosition
-    ; reservedOp "if"
+    ; reserved "if"
     ; whiteSpace
     ; maincond <- puppetIfStyleCondition
     ; others <- option [] (many puppetElseIfCondition)
