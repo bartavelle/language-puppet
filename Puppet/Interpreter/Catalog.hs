@@ -107,7 +107,7 @@ finalResolution cat = do
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
         (_,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
     --export stuff
-    liftIO $ print "EXPORTED:"
+    liftIO $ putStrLn "EXPORTED:"
     liftIO $ mapM print exported
     resolved <- mapM finalizeResource real >>= createResourceMap
     --get >>= return . unresolvedRels >>= liftIO . (mapM print)
@@ -300,7 +300,6 @@ evaluateStatements (ConditionalStatement exprs position) = do
 
 evaluateStatements (Resource rtype rname parameters virtuality position) = do
     setPos position
-    liftIO $ putStrLn $ "\t" ++  rtype ++ " " ++ show rname ++ " " ++ show position
     case rtype of
         -- checks whether we are handling a parametrized class
         "class" -> do
@@ -383,7 +382,6 @@ loadClassVariable position inputs (paramname, defvalue) = do
 -- nom, heritage, parametres, contenu
 evaluateClass :: Statement -> Map.Map String (GeneralValue, SourcePos) -> Maybe String -> CatalogMonad Catalog
 evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams actualname = do
-    liftIO $ putStrLn $ "CLASS " ++ classname
     isloaded <- case actualname of
         Nothing -> checkLoaded classname
         Just x  -> checkLoaded x
@@ -420,6 +418,10 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
             [CResource resid (Right classname) "class" [] Normal position]
             ++ inherited
             ++ nres
+
+evaluateClass (TopContainer topstmts myclass) inputparams actualname = do
+    mapM (\(n,x) -> evaluateClass x Map.empty (Just n)) topstmts
+    evaluateClass myclass inputparams actualname
 
 evaluateClass x _ _ = throwError ("Someone managed to run evaluateClass against " ++ show x)
 
