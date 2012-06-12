@@ -443,10 +443,10 @@ tryResolveGeneralValue n@(Left (ResolvedResourceReference _ _)) = return n
 tryResolveGeneralValue   (Left (Error x)) = throwPosError x
 tryResolveGeneralValue   (Left (ConditionalValue checkedvalue (Value (PuppetHash (Parameters hash))))) = do
     rcheck <- resolveExpression checkedvalue
-    rhash <- mapM (\(vn, vv) -> do { rvn <- resolveExpression vn; rvv <- resolveExpression vv; return (rvn, rvv) }) hash
+    rhash <- mapM (\(vn, vv) -> do { rvn <- resolveExpression vn; return (rvn, vv) }) hash
     case (filter (\(a,_) -> (a == ResolvedString "default") || (compareRValues a rcheck)) rhash) of
         [] -> throwPosError ("No value could be selected when comparing to " ++ show rcheck)
-        ((_,x):_) -> return $ Right x
+        ((_,x):_) -> tryResolveExpression x
 tryResolveGeneralValue (Left (EqualOperation a b)) = do
     ra <- tryResolveExpression a
     rb <- tryResolveExpression b
