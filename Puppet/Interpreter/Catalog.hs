@@ -494,7 +494,16 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
         (_, Left y) -> throwPosError ("Could not resolve index " ++ show y)
         (Left x, _) -> throwPosError ("Could not resolve lookup " ++ show x)
         (Right x, _) -> throwPosError ("Could not resolve something that is not an array nor a hash, but " ++ show x)
-
+tryResolveGeneralValue o@(Left (IsElementOperation b a)) = do
+    ra <- tryResolveExpression a
+    rb <- tryResolveExpressionString b
+    case (ra, rb) of
+        (Right (ResolvedArray ar), Right idx) -> do
+            let filtered = filter (compareRValues (ResolvedString idx)) ar
+            if null filtered
+                then return $ Right $ ResolvedBool False
+                else return $ Right $ ResolvedBool True
+        _ -> return o
             
 tryResolveGeneralValue e = throwPosError ("tryResolveGeneralValue not implemented for " ++ show e)
 
