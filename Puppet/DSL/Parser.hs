@@ -286,17 +286,21 @@ puppetNumeric = do { v <- naturalOrFloat
         )
     }
 
-puppetResourceGroup = do { virtcount <- many (char '@')
-    ; v <- puppetQualifiedName
-    ; symbol "{"
-    ; x <- (resourceArrayDeclaration <|> resourceDeclaration) `sepEndBy` (symbol ";" <|> symbol ",")
-    ; symbol "}"
-    ; case virtcount of
+puppetResourceGroup = do
+    (virtcount, v) <- try ( do {
+        virtcount <- many (char '@')
+        ; v <- puppetQualifiedName
+        ; symbol "{"
+        ; return (virtcount, v)
+    } )
+    x <- (resourceArrayDeclaration <|> resourceDeclaration) `sepEndBy` (symbol ";" <|> symbol ",")
+    symbol "}"
+    case virtcount of
         ""      -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Normal pos)) (concat x)
         "@"     -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Virtual pos)) (concat x)
         "@@"    -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Exported pos)) (concat x)
         _       -> unexpected "Too many @'s"
-    }
+    
 
 -- todo parse resource collection properly
 puppetResourceCollection = do { pos <- getPosition
@@ -487,7 +491,7 @@ stmtparser = variableAssignment
     <|> puppetDefine
     <|> puppetIfCondition
     <|> puppetCaseCondition
-    <|> try (puppetResourceGroup)
+    <|> puppetResourceGroup
     <|> try (puppetResourceDefaults)
     <|> try (puppetResourceOverride)
     <|> try (puppetResourceCollection)
