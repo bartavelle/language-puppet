@@ -149,7 +149,8 @@ puppetQualifiedName = do { optional (string "::")
     ; return $ [firstletter] ++ (join "::" parts)
     }
 
-puppetQualifiedReference = do { firstletter <- upper <?> "Uppercase letter for a reference"
+puppetQualifiedReference = do { optional (string "::")
+    ; firstletter <- upper <?> "Uppercase letter for a reference"
     ; parts <- identstring `sepBy` (string "::")
     ; whiteSpace
     ; return $ [toLower firstletter] ++ (join "::" $ map lowerFirstChar parts)
