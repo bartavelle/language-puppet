@@ -641,6 +641,7 @@ tryResolveValue   (FunctionCall "file" _) = return $ Right $ ResolvedString "TOD
 tryResolveValue   (FunctionCall fname _) = throwPosError ("FunctionCall " ++ fname ++ " not implemented")
 
 tryResolveValue Undefined = return $ Right $ ResolvedUndefined
+tryResolveValue (PuppetRegexp x) = return $ Right $ ResolvedRegexp x
 
 tryResolveValue x = throwPosError ("tryResolveValue not implemented for " ++ show x)
 
@@ -703,6 +704,7 @@ compareRValues :: ResolvedValue -> ResolvedValue -> Bool
 compareRValues (ResolvedString a) (ResolvedInt b) = compareRValues (ResolvedInt b) (ResolvedString a)
 compareRValues (ResolvedInt a) (ResolvedString b) | isInt b = a == (read b)
                                                   | otherwise = False
+compareRValues (ResolvedString a) (ResolvedRegexp b) = regmatch a b
 compareRValues a b = a == b
 
 -- used to handle the special cases when we know it is a boolean context
@@ -781,3 +783,4 @@ resolved2expression (ResolvedRReference mrtype name) = Value $ ResourceReference
 resolved2expression (ResolvedArray vals) = Value $ PuppetArray $ map resolved2expression vals
 resolved2expression (ResolvedHash hash) = Value $ PuppetHash $ Parameters $ map (\(s,v) -> (Value $ Literal s, resolved2expression v)) hash
 resolved2expression (ResolvedUndefined) = Value $ Undefined
+resolved2expression (ResolvedRegexp a) = Value $ PuppetRegexp a

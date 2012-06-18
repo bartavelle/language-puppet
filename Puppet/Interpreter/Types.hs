@@ -13,6 +13,7 @@ data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show, Ord, Eq)
 
 data ResolvedValue
     = ResolvedString !String
+    | ResolvedRegexp !String
     | ResolvedInt   !Integer
     | ResolvedBool !Bool
     | ResolvedRReference !String !ResolvedValue

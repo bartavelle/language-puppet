@@ -2,6 +2,7 @@ module Puppet.Interpreter.Functions
     (fqdn_rand
     ,regsubst
     ,mysql_password
+    ,regmatch
     ) where
 
 import Data.Hash.MD5
@@ -44,3 +45,8 @@ regsubst str src dst flags = do
         then throwError "Case insensitive flag not implemented"
         else return ()
     return $ refunc src dst str
+
+regmatch :: String -> String -> Bool
+regmatch str reg = case matchRegexPR str reg of
+    Just _  -> True
+    Nothing -> False
