@@ -41,7 +41,6 @@ modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
 modifyDefaults  f sc = sc { curDefaults    = f $ curDefaults sc }
 incrementResId    sc = sc { curResId       = (curResId sc) + 1 }
 setStatePos  npos sc = sc { curPos         = npos }
-modifyNestedTopLvl f sc = sc { netstedtoplevels = f $ netstedtoplevels sc }
 emptyDefaults     sc = sc { curDefaults    = [] }
 pushWarning     t sc = sc { getWarnings    = (getWarnings sc) ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : (curCollect sc) }
@@ -158,7 +157,18 @@ putVariable k v = do
             | otherwise = "::" ++ k
     modify (modifyVariables (Map.insert (curscope ++ kk) v))
 getVariable vname = get >>= return . Map.lookup vname . curVariables
-addNestedTopLevel rtype rname rstatement = modify( modifyNestedTopLvl (Map.insert (rtype, rname) rstatement) )
+addNestedTopLevel rtype rname rstatement = do
+    curstate <- get
+    let ctop = nestedtoplevels curstate
+        curscope = head (curScope curstate)
+        nname | curscope == "::" = rname
+              | otherwise = curscope ++ "::" ++ rname
+        nstatement = case rstatement of
+            DefineDeclaration _ prms stms cpos -> DefineDeclaration nname prms stms cpos
+            x -> x
+        ntop = Map.insert (rtype, nname) nstatement ctop
+        nstate = curstate { nestedtoplevels = ntop }
+    put nstate
 addWarning nwrn   = modify (pushWarning nwrn)
 addCollect ncol   = modify (pushCollect ncol)
 -- this pushes the relations only if they exist
@@ -175,7 +185,7 @@ checkDefine dname = if Map.member dname nativeTypes
   then return Nothing
   else do
     curstate <- get
-    let ntop = netstedtoplevels curstate
+    let ntop = nestedtoplevels curstate
         getsmts = getStatementsFunction curstate
         check = Map.lookup (TopDefine, dname) ntop
     case check of

@@ -61,7 +61,7 @@ data ScopeState = ScopeState {
     curDefaults :: ![Statement],
     curResId :: !Int,
     curPos :: !SourcePos,
-    netstedtoplevels :: !(Map.Map (TopLevelType, String) Statement),
+    nestedtoplevels :: !(Map.Map (TopLevelType, String) Statement),
     getStatementsFunction :: TopLevelType -> String -> IO (Either String Statement),
     getWarnings :: ![String],
     -- this stores the collection functions
