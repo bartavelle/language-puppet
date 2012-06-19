@@ -130,9 +130,13 @@ findFile prefs qtype resname = do
         Just x -> return x
         Nothing -> throwError ("Could not find file for " ++ show qtype ++ " " ++ resname ++ " when looking in " ++ (show filelist))
 
-globImport :: FilePath -> Statement -> IO [FilePath]
-globImport origfile (Import importname _) = globDir [compile importname] (takeDirectory origfile) >>= return . concat . fst
-globImport _ _ = return []
+globImport :: FilePath -> Statement -> ErrorT String IO [FilePath]
+globImport origfile (Import importname ipos) = do
+    importedfiles <- liftIO $ globDir [compile importname] (takeDirectory origfile) >>= return . concat . fst
+    if null importedfiles
+        then throwError $ "Could not import " ++ importname ++ " at " ++ show ipos
+        else return importedfiles
+globImport _ x = throwError $ "Should not run globImport on " ++ show x
 
 {-
  given a filename and a file status, will parse this file and update the cache with the parsed values
@@ -149,7 +153,7 @@ loadUpdateFile fname fstatus updatepinfo = do
         (imports, spurioustoplevels) = partition isImport othertoplevels
         isImport (Import _ _) = True
         isImport _ = False
-    relatedtops <- liftIO $ mapM (globImport fname) imports >>= return . concat
+    relatedtops <- mapM (globImport fname) imports >>= return . concat
         -- save this spurious top levels
     if null spurioustoplevels
         then return ()
@@ -172,7 +176,7 @@ reparseStatements prefs updatepinfo qtype nodename = do
 
 loadImport :: (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> FilePath -> Statement -> ErrorT String IO [(TopLevelType, String, Statement)]
 loadImport updatepinfo fdir mimport = do
-    matched <- liftIO $ globImport fdir mimport
+    matched <- globImport fdir mimport
     -- globDir [compile importstring] fdir >>= return . concat . fst
     fileinfos <- liftIO $ mapM getFileInfo matched
     let fpathinfos = zip matched fileinfos
