@@ -706,7 +706,14 @@ compareExpression a b = do
     rb <- tryResolveExpression b
     case (ra, rb) of
         (Right rra, Right rrb) -> return $ Just $ compareValues rra rrb
-        _ -> return Nothing
+        _ -> return $ compareSemiResolved ra rb
+
+compareSemiResolved :: GeneralValue -> GeneralValue -> Maybe Ordering
+compareSemiResolved a@(Right _) b@(Left _) = compareSemiResolved b a
+compareSemiResolved (Left (Value (VariableReference _))) (Left (Value (VariableReference _))) = Just EQ
+compareSemiResolved (Left (Value (VariableReference _))) (Left (Value (Literal "")))          = Just EQ
+compareSemiResolved (Left (Value (VariableReference _))) (Left (Value (Literal "false")))     = Just EQ
+compareSemiResolved a b                                                                       = Just (compare a b)
 
 compareGeneralValue :: GeneralValue -> Expression -> Expression -> [Ordering] -> CatalogMonad GeneralValue
 compareGeneralValue n a b acceptable = do
