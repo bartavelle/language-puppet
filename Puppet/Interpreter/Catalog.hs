@@ -132,7 +132,7 @@ getstatement qtype name = do
     let stmtsfunc = getStatementsFunction curcontext
     estatement <- liftIO $ stmtsfunc qtype name
     case estatement of
-        Left x -> throwError x
+        Left x -> throwPosError x
         Right y -> return y
 
 -- State alteration functions
