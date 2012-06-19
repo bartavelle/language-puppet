@@ -46,5 +46,7 @@ testinterpreter fp = do
                 stmtpmap = foldl' (\mp (ttype,tname,ts) -> Map.insert (ttype,tname) (TopContainer [(fp, topclass)] ts) mp) Map.empty oktoplevels
             ctlg <- getCatalog (getstatement stmtpmap) gettemplate "test" facts
             print ctlg
-            return ("PASS", True)
+            case ctlg of
+                (Right _, _) -> return ("PASS", True)
+                (Left x, y) -> error x
 
