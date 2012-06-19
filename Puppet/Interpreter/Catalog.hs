@@ -447,12 +447,13 @@ tryResolveGeneralValue   (Left (ConditionalValue checkedvalue (Value (PuppetHash
     case (filter (\(a,_) -> (a == ResolvedString "default") || (compareRValues a rcheck)) rhash) of
         [] -> throwPosError ("No value could be selected when comparing to " ++ show rcheck)
         ((_,x):_) -> tryResolveExpression x
-tryResolveGeneralValue (Left (EqualOperation a b)) = do
-    ra <- tryResolveExpression a
-    rb <- tryResolveExpression b
-    case (ra, rb) of
-        (Right rra, Right rrb) -> return $ Right $ ResolvedBool $ compareRValues rra rrb
-        _ -> return $ Left $ EqualOperation a b
+tryResolveGeneralValue n@(Left (EqualOperation      a b))   = compareGeneralValue n a b [EQ]
+tryResolveGeneralValue n@(Left (AboveEqualOperation a b))   = compareGeneralValue n a b [GT,EQ]
+tryResolveGeneralValue n@(Left (AboveOperation      a b))   = compareGeneralValue n a b [GT]
+tryResolveGeneralValue n@(Left (UnderEqualOperation a b))   = compareGeneralValue n a b [LT,EQ]
+tryResolveGeneralValue n@(Left (UnderOperation      a b))   = compareGeneralValue n a b [LT]
+tryResolveGeneralValue n@(Left (DifferentOperation  a b))   = compareGeneralValue n a b [LT,GT]
+
 tryResolveGeneralValue n@(Left (OrOperation a b)) = do
     ra <- tryResolveBoolean $ Left a
     rb <- tryResolveBoolean $ Left b
@@ -470,11 +471,6 @@ tryResolveGeneralValue   (Left (NotOperation x)) = do
     case rx of
         Right (ResolvedBool b) -> return $ Right $ ResolvedBool $ (not b)
         _ -> return rx
-tryResolveGeneralValue (Left (DifferentOperation a b)) = do
-    res <- tryResolveGeneralValue (Left (EqualOperation a b))
-    case res of
-        Right (ResolvedBool x) -> return (Right $ ResolvedBool $ not x)
-        _ -> return res
 tryResolveGeneralValue (Left (LookupOperation a b)) = do
     ra <- tryResolveExpression a
     rb <- tryResolveExpressionString b
@@ -694,12 +690,29 @@ executeFunction a b = do
     addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show position
     return []
 
+compareExpression :: Expression -> Expression -> CatalogMonad (Maybe Ordering)
+compareExpression a b = do
+    ra <- tryResolveExpression a
+    rb <- tryResolveExpression b
+    case (ra, rb) of
+        (Right rra, Right rrb) -> return $ Just $ compareValues rra rrb
+        _ -> return Nothing
+
+compareGeneralValue :: GeneralValue -> Expression -> Expression -> [Ordering] -> CatalogMonad GeneralValue
+compareGeneralValue n a b acceptable = do
+    cmp <- compareExpression a b
+    case cmp of
+        Nothing -> return n
+        Just x  -> return $ Right $ ResolvedBool (elem x acceptable)
+compareValues :: ResolvedValue -> ResolvedValue -> Ordering
+compareValues a@(ResolvedString _) b@(ResolvedInt _) = compareValues b a
+compareValues   (ResolvedInt a)      (ResolvedString b) | isInt b = compare a (read b)
+                                                        | otherwise = LT
+compareValues (ResolvedString a) (ResolvedRegexp b) = if (regmatch a b) then EQ else LT
+compareValues x y = compare x y
+
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
-compareRValues (ResolvedString a) (ResolvedInt b) = compareRValues (ResolvedInt b) (ResolvedString a)
-compareRValues (ResolvedInt a) (ResolvedString b) | isInt b = a == (read b)
-                                                  | otherwise = False
-compareRValues (ResolvedString a) (ResolvedRegexp b) = regmatch a b
-compareRValues a b = a == b
+compareRValues a b = (compareValues a b) == EQ
 
 -- used to handle the special cases when we know it is a boolean context
 tryResolveBoolean :: GeneralValue -> CatalogMonad GeneralValue
