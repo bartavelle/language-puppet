@@ -10,7 +10,7 @@ import Puppet.Interpreter.Types
 
 import Data.List
 import Data.Char (isDigit)
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (isJust, fromJust, catMaybes)
 import Data.Either (lefts, rights)
 import Text.Parsec.Pos
 import Control.Monad.State
@@ -558,26 +558,20 @@ tryResolveValue n@(ResourceReference rtype vals) = do
         Right resolved -> return $ Right $ ResolvedRReference rtype resolved
         _              -> return $ Left $ Value n
 
-tryResolveValue n@(VariableReference vname) = do
+tryResolveValue   (VariableReference vname) = do
     -- TODO check scopes !!!
-    var <- getVariable vname
-    case (var, qualified vname) of
-        (Just (Left e, _ ), _   ) -> tryResolveExpression e
-        (Just (Right r, _), _   ) -> return $ Right r
-        (Nothing          , True) -> return $ Left $ Value n -- already qualified
-        (Nothing          , _   ) -> do
-            -- TODO : check that there are no "::"
-            curscp <- getScope
-            let varnamescp  | curscp == "::" = "::" ++ vname
-                            | otherwise      = curscp ++ "::" ++ vname
-            varscp <- getVariable varnamescp
-            case varscp of
-                Just (Left e , _) -> tryResolveExpression e
-                Just (Right r, _) -> return $ Right r
-                Nothing -> do
-                    position <- getPos
-                    addWarning ("Could not resolveValue " ++ varnamescp ++ " at " ++ show position)
-                    return $ Left $ Value $ VariableReference varnamescp
+    curscp <- getScope
+    let varnames | qualified vname          = [vname]                                   -- scope is explicit
+                 | curscp == "::"           = ["::" ++ vname]                           -- we are toplevel
+                 | otherwise                = [curscp ++ "::" ++ vname, "::" ++ vname]  -- check for local scope, then global
+    matching <- mapM getVariable varnames >>= return . catMaybes
+    if null matching
+        then do
+            position <- getPos
+            addWarning ("Could not resolveValue " ++ show varnames ++ " at " ++ show position)
+            return $ Left $ Value $ VariableReference (head varnames)
+        else return $ case (head matching) of
+            (x,_) -> x
 
 tryResolveValue n@(Interpolable x) = do
     resolved <- mapM tryResolveValueString x
