@@ -637,7 +637,12 @@ tryResolveValue   (FunctionCall "regsubst" [str, src, dst, flags]) = do
 tryResolveValue   (FunctionCall "regsubst" [str, src, dst]) = tryResolveValue (FunctionCall "regsubst" [str, src, dst, Value $ Literal ""])
 tryResolveValue   (FunctionCall "regsubst" args) = throwPosError ("Bad argument count for regsubst " ++ show args)
        
-tryResolveValue   (FunctionCall "file" _) = return $ Right $ ResolvedString "TODO file function"
+tryResolveValue n@(FunctionCall "versioncmp" [a,b]) = do
+    ra <- tryResolveExpressionString a
+    rb <- tryResolveExpressionString b
+    case (ra, rb) of
+        (Right sa, Right sb)    -> return $ Right $ ResolvedInt (versioncmp sa sb)
+        _                       -> return $ Left $ Value n
 tryResolveValue   (FunctionCall fname _) = throwPosError ("FunctionCall " ++ fname ++ " not implemented")
 
 tryResolveValue Undefined = return $ Right $ ResolvedUndefined

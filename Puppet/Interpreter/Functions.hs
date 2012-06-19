@@ -3,6 +3,7 @@ module Puppet.Interpreter.Functions
     ,regsubst
     ,mysql_password
     ,regmatch
+    ,versioncmp
     ) where
 
 import Data.Hash.MD5
@@ -50,3 +51,9 @@ regmatch :: String -> String -> Bool
 regmatch str reg = case matchRegexPR str reg of
     Just _  -> True
     Nothing -> False
+
+-- TODO
+versioncmp :: String -> String -> Integer
+versioncmp a b | a > b = 1
+               | a < b = -1
+               | otherwise = 0
