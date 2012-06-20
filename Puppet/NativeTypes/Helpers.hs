@@ -1,3 +1,6 @@
+{-| These are the function and data types that are used to define the Puppet
+native types.
+-}
 module Puppet.NativeTypes.Helpers where
 
 import Puppet.Interpreter.Types
@@ -7,6 +10,8 @@ import Data.Char (isDigit)
 import Control.Monad
 
 type PuppetTypeName = String
+-- |This is a function type than can be bound. It is the type of all subsequent
+-- validators.
 type PuppetTypeValidate = RResource -> Either String RResource
 data PuppetTypeMethods = PuppetTypeMethods {
     puppetvalidate :: PuppetTypeValidate,
@@ -19,14 +24,12 @@ faketype tname = (tname, PuppetTypeMethods (\x -> Right x) Set.empty)
 defaulttype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 defaulttype tname = (tname, PuppetTypeMethods (defaultValidate Set.empty) Set.empty)
 
--- this helper validates any resource :
---  adds defaults
---  checks the field list
+{-| This helper will validate resources given a list of fields. It will run
+'checkParameterList' and then 'addDefaults'. -}
 defaultValidate :: Set.Set String -> PuppetTypeValidate
 defaultValidate validparameters = checkParameterList validparameters >=> addDefaults
 
--- checks that there are not unknown parameters but
---  - tag
+-- | This validator checks that no unknown parameters have been set (except tag)
 checkParameterList :: Set.Set String -> PuppetTypeValidate
 checkParameterList validparameters res | Set.null validparameters = Right res
                                        | otherwise = if Set.null setdiff
@@ -36,7 +39,8 @@ checkParameterList validparameters res | Set.null validparameters = Right res
         keyset = Map.keysSet (rrparams res)
         setdiff = Set.difference keyset (Set.insert "tag" validparameters)
 
--- it fills the name and title parameter if necessary
+-- | This validator always accept the resources, but add the default parameters
+-- (such as title and name).
 addDefaults :: PuppetTypeValidate
 addDefaults res = Right (res { rrparams = newparams } )
     where
@@ -44,7 +48,9 @@ addDefaults res = Right (res { rrparams = newparams } )
         defaults  = Map.fromList [("name", nm),("title", nm)]
         nm = ResolvedString $ rrname res
 
-
+{-| This checks that a given parameter is a string. If it is a 'ResolvedInt' or
+'ResolvedBool' it will convert them to strings.
+-}
 string :: String -> PuppetTypeValidate
 string param res = case (Map.lookup param (rrparams res)) of
     Just (ResolvedString _)   -> Right res
@@ -54,7 +60,7 @@ string param res = case (Map.lookup param (rrparams res)) of
     Just x                    -> Left $ "Parameter " ++ param ++ " should be a string, and not " ++ show x
     Nothing -> Right res
 
--- makes sure that the parameter, if defined, has a value among this list
+-- | Makes sure that the parameter, if defined, has a value among this list.
 values :: [String] -> String -> PuppetTypeValidate
 values valuelist param res = case (Map.lookup param (rrparams res)) of
     Just (ResolvedString x) -> if (elem x valuelist)
@@ -63,6 +69,7 @@ values valuelist param res = case (Map.lookup param (rrparams res)) of
     Just _  -> Left $ "Parameter " ++ param ++ " value should be one of " ++ show valuelist
     Nothing -> Right res
 
+-- | This fills the default values of unset parameters.
 defaultvalue :: String -> String -> PuppetTypeValidate
 defaultvalue value param res = case (Map.lookup param (rrparams res)) of
     Just _  -> Right res
@@ -71,6 +78,8 @@ defaultvalue value param res = case (Map.lookup param (rrparams res)) of
 insertparam :: RResource -> String -> ResolvedValue -> RResource
 insertparam res param value = res { rrparams = Map.insert param value (rrparams res) }
 
+-- | Checks that a given parameter, if set, is a 'ResolvedInt'. If it is a
+-- 'ResolvedString' it will attempt to parse it.
 integer :: String -> PuppetTypeValidate
 integer prm res = string prm res >>= integer' prm
     where
@@ -82,6 +91,7 @@ integer prm res = string prm res >>= integer' prm
             Just (ResolvedInt _) -> Right rs
             _ -> Left $ "Parameter " ++ pr ++ " must be an integer"
 
+-- | Helper that takes a list of stuff and will generate a validator.
 parameterFunctions :: [(String, [String -> PuppetTypeValidate])] -> PuppetTypeValidate
 parameterFunctions argrules rs = foldM parameterFunctions' rs argrules
     where

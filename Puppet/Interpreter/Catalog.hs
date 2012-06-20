@@ -1,3 +1,13 @@
+{-| This module exports the 'getCatalog' function, that computes catalogs from
+parsed manifests. The behaviour of this module is probably non canonical on many
+details. The problem is that most of Puppet behaviour is undocumented or
+extremely vague. It might be possible to delve into the source code or to write
+tests, but ruby is unreadable and tests are boring.
+
+Here is a list of known discrepencies with Puppet :
+
+* none ?
+-}
 module Puppet.Interpreter.Catalog (
     getCatalog
     ) where
@@ -46,7 +56,15 @@ pushWarning     t sc = sc { getWarnings    = (getWarnings sc) ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : (curCollect sc) }
 pushUnresRel  r   sc = sc { unresolvedRels = r : (unresolvedRels sc) }
 
-getCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String)) -> String -> Facts -> IO (Either String FinalCatalog, [String])
+getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
+    -- ^ The \"get statements\" function. Given a top level type and its name it
+    -- should return the corresponding statement.
+    -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
+    -- ^ The \"get template\" function. Given a file name, a scope name and a
+    -- list of variables, it should return the computed template.
+    -> String -- ^ Name of the node.
+    -> Facts -- ^ Facts of this node.
+    -> IO (Either String FinalCatalog, [String])
 getCatalog getstatements gettemplate nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
