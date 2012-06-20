@@ -101,13 +101,13 @@ collectionChecks res = do
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
-    liftIO $ putStrLn $ "FINAL RESOLUTION"
+    --liftIO $ putStrLn $ "FINAL RESOLUTION"
     collected <- mapM collectionChecks cat >>= mapM evaluateDefine . concat
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
         (_,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
     --export stuff
-    liftIO $ putStrLn "EXPORTED:"
-    liftIO $ mapM print exported
+    --liftIO $ putStrLn "EXPORTED:"
+    --liftIO $ mapM print exported
     resolved <- mapM finalizeResource real >>= createResourceMap
     --get >>= return . unresolvedRels >>= liftIO . (mapM print)
     return resolved
