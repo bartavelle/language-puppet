@@ -8,6 +8,7 @@ import Puppet.DSL.Types
 import qualified Data.Map as Map
 import Text.Parsec.Pos
 
+-- | This shows the parsed AST a bit like the original syntax.
 showAST :: [Statement] -> String
 showAST x = render (vcat (map showStatement x))
 
@@ -79,6 +80,7 @@ showAssignments params = vcat ( punctuate (text ", ") (map showAssignment params
 showAssignment :: (Expression, Expression) -> Doc
 showAssignment (param, value) = showExpression param <+> text "=>" <+> showExpression value
 
+-- | Useful for displaying a map of variables.
 showVarMap :: Map.Map String (Expression, SourcePos) -> String
 showVarMap x = render $ vcat (map descLine (Map.toList x))
     where

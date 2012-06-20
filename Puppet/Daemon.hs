@@ -35,6 +35,24 @@ logInfo = LOG.infoM "Puppet.Daemon"
 logWarning = LOG.warningM "Puppet.Daemon"
 logError = LOG.errorM "Puppet.Daemon"
 
+{-| This is a high level function, that will initialize the parsing and
+interpretation infrastructure from the 'Prefs' structure, and will return a
+function that will take a node name, 'Facts' and return either an error or the
+'FinalCatalog'.
+
+It will internaly initialize several threads that communicate with channels. It
+should scale well, althrough it hasn't really been tested yet. It should cache
+the ASL of every .pp file, and could use a bit of memory. As a comparison, it
+fits in 60 MB with the author's manifests, but really breathes when given 300 MB
+of heap space. In this configuration, even if it spawns a ruby process for every
+template evaluation, it is way faster than the puppet stack.
+
+It is recommended to ask for as many parser and interpreter threads as there are
+CPUs.
+
+It should be noted that it might be buggy when top level statements are altered,
+and it doesn't support exported resources yet.
+-}
 initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog) )
 initDaemon prefs = do
     logDebug "initDaemon"

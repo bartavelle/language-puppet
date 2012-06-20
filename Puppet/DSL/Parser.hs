@@ -1,15 +1,20 @@
- module Puppet.DSL.Parser (
+{-|
+This module exports the functions that will be useful to parse the DSL. They
+should be able to parse everything you throw at them. The Puppet language is
+extremely irregular, and most valid constructs are not documented in the
+official language guide. This parser has been created by parsing the author's
+own large manifests and the public Wikimedia ones.
+
+Things that are known to not to be properly supported are :
+
+    *  \"plussignement\" such as foo +\> bar. How to handle this is far from
+    being obvious, as its actual behaviour is not documented.
+-}
+module Puppet.DSL.Parser (
     parse,
     mparser,
     exprparser
 ) where
-
-{-
- unhandled :
-    plusignment
-    if without parens
-    File['nagios_htpasswd', 'nagios_cgi_cfg'] { group => 'www-data' }    ( liste de overrides )
--}
 
 import Data.Char
 import Text.Parsec
@@ -46,6 +51,7 @@ lowerFirstChar :: String -> String
 lowerFirstChar x = [toLower $ head x] ++ (tail x)
 
 -- expression parser
+{-| This is a parser for Puppet 'Expression's. -}
 exprparser = buildExpressionParser table term <?> "expression"
         
 table =     [ 
