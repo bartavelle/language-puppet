@@ -4,6 +4,7 @@ module Puppet.Interpreter.Functions
     ,mysql_password
     ,regmatch
     ,versioncmp
+    ,file
     ) where
 
 import Data.Hash.MD5
@@ -13,6 +14,7 @@ import Data.String.Utils (join)
 import Text.RegexPR
 import Puppet.Interpreter.Types
 import Control.Monad.Error
+import System.IO
 {-
 TODO : achieve compatibility with puppet
 the first String must be the fqdn
@@ -57,3 +59,7 @@ versioncmp :: String -> String -> Integer
 versioncmp a b | a > b = 1
                | a < b = -1
                | otherwise = 0
+
+file :: [String] -> IO (Maybe String)
+file [] = return Nothing
+file (x:xs) = catch (withFile x ReadMode hGetContents >>= return . Just) (\_ -> file xs)

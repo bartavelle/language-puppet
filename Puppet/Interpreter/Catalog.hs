@@ -21,7 +21,7 @@ import Puppet.Interpreter.Types
 import Data.List
 import Data.Char (isDigit)
 import Data.Maybe (isJust, fromJust, catMaybes)
-import Data.Either (lefts, rights)
+import Data.Either (lefts, rights, partitionEithers)
 import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
@@ -661,6 +661,21 @@ tryResolveValue n@(FunctionCall "versioncmp" [a,b]) = do
     case (ra, rb) of
         (Right sa, Right sb)    -> return $ Right $ ResolvedInt (versioncmp sa sb)
         _                       -> return $ Left $ Value n
+tryResolveValue n@(FunctionCall "file" filelist) = do
+    -- resolving the list of file pathes
+    rfilelist <- mapM tryResolveExpressionString filelist
+    let (lf, rf) = partitionEithers rfilelist
+    if null lf
+        then do
+            content <- liftIO $ file rf
+            case content of
+                Nothing -> do
+                    position <- getPos
+                    addWarning $ "Files " ++ show rf ++ " could not be found at " ++ show position
+                    return $ Right $ ResolvedString ""
+                Just x  -> return $ Right $ ResolvedString x
+        else return $ Left $ Value n
+    
 tryResolveValue   (FunctionCall fname _) = throwPosError ("FunctionCall " ++ fname ++ " not implemented")
 
 tryResolveValue Undefined = return $ Right $ ResolvedUndefined
