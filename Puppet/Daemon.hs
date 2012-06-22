@@ -59,7 +59,11 @@ yet.
 
 * Just like "Puppet.DSL.Parser", it doesn't support plussignement.
 
-* Required files will generate trouble when invalidated.
+* Required files might generate trouble when invalidated.
+
+* There might be race conditions because file status are checked before they
+are opened. This means the program might end with an exception when the file
+is not existent. This will need fixing.
 
 -}
 initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog) )
@@ -194,12 +198,18 @@ loadUpdateFile fname fstatus updatepinfo = do
 reparseStatements :: Prefs -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
 reparseStatements prefs updatepinfo qtype nodename = do
     (fname, fstatus) <- findFile prefs qtype nodename
+    reparseFile fname fstatus updatepinfo qtype nodename
+
+reparseFile :: FilePath -> FileStatus -> (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> TopLevelType -> String -> ErrorT String IO Statement
+reparseFile fname fstatus updatepinfo qtype nodename = do
     (imports, oktoplevels) <- loadUpdateFile fname fstatus updatepinfo
     imported <- mapM (loadImport updatepinfo fname) imports >>= return . concat
     let searchstatement = find (\(qt,nm,_) -> (qt == qtype) && (nm == nodename)) (oktoplevels ++ imported)
     case searchstatement of
         Just (_,_,x) -> return x
         Nothing -> throwError ("Could not find correct top level statement for " ++ (show qtype) ++ " " ++ nodename)
+
+    
 
 loadImport :: (TopLevelType -> String -> CacheEntry -> IO ( ParsedCacheResponse ) ) -> FilePath -> Statement -> ErrorT String IO [(TopLevelType, String, Statement)]
 loadImport updatepinfo fdir mimport = do
@@ -241,7 +251,10 @@ handlePRequest prefs (getpinfo, updatepinfo, invalidateinfo) qtype nodename = do
                             then return stmts
                             else do
                                 liftIO $ invalidateinfo fpath
-                                reparseStatements prefs updatepinfo qtype nodename
+                                finfo <- liftIO $ getFileInfo fpath
+                                case finfo of
+                                    Just fstat -> reparseFile fpath fstat updatepinfo qtype nodename
+                                    Nothing    -> reparseStatements prefs updatepinfo qtype nodename
             if null relstatements
                 then return statements
                 else return (TopContainer relstatements statements)
