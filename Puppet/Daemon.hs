@@ -50,8 +50,17 @@ template evaluation, it is way faster than the puppet stack.
 It is recommended to ask for as many parser and interpreter threads as there are
 CPUs.
 
-It should be noted that it might be buggy when top level statements are altered,
-and it doesn't support exported resources yet.
+Known bugs :
+
+* It might be buggy when top level statements are altered.
+
+* Just like "Puppet.Interpreter.Catalog", it doesn't support exported resources
+yet.
+
+* Just like "Puppet.DSL.Parser", it doesn't support plussignement.
+
+* Required files will generate trouble when invalidated.
+
 -}
 initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog) )
 initDaemon prefs = do
