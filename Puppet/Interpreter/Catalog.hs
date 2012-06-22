@@ -214,6 +214,11 @@ checkDefine dname = if Map.member dname nativeTypes
                 Left err -> throwPosError ("Could not find the definition of " ++ dname ++ " err = " ++ err)
                 Right s -> return $ Just s
 
+{-
+Partition parameters between those that are actual parameters and those that define relationships.
+
+Those that define relationship must be properly resolved or hell will break loose. This is a BUG.
+-}
 partitionParamsRelations :: [(GeneralString, GeneralValue)] -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
 partitionParamsRelations rparameters = (realparams, relations)
     where   realparams = filteredparams
@@ -223,6 +228,7 @@ partitionParamsRelations rparameters = (realparams, relations)
             convertrelation (reltype, Right (ResolvedArray rs))         = concatMap (\x -> convertrelation (reltype, Right x)) rs
             convertrelation (reltype, Right (ResolvedRReference rt rv)) = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
             convertrelation (reltype, Right (ResolvedString "undef"))   = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
+            convertrelation (_,       Left x) = error ("partitionParamsRelations unresolved : " ++ show x)
             convertrelation x = error ("partitionParamsRelations error : " ++ show x)
             (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
 
