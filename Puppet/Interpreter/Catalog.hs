@@ -591,9 +591,11 @@ tryResolveValue n@(ResourceReference rtype vals) = do
 tryResolveValue   (VariableReference vname) = do
     -- TODO check scopes !!!
     curscp <- getScope
-    let varnames | qualified vname          = [vname]                                   -- scope is explicit
+    let varnames | qualified vname          = [vname] ++ remtopscope vname              -- scope is explicit
                  | curscp == "::"           = ["::" ++ vname]                           -- we are toplevel
                  | otherwise                = [curscp ++ "::" ++ vname, "::" ++ vname]  -- check for local scope, then global
+        remtopscope (':':':':xs) = [xs]
+        remtopscope _            = []
     matching <- mapM getVariable varnames >>= return . catMaybes
     if null matching
         then do
