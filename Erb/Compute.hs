@@ -10,6 +10,9 @@ import Control.Monad.Error
 import Control.Concurrent
 import System.Posix.Files
 import Paths_language_puppet (getDataFileName)
+import Erb.Parser
+import Erb.Evaluate
+import qualified Data.Map as Map
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, [(String, GeneralValue)])
 type TemplateAnswer = Either String String
@@ -40,6 +43,13 @@ templateDaemon modpath templatepath qchan = do
 
 computeTemplate :: String -> String -> [(String, GeneralValue)] -> IO TemplateAnswer
 computeTemplate filename curcontext variables = do
+    parsed <- parseErbFile filename
+    case parsed of
+        Left _    -> computeTemplateWRuby filename curcontext variables
+        Right ast -> return $ Right $ rubyEvaluate (Map.fromList variables) curcontext ast
+
+computeTemplateWRuby :: String -> String -> [(String, GeneralValue)] -> IO TemplateAnswer
+computeTemplateWRuby filename curcontext variables = do
     let rubyvars = "{\n" ++ intercalate ",\n" (concatMap toRuby variables ) ++ "\n}\n"
         input = curcontext ++ "\n" ++ filename ++ "\n" ++ rubyvars
     rubyscriptpath <- getDataFileName "ruby/calcerb.rb"
