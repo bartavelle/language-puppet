@@ -46,7 +46,7 @@ computeTemplate filename curcontext variables = do
     parsed <- parseErbFile filename
     case parsed of
         Left _    -> computeTemplateWRuby filename curcontext variables
-        Right ast -> return $ Right $ rubyEvaluate (Map.fromList variables) curcontext ast
+        Right ast -> return $ rubyEvaluate (Map.fromList variables) curcontext ast
 
 computeTemplateWRuby :: String -> String -> [(String, GeneralValue)] -> IO TemplateAnswer
 computeTemplateWRuby filename curcontext variables = do
