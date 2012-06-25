@@ -55,10 +55,12 @@ Known bugs :
 * It might be buggy when top level statements that are not class/define/nodes
 are altered, or when files loaded with require are changed.
 
-* Just like "Puppet.Interpreter.Catalog", it doesn't support exported resources
-yet.
+* Exported resources are not yet supported.
 
-* Just like "Puppet.DSL.Parser", it doesn't support plussignement.
+* The catalog is not computed exactly the same way Puppet does. Take a look at
+"Puppet.Interpreter.Catalog" for a list of differences.
+
+* Parsing incompatibilities are listed in "Puppet.DSL.Parser".
 
 * There might be race conditions because file status are checked before they
 are opened. This means the program might end with an exception when the file

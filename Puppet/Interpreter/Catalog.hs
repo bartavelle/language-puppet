@@ -6,7 +6,10 @@ tests, but ruby is unreadable and tests are boring.
 
 Here is a list of known discrepencies with Puppet :
 
-* none ?
+* Variables coming from an inherited class can only be referenced using the
+scope of the child class.
+
+* Resources references using the <| |> syntax are not yet supported.
 -}
 module Puppet.Interpreter.Catalog (
     getCatalog
