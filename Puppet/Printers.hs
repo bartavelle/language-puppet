@@ -40,7 +40,7 @@ showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
     where
         showrres (RResource _ rname _ params rels mpos)  =
             "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ "\n"
-                ++ commaretsep (map showparams (Map.toList params))
+                ++ commaretsep (map showparams (Map.toList $ Map.delete "title" params))
                 ++ commareqs ((null rels) || (Map.null params))
                 ++ commaretsep (map showrequire (sort rels)) ++ ";\n"
         commareqs c | c             = ""
