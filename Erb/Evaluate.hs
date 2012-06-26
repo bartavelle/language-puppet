@@ -21,12 +21,8 @@ evalExpression :: Map.Map String GeneralValue -> String -> Expression -> Either 
 evalExpression mp ctx (LookupOperation varname varindex) = do
     rvname <- evalExpression mp ctx varname
     rvindx <- evalExpression mp ctx varindex
-    let vars = map (\x -> Map.lookup x mp) [rvname, ctx ++ "::" ++ rvname]
-        jsts = catMaybes vars
-        rghts = rights jsts
-    when (null jsts) (throwError $ "Can't resolve variable " ++ show varname)
-    when (null rghts) (throwError $ "Variable " ++ show varname ++ " value is not resolved")
-    case (head rghts) of
+    varvalue <- getVariable mp ctx rvname
+    case varvalue of
         ResolvedArray arr -> do
             case (a2i rvindx) of
                 Nothing -> throwError $ "Can't convert index to integer when resolving " ++ rvname ++ "[" ++ rvindx ++ "]"
@@ -38,10 +34,25 @@ evalExpression mp ctx (LookupOperation varname varindex) = do
             []      -> throwError $ "No index " ++ rvindx ++ " for variable " ++ show varname
             (_,x):_ -> evalValue $ Right x
         x                 -> throwError $ "Can't index variable " ++ show varname ++ ", it is " ++ show x
-evalExpression _ _ x = Left $ "Can't evaluate " ++ show x
+evalExpression _  _   (Value (Literal x))          = Right x
+evalExpression mp ctx (Object (Value (Literal x))) = getVariable mp ctx x >>= evalValue . Right
+evalExpression _  _   x = Left $ "Can't evaluate " ++ show x
+
+getVariable :: Map.Map String GeneralValue -> String -> String -> Either String ResolvedValue
+getVariable mp ctx rvname =
+    let vars = map (\x -> Map.lookup x mp) [rvname, ctx ++ "::" ++ rvname]
+        jsts = catMaybes vars
+        rghts = rights jsts
+    in do
+        when (null jsts) (throwError $ "Can't resolve variable " ++ rvname)
+        when (null rghts) (throwError $ "Variable " ++ rvname ++ " value is not resolved")
+        return (head rghts)
+        
 
 evalValue :: GeneralValue -> Either String String
 evalValue (Left _) = Left $ "Can't evaluate a value"
+evalValue (Right (ResolvedString x)) = Right x
+evalValue (Right (ResolvedInt x))    = Right $ show x
 evalValue (Right x) = Right $ show x
 
 a2i :: String -> Maybe Int
