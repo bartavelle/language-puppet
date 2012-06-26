@@ -22,7 +22,7 @@ import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
 import Data.List
-import Data.Char (isDigit)
+import Data.Char (isDigit,toLower)
 import Data.Maybe (isJust, fromJust, catMaybes)
 import Data.Either (lefts, rights, partitionEithers)
 import Text.Parsec.Pos
@@ -775,6 +775,7 @@ compareValues a@(ResolvedString _) b@(ResolvedInt _) = compareValues b a
 compareValues   (ResolvedInt a)      (ResolvedString b) | isInt b = compare a (read b)
                                                         | otherwise = LT
 compareValues (ResolvedString a) (ResolvedRegexp b) = if (regmatch a b) then EQ else LT
+compareValues (ResolvedString a) (ResolvedString b) = compare (map toLower a) (map toLower b)
 compareValues x y = compare x y
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
