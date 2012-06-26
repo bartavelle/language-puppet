@@ -17,13 +17,14 @@ data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show, Ord, Eq)
 -- 'FinalCatalog' and in the resolved parts of a 'Catalog'. They are to be
 -- compared with the 'Value's.
 data ResolvedValue
-    = ResolvedString !String
-    | ResolvedRegexp !String
-    | ResolvedInt   !Integer
-    | ResolvedBool !Bool
+    = ResolvedString     !String
+    | ResolvedRegexp     !String
+    | ResolvedInt        !Integer
+    | ResolvedDouble     !Double
+    | ResolvedBool       !Bool
     | ResolvedRReference !String !ResolvedValue
-    | ResolvedArray ![ResolvedValue]
-    | ResolvedHash ![(String, ResolvedValue)]
+    | ResolvedArray      ![ResolvedValue]
+    | ResolvedHash       ![(String, ResolvedValue)]
     | ResolvedUndefined
     deriving(Show, Eq, Ord)
 

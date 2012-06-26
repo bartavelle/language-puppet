@@ -490,7 +490,6 @@ tryResolveGeneralValue n@(Left (AboveOperation      a b))   = compareGeneralValu
 tryResolveGeneralValue n@(Left (UnderEqualOperation a b))   = compareGeneralValue n a b [LT,EQ]
 tryResolveGeneralValue n@(Left (UnderOperation      a b))   = compareGeneralValue n a b [LT]
 tryResolveGeneralValue n@(Left (DifferentOperation  a b))   = compareGeneralValue n a b [LT,GT]
-
 tryResolveGeneralValue n@(Left (OrOperation a b)) = do
     ra <- tryResolveBoolean $ Left a
     rb <- tryResolveBoolean $ Left b
@@ -537,6 +536,11 @@ tryResolveGeneralValue o@(Left (IsElementOperation b a)) = do
                 then return $ Right $ ResolvedBool False
                 else return $ Right $ ResolvedBool True
         _ -> return o
+-- horrible hack, because I do not know how to supply a single operator for Int and Float
+tryResolveGeneralValue o@(Left (PlusOperation a b)) = arithmeticOperation a b (+) (+) o
+tryResolveGeneralValue o@(Left (MinusOperation a b)) = arithmeticOperation a b (-) (-) o
+tryResolveGeneralValue o@(Left (DivOperation a b)) = arithmeticOperation a b (div) (/) o
+tryResolveGeneralValue o@(Left (MultiplyOperation a b)) = arithmeticOperation a b (*) (*) o
             
 tryResolveGeneralValue e = throwPosError ("tryResolveGeneralValue not implemented for " ++ show e)
 
@@ -858,3 +862,16 @@ resolved2expression (ResolvedArray vals) = Value $ PuppetArray $ map resolved2ex
 resolved2expression (ResolvedHash hash) = Value $ PuppetHash $ Parameters $ map (\(s,v) -> (Value $ Literal s, resolved2expression v)) hash
 resolved2expression (ResolvedUndefined) = Value $ Undefined
 resolved2expression (ResolvedRegexp a) = Value $ PuppetRegexp a
+resolved2expression (ResolvedDouble d) = Value $ Double d
+
+arithmeticOperation :: Expression -> Expression -> (Integer -> Integer -> Integer) -> (Double -> Double -> Double) -> GeneralValue -> CatalogMonad GeneralValue
+arithmeticOperation a b opi opf def = do
+    ra <- tryResolveExpression a
+    rb <- tryResolveExpression b
+    case (ra, rb) of
+        (Right (ResolvedInt sa)   , Right (ResolvedInt    sb)) -> return $ Right $ ResolvedInt $ opi sa sb
+        (Right (ResolvedDouble sa), Right (ResolvedInt    sb)) -> return $ Right $ ResolvedDouble $ opf sa (fromIntegral sb)
+        (Right (ResolvedInt sa)   , Right (ResolvedDouble sb)) -> return $ Right $ ResolvedDouble $ opf (fromIntegral sa) sb
+        (Right (ResolvedDouble sa), Right (ResolvedDouble sb)) -> return $ Right $ ResolvedDouble $ opf sa sb
+        _ -> return def
+
