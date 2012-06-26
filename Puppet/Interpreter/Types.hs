@@ -122,11 +122,11 @@ data ScopeState = ScopeState {
 type CatalogMonad = ErrorT String (StateT ScopeState IO)
 
 generalizeValueE :: Expression -> GeneralValue
-generalizeValueE e = Left e
+generalizeValueE = Left
 generalizeValueR :: ResolvedValue -> GeneralValue
-generalizeValueR e = Right e
+generalizeValueR = Right
 generalizeStringE :: Expression -> GeneralString
-generalizeStringE s = Left s
+generalizeStringE = Left
 generalizeStringS :: String -> GeneralString
-generalizeStringS s = Right s
+generalizeStringS = Right
 

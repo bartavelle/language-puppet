@@ -32,21 +32,15 @@ mysql_password pwd = return $ '*':hash
 
 regsubst :: String -> String -> String -> String -> CatalogMonad String
 regsubst str src dst flags = do
-    let multiline   = elem 'M' flags
-        extended    = elem 'E' flags
-        insensitive = elem 'I' flags
-        global      = elem 'G' flags
+    let multiline   = 'M' `elem` flags
+        extended    = 'E' `elem` flags
+        insensitive = 'I' `elem` flags
+        global      = 'G' `elem` flags
         refunc | global = gsubRegexPR
                | otherwise = subRegexPR
-    if multiline
-        then throwError "Multiline flag not implemented"
-        else return ()
-    if extended
-        then throwError "Extended flag not implemented"
-        else return ()
-    if insensitive
-        then throwError "Case insensitive flag not implemented"
-        else return ()
+    when multiline   $ throwError "Multiline flag not implemented"
+    when extended    $ throwError "Extended flag not implemented"
+    when insensitive $ throwError "Case insensitive flag not implemented"
     return $ refunc src dst str
 
 regmatch :: String -> String -> Bool
@@ -62,4 +56,4 @@ versioncmp a b | a > b = 1
 
 file :: [String] -> IO (Maybe String)
 file [] = return Nothing
-file (x:xs) = catch (withFile x ReadMode hGetContents >>= return . Just) (\_ -> file xs)
+file (x:xs) = catch (liftM Just (withFile x ReadMode hGetContents)) (\_ -> file xs)
