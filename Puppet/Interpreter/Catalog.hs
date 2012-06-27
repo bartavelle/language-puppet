@@ -671,9 +671,16 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
     case rv of
         Left n -> return $ Left n
         -- TODO BUG
-        Right (ResolvedString typeorclass) -> return $ Right $ ResolvedBool True
-        -- TODO BUG
-        Right (ResolvedRReference rtype (ResolvedString rname)) -> return $ Right $ ResolvedBool True
+        Right (ResolvedString typeorclass) -> do
+            -- is it a loaded class or a define ?
+            if Map.member typeorclass nativeTypes
+                then return $ Right $ ResolvedBool True
+                else do
+                    isdefine <- checkDefine typeorclass
+                    case isdefine of
+                        Just _  -> return $ Right $ ResolvedBool True
+                        Nothing -> liftM (Right . ResolvedBool . Map.member typeorclass . curClasses) get
+        Right (ResolvedRReference _ (ResolvedString _)) -> throwPosError $ "Can't implement defined(resource reference) with the given architecture ..."
         Right x -> throwPosError $ "Can't know if this could be defined : " ++ show x
 tryResolveValue   (FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
