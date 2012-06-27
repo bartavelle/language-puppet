@@ -666,6 +666,15 @@ tryResolveValue   (FunctionCall "template" [name]) = do
                 Right x -> return $ Right $ ResolvedString x
                 Left err -> throwPosError err
 tryResolveValue   (FunctionCall "inline_template" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue   (FunctionCall "defined" [v]) = do
+    rv <- tryResolveExpression v
+    case rv of
+        Left n -> return $ Left n
+        -- TODO BUG
+        Right (ResolvedString typeorclass) -> return $ Right $ ResolvedBool True
+        -- TODO BUG
+        Right (ResolvedRReference rtype (ResolvedString rname)) -> return $ Right $ ResolvedBool True
+        Right x -> throwPosError $ "Can't know if this could be defined : " ++ show x
 tryResolveValue   (FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
     rsrc   <- tryResolveExpressionString src
