@@ -595,7 +595,12 @@ tryResolveValue n@(ResourceReference rtype vals) = do
     case rvals of
         Right resolved -> return $ Right $ ResolvedRReference rtype resolved
         _              -> return $ Left $ Value n
-
+-- special variables first
+tryResolveValue   (VariableReference "module_name") = liftM (\x ->
+    case (takeWhile (/= ':') . head) x of
+        '#':'D':'E':'F':'I':'N':'E':'#':xs -> Right $ ResolvedString xs
+        r                                  -> Right $ ResolvedString r
+    ) getScope
 tryResolveValue   (VariableReference vname) = do
     -- TODO check scopes !!!
     curscp <- getScope
