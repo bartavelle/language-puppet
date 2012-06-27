@@ -70,7 +70,7 @@ getCatalog getstatements gettemplate nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState ["::"] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [] gettemplate)
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [["::"]] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [] gettemplate)
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right _ -> return (output, getWarnings finalstate)
@@ -166,19 +166,24 @@ getNextId = do
     return (curResId curscope)
 setPos p = modify (setStatePos p)
 getPos = liftM curPos get
-putVariable k v = do
-    curscope <- getScope
-    let qual = qualified k
-        kk  | qual || (curscope == "::") = k
-            | otherwise = "::" ++ k
-    modify (modifyVariables (Map.insert (curscope ++ kk) v))
+
+-- qualifies a variable k depending on the context cs
+qualify k cs | qualified k || (cs == "::") = cs ++ k
+             | otherwise = cs ++ "::" ++ k
+
+-- This is a bit convoluted and misses a critical feature.
+-- It adds the variable to all the scopes that are currently active.
+-- BUG TODO : check that a variable is not already defined.
+putVariable k v = getScope >>= mapM_ (\x -> modify (modifyVariables (Map.insert (qualify k x) v)))
+
 getVariable vname = liftM (Map.lookup vname . curVariables) get
+
+-- BUG TODO : top levels are qualified only with the head of the scopes
 addNestedTopLevel rtype rname rstatement = do
     curstate <- get
     let ctop = nestedtoplevels curstate
-        curscope = head (curScope curstate)
-        nname | curscope == "::" = rname
-              | otherwise = curscope ++ "::" ++ rname
+        curscope = head $ head (curScope curstate)
+        nname = qualify rname curscope
         nstatement = case rstatement of
             DefineDeclaration _ prms stms cpos -> DefineDeclaration nname prms stms cpos
             x -> x
@@ -289,7 +294,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = do
         (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> do
             --oldpos <- getPos
             setPos dpos
-            pushScope $ "#DEFINE#" ++ dtype
+            pushScope $ ["#DEFINE#" ++ dtype]
             -- add variables
             mrrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
             let expr = gs2gv rname
@@ -422,7 +427,9 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
         oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
         setPos position
-        pushScope classname -- sets the scope
+        case actualname of
+            Nothing -> pushScope [classname] -- sets the scope
+            Just ac -> pushScope [classname, ac]
         mapM_ (loadClassVariable position inputparams) parameters -- add variables for parametrized classes
         
         -- load inherited classes
@@ -592,9 +599,10 @@ tryResolveValue n@(ResourceReference rtype vals) = do
 tryResolveValue   (VariableReference vname) = do
     -- TODO check scopes !!!
     curscp <- getScope
-    let varnames | qualified vname          = vname : remtopscope vname              -- scope is explicit
-                 | curscp == "::"           = ["::" ++ vname]                           -- we are toplevel
-                 | otherwise                = [curscp ++ "::" ++ vname, "::" ++ vname]  -- check for local scope, then global
+    let gvarnm sc | qualified vname = vname : remtopscope vname                 -- scope is explicit
+                  | sc == "::"      = ["::" ++ vname]                           -- we are toplevel
+                  | otherwise       = [sc ++ "::" ++ vname, "::" ++ vname]  -- check for local scope, then global
+        varnames = concatMap gvarnm curscp
         remtopscope (':':':':xs) = [xs]
         remtopscope _            = []
     matching <- liftM catMaybes (mapM getVariable varnames)
@@ -646,7 +654,7 @@ tryResolveValue   (FunctionCall "template" [name]) = do
         Left x -> throwPosError $ "Can't resolve template path " ++ show x
         Right filename -> do
             vars <- get >>= mapM (\(varname, (varval, _)) -> do { rvarval <- tryResolveGeneralValue varval; return (varname, rvarval) }) . Map.toList . curVariables
-            scp <- getScope
+            scp <- liftM head getScope -- TODO check if that sucks
             templatefunc <- liftM computeTemplateFunction get
             out <- liftIO (templatefunc filename scp vars)
             case out of

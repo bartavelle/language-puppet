@@ -82,9 +82,11 @@ data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord,
 internal state.
 -}
 data ScopeState = ScopeState {
-    curScope :: ![ScopeName],
+    curScope :: ![[ScopeName]],
     -- ^ The list of scopes. It works like a stack, and its initial value must
-    -- be @[\"::\"]@
+    -- be @[[\"::\"]]@. It is a stack of lists of strings. These lists can be
+    -- one element wide (usual case), or two elements (inheritance), so that
+    -- variables could be assigned to both scopes.
     curVariables :: !(Map.Map String (GeneralValue, SourcePos)),
     -- ^ The list of known variables. It should be noted that the interpreter
     -- tries to resolve them as soon as it can, so that it can store their
