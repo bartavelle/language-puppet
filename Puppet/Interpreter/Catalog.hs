@@ -526,8 +526,8 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
         (Right (ResolvedArray ar), Right num) -> do
             bnum <- readint num
             let nnum = fromIntegral bnum
-            if length ar >= nnum
-                then throwPosError ("Invalid array index " ++ num)
+            if length ar <= nnum
+                then throwPosError ("Invalid array index " ++ num ++ " " ++ show ar)
                 else return $ Right (ar !! nnum)
         (Right (ResolvedHash ar), Right idx) -> do
             let filtered = filter (\(x,_) -> x == idx) ar
