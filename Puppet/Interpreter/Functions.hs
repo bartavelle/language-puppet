@@ -21,8 +21,7 @@ import System.IO
 
 
 puppetMD5  = md5s . Str
--- BUG
-puppetSHA1 = md5s . Str
+puppetSHA1 = BS.unpack . SHA1.hash . BS.pack
 
 {-
 TODO : achieve compatibility with puppet
