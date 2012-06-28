@@ -726,7 +726,7 @@ tryResolveValue n@(FunctionCall "file" filelist) = do
                 Nothing -> throwPosError $ "Files " ++ show rf ++ " could not be found"
                 Just x  -> return $ Right $ ResolvedString x
         else return $ Left $ Value n
-    
+
 tryResolveValue   (FunctionCall fname _) = throwPosError ("FunctionCall " ++ fname ++ " not implemented")
 
 tryResolveValue Undefined = return $ Right ResolvedUndefined
