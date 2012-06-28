@@ -13,7 +13,7 @@ module Puppet.Interpreter.Functions
 import Data.Hash.MD5
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Char8 as BS
-import Data.String.Utils (join)
+import Data.String.Utils (join,replace)
 import Text.RegexPR
 import Puppet.Interpreter.Types
 import Control.Monad.Error
@@ -50,10 +50,13 @@ regsubst str src dst flags = do
     when multiline   $ throwError "Multiline flag not implemented"
     when extended    $ throwError "Extended flag not implemented"
     when insensitive $ throwError "Case insensitive flag not implemented"
-    return $ refunc src dst str
+    return $ refunc (alterregexp src) dst str
+
+alterregexp :: String -> String
+alterregexp = replace "\\n" "\n"
 
 regmatch :: String -> String -> Bool
-regmatch str reg = case matchRegexPR str reg of
+regmatch str reg = case matchRegexPR (alterregexp str) reg of
     Just _  -> True
     Nothing -> False
 
