@@ -22,7 +22,7 @@ import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
 import Data.List
-import Data.Char (isDigit,toLower)
+import Data.Char (isDigit,toLower,toUpper)
 import Data.Maybe (isJust, fromJust, catMaybes)
 import Data.Either (lefts, rights, partitionEithers)
 import Text.Parsec.Pos
@@ -686,17 +686,29 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
             addWarning $ "The defined() function is not implemented for resource references. Returning true at " ++ show position
             return $ Right $ ResolvedBool True
         Right x -> throwPosError $ "Can't know if this could be defined : " ++ show x
-tryResolveValue   (FunctionCall "regsubst" [str, src, dst, flags]) = do
+tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
     rsrc   <- tryResolveExpressionString src
     rdst   <- tryResolveExpressionString dst
     rflags <- tryResolveExpressionString flags
     case (rstr, rsrc, rdst, rflags) of
         (Right sstr, Right ssrc, Right sdst, Right sflags) -> liftM (Right . ResolvedString) (regsubst sstr ssrc sdst sflags)
-        x                                                  -> throwPosError ("Could not run regsubst because something here could not be resolved: " ++ show x)
+        _                                                  -> return $ Left $ Value n
 tryResolveValue   (FunctionCall "regsubst" [str, src, dst]) = tryResolveValue (FunctionCall "regsubst" [str, src, dst, Value $ Literal ""])
 tryResolveValue   (FunctionCall "regsubst" args) = throwPosError ("Bad argument count for regsubst " ++ show args)
-       
+
+tryResolveValue n@(FunctionCall "split" [str, reg]) = do
+    rstr   <- tryResolveExpressionString str
+    rreg   <- tryResolveExpressionString reg
+    case (rstr, rreg) of
+        (Right sstr, Right sreg) -> return $ Right $ ResolvedArray $ map ResolvedString $ puppetSplit sstr sreg
+        _                        -> return $ Left $ Value n
+tryResolveValue   (FunctionCall "split" _) = throwPosError "Bad argument count for function split"
+tryResolveValue n@(FunctionCall "upcase"  args) = stringTransform args n (map toUpper)
+tryResolveValue n@(FunctionCall "lowcase" args) = stringTransform args n (map toLower)
+tryResolveValue n@(FunctionCall "sha1"    args) = stringTransform args n puppetSHA1
+tryResolveValue n@(FunctionCall "md5"     args) = stringTransform args n puppetMD5
+
 tryResolveValue n@(FunctionCall "versioncmp" [a,b]) = do
     ra <- tryResolveExpressionString a
     rb <- tryResolveExpressionString b
@@ -900,3 +912,11 @@ arithmeticOperation a b opi opf def = do
         (Right (ResolvedDouble sa), Right (ResolvedDouble sb)) -> return $ Right $ ResolvedDouble $ opf sa sb
         _ -> return def
 
+
+stringTransform :: [Expression] -> Value -> (String -> String) -> CatalogMonad GeneralValue
+stringTransform [u] n f = do
+    r <- tryResolveExpressionString u
+    case r of
+        Right s -> return $ Right $ ResolvedString $ f s
+        Left _  -> return $ Left $ Value n
+stringTransform _ _ _ = throwPosError $ "This function takes a single argument."

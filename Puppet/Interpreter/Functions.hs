@@ -5,6 +5,9 @@ module Puppet.Interpreter.Functions
     ,regmatch
     ,versioncmp
     ,file
+    ,puppetSplit
+    ,puppetSHA1
+    ,puppetMD5
     ) where
 
 import Data.Hash.MD5
@@ -15,6 +18,12 @@ import Text.RegexPR
 import Puppet.Interpreter.Types
 import Control.Monad.Error
 import System.IO
+
+
+puppetMD5  = md5s . Str
+-- BUG
+puppetSHA1 = md5s . Str
+
 {-
 TODO : achieve compatibility with puppet
 the first String must be the fqdn
@@ -57,3 +66,6 @@ versioncmp a b | a > b = 1
 file :: [String] -> IO (Maybe String)
 file [] = return Nothing
 file (x:xs) = catch (liftM Just (withFile x ReadMode hGetContents)) (\_ -> file xs)
+
+puppetSplit :: String -> String -> [String]
+puppetSplit str reg = splitRegexPR reg str
