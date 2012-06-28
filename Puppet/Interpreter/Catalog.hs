@@ -289,6 +289,7 @@ mergeParams srcparams defs override = let
 
 evaluateDefine :: CResource -> CatalogMonad [CResource]
 evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = do
+    setPos rpos
     isdef <- checkDefine rtype
     case (rvirtuality, isdef) of
         (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> do

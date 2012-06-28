@@ -8,6 +8,7 @@ v0.1.4
     * String comparison is not case insensitive.
     * Variable scope for inherited classes should now work.
     * Support for the $module_name variable (probably a bit buggy).
+	* Proper location of a "define not found" error.
   Various
     * Removed the title parameter from the catalog printing functions.
     * Used hslint a bit.
