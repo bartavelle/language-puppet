@@ -238,7 +238,7 @@ puppetRegexp = do { char '/'
 puppetRegexpExpr = puppetRegexp >>= return . Value . PuppetRegexp
 
 singleQuotedString = do { char '\''
-    ; v <- many ( do { char '\\' ; x <- anyChar; return [x] } <|> many1 (noneOf "'\\") )
+    ; v <- many ( do { char '\\' ; x <- anyChar; if x=='\'' then return "'" else return ['\\',x] } <|> many1 (noneOf "'\\") )
     ; char '\''
     ; whiteSpace
     ; return $ concat v
