@@ -319,6 +319,19 @@ handleDelayedActions res = do
     modify emptyDefaults
     return dres
 
+addResource :: String -> [(Expression, Expression)] -> Virtuality -> SourcePos -> GeneralValue -> CatalogMonad [CResource]
+addResource rtype parameters virtuality position grname = do
+    resid <- getNextId
+    rparameters <- mapM resolveParams parameters
+    -- il faut transformer grname qui est une generalvalue en generalstring
+    srname <- case grname of
+        Right e -> liftM Right (rstring e)
+        Left  e -> return $ Left e
+    let (realparams, relations) = partitionParamsRelations rparameters
+    -- push all the relations
+    addUnresRel (relations, (rtype, srname), UNormal, position)
+    return [CResource resid srname rtype realparams virtuality position]
+
 -- node
 evaluateStatements :: Statement -> CatalogMonad Catalog
 evaluateStatements (Node _ stmts position) = do
@@ -350,13 +363,10 @@ evaluateStatements (Resource rtype rname parameters virtuality position) = do
             let classparameters = Map.fromList $ map (\(pname, pvalue) -> (pname, (pvalue, position))) rparameters
             evaluateClass topstatement classparameters Nothing
         _ -> do
-            resid <- getNextId
-            rparameters <- mapM resolveParams parameters
-            srname <- tryResolveExpressionString rname
-            let (realparams, relations) = partitionParamsRelations rparameters
-            -- push all the relations
-            addUnresRel (relations, (rtype, srname), UNormal, position)
-            return [CResource resid srname rtype realparams virtuality position]
+            srname <- tryResolveExpression rname
+            case srname of
+                (Right (ResolvedArray arr)) -> fmap concat (mapM (addResource rtype parameters virtuality position . Right) arr)
+                _ -> addResource rtype parameters virtuality position srname
 
 evaluateStatements x@(ResourceDefault{}) = do
     pushDefaults x
