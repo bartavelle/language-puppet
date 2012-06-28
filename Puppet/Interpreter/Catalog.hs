@@ -681,7 +681,10 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
                     case isdefine of
                         Just _  -> return $ Right $ ResolvedBool True
                         Nothing -> liftM (Right . ResolvedBool . Map.member typeorclass . curClasses) get
-        Right (ResolvedRReference _ (ResolvedString _)) -> throwPosError $ "Can't implement defined(resource reference) with the given architecture ..."
+        Right (ResolvedRReference _ (ResolvedString _)) -> do
+            position <- getPos
+            addWarning $ "The defined() function is not implemented for resource references. Returning true at " ++ show position
+            return $ Right $ ResolvedBool True
         Right x -> throwPosError $ "Can't know if this could be defined : " ++ show x
 tryResolveValue   (FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
