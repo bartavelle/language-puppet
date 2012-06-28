@@ -19,7 +19,7 @@ data PuppetTypeMethods = PuppetTypeMethods {
     }
 
 faketype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
-faketype tname = (tname, PuppetTypeMethods (\x -> Right x) Set.empty)
+faketype tname = (tname, PuppetTypeMethods Right Set.empty)
 
 defaulttype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 defaulttype tname = (tname, PuppetTypeMethods (defaultValidate Set.empty) Set.empty)
@@ -34,7 +34,7 @@ checkParameterList :: Set.Set String -> PuppetTypeValidate
 checkParameterList validparameters res | Set.null validparameters = Right res
                                        | otherwise = if Set.null setdiff
                                             then Right res
-                                            else Left $ "Unknown parameters " ++ (show $ Set.toList setdiff)
+                                            else Left $ "Unknown parameters " ++ show (Set.toList setdiff)
     where
         keyset = Map.keysSet (rrparams res)
         setdiff = Set.difference keyset (Set.insert "tag" validparameters)
@@ -52,7 +52,7 @@ addDefaults res = Right (res { rrparams = newparams } )
 'ResolvedBool' it will convert them to strings.
 -}
 string :: String -> PuppetTypeValidate
-string param res = case (Map.lookup param (rrparams res)) of
+string param res = case Map.lookup param (rrparams res) of
     Just (ResolvedString _)   -> Right res
     Just (ResolvedInt n)      -> Right (insertparam res param (ResolvedString $ show n))
     Just (ResolvedBool True)  -> Right (insertparam res param (ResolvedString "true"))
@@ -63,7 +63,7 @@ string param res = case (Map.lookup param (rrparams res)) of
 -- | Makes sure that the parameter, if defined, has a value among this list.
 values :: [String] -> String -> PuppetTypeValidate
 values valuelist param res = case (Map.lookup param (rrparams res)) of
-    Just (ResolvedString x) -> if (elem x valuelist)
+    Just (ResolvedString x) -> if elem x valuelist
         then Right res
         else Left $ "Parameter " ++ param ++ " value should be one of " ++ show valuelist
     Just _  -> Left $ "Parameter " ++ param ++ " value should be one of " ++ show valuelist
@@ -85,7 +85,7 @@ integer prm res = string prm res >>= integer' prm
     where
         integer' pr rs = case (Map.lookup pr (rrparams rs)) of
             Nothing -> Right rs
-            Just (ResolvedString x) -> if (all isDigit x)
+            Just (ResolvedString x) -> if all isDigit x
                 then Right $ insertparam rs pr (ResolvedInt $ read x)
                 else Left $ "Parameter " ++ pr ++ " should be a number"
             Just (ResolvedInt _) -> Right rs

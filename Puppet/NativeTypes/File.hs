@@ -41,6 +41,6 @@ validateSourceOrContent res = let
     parammap = rrparams res
     source    = Map.member "source"  parammap
     content   = Map.member "content" parammap
-    in if (source && content)
+    in if source && content
         then Left "Source and content can't be specified at the same time"
         else Right res

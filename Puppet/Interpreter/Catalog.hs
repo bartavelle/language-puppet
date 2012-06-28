@@ -25,6 +25,7 @@ import Data.List
 import Data.Char (isDigit,toLower,toUpper)
 import Data.Maybe (isJust, fromJust, catMaybes)
 import Data.Either (lefts, rights, partitionEithers)
+import Data.Ord (comparing)
 import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
@@ -151,20 +152,20 @@ getstatement qtype name = do
         Right y -> return y
 
 -- State alteration functions
-pushScope name  = modify (modifyScope (\x -> name : x))
-pushDefaults name  = modify (modifyDefaults (\x -> name : x))
+pushScope = modify . modifyScope . (:)
+pushDefaults = modify . modifyDefaults . (:)
 popScope        = modify (modifyScope tail)
 getScope        = do
     scope <- liftM curScope get
     if null scope
         then throwError "empty scope, shouldn't happen"
         else return $ head scope
-addLoaded name position = modify (modifyClasses (Map.insert name position))
+addLoaded name = modify . modifyClasses . Map.insert name
 getNextId = do
     curscope <- get
     put $ incrementResId curscope
     return (curResId curscope)
-setPos p = modify (setStatePos p)
+setPos = modify . setStatePos
 getPos = liftM curPos get
 
 -- qualifies a variable k depending on the context cs
@@ -190,8 +191,8 @@ addNestedTopLevel rtype rname rstatement = do
         ntop = Map.insert (rtype, nname) nstatement ctop
         nstate = curstate { nestedtoplevels = ntop }
     put nstate
-addWarning nwrn   = modify (pushWarning nwrn)
-addCollect ncol   = modify (pushCollect ncol)
+addWarning = modify . pushWarning
+addCollect = modify . pushCollect
 -- this pushes the relations only if they exist
 -- the parameter is of the form
 -- ( [dstrelations], srcresource, type, pos )
@@ -248,9 +249,7 @@ resolveParams (a,b) = do
 
 -- apply default values to a resource
 applyDefaults :: CResource -> CatalogMonad CResource
-applyDefaults res = do
-    defs <- liftM curDefaults get 
-    foldM applyDefaults' res defs
+applyDefaults res = liftM curDefaults get >>= foldM applyDefaults' res
 
 applyDefaults' :: CResource -> Statement -> CatalogMonad CResource            
 applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ResourceDefault dtype defs dpos) = do
@@ -295,7 +294,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = do
         (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> do
             --oldpos <- getPos
             setPos dpos
-            pushScope $ ["#DEFINE#" ++ dtype]
+            pushScope ["#DEFINE#" ++ dtype]
             -- add variables
             mrrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
             let expr = gs2gv rname
@@ -481,7 +480,7 @@ addClassDependency cname (CResource _ rname rtype _ _ position) = addUnresRel (
     , UPlus, position)
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
-tryResolveExpression e = tryResolveGeneralValue (Left e)
+tryResolveExpression = tryResolveGeneralValue . Left
 
 tryResolveGeneralValue :: GeneralValue -> CatalogMonad GeneralValue
 tryResolveGeneralValue n@(Right _) = return n
@@ -682,7 +681,7 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
     case rv of
         Left n -> return $ Left n
         -- TODO BUG
-        Right (ResolvedString typeorclass) -> do
+        Right (ResolvedString typeorclass) ->
             -- is it a loaded class or a define ?
             if Map.member typeorclass nativeTypes
                 then return $ Right $ ResolvedBool True
@@ -824,7 +823,7 @@ compareValues a@(ResolvedString _) b@(ResolvedInt _) = compareValues b a
 compareValues   (ResolvedInt a)      (ResolvedString b) | isInt b = compare a (read b)
                                                         | otherwise = LT
 compareValues (ResolvedString a) (ResolvedRegexp b) = if regmatch a b then EQ else LT
-compareValues (ResolvedString a) (ResolvedString b) = compare (map toLower a) (map toLower b)
+compareValues (ResolvedString a) (ResolvedString b) = comparing (map toLower) a b
 compareValues x y = compare x y
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
@@ -926,4 +925,4 @@ stringTransform [u] n f = do
     case r of
         Right s -> return $ Right $ ResolvedString $ f s
         Left _  -> return $ Left $ Value n
-stringTransform _ _ _ = throwPosError $ "This function takes a single argument."
+stringTransform _ _ _ = throwPosError "This function takes a single argument."
