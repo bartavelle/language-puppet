@@ -4,12 +4,15 @@ v0.1.4
     * Added anchor as a native type for now. A better fix will be to just parse
       for defined types in the lib directory of modules.
     * Tentative defined() implementation. Will not work for resource references.
+	* Functions md5, sha1, lowcase, upcase, split.
   Bugs fixed
     * String comparison is not case insensitive.
     * Variable scope for inherited classes should now work.
     * Support for the $module_name variable (probably a bit buggy).
 	* Proper location of a "define not found" error.
 	* Parsing bug for single quoted strings and slashes.
+	* Bug where a resource name is a variable that is actually an array.
+	* Array indexing.
   Various
     * Removed the title parameter from the catalog printing functions.
     * Used hslint a bit.
