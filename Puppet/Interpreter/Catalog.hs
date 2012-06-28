@@ -723,10 +723,7 @@ tryResolveValue n@(FunctionCall "file" filelist) = do
         then do
             content <- liftIO $ file rf
             case content of
-                Nothing -> do
-                    position <- getPos
-                    addWarning $ "Files " ++ show rf ++ " could not be found at " ++ show position
-                    return $ Right $ ResolvedString ""
+                Nothing -> throwPosError $ "Files " ++ show rf ++ " could not be found"
                 Just x  -> return $ Right $ ResolvedString x
         else return $ Left $ Value n
     
