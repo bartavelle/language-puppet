@@ -18,10 +18,10 @@ import Text.RegexPR
 import Puppet.Interpreter.Types
 import Control.Monad.Error
 import System.IO
-
+import qualified Data.ByteString.Base16 as B16
 
 puppetMD5  = md5s . Str
-puppetSHA1 = BS.unpack . SHA1.hash . BS.pack
+puppetSHA1 = BS.unpack . B16.encode . SHA1.hash . BS.pack
 
 {-
 TODO : achieve compatibility with puppet
@@ -36,7 +36,7 @@ fqdn_rand n args = return (hash `mod` n)
 mysql_password :: String -> CatalogMonad String
 mysql_password pwd = return $ '*':hash
     where
-        hash = BS.unpack $ SHA1.hash (BS.pack pwd)
+        hash = puppetSHA1 pwd
 
 regsubst :: String -> String -> String -> String -> CatalogMonad String
 regsubst str src dst flags = do
