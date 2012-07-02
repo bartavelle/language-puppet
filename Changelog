@@ -13,6 +13,7 @@ v0.1.4
 	* Parsing bug for single quoted strings and slashes.
 	* Bug where a resource name is a variable that is actually an array.
 	* Array indexing.
+	* Top level variables are now supported in Erb.
   Various
     * Removed the title parameter from the catalog printing functions.
     * Used hslint a bit.
