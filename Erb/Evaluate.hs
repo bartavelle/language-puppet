@@ -40,7 +40,7 @@ evalExpression _  _   x = Left $ "Can't evaluate " ++ show x
 
 getVariable :: Map.Map String GeneralValue -> String -> String -> Either String ResolvedValue
 getVariable mp ctx rvname =
-    let vars = map (\x -> Map.lookup x mp) [rvname, ctx ++ "::" ++ rvname]
+    let vars = map (\x -> Map.lookup x mp) [rvname, ctx ++ "::" ++ rvname, "::" ++ rvname]
         jsts = catMaybes vars
         rghts = rights jsts
     in do
