@@ -434,6 +434,12 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     if isloaded
         then return []
         else do
+        -- detection of spurious parameters
+        let classparamset = Set.fromList $ map fst parameters
+            inputparamset = Map.keysSet inputparams
+            overparams = Set.difference inputparamset classparamset
+        unless (Set.null overparams) (throwError $ "Spurious parameters " ++ intercalate ", " (Set.toList overparams) ++ " at " ++ show position)
+
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
         oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
         setPos position
