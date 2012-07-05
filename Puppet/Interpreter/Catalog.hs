@@ -436,7 +436,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         else do
         -- detection of spurious parameters
         let classparamset = Set.fromList $ map fst parameters
-            inputparamset = Map.keysSet inputparams
+            inputparamset = Set.filter (\x -> getRelationParameterType (Right x) == Nothing) $ Map.keysSet inputparams
             overparams = Set.difference inputparamset classparamset
         unless (Set.null overparams) (throwError $ "Spurious parameters " ++ intercalate ", " (Set.toList overparams) ++ " at " ++ show position)
 
