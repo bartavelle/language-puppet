@@ -78,6 +78,12 @@ type ScopeName = String
 -- many fairly acceptable behaviours and the correct one is not documented.
 data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord, Eq)
 
+{-| A data type to hold defaults values
+ -}
+data ResDefaults = RDefaults String [(GeneralString, GeneralValue)] SourcePos
+                 | ROverride String GeneralString [(GeneralString, GeneralValue)] SourcePos
+                 deriving (Show, Ord, Eq)
+
 {-| The most important data structure for the interpreter. It stores its
 internal state.
 -}
@@ -94,7 +100,7 @@ data ScopeState = ScopeState {
     curClasses :: !(Map.Map String SourcePos),
     -- ^ The list of classes that have already been included, along with the
     -- place where this happened.
-    curDefaults :: ![Statement],
+    curDefaults :: ![ResDefaults],
     -- ^ List of defaults to apply. All defaults are applied at the end of the
     -- interpretation of each top level statement.
     curResId :: !Int, -- ^ Stores the value of the current 'crid'.

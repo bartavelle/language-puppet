@@ -251,27 +251,24 @@ resolveParams (a,b) = do
 applyDefaults :: CResource -> CatalogMonad CResource
 applyDefaults res = liftM curDefaults get >>= foldM applyDefaults' res
 
-applyDefaults' :: CResource -> Statement -> CatalogMonad CResource            
-applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ResourceDefault dtype defs dpos) = do
+applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults dtype rdefs dpos) = do
     srname <- resolveGeneralString rname
-    rdefs <- mapM resolveParams defs
     let (nparams, nrelations) = mergeParams rparams rdefs False 
     if dtype == rtype
         then do
             addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
             return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
-applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ResourceOverride dtype dname defs dpos) = do
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ROverride dtype dname rdefs dpos) = do
     srname <- resolveGeneralString rname
-    sdname <- resolveExpressionString dname
-    rdefs <- mapM resolveParams defs
+    sdname <- resolveGeneralString dname
     let (nparams, nrelations) = mergeParams rparams rdefs True
     if (dtype == rtype) && (srname == sdname)
         then do
             addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
             return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
-applyDefaults' r d = throwError $ "Can't apply non default statement " ++ show d ++ " to resource " ++ show r
 
 -- merge defaults and actual parameters depending on the override flag
 mergeParams :: [(GeneralString, GeneralValue)] -> [(GeneralString, GeneralValue)] -> Bool -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
@@ -367,11 +364,14 @@ evaluateStatements (Resource rtype rname parameters virtuality position) = do
                 (Right (ResolvedArray arr)) -> fmap concat (mapM (addResource rtype parameters virtuality position . Right) arr)
                 _ -> addResource rtype parameters virtuality position srname
 
-evaluateStatements x@(ResourceDefault{}) = do
-    pushDefaults x
+evaluateStatements (ResourceDefault rdtype rdparams rdpos) = do
+    rrdparams <- mapM resolveParams rdparams
+    pushDefaults $ RDefaults rdtype rrdparams rdpos
     return []
-evaluateStatements x@(ResourceOverride{}) = do
-    pushDefaults x
+evaluateStatements (ResourceOverride rotype roname roparams ropos) = do
+    rroname <- tryResolveExpressionString roname
+    rroparams <- mapM resolveParams roparams
+    pushDefaults $ ROverride rotype rroname rroparams ropos
     return []
 evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) position) = do
     setPos position
