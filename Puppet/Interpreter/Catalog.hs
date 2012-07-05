@@ -630,7 +630,7 @@ tryResolveValue   (VariableReference vname) = do
     if null matching
         then do
             position <- getPos
-            addWarning ("Could not resolveValue " ++ show varnames ++ " at " ++ show position)
+            addWarning ("Could not resolveValue variables " ++ show varnames ++ " at " ++ show position)
             return $ Left $ Value $ VariableReference (head varnames)
         else return $ case head matching of
             (x,_) -> x
@@ -840,6 +840,8 @@ tryResolveBoolean :: GeneralValue -> CatalogMonad GeneralValue
 tryResolveBoolean v = do
     rv <- tryResolveGeneralValue v
     case rv of
+        Left BFalse                 -> return $ Right $ ResolvedBool False
+        Left BTrue                  -> return $ Right $ ResolvedBool True
         Right (ResolvedString "")   -> return $ Right $ ResolvedBool False
         Right (ResolvedString _)    -> return $ Right $ ResolvedBool True
         Right (ResolvedInt 0)       -> return $ Right $ ResolvedBool False
