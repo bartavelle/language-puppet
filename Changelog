@@ -5,6 +5,7 @@ v0.1.5
 	works.
 	* Resource overrides with non trivial names should now work.
 	* Trivial conditions now work.
+	* Require statements in required files would not be loaded.
   Various
 
 v0.1.4

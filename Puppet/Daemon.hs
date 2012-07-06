@@ -208,18 +208,24 @@ reparseFile fname fstatus updatepinfo qtype nodename = do
         Just (_,_,x) -> return x
         Nothing -> throwError ("Could not find correct top level statement for " ++ show qtype ++ " " ++ nodename)
 
-    
-
+{- Given a base file name and an import statement, will load these imports.
+This is not as obvious as it seems because you need to load imported's imports.
+-}
 loadImport :: (TopLevelType -> String -> CacheEntry -> IO ParsedCacheResponse ) -> FilePath -> Statement -> ErrorT String IO [(TopLevelType, String, Statement)]
 loadImport updatepinfo fdir mimport = do
     matched <- globImport fdir mimport
-    -- globDir [compile importstring] fdir >>= return . concat . fst
     fileinfos <- liftIO $ mapM getFileInfo matched
     let fpathinfos = zip matched fileinfos
         goodpathinfos = concatMap unjust fpathinfos
         unjust (a, Just b) = [(a,b)]
         unjust _ = []
-    liftM (concatMap snd) (mapM (\(fname, finfo) -> loadUpdateFile fname finfo updatepinfo) goodpathinfos)
+    ex <- (mapM (\(fname, finfo) -> liftM (\x -> (fname, x)) $ loadUpdateFile fname finfo updatepinfo) goodpathinfos)
+    -- This is a complicated and very expensive way to load imports that were imported.
+    -- The only way to make it faster would be to query the cache before reloading the files ..
+    let reloaded = concatMap (snd . snd) ex
+        limports = map (\(fname, (mimports, _)) -> (fname, mimports)) ex
+    mapM_ (\(fname, mimports) -> mapM_ (\stmt -> loadImport updatepinfo fname stmt) mimports) limports
+    return $ reloaded
 
 loadRelated :: 
        ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry) )
