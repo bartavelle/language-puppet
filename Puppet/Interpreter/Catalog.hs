@@ -755,7 +755,7 @@ tryResolveValueString x = do
     case r of
         Right (ResolvedString v) -> return $ Right v
         Right (ResolvedInt    i) -> return $ Right (show i)
-        Right v                  -> throwError ("Can't resolve valuestring for " ++ show v)
+        Right v                  -> throwPosError ("Can't resolve valuestring for " ++ show v)
         Left  v                  -> return $ Left v
 
 getRelationParameterType :: GeneralString -> Maybe LinkType
