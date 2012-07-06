@@ -1,12 +1,9 @@
 v0.1.5
-  New features
   Bugs fixed
     * Detection of spurious parameters when declaring parametrized classes now
 	works.
 	* Resource overrides with non trivial names should now work.
-	* Trivial conditions now work.
 	* Require statements in required files would not be loaded.
-  Various
 
 v0.1.4
   New features
