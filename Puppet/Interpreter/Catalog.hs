@@ -851,8 +851,6 @@ tryResolveBoolean v = do
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the empty string
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "true"))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the string "true"
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "false"))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the string "false"
-        -- defined variable or value ...
-        Right _ -> return $ Right $ ResolvedBool True
         _ -> return rv
  
 resolveBoolean :: GeneralValue -> CatalogMonad Bool
