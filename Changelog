@@ -7,6 +7,8 @@ v0.1.5
 	* Trivial conditions now work.
 	* Require statements in required files would not be loaded.
   Various
+    * Boolean resolution with any value that is not 0, null or false now
+	returns True.
 
 v0.1.4
   New features
