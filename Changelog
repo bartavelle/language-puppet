@@ -1,6 +1,7 @@
 v0.1.6
   New features
     * Errors now print a stack trace (only works with profiling builds)
+    * Nested classes
 
 v0.1.5
   Bugs fixed
