@@ -8,6 +8,7 @@ module Puppet.Interpreter.Functions
     ,puppetSplit
     ,puppetSHA1
     ,puppetMD5
+    ,generate
     ) where
 
 import Data.Hash.MD5
@@ -19,6 +20,7 @@ import Puppet.Interpreter.Types
 import Control.Monad.Error
 import System.IO
 import qualified Data.ByteString.Base16 as B16
+import SafeProcess
 
 puppetMD5  = md5s . Str
 puppetSHA1 = BS.unpack . B16.encode . SHA1.hash . BS.pack
@@ -71,3 +73,10 @@ file (x:xs) = catch (liftM Just (withFile x ReadMode hGetContents)) (\_ -> file 
 
 puppetSplit :: String -> String -> [String]
 puppetSplit str reg = splitRegexPR reg str
+
+generate :: String -> [String] -> IO (Maybe String)
+generate command args = do
+    cmdout <- safeReadProcessTimeout command args "" 60000
+    case cmdout of
+        Just (Right x)  -> return $ Just x
+        _               -> return Nothing

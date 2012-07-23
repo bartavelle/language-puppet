@@ -658,7 +658,17 @@ tryResolveValue n@(PuppetArray expressions) = do
         then return $ Right $ ResolvedArray $ rights resolvedExpressions
         else return $ Left $ Value n
 
--- TODO
+
+tryResolveValue   (FunctionCall "generate" args) = if null args
+    then throwPosError "Empty argument list in generate"
+    else do
+        nargs   <- mapM resolveExpressionString args
+        let cmdname:cmdargs = nargs
+        gens    <- liftIO $ generate cmdname cmdargs
+        case gens of
+            Just w  -> return $ Right $ ResolvedString w
+            Nothing -> throwPosError $ "Function call generate for command " ++ cmdname ++ " (" ++ show cmdargs ++ ") failed"
+
 tryResolveValue   (FunctionCall "fqdn_rand" args) = if null args
     then throwPosError "Empty argument list in fqdn_rand call"
     else do
