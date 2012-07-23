@@ -188,7 +188,8 @@ addNestedTopLevel rtype rname rstatement = do
         curscope = head $ head (curScope curstate)
         nname = qualify rname curscope
         nstatement = case rstatement of
-            DefineDeclaration _ prms stms cpos -> DefineDeclaration nname prms stms cpos
+            DefineDeclaration _ prms stms cpos      -> DefineDeclaration nname prms stms cpos
+            ClassDeclaration  _ inhe prms stms cpos -> ClassDeclaration  nname inhe prms stms cpos
             x -> x
         ntop = Map.insert (rtype, nname) nstatement ctop
         nstate = curstate { nestedtoplevels = ntop }
