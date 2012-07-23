@@ -44,7 +44,7 @@ checkParameterList validparameters res | Set.null validparameters = Right res
 addDefaults :: PuppetTypeValidate
 addDefaults res = Right (res { rrparams = newparams } )
     where
-        newparams = Map.filter (/= ResolvedUndefined) $ Map.union defaults (rrparams res) 
+        newparams = Map.filter (/= ResolvedUndefined) $ Map.union (rrparams res) defaults
         defaults  = Map.fromList [("name", nm),("title", nm)]
         nm = ResolvedString $ rrname res
 

@@ -140,5 +140,5 @@ generalizeStringS :: String -> GeneralString
 generalizeStringS = Right
 
 -- |This is the set of meta parameters
-metaparameters = Set.fromList ["tag","stage"]
+metaparameters = Set.fromList ["tag","stage","name","title"]
 
