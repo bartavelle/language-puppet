@@ -29,6 +29,7 @@ import Data.Ord (comparing)
 import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
+import GHC.Exts
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -37,7 +38,8 @@ qualified str = isPrefixOf "::" str || qualified (tail str)
 
 throwPosError msg = do
     p <- getPos
-    throwError (msg ++ " at " ++ show p)
+    st <- liftIO currentCallStack
+    throwError (msg ++ " at " ++ show p ++ "\nstack:\n\t" ++ intercalate "\n\t" st )
 
 -- Int handling stuff
 isInt :: String -> Bool

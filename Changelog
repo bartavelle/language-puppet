@@ -1,3 +1,7 @@
+v0.1.6
+  New features
+    * Errors now print a stack trace (only works with profiling builds)
+
 v0.1.5
   Bugs fixed
     * Detection of spurious parameters when declaring parametrized classes now
