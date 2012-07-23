@@ -851,6 +851,8 @@ tryResolveBoolean v = do
         Right (ResolvedInt 0)       -> return $ Right $ ResolvedBool False
         Right (ResolvedInt _)       -> return $ Right $ ResolvedBool True
         Right  ResolvedUndefined    -> return $ Right $ ResolvedBool False
+        Right (ResolvedArray [])    -> return $ Right $ ResolvedBool False
+        Right (ResolvedArray _)     -> return $ Right $ ResolvedBool True
         Left (Value (VariableReference _)) -> return $ Right $ ResolvedBool False
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the empty string
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "true"))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the string "true"

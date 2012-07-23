@@ -4,6 +4,7 @@ v0.1.6
     * Nested classes
   Bugs fixed
     * Metaparameters now include stages (not handled)
+    * Resolving non empty arrays as boolean returns true
 
 v0.1.5
   Bugs fixed
