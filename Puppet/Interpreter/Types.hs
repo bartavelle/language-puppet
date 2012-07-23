@@ -5,6 +5,7 @@ import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 -- | This is the potentially unsolved list of resources in the catalog.
 type Catalog =[CResource]
@@ -137,4 +138,7 @@ generalizeStringE :: Expression -> GeneralString
 generalizeStringE = Left
 generalizeStringS :: String -> GeneralString
 generalizeStringS = Right
+
+-- |This is the set of meta parameters
+metaparameters = Set.fromList ["tag","stage"]
 

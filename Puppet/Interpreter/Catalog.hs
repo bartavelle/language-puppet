@@ -441,7 +441,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         -- detection of spurious parameters
         let classparamset = Set.fromList $ map fst parameters
             inputparamset = Set.filter (\x -> getRelationParameterType (Right x) == Nothing) $ Map.keysSet inputparams
-            overparams = Set.difference inputparamset classparamset
+            overparams = Set.difference inputparamset (Set.union metaparameters classparamset)
         unless (Set.null overparams) (throwError $ "Spurious parameters " ++ intercalate ", " (Set.toList overparams) ++ " at " ++ show position)
 
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
@@ -889,7 +889,7 @@ collectionFunction virt mrtype exprs = do
                     Nothing -> throwPosError $ "Unknown type " ++ mrtype ++ " when trying to collect"
                 Just (DefineDeclaration _ params _ _) -> return $ Set.fromList $ map fst params
                 Just x -> throwPosError $ "Expected a DefineDeclaration here instead of " ++ show x
-            when (Set.notMember paramname paramset && (paramname /= "tag")) $
+            when (Set.notMember paramname paramset && (not $ Set.member paramname metaparameters)) $
                 throwPosError $ "Parameter " ++ paramname ++ " is not a valid parameter. It should be in : " ++ show (Set.toList paramset)
             return (\r -> do
                 let param = filter (\x -> fst x == Right paramname) (crparams r)

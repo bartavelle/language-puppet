@@ -29,7 +29,7 @@ defaulttype tname = (tname, PuppetTypeMethods (defaultValidate Set.empty) Set.em
 defaultValidate :: Set.Set String -> PuppetTypeValidate
 defaultValidate validparameters = checkParameterList validparameters >=> addDefaults
 
--- | This validator checks that no unknown parameters have been set (except tag)
+-- | This validator checks that no unknown parameters have been set (except metaparameters)
 checkParameterList :: Set.Set String -> PuppetTypeValidate
 checkParameterList validparameters res | Set.null validparameters = Right res
                                        | otherwise = if Set.null setdiff
@@ -37,7 +37,7 @@ checkParameterList validparameters res | Set.null validparameters = Right res
                                             else Left $ "Unknown parameters " ++ show (Set.toList setdiff)
     where
         keyset = Map.keysSet (rrparams res)
-        setdiff = Set.difference keyset (Set.insert "tag" validparameters)
+        setdiff = Set.difference keyset (Set.union metaparameters validparameters)
 
 -- | This validator always accept the resources, but add the default parameters
 -- (such as title and name).

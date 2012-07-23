@@ -2,6 +2,8 @@ v0.1.6
   New features
     * Errors now print a stack trace (only works with profiling builds)
     * Nested classes
+  Bugs fixed
+    * Metaparameters now include stages (not handled)
 
 v0.1.5
   Bugs fixed
