@@ -3,6 +3,7 @@ v0.1.6
     * Errors now print a stack trace (only works with profiling builds)
     * Nested classes
     * generate() function
+    * defines with spurious top level statements now should work
   Bugs fixed
     * Metaparameters now include stages (not handled)
     * Resolving non empty arrays as boolean returns true

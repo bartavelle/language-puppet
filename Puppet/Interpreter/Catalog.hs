@@ -287,31 +287,36 @@ mergeParams srcparams defs override = let
 -- The actual meat
 
 evaluateDefine :: CResource -> CatalogMonad [CResource]
-evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = do
+evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
+    evaluateDefineDeclaration dtype args dstmts dpos = do
+        --oldpos <- getPos
+        setPos dpos
+        pushScope ["#DEFINE#" ++ dtype]
+        -- add variables
+        mrrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
+        let expr = gs2gv rname
+            mparams = Map.fromList mrrparams
+        putVariable "title" (expr, rpos)
+        putVariable "name" (expr, rpos)
+        mapM_ (loadClassVariable rpos mparams) args
+     
+        -- parse statements
+        res <- mapM evaluateStatements dstmts
+        nres <- handleDelayedActions (concat res)
+        popScope
+        return nres
+    in do
     setPos rpos
     isdef <- checkDefine rtype
     case (rvirtuality, isdef) of
-        (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> do
-            --oldpos <- getPos
-            setPos dpos
-            pushScope ["#DEFINE#" ++ dtype]
-            -- add variables
-            mrrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
-            let expr = gs2gv rname
-                mparams = Map.fromList mrrparams
-            putVariable "title" (expr, rpos)
-            putVariable "name" (expr, rpos)
-            mapM_ (loadClassVariable rpos mparams) args
- 
-            -- parse statements
-            res <- mapM evaluateStatements dstmts
-            nres <- handleDelayedActions (concat res)
-            popScope
-            return nres
+        (Normal, Just (TopContainer topstmts (DefineDeclaration dtype args dstmts dpos))) -> do
+            mapM_ (\(n,x) -> evaluateClass x Map.empty (Just n)) topstmts
+            evaluateDefineDeclaration dtype args dstmts dpos
+        (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> evaluateDefineDeclaration dtype args dstmts dpos
         _ -> return [r]
         
 
--- handling delayed actions (such as defaults)
+-- handling delayed actions (such as defaults and define resolution)
 handleDelayedActions :: Catalog -> CatalogMonad Catalog
 handleDelayedActions res = do
     dres <- liftM concat (mapM applyDefaults res >>= mapM evaluateDefine)
