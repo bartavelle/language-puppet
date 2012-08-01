@@ -49,7 +49,7 @@ qualified str = isPrefixOf "::" str || qualified (tail str)
 throwPosError msg = do
     p <- getPos
     st <- liftIO currentCallStack
-    throwError (msg ++ " at " ++ show p ++ "\nstack:\n\t" ++ intercalate "\n\t" st )
+    throwError (msg ++ " at " ++ show p ++ intercalate "\n\t" st )
 
 -- Int handling stuff
 isInt :: String -> Bool
