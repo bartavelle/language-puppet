@@ -33,6 +33,16 @@ import GHC.Exts
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+-- Utility function used to check if the there are duplicates a in [(a,_)]
+checkDuplicateFirst :: (Show a, Eq a) => [(a,b)] -> CatalogMonad ()
+checkDuplicateFirst list =
+    let fsts = ldups (map fst list) []
+        ldups [] a      = a
+        ldups (x:xs) a  | x `elem` xs = x:a
+                        | otherwise   = ldups xs a
+    in unless (null fsts) $ throwPosError $ "Duplicate parameters " ++ show fsts
+
+
 qualified []  = False
 qualified str = isPrefixOf "::" str || qualified (tail str)
 
@@ -93,6 +103,7 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     setPos cpos
     rname <- resolveGeneralString cname
     rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
+    checkDuplicateFirst rparams
     -- add collected relations
     -- TODO
     unless (Map.member ctype nativeTypes) $ throwPosError $ "Can't find native type " ++ ctype
@@ -364,6 +375,7 @@ evaluateStatements (Resource rtype rname parameters virtuality position) = do
         -- checks whether we are handling a parametrized class
         "class" -> do
             rparameters <- mapM (\(a,b) -> do { pa <- resolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
+            checkDuplicateFirst rparameters
             classname <- resolveExpressionString rname
             topstatement <- getstatement TopClass classname
             let classparameters = Map.fromList $ map (\(pname, pvalue) -> (pname, (pvalue, position))) rparameters

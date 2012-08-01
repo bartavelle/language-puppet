@@ -8,6 +8,7 @@ v0.1.6
   Bugs fixed
     * Metaparameters now include stages (not handled)
     * Resolving non empty arrays as boolean returns true
+	* Duplicate parameters are now detected
 
 v0.1.5
   Bugs fixed
