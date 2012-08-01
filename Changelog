@@ -4,6 +4,7 @@ v0.1.6
     * Nested classes
     * generate() function
     * defines with spurious top level statements now should work
+	* validate_* functions from puppetlabs/stdlib
   Bugs fixed
     * Metaparameters now include stages (not handled)
     * Resolving non empty arrays as boolean returns true

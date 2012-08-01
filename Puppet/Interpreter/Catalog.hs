@@ -818,6 +818,24 @@ executeFunction "create_resources" [mrtype, rdefs] = do
         ) prestatements
     liftM concat (mapM evaluateStatements resources)
 executeFunction "create_resources" x = throwPosError ("Bad arguments to create_resources: " ++ show x)
+executeFunction "validate_array" [x] = case x of
+    ResolvedArray _ -> return []
+    y               -> throwPosError $ show y ++ " is not an array"
+executeFunction "validate_hash" [x] = case x of
+    ResolvedHash _ -> return []
+    y              -> throwPosError $ show y ++ " is not a hash"
+executeFunction "validate_string" [x] = case x of
+    ResolvedString _ -> return []
+    y                -> throwPosError $ show y ++ " is not an string"
+executeFunction "validate_re" [x,re] = case (x,re) of
+    (ResolvedString z, ResolvedString rre) -> do
+        if (regmatch z rre)
+            then return []
+            else throwPosError $ show x ++ " is does not match the regexp"
+    (y,z) -> throwPosError $ "Can't compare " ++ show y ++ " to regexp " ++ show z
+executeFunction "validate_bool" [x] = case x of
+    ResolvedBool _ -> return []
+    y              -> throwPosError $ show y ++ " is not a boolean"
 executeFunction a b = do
     position <- getPos
     addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show position
@@ -860,15 +878,16 @@ tryResolveBoolean :: GeneralValue -> CatalogMonad GeneralValue
 tryResolveBoolean v = do
     rv <- tryResolveGeneralValue v
     case rv of
-        Left BFalse                 -> return $ Right $ ResolvedBool False
-        Left BTrue                  -> return $ Right $ ResolvedBool True
-        Right (ResolvedString "")   -> return $ Right $ ResolvedBool False
-        Right (ResolvedString _)    -> return $ Right $ ResolvedBool True
-        Right (ResolvedInt 0)       -> return $ Right $ ResolvedBool False
-        Right (ResolvedInt _)       -> return $ Right $ ResolvedBool True
-        Right  ResolvedUndefined    -> return $ Right $ ResolvedBool False
-        Right (ResolvedArray [])    -> return $ Right $ ResolvedBool False
-        Right (ResolvedArray _)     -> return $ Right $ ResolvedBool True
+        Left BFalse                     -> return $ Right $ ResolvedBool False
+        Left BTrue                      -> return $ Right $ ResolvedBool True
+        Right (ResolvedString "")       -> return $ Right $ ResolvedBool False
+        Right (ResolvedString "false")  -> return $ Right $ ResolvedBool False
+        Right (ResolvedString _)        -> return $ Right $ ResolvedBool True
+        Right (ResolvedInt 0)           -> return $ Right $ ResolvedBool False
+        Right (ResolvedInt _)           -> return $ Right $ ResolvedBool True
+        Right  ResolvedUndefined        -> return $ Right $ ResolvedBool False
+        Right (ResolvedArray [])        -> return $ Right $ ResolvedBool False
+        Right (ResolvedArray _)         -> return $ Right $ ResolvedBool True
         Left (Value (VariableReference _)) -> return $ Right $ ResolvedBool False
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the empty string
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "true"))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the string "true"
