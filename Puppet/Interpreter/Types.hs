@@ -55,8 +55,9 @@ data CResource = CResource {
 -- | Resource identifier, made of a type, name pair.
 type ResIdentifier = (String, String)
 
--- | Resource relation, made of a 'LinkType', 'ResIdentifier' pair.
-type Relation  = (LinkType, ResIdentifier)
+-- | Resource relation, made of a 'LinkType', 'ResIdentifier' pair. The location
+-- of the relation is also stored.
+type Relation  = (LinkType, ResIdentifier, SourcePos)
 
 {-| This is a fully resolved resource that will be used in the 'FinalCatalog'.
 -}
@@ -65,7 +66,7 @@ data RResource = RResource {
     rrname :: !String, -- ^ Resource name.
     rrtype :: !String, -- ^ Resource type.
     rrparams :: !(Map.Map String ResolvedValue), -- ^ Resource parameters.
-	rrelations :: ![Relation], -- ^ Resource relations.
+	rrelations :: !(Map.Map LinkType Relation), -- ^ Resource relations.
     rrpos :: !SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show, Ord, Eq)
     
@@ -77,7 +78,7 @@ type ScopeName = String
 -- | Type of update\/override, so they can be applied in the correct order. This
 -- part is probably not behaving like vanilla puppet, as it turns out this are
 -- many fairly acceptable behaviours and the correct one is not documented.
-data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord, Eq)
+data RelUpdateType = UDefault | UNormal | UPlus | UOverride deriving (Show, Ord, Eq)
 
 {-| A data type to hold defaults values
  -}
@@ -119,9 +120,10 @@ data ScopeState = ScopeState {
     curCollect :: ![CResource -> CatalogMonad Bool],
     -- ^ A bit complicated, this stores the collection functions. These are
     -- functions that determine whether a resource should be collected or not.
-    unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
+    unresolvedRels :: !(Map.Map (GeneralString, GeneralString) [(LinkType, RelUpdateType, GeneralString, GeneralString, SourcePos)]),
     -- ^ This stores unresolved relationships, because the original string name
-    -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]
+    -- can't be resolved. 
+    -- Keys are the source resource, values are (linktype, updatetype, dstrelation, position).
     computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String)
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
