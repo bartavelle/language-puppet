@@ -76,22 +76,25 @@ variablereference = identifier >>= return . Object . Value . Literal
 
 rubystatement = rubyexpression >>= return . Puts
 
-textblock :: Parser [RubyStatement]
-textblock = do
+textblockW :: Maybe Char ->  Parser [RubyStatement]
+textblockW c = do
     s <- many (noneOf "<")
-    let returned = Puts $ Value $ Literal s
+    let ns = case c of
+            Just x  -> x:s
+            Nothing -> s
+        returned = Puts $ Value $ Literal ns
     isend <- optionMaybe eof
     case isend of
         Just _  -> return [returned]
         Nothing -> do
             char '<'
             isrub <- optionMaybe (char '%')
-            let nextrun = case isrub of
-                    Just _  -> rubyblock
-                    Nothing -> textblock
-            n <- nextrun
+            n <- case isrub of
+                Just _  -> rubyblock
+                Nothing -> textblockW (Just '<')
             return (returned : n)
 
+textblock = textblockW Nothing
 
 rubyblock :: Parser [RubyStatement]
 rubyblock = do

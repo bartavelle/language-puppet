@@ -1,3 +1,7 @@
+v0.1.7
+  Bugs fixed
+    * Fix bug with < in the Erb parser !
+
 v0.1.6
   New features
     * Errors now print a stack trace (only works with profiling builds)
