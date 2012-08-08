@@ -46,5 +46,5 @@ showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
         commareqs c | c             = ""
                     | otherwise     = ",\n"
         showparams  (name, val)     = "        " ++ name ++ " => " ++ showValue val
-        showrequire (ltype, dst, _) = "        " ++ show ltype ++ " " ++ show dst
+        showrequire (ltype, dst)    = "        " ++ show ltype ++ " " ++ show dst
         mrtype                      = rrtype (head res)

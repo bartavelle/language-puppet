@@ -68,19 +68,7 @@ setStatePos  npos sc = sc { curPos         = npos }
 emptyDefaults     sc = sc { curDefaults    = [] }
 pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
--- ( [(linktype, dsttype, dstname)], srcresource, type, pos )
-pushUnresRel ( dstrels, src@(stype, sname), otype, cpos) sc =
-    let curur = unresolvedRels sc
-        r = foldl' reorganize curur dstrels
-        reorganize mp x@(RBefore  , _, _) = irelation x mp
-        reorganize mp x@(RRegister, _, _) = irelation x mp
-        reorganize mp x@(RNotify  , _, _) = nrelation x mp
-        reorganize mp x@(RRequire , _, _) = nrelation x mp
-        nrelation (ltype, dtype, dname) mp = Map.insertWith (++) 
-            src             [(ltype, otype, dtype, dname, cpos)] mp
-        irelation (ltype, dtype, dname) mp = Map.insertWith (++)
-            (dtype, dname)  [(ltype, otype, stype, sname, cpos)] mp
-    in sc { unresolvedRels = r }
+pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -- ^ The \"get statements\" function. Given a top level type and its name it
@@ -95,7 +83,7 @@ getCatalog getstatements gettemplate nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [["::"]] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] Map.empty gettemplate)
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [["::"]] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [] gettemplate)
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right _ -> return (output, getWarnings finalstate)
@@ -109,15 +97,18 @@ computeCatalog getstatements nodename = do
 
 
 -- this validates the resolved resources
--- it should only be called with native types or the validate function lookup will abort with an error
+-- it should only be called with native types or the validatefunction lookup with abord with an error
 finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
 finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     setPos cpos
     rname <- resolveGeneralString cname
     rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
     checkDuplicateFirst rparams
+    -- add collected relations
+    -- TODO
     unless (Map.member ctype nativeTypes) $ throwPosError $ "Can't find native type " ++ ctype
-    let prefinalresource = RResource cid rname ctype (Map.fromList rparams) [] cpos
+    let mrrelations = []
+        prefinalresource = RResource cid rname ctype (Map.fromList rparams) mrrelations cpos
         validatefunction = puppetvalidate (nativeTypes Map.! ctype)
         validated = validatefunction prefinalresource
     case validated of
@@ -148,41 +139,21 @@ finalResolution cat = do
     --export stuff
     --liftIO $ putStrLn "EXPORTED:"
     --liftIO $ mapM print exported
+    --get >>= return . unresolvedRels >>= liftIO . (mapM print)
     mapM finalizeResource real >>= createResourceMap
 
 createResourceMap :: [(ResIdentifier, RResource)] -> CatalogMonad FinalCatalog
 createResourceMap = foldM insertres Map.empty
     where
-        insertres curmap (resid, ures) = do
-            res <- collectRelationship ures
-            let oldres = Map.lookup resid curmap
-                newmap = Map.insert resid res curmap
-            case (rrtype res, oldres) of
+        insertres curmap (resid, res) = let
+            oldres = Map.lookup resid curmap
+            newmap = Map.insert resid res curmap
+            in case (rrtype res, oldres) of
                 ("class", _) -> return newmap
                 (_, Just r ) -> throwError $ "Resource already defined:"
                     ++ "\n\t" ++ rrtype r   ++ "[" ++ rrname r   ++ "] at " ++ show (rrpos r)
                     ++ "\n\t" ++ rrtype res ++ "[" ++ rrname res ++ "] at " ++ show (rrpos res)
                 (_, Nothing) -> return newmap
-
-collectRelationship :: RResource -> CatalogMonad RResource
-collectRelationship x@(RResource _ rname rtype _ _ rpos) = do
-    setPos rpos
-    curstate <- get
-    let ur = unresolvedRels curstate
-        (myurel, nstate) =
-            case Map.lookup (Right rname, Right rtype) ur of
-                Just x  -> (sort $ x, curstate { unresolvedRels = Map.delete (Right rname, Right rtype) ur } )
-                Nothing -> ([], curstate)
-        resolveurel :: Set.Set Relation -> (LinkType, RelUpdateType, GeneralString, GeneralString, SourcePos) -> CatalogMonad (Set.Set Relation)
-        resolveurel curset (lt, rutype, dutype, duname, tpos) = do
-            rdtype <- resolveGeneralString dutype
-            rdname <- resolveGeneralString duname
-            -- compliqué, erreur de design, il faut reconvertir seulement à la fin
-
-    myrel <- foldM resolveurel Map.empty (sort myurel)
-    put nstate
-    return (x { rrelations = myrel })
-
 
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
 getstatement qtype name = do
@@ -263,16 +234,15 @@ Partition parameters between those that are actual parameters and those that def
 
 Those that define relationship must be properly resolved or hell will break loose. This is a BUG.
 -}
-partitionParamsRelations :: [(GeneralString, GeneralValue)] -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralString, GeneralString)])
+partitionParamsRelations :: [(GeneralString, GeneralValue)] -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
 partitionParamsRelations rparameters = (realparams, relations)
     where   realparams = filteredparams
             relations = concatMap convertrelation filteredrelations
-            convertrelation :: (GeneralString, GeneralValue) -> [(LinkType, GeneralString, GeneralString)]
+            convertrelation :: (GeneralString, GeneralValue) -> [(LinkType, GeneralValue, GeneralValue)]
             convertrelation (_,       Right ResolvedUndefined)          = []
             convertrelation (reltype, Right (ResolvedArray rs))         = concatMap (\x -> convertrelation (reltype, Right x)) rs
-            convertrelation (reltype, Right (ResolvedRReference rt (ResolvedString rv))) = [(fromJust $ getRelationParameterType reltype, Right rt, Right rv)]
-            convertrelation (reltype, Right (ResolvedRReference rt (ResolvedArray ar))) = concatMap (\a -> convertrelation (reltype, Right (ResolvedRReference rt a))) ar
-            convertrelation (reltype, Right (ResolvedString "undef"))   = [(fromJust $ getRelationParameterType reltype, Right "undef", Right "undef")]
+            convertrelation (reltype, Right (ResolvedRReference rt rv)) = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
+            convertrelation (reltype, Right (ResolvedString "undef"))   = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
             convertrelation (_,       Left x) = error ("partitionParamsRelations unresolved : " ++ show x)
             convertrelation x = error ("partitionParamsRelations error : " ++ show x)
             (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
@@ -301,7 +271,7 @@ applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults d
     let (nparams, nrelations) = mergeParams rparams rdefs False 
     if dtype == rtype
         then do
-            addUnresRel (nrelations, (Right rtype, Right srname), UDefault, dpos)
+            addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
             return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
 applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ROverride dtype dname rdefs dpos) = do
@@ -310,12 +280,12 @@ applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ROverride d
     let (nparams, nrelations) = mergeParams rparams rdefs True
     if (dtype == rtype) && (srname == sdname)
         then do
-            addUnresRel (nrelations, (Right rtype, Right srname), UDefault, dpos)
+            addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
             return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
 
 -- merge defaults and actual parameters depending on the override flag
-mergeParams :: [(GeneralString, GeneralValue)] -> [(GeneralString, GeneralValue)] -> Bool -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralString, GeneralString)])
+mergeParams :: [(GeneralString, GeneralValue)] -> [(GeneralString, GeneralValue)] -> Bool -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
 mergeParams srcparams defs override = let
     (dstparams, dstrels) = partitionParamsRelations defs
     srcprm = Map.fromList srcparams
@@ -374,7 +344,7 @@ addResource rtype parameters virtuality position grname = do
         Left  e -> return $ Left e
     let (realparams, relations) = partitionParamsRelations rparameters
     -- push all the relations
-    addUnresRel (relations, (Right rtype, srname), UNormal, position)
+    addUnresRel (relations, (rtype, srname), UNormal, position)
     return [CResource resid srname rtype realparams virtuality position]
 
 -- node
@@ -427,9 +397,9 @@ evaluateStatements (ResourceOverride rotype roname roparams ropos) = do
     return []
 evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) position) = do
     setPos position
-    gdstname <- tryResolveExpressionString dstname
+    gdstname <- tryResolveExpression dstname
     gsrcname <- tryResolveExpressionString srcname
-    addUnresRel ( [(RRequire, Right dsttype, gdstname)], (Right srctype, gsrcname), UPlus, position )
+    addUnresRel ( [(RRequire, Right $ ResolvedString dsttype, gdstname)], (srctype, gsrcname), UPlus, position )
     return []
 -- <<| |>>
 evaluateStatements (ResourceCollection rtype expr overrides position) = do
@@ -533,8 +503,8 @@ evaluateClass x _ _ = throwError ("Someone managed to run evaluateClass against 
 
 addClassDependency :: String -> CResource -> CatalogMonad ()
 addClassDependency cname (CResource _ rname rtype _ _ position) = addUnresRel (
-    [(RRequire, Right "class", Right cname)]
-    , (Right rtype, rname)
+    [(RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname)]
+    , (rtype, rname)
     , UPlus, position)
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
