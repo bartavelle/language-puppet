@@ -1,10 +1,10 @@
-v0.1.7
+v0.1.7 ()
   Bugs fixed
     * Fix bug with < in the Erb parser !
   New features
     * Quick resolution of boolean conditions.
 
-v0.1.6
+v0.1.6 (2012/08/01)
   New features
     * Errors now print a stack trace (only works with profiling builds)
     * Nested classes
@@ -16,14 +16,14 @@ v0.1.6
     * Resolving non empty arrays as boolean returns true
 	* Duplicate parameters are now detected
 
-v0.1.5
+v0.1.5 (2012/07/06)
   Bugs fixed
     * Detection of spurious parameters when declaring parametrized classes now
 	works.
 	* Resource overrides with non trivial names should now work.
 	* Require statements in required files would not be loaded.
 
-v0.1.4
+v0.1.4 (2012/07/02)
   New features
     * Basic native template function.
     * Added anchor as a native type for now. A better fix will be to just parse
