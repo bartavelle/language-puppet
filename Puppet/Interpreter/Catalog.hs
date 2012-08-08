@@ -561,16 +561,24 @@ tryResolveGeneralValue n@(Left (UnderOperation      a b))   = compareGeneralValu
 tryResolveGeneralValue n@(Left (DifferentOperation  a b))   = compareGeneralValue n a b [LT,GT]
 tryResolveGeneralValue n@(Left (OrOperation a b)) = do
     ra <- tryResolveBoolean $ Left a
-    rb <- tryResolveBoolean $ Left b
-    case (ra, rb) of
-        (Right (ResolvedBool rra), Right (ResolvedBool rrb)) -> return $ Right $ ResolvedBool $ rra || rrb
-        _ -> return n
+    if( ra == Right (ResolvedBool True) )
+        then return $ Right $ ResolvedBool True
+        else do
+            rb <- tryResolveBoolean $ Left b
+            case (ra, rb) of
+                (_, Right (ResolvedBool True)) -> return $ Right $ ResolvedBool True
+                (Right (ResolvedBool rra), Right (ResolvedBool rrb)) -> return $ Right $ ResolvedBool $ rra || rrb
+                _ -> return n
 tryResolveGeneralValue n@(Left (AndOperation a b)) = do
     ra <- tryResolveBoolean $ Left a
-    rb <- tryResolveBoolean $ Left b
-    case (ra, rb) of
-        (Right (ResolvedBool rra), Right (ResolvedBool rrb)) -> return $ Right $ ResolvedBool $ rra && rrb
-        _ -> return n
+    if( ra == Right (ResolvedBool False) )
+        then return $ Right $ ResolvedBool False
+        else do
+            rb <- tryResolveBoolean $ Left b
+            case (ra, rb) of
+                (_, Right (ResolvedBool False)) -> return $ Right $ ResolvedBool False
+                (Right (ResolvedBool rra), Right (ResolvedBool rrb)) -> return $ Right $ ResolvedBool $ rra && rrb
+                _ -> return n
 tryResolveGeneralValue   (Left (NotOperation x)) = do
     rx <- tryResolveBoolean $ Left x
     case rx of
@@ -610,7 +618,7 @@ tryResolveGeneralValue o@(Left (PlusOperation a b)) = arithmeticOperation a b (+
 tryResolveGeneralValue o@(Left (MinusOperation a b)) = arithmeticOperation a b (-) (-) o
 tryResolveGeneralValue o@(Left (DivOperation a b)) = arithmeticOperation a b div (/) o
 tryResolveGeneralValue o@(Left (MultiplyOperation a b)) = arithmeticOperation a b (*) (*) o
-            
+
 tryResolveGeneralValue e = throwPosError ("tryResolveGeneralValue not implemented for " ++ show e)
 
 resolveGeneralValue :: GeneralValue -> CatalogMonad ResolvedValue

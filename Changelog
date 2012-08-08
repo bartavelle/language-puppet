@@ -1,6 +1,8 @@
 v0.1.7
   Bugs fixed
     * Fix bug with < in the Erb parser !
+  New features
+    * Quick resolution of boolean conditions.
 
 v0.1.6
   New features
