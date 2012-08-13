@@ -23,7 +23,7 @@ import Puppet.Interpreter.Types
 
 import System.IO.Unsafe
 import Data.List
-import Data.Char (isDigit,toLower,toUpper)
+import Data.Char (isDigit,toLower,toUpper, isAlpha, isAlphaNum)
 import Data.Maybe (isJust, fromJust, catMaybes)
 import Data.Either (lefts, rights, partitionEithers)
 import Data.Ord (comparing)
@@ -699,11 +699,18 @@ tryResolveValue   (FunctionCall "generate" args) = if null args
 tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
     rx <- tryResolveExpressionString x
     case rx of
-        Right s -> do
+        Right s -> let
+            goodpart s = (length s < 64) && (not $ null s) && (isAlpha $ head s) && (all (\x -> (x=='-') || (isAlphaNum x)) s)
+            badparts "" = False
+            badparts str =
+                let (b,e) = break (=='.') str
+                in case (goodpart b, null e) of
+                    (True, False) -> badparts (tail e)
+                    (True, _)     -> False
+                    (False, _)    -> True
+            bad = (null s) || (length s > 255) || (badparts s)
             -- TODO check the parts are 63 char long
-            if (null s) || (length s > 255)
-                then return $ Right $ ResolvedBool False
-                else return $ Right $ ResolvedBool True
+            in return $ Right $ ResolvedBool $ not bad
         _ -> return $ Left $ Value n
 
 tryResolveValue   (FunctionCall "fqdn_rand" args) = if null args

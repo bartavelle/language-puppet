@@ -4,7 +4,7 @@ v0.1.7 ()
   New features
     * Quick resolution of boolean conditions.
 	* Start of the move to a real PCRE library.
-	* Prototype for is_domain_name
+	* Function is_domain_name.
 
 v0.1.6 (2012/08/01)
   New features
