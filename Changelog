@@ -3,6 +3,7 @@ v0.1.7 ()
     * Fix bug with < in the Erb parser !
   New features
     * Quick resolution of boolean conditions.
+	* Start of the move to a real PCRE library.
 
 v0.1.6 (2012/08/01)
   New features

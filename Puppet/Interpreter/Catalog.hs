@@ -21,6 +21,7 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 
+import System.IO.Unsafe
 import Data.List
 import Data.Char (isDigit,toLower,toUpper)
 import Data.Maybe (isJust, fromJust, catMaybes)
@@ -849,9 +850,11 @@ executeFunction "validate_string" [x] = case x of
     y                -> throwPosError $ show y ++ " is not an string"
 executeFunction "validate_re" [x,re] = case (x,re) of
     (ResolvedString z, ResolvedString rre) -> do
-        if (regmatch z rre)
-            then return []
-            else throwPosError $ show x ++ " is does not match the regexp"
+        m <- liftIO $ regmatch z rre
+        case m of
+            Right True  -> return []
+            Right False -> throwPosError $ show x ++ " does not match the regexp " ++ show rre
+            Left err    -> throwPosError $ "Error with regexp " ++ show rre ++ ": " ++ err
     (y,z) -> throwPosError $ "Can't compare " ++ show y ++ " to regexp " ++ show z
 executeFunction "validate_bool" [x] = case x of
     ResolvedBool _ -> return []
@@ -886,7 +889,9 @@ compareValues :: ResolvedValue -> ResolvedValue -> Ordering
 compareValues a@(ResolvedString _) b@(ResolvedInt _) = compareValues b a
 compareValues   (ResolvedInt a)      (ResolvedString b) | isInt b = compare a (read b)
                                                         | otherwise = LT
-compareValues (ResolvedString a) (ResolvedRegexp b) = if regmatch a b then EQ else LT
+compareValues (ResolvedString a) (ResolvedRegexp b) = case (unsafePerformIO $ regmatch a b) of
+    Right True  -> EQ
+    _           -> LT
 compareValues (ResolvedString a) (ResolvedString b) = comparing (map toLower) a b
 compareValues x y = compare x y
 

@@ -16,6 +16,7 @@ import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Char8 as BS
 import Data.String.Utils (join,replace)
 import Text.RegexPR
+import Text.Regex.PCRE.String
 import Puppet.Interpreter.Types
 import Control.Monad.Error
 import System.IO
@@ -52,14 +53,20 @@ regsubst str src dst flags = do
     when extended    $ throwError "Extended flag not implemented"
     when insensitive $ throwError "Case insensitive flag not implemented"
     return $ refunc (alterregexp src) dst str
-
 alterregexp :: String -> String
 alterregexp = replace "\\n" "\n"
 
-regmatch :: String -> String -> Bool
-regmatch str reg = case matchRegexPR (alterregexp str) reg of
-    Just _  -> True
-    Nothing -> False
+regmatch :: String -> String -> IO (Either String Bool)
+regmatch str reg = do
+    icmp <- compile compBlank execBlank reg
+    case icmp of
+        Right rr -> do
+            x <- execute rr str
+            case x of
+                Right (Just _) -> return $ Right True
+                Right Nothing  -> return $ Right False
+                Left err -> return $ Left $ show err
+        Left err -> return $ Left $ show err
 
 -- TODO
 versioncmp :: String -> String -> Integer
