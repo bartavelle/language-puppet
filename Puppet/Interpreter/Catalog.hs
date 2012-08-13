@@ -696,6 +696,16 @@ tryResolveValue   (FunctionCall "generate" args) = if null args
             Just w  -> return $ Right $ ResolvedString w
             Nothing -> throwPosError $ "Function call generate for command " ++ cmdname ++ " (" ++ show cmdargs ++ ") failed"
 
+tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
+    rx <- tryResolveExpressionString x
+    case rx of
+        Right s -> do
+            -- TODO check the parts are 63 char long
+            if (null s) || (length s > 255)
+                then return $ Right $ ResolvedBool False
+                else return $ Right $ ResolvedBool True
+        _ -> return $ Left $ Value n
+
 tryResolveValue   (FunctionCall "fqdn_rand" args) = if null args
     then throwPosError "Empty argument list in fqdn_rand call"
     else do
