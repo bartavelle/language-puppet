@@ -700,7 +700,7 @@ tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
     rx <- tryResolveExpressionString x
     case rx of
         Right s -> let
-            goodpart s = (length s < 64) && (not $ null s) && (isAlpha $ head s) && (all (\x -> (x=='-') || (isAlphaNum x)) s)
+            goodpart gs = (length gs < 64) && (not $ null gs) && (isAlpha $ head gs) && (all (\gx -> (gx=='-') || (isAlphaNum gx)) gs)
             badparts "" = False
             badparts str =
                 let (b,e) = break (=='.') str
@@ -774,7 +774,11 @@ tryResolveValue n@(FunctionCall "split" [str, reg]) = do
     rstr   <- tryResolveExpressionString str
     rreg   <- tryResolveExpressionString reg
     case (rstr, rreg) of
-        (Right sstr, Right sreg) -> return $ Right $ ResolvedArray $ map ResolvedString $ puppetSplit sstr sreg
+        (Right sstr, Right sreg) -> do
+            sp <- liftIO $ puppetSplit sstr sreg
+            case sp of
+                Right o -> return $ Right $ ResolvedArray $ map ResolvedString o
+                Left  r -> throwPosError $ "split error: " ++ show r
         _                        -> return $ Left $ Value n
 tryResolveValue   (FunctionCall "split" _) = throwPosError "Bad argument count for function split"
 tryResolveValue n@(FunctionCall "upcase"  args) = stringTransform args n (map toUpper)

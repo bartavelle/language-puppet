@@ -78,8 +78,28 @@ file :: [String] -> IO (Maybe String)
 file [] = return Nothing
 file (x:xs) = catch (liftM Just (withFile x ReadMode hGetContents)) (\_ -> file xs)
 
-puppetSplit :: String -> String -> [String]
-puppetSplit str reg = splitRegexPR reg str
+-- puppetSplit str reg = splitRegexPR reg str
+puppetSplit :: String -> String -> IO (Either String [String])
+puppetSplit str reg = do
+    icmp <- compile compBlank execBlank reg
+    case icmp of
+        Right rr -> execSplit rr str
+        Left err -> return $ Left $ show err
+
+-- helper for puppetSplit, once the regexp is compiled
+execSplit :: Regex -> String -> IO (Either String [String])
+execSplit _  ""  = return $ Right [""]
+execSplit rr str = do
+    x <- regexec rr str
+    case x of
+        Right (Just (before, _, after, _)) -> do
+            hPutStrLn stderr $ show (before,after)
+            sx <- execSplit rr after
+            case sx of
+                Right s -> return $ Right $ before:s
+                Left er -> return $ Left  $ show er
+        Right Nothing  -> return $ Right [str]
+        Left err -> return $ Left $ show err
 
 generate :: String -> [String] -> IO (Maybe String)
 generate command args = do
