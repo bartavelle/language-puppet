@@ -1,6 +1,6 @@
 v0.1.7 ()
   Bugs fixed
-    * Fix bug with < in the Erb parser !
+    * Fix bug with '<' in the Erb parser !
   New features
     * Quick resolution of boolean conditions.
 	* Start of the move to a real PCRE library.
@@ -8,15 +8,15 @@ v0.1.7 ()
 
 v0.1.6 (2012/08/01)
   New features
-    * Errors now print a stack trace (only works with profiling builds)
-    * Nested classes
-    * generate() function
-    * defines with spurious top level statements now should work
-	* validate_* functions from puppetlabs/stdlib
+    * Errors now print a stack trace (only works with profiling builds).
+    * Nested classes.
+    * generate() function.
+    * defines with spurious top level statements now should work.
+	* validate_* functions from puppetlabs/stdlib.
   Bugs fixed
-    * Metaparameters now include stages (not handled)
-    * Resolving non empty arrays as boolean returns true
-	* Duplicate parameters are now detected
+    * Metaparameters now include stages (not handled).
+    * Resolving non empty arrays as boolean returns true.
+	* Duplicate parameters are now detected.
 
 v0.1.5 (2012/07/06)
   Bugs fixed
