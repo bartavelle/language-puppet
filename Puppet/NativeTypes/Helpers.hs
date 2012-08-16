@@ -91,6 +91,21 @@ integer prm res = string prm res >>= integer' prm
             Just (ResolvedInt _) -> Right rs
             _ -> Left $ "Parameter " ++ pr ++ " must be an integer"
 
+-- | Copies the "name" value into this if this is not set.
+nameval :: String -> PuppetTypeValidate
+nameval prm res = do
+    nres <- string prm res
+    case Map.lookup "name" (rrparams res) of
+        Just (ResolvedString nm) -> defaultvalue nm prm nres
+        Just x                   -> Left $ "Parameter name should be a string, and not " ++ show x
+        Nothing                  -> Left "Parameter name not set."
+
+-- | Checks that a given parameter is set.
+mandatory :: String -> PuppetTypeValidate
+mandatory param res = case Map.lookup param (rrparams res) of
+    Just _  -> Right res
+    Nothing -> Left $ "Parameter " ++ param ++ " should be set."
+
 -- | Helper that takes a list of stuff and will generate a validator.
 parameterFunctions :: [(String, [String -> PuppetTypeValidate])] -> PuppetTypeValidate
 parameterFunctions argrules rs = foldM parameterFunctions' rs argrules
