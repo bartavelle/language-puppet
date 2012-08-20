@@ -34,7 +34,7 @@ def = emptyDef
     , P.reservedNames  = ["if", "else", "case", "elsif", "and", "or", "in", "import", "include", "define", "require", "class", "node"]
     , P.reservedOpNames= ["=>","=","+","-","/","*","+>","->","~>","!"]
     , P.caseSensitive  = True
-    } 
+    }
 
 lexer       = P.makeTokenParser def
 parens      = P.parens lexer
@@ -53,8 +53,8 @@ lowerFirstChar x = [toLower $ head x] ++ (tail x)
 -- expression parser
 {-| This is a parser for Puppet 'Expression's. -}
 exprparser = buildExpressionParser table term <?> "expression"
-        
-table =     [ 
+
+table =     [
               [ Infix ( reservedOp "?" >> return ConditionalValue ) AssocLeft ]
             , [ Prefix ( symbol "-" >> return NegOperation ) ]
             , [ Prefix ( symbol "!" >> return NotOperation ) ]
@@ -288,7 +288,7 @@ puppetUndefined = do
 
 puppetNumeric = do { v <- naturalOrFloat
     ; return (case v of
-            Left x -> (Value . Integer) x 
+            Left x -> (Value . Integer) x
             Right x -> (Value . Double) x
         )
     }
@@ -307,7 +307,6 @@ puppetResourceGroup = do
         "@"     -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Virtual pos)) (concat x)
         "@@"    -> return $ map (\(rname, rvalues, pos) -> (Resource v rname rvalues Exported pos)) (concat x)
         _       -> unexpected "Too many @'s"
-    
 
 -- todo parse resource collection properly
 puppetResourceCollection = do { pos <- getPosition
@@ -387,7 +386,6 @@ puppetDefine = do { pos <- getPosition
     ; symbol "}"
     ; return [DefineDeclaration cname params (concat st) pos]
     }
-    
 
 puppetIfStyleCondition = do { cond <- exprparser <?> "Conditional expression"
     ; symbol "{"
@@ -395,7 +393,7 @@ puppetIfStyleCondition = do { cond <- exprparser <?> "Conditional expression"
     ; symbol "}"
     ; return (cond, concat e)
     }
-    
+
 puppetElseIfCondition = do { reservedOp "elsif"
     ; whiteSpace
     ; out <- puppetIfStyleCondition
@@ -419,7 +417,7 @@ puppetIfCondition = do { pos <- getPosition
     ; return [ConditionalStatement ([maincond] ++ others ++ [(BTrue, elsec)]) pos]
     }
 
-puppetCase = do { 
+puppetCase = do {
       compares <- exprparser `sepBy` symbol ","
     ; symbol ":"
     ; symbol "{"
