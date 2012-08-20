@@ -78,7 +78,6 @@ file :: [String] -> IO (Maybe String)
 file [] = return Nothing
 file (x:xs) = catch (liftM Just (withFile x ReadMode hGetContents)) (\_ -> file xs)
 
--- puppetSplit str reg = splitRegexPR reg str
 puppetSplit :: String -> String -> IO (Either String [String])
 puppetSplit str reg = do
     icmp <- compile compBlank execBlank reg
@@ -93,7 +92,6 @@ execSplit rr str = do
     x <- regexec rr str
     case x of
         Right (Just (before, _, after, _)) -> do
-            hPutStrLn stderr $ show (before,after)
             sx <- execSplit rr after
             case sx of
                 Right s -> return $ Right $ before:s

@@ -3,6 +3,7 @@ module Puppet.NativeTypes (nativeTypes) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.NativeTypes.File
+import Puppet.NativeTypes.ZoneRecord
 import qualified Data.Map as Map
 
 fakeTypes = map faketype ["class", "ssh_authorized_key_secure"]
@@ -11,4 +12,4 @@ defaultTypes = map defaulttype ["augeas","computer","cron","exec","filebucket","
 
 -- | The map of native types. They are described in "Puppet.NativeTypes.Helpers".
 nativeTypes :: Map.Map PuppetTypeName PuppetTypeMethods
-nativeTypes = Map.fromList (fakeTypes ++ defaultTypes ++ nativeFile)
+nativeTypes = Map.fromList (fakeTypes ++ defaultTypes ++ nativeFile ++ nativeZoneRecord)
