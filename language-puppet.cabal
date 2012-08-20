@@ -53,13 +53,13 @@ Library
   -- Modules exported by the library.
   Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes, Puppet.DSL.Types,
                        Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers
-  
+
   -- Packages needed in order to build this package.
   Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring,cryptohash,base16-bytestring,regex-pcre-builtin
-  
+
   -- Modules not exported by this package.
-  Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby, Erb.Evaluate
-  
+  Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby, Erb.Evaluate, Puppet.NativeTypes.ZoneRecord
+
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
 

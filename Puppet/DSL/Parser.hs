@@ -48,7 +48,7 @@ whiteSpace  = P.whiteSpace lexer
 naturalOrFloat     = P.naturalOrFloat lexer
 
 lowerFirstChar :: String -> String
-lowerFirstChar x = [toLower $ head x] ++ (tail x)
+lowerFirstChar x = toLower (head x) : tail x
 
 -- expression parser
 {-| This is a parser for Puppet 'Expression's. -}
@@ -104,9 +104,7 @@ puppetVariableOrHashLookup = do { v <- puppetVariable
     }
 
 makeLookupOperation :: String -> [Expression] -> Expression
-makeLookupOperation name exprs = foldl lookups (LookupOperation (Value (VariableReference name)) (head exprs)) (tail exprs)
-    where
-        lookups ctx v = LookupOperation ctx v
+makeLookupOperation name exprs = foldl LookupOperation (LookupOperation (Value (VariableReference name)) (head exprs)) (tail exprs)
 
 identstring = many1 (alphaNum <|> oneOf "-_")
 
@@ -118,20 +116,20 @@ identifier = do {
 
 puppetResourceReference = do { rtype <- puppetQualifiedReference
     ; symbol "["
-    ; rnames <- exprparser `sepBy` (symbol ",")
+    ; rnames <- exprparser `sepBy` symbol ","
     ; symbol "]"
     ; if length rnames == 1
         then return $ Value (ResourceReference rtype (head rnames))
-        else return $ Value $ PuppetArray $ map (\rname -> Value $ ResourceReference rtype rname) rnames
+        else return $ Value $ PuppetArray $ map (Value . ResourceReference rtype) rnames
     }
 
 puppetResourceOverride = do { pos <- getPosition
     ; rtype <- puppetQualifiedReference
     ; symbol "["
-    ; rname <- exprparser `sepBy` (symbol ",")
+    ; rname <- exprparser `sepBy` symbol ","
     ; symbol "]"
     ; symbol "{"
-    ; e <- puppetAssignment `sepEndBy` (symbol ",")
+    ; e <- puppetAssignment `sepEndBy` symbol ","
     ; symbol "}"
     ; return (map (\n -> ResourceOverride rtype n e pos) rname)
     }
@@ -185,7 +183,7 @@ puppetHash = do { symbol "{"
     ; return $ Value (PuppetHash (Parameters e))
     }
 
-puppetAssignment = do { n <- puppetRegexpExpr <|> puppetVariableOrHashLookup <|> puppetLiteralValue
+puppetAssignment = do { n <- exprparser
     ; symbol "=>"
     ; v <- exprparser
     ; return $ (n, v)
