@@ -14,6 +14,7 @@ parameterfunctions =
     [("backup"      , [string])
     ,("checksum"    , [values ["md5", "md5lite", "mtime", "ctime", "none"]])
     ,("content"     , [string])
+    --,("ensure"      , [defaultvalue "present", string, values ["directory","file","present","absent","link"]])
     ,("ensure"      , [defaultvalue "present", string])
     ,("force"       , [string, values ["true","false"]])
     ,("group"       , [defaultvalue "root", string])

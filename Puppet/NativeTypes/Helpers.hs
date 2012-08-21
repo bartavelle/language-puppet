@@ -65,8 +65,8 @@ values :: [String] -> String -> PuppetTypeValidate
 values valuelist param res = case (Map.lookup param (rrparams res)) of
     Just (ResolvedString x) -> if elem x valuelist
         then Right res
-        else Left $ "Parameter " ++ param ++ " value should be one of " ++ show valuelist
-    Just _  -> Left $ "Parameter " ++ param ++ " value should be one of " ++ show valuelist
+        else Left $ "Parameter " ++ param ++ " value should be one of " ++ show valuelist ++ " and not " ++ x
+    Just x  -> Left $ "Parameter " ++ param ++ " value should be one of " ++ show valuelist ++ " and not " ++ show x
     Nothing -> Right res
 
 -- | This fills the default values of unset parameters.
