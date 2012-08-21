@@ -22,7 +22,7 @@ parameterfunctions =
     ,("links"       , [string])
     ,("mode"        , [integer])
     ,("owner"       , [string])
-    ,("path"        , [nameval, string])
+    ,("path"        , [nameval, string, mandatory, fullyQualified])
     ,("provider"    , [values ["posix","windows"]])
     ,("purge"       , [string, values ["true","false"]])
     ,("recurse"     , [string, values ["inf","true","false","remote"]])
@@ -34,16 +34,7 @@ parameterfunctions =
     ]
 
 validateFile :: PuppetTypeValidate
-validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent >=> fullyQualified
-
-fullyQualified :: PuppetTypeValidate
-fullyQualified res =
-    let path = (rrparams res) Map.! "path"
-    in case path of
-        ResolvedString ("")    -> Left "Empty path."
-        ResolvedString ('/':_) -> Right res
-        ResolvedString p       -> Left $ "Path must be absolute, not " ++ p
-        x                      -> Left $ "SHOULD NOT HAPPEN: path is not a resolved string, but " ++ show x
+validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent
 
 validateSourceOrContent :: PuppetTypeValidate
 validateSourceOrContent res = let
