@@ -2,6 +2,7 @@ v0.1.7 ()
   Bugs fixed
     * Fix bug with '<' in the Erb parser !
     * Assignments can now be any valid Puppet expression.
+    * Proper list of metaparameters.
   New features
     * Quick resolution of boolean conditions.
     * Start of the move to a real PCRE library.

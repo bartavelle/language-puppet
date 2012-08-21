@@ -821,11 +821,11 @@ tryResolveValueString x = do
         Left  v                  -> return $ Left v
 
 getRelationParameterType :: GeneralString -> Maybe LinkType
-getRelationParameterType (Right "require" ) = Just RRequire
-getRelationParameterType (Right "notify"  ) = Just RNotify
-getRelationParameterType (Right "before"  ) = Just RBefore
-getRelationParameterType (Right "register") = Just RRegister
-getRelationParameterType _                  = Nothing
+getRelationParameterType (Right "require" )  = Just RRequire
+getRelationParameterType (Right "notify"  )  = Just RNotify
+getRelationParameterType (Right "before"  )  = Just RBefore
+getRelationParameterType (Right "subscribe") = Just RSubscribe
+getRelationParameterType _                   = Nothing
 
 -- this function saves a new condition for collection
 pushRealize :: ResolvedValue -> CatalogMonad ()

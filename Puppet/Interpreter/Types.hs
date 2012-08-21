@@ -12,7 +12,7 @@ type Catalog =[CResource]
 type Facts = Map.Map String ResolvedValue
 
 -- | Relationship link type.
-data LinkType = RNotify | RRequire | RBefore | RRegister deriving(Show, Ord, Eq)
+data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Ord, Eq)
 
 -- | The list of resolved values that are used to define everything in a
 -- 'FinalCatalog' and in the resolved parts of a 'Catalog'. They are to be
@@ -140,5 +140,5 @@ generalizeStringS :: String -> GeneralString
 generalizeStringS = Right
 
 -- |This is the set of meta parameters
-metaparameters = Set.fromList ["tag","stage","name","title"]
+metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule"]
 
