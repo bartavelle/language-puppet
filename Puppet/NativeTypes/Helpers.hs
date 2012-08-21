@@ -48,17 +48,31 @@ addDefaults res = Right (res { rrparams = newparams } )
         defaults  = Map.fromList [("name", nm),("title", nm)]
         nm = ResolvedString $ rrname res
 
+-- | Helper function that runs a validor on a ResolvedArray
+runarray :: String -> (String -> ResolvedValue -> PuppetTypeValidate) -> PuppetTypeValidate
+runarray param func res = case Map.lookup param (rrparams res) of
+    Just (ResolvedArray x) -> foldM (\res' cu -> func param cu res') res x
+    Just x                 -> Left $ "Parameter " ++ param ++ " should be an array, not " ++ show x
+    Nothing                -> Right res
+
 {-| This checks that a given parameter is a string. If it is a 'ResolvedInt' or
 'ResolvedBool' it will convert them to strings.
 -}
 string :: String -> PuppetTypeValidate
 string param res = case Map.lookup param (rrparams res) of
-    Just (ResolvedString _)   -> Right res
-    Just (ResolvedInt n)      -> Right (insertparam res param (ResolvedString $ show n))
-    Just (ResolvedBool True)  -> Right (insertparam res param (ResolvedString "true"))
-    Just (ResolvedBool False) -> Right (insertparam res param (ResolvedString "false"))
-    Just x                    -> Left $ "Parameter " ++ param ++ " should be a string, and not " ++ show x
+    Just x  -> string' param x res
     Nothing -> Right res
+
+strings :: String -> PuppetTypeValidate
+strings param res = runarray param string' res
+
+string' :: String -> ResolvedValue -> PuppetTypeValidate
+string' param re res = case re of
+    ResolvedString _   -> Right res
+    ResolvedInt n      -> Right (insertparam res param (ResolvedString $ show n))
+    ResolvedBool True  -> Right (insertparam res param (ResolvedString "true"))
+    ResolvedBool False -> Right (insertparam res param (ResolvedString "false"))
+    x                  -> Left $ "Parameter " ++ param ++ " should be a string, and not " ++ show x
 
 -- | Makes sure that the parameter, if defined, has a value among this list.
 values :: [String] -> String -> PuppetTypeValidate
@@ -84,12 +98,19 @@ integer :: String -> PuppetTypeValidate
 integer prm res = string prm res >>= integer' prm
     where
         integer' pr rs = case (Map.lookup pr (rrparams rs)) of
+            Just x  -> integer'' prm x res
             Nothing -> Right rs
-            Just (ResolvedString x) -> if all isDigit x
-                then Right $ insertparam rs pr (ResolvedInt $ read x)
-                else Left $ "Parameter " ++ pr ++ " should be a number"
-            Just (ResolvedInt _) -> Right rs
-            _ -> Left $ "Parameter " ++ pr ++ " must be an integer"
+
+integers :: String -> PuppetTypeValidate
+integers param res = runarray param integer'' res
+
+integer'' :: String -> ResolvedValue -> PuppetTypeValidate
+integer'' param val res = case val of
+    ResolvedString x -> if all isDigit x
+        then Right $ insertparam res param (ResolvedInt $ read x)
+        else Left $ "Parameter " ++ param ++ " should be a number"
+    ResolvedInt _ -> Right res
+    _ -> Left $ "Parameter " ++ param ++ " must be an integer"
 
 -- | Copies the "name" value into this if this is not set.
 nameval :: String -> PuppetTypeValidate
@@ -114,3 +135,25 @@ parameterFunctions argrules rs = foldM parameterFunctions' rs argrules
     parameterFunctions' r (param, validationfunctions) = foldM (parameterFunctions'' param) r validationfunctions
     parameterFunctions'' :: String -> RResource -> (String -> PuppetTypeValidate) -> Either String RResource
     parameterFunctions'' param r validationfunction = validationfunction param r
+
+-- checks that a parameter is fully qualified
+fullyQualified :: String -> PuppetTypeValidate
+fullyQualified param res = case Map.lookup param (rrparams res) of
+    Just path -> fullyQualified' param path res
+    Nothing -> Right res
+
+fullyQualifieds :: String -> PuppetTypeValidate
+fullyQualifieds param res = runarray param fullyQualified' res
+
+fullyQualified' :: String -> ResolvedValue -> PuppetTypeValidate
+fullyQualified' param path res = case path of
+    ResolvedString ("")    -> Left $ "Empty path for parameter " ++ param
+    ResolvedString ('/':_) -> Right res
+    ResolvedString p       -> Left $ "Path must be absolute, not " ++ p ++ " for parameter " ++ param
+    x                      -> Left $ "SHOULD NOT HAPPEN: path is not a resolved string, but " ++ show x ++ " for parameter " ++ show x
+
+rarray :: String -> PuppetTypeValidate
+rarray param res = case Map.lookup param (rrparams res) of
+    Just (ResolvedArray _) -> Right res
+    Just x                 -> Right $ insertparam res param (ResolvedArray [x])
+    Nothing                -> Right res
