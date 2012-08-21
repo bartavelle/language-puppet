@@ -7,7 +7,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Char
 
-nativeCron = [("cron", PuppetTypeMethods validateCron parameterset)]
+nativeCron = ("cron", PuppetTypeMethods validateCron parameterset)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterset = Set.fromList $ map fst parameterfunctions
