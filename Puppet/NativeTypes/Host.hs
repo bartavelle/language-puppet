@@ -43,7 +43,7 @@ checkhostname'' prm res prt =
         nextfunc = if (null nxt)
                         then Right res
                         else checkhostname'' prm res (tail nxt)
-    in if (null cur || (head cur == '-') || (not $ all isAlphaNum cur))
+    in if (null cur || (head cur == '-') || (not $ all (\x -> isAlphaNum x || (x=='-')) cur))
             then Left $ "Invalid hostname part for parameter " ++ prm
             else nextfunc
 
