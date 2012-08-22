@@ -40,14 +40,13 @@ evalExpression _  _   x = Left $ "Can't evaluate " ++ show x
 
 getVariable :: Map.Map String GeneralValue -> String -> String -> Either String ResolvedValue
 getVariable mp ctx rvname =
-    let vars = map (\x -> Map.lookup x mp) [rvname, ctx ++ "::" ++ rvname, "::" ++ rvname]
-        jsts = catMaybes vars
+    let vars  = map (\x -> Map.lookup x mp) [rvname, ctx ++ "::" ++ rvname, "::" ++ rvname]
+        jsts  = catMaybes vars
         rghts = rights jsts
     in do
-        when (null jsts) (throwError $ "Can't resolve variable " ++ rvname)
-        when (null rghts) (throwError $ "Variable " ++ rvname ++ " value is not resolved")
+        when (null jsts)  (throwError $ "ERB: can't resolve variable " ++ rvname)
+        when (null rghts) (throwError $ "ERB: variable " ++ rvname ++ " value is not resolved")
         return (head rghts)
-        
 
 evalValue :: GeneralValue -> Either String String
 evalValue (Left _) = Left $ "Can't evaluate a value"
