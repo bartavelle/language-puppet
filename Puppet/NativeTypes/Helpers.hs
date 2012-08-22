@@ -157,3 +157,29 @@ rarray param res = case Map.lookup param (rrparams res) of
     Just (ResolvedArray _) -> Right res
     Just x                 -> Right $ insertparam res param (ResolvedArray [x])
     Nothing                -> Right res
+
+ipaddr :: String -> PuppetTypeValidate
+ipaddr param res = case Map.lookup param (rrparams res) of
+    Nothing                  -> Right res
+    Just (ResolvedString ip) ->
+        if checkipv4 ip 0
+            then Right res
+            else Left $ "Invalid IP address for parameter " ++ param
+    Just x -> Left $ "Parameter " ++ param ++ " should be an IP address string, not " ++ show x
+
+checkipv4 :: String -> Int -> Bool
+checkipv4 _  4 = False -- means that there are more than 4 groups
+checkipv4 "" _ = False -- should never get an empty string
+checkipv4 ip v =
+    let (cur, nxt) = break (=='.') ip
+        nextfunc = if null nxt
+            then (v == 3)
+            else checkipv4 (tail nxt) (v+1)
+        goodcur = if (not $ null cur) && (all isDigit cur)
+                    then
+                        let rcur = read cur :: Int
+                        in  (rcur>=0) && (rcur<=255)
+                    else False
+    in if goodcur
+        then nextfunc
+        else False

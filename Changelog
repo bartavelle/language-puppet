@@ -7,7 +7,7 @@ v0.1.7 ()
     * Quick resolution of boolean conditions.
     * Start of the move to a real PCRE library.
     * Function is_domain_name.
-    * New native types : zone_record, cron, exec, group.
+    * New native types : zone_record, cron, exec, group, host.
 
 v0.1.6 (2012/08/01)
   New features
