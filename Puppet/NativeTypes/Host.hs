@@ -40,10 +40,10 @@ checkhostname'' :: String -> RResource -> String -> Either String RResource
 checkhostname'' prm _   "" = Left $ "Empty hostname part in parameter " ++ prm
 checkhostname'' prm res prt =
     let (cur,nxt) = break (=='.') prt
-        nextfunc = if (null nxt)
+        nextfunc = if null nxt
                         then Right res
                         else checkhostname'' prm res (tail nxt)
-    in if (null cur || (head cur == '-') || (not $ all (\x -> isAlphaNum x || (x=='-')) cur))
+    in if null cur || (head cur == '-') || not (all (\x -> isAlphaNum x || (x=='-')) cur)
             then Left $ "Invalid hostname part for parameter " ++ prm
             else nextfunc
 

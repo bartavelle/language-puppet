@@ -64,7 +64,7 @@ string param res = case Map.lookup param (rrparams res) of
     Nothing -> Right res
 
 strings :: String -> PuppetTypeValidate
-strings param res = runarray param string' res
+strings param = runarray param string'
 
 string' :: String -> ResolvedValue -> PuppetTypeValidate
 string' param re res = case re of
@@ -102,7 +102,7 @@ integer prm res = string prm res >>= integer' prm
             Nothing -> Right rs
 
 integers :: String -> PuppetTypeValidate
-integers param res = runarray param integer'' res
+integers param = runarray param integer''
 
 integer'' :: String -> ResolvedValue -> PuppetTypeValidate
 integer'' param val res = case val of
@@ -143,7 +143,7 @@ fullyQualified param res = case Map.lookup param (rrparams res) of
     Nothing -> Right res
 
 fullyQualifieds :: String -> PuppetTypeValidate
-fullyQualifieds param res = runarray param fullyQualified' res
+fullyQualifieds param = runarray param fullyQualified'
 
 fullyQualified' :: String -> ResolvedValue -> PuppetTypeValidate
 fullyQualified' param path res = case path of
@@ -173,13 +173,7 @@ checkipv4 "" _ = False -- should never get an empty string
 checkipv4 ip v =
     let (cur, nxt) = break (=='.') ip
         nextfunc = if null nxt
-            then (v == 3)
+            then v == 3
             else checkipv4 (tail nxt) (v+1)
-        goodcur = if (not $ null cur) && (all isDigit cur)
-                    then
-                        let rcur = read cur :: Int
-                        in  (rcur>=0) && (rcur<=255)
-                    else False
-    in if goodcur
-        then nextfunc
-        else False
+        goodcur = not (null cur) && all isDigit cur && (let rcur = read cur :: Int in (rcur >= 0) && (rcur <= 255))
+    in goodcur && nextfunc
