@@ -34,5 +34,6 @@ validateMandatories :: PuppetTypeValidate
 validateMandatories res = case (Map.lookup "rtype" (rrparams res)) of
     Nothing                     -> Left "The rtype parameter is mandatory."
     Just (ResolvedString "SOA") -> foldM (\r n -> mandatory n r) res ["nsname", "email", "serial", "slave_refresh", "slave_retry", "slave_expiration", "min_ttl"]
-    Just (ResolvedString _)     -> Right res
+    Just (ResolvedString "NS")  -> foldM (\r n -> mandatory n r) res ["owner", "rclass", "rtype", "dest"]
+    Just (ResolvedString _)     -> foldM (\r n -> mandatory n r) res ["owner", "rclass", "rtype", "dest", "ttl"]
     Just x                      -> Left $ "Can't use this for the rtype parameter " ++ show x

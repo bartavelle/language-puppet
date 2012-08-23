@@ -177,3 +177,12 @@ checkipv4 ip v =
             else checkipv4 (tail nxt) (v+1)
         goodcur = not (null cur) && all isDigit cur && (let rcur = read cur :: Int in (rcur >= 0) && (rcur <= 255))
     in goodcur && nextfunc
+
+inrange :: Integer -> Integer -> String -> PuppetTypeValidate
+inrange mi ma param res = case Map.lookup param (rrparams res) of
+    Nothing                 -> Right res
+    Just (ResolvedInt v)    -> if (v>=mi) && (v<=ma)
+                                then Right res
+                                else Left $ "Parameter " ++ param ++ "'s value should be between " ++ show mi ++ " and " ++ show ma
+    Just x                  -> Left $ "Parameter " ++ param ++ " should be an integer, and not " ++ show x
+
