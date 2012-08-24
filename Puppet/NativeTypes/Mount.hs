@@ -12,7 +12,7 @@ parameterfunctions =
     ,("blockdevice" , [string])
     ,("device"      , [string, mandatory])
     ,("dump"        , [integer, inrange 0 2])
-    ,("ensure"      , [defaultvalue "present", string, values ["present","absent"]])
+    ,("ensure"      , [defaultvalue "present", string, values ["present","absent","mounted"]])
     ,("fstype"      , [string, mandatory])
     ,("name"        , [string])
     ,("options"     , [string])
