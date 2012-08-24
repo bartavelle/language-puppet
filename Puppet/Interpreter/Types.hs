@@ -68,7 +68,7 @@ data RResource = RResource {
 	rrelations :: ![Relation], -- ^ Resource relations.
     rrpos :: !SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show, Ord, Eq)
-    
+
 
 type FinalCatalog = Map.Map ResIdentifier RResource
 
@@ -116,9 +116,11 @@ data ScopeState = ScopeState {
     -- ^ This is a function that, given the type of a top level statement and
     -- its name, should return it.
     getWarnings :: ![String], -- ^ List of warnings.
-    curCollect :: ![CResource -> CatalogMonad Bool],
+    curCollect :: ![(CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)])],
     -- ^ A bit complicated, this stores the collection functions. These are
     -- functions that determine whether a resource should be collected or not.
+    -- It can optionally store overrides, which will be applied in the end on
+    -- all resources.
     unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
     -- ^ This stores unresolved relationships, because the original string name
     -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]

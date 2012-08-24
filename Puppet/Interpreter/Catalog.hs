@@ -10,6 +10,9 @@ Here is a list of known discrepencies with Puppet :
 
 * Things defined in classes that are not included cannot be accessed. In vanilla
 puppet, you can use subclass to classes that are not imported themselves.
+
+* Amending attributes with a reference will not cause an error when done out of
+an inherited class.
 -}
 module Puppet.Interpreter.Catalog (
     getCatalog
@@ -100,7 +103,7 @@ computeCatalog getstatements nodename = do
 -- this validates the resolved resources
 -- it should only be called with native types or the validatefunction lookup with abord with an error
 finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
-finalizeResource (CResource cid cname ctype cparams _ cpos) = do
+finalizeResource cr@(CResource cid cname ctype cparams _ cpos) = do
     setPos cpos
     rname <- resolveGeneralString cname
     rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
@@ -108,8 +111,10 @@ finalizeResource (CResource cid cname ctype cparams _ cpos) = do
     -- add collected relations
     -- TODO
     unless (Map.member ctype nativeTypes) $ throwPosError $ "Can't find native type " ++ ctype
+    -- now run the collection checks for overrides
+    nparams <- processOverride cr (Map.fromList rparams)
     let mrrelations = []
-        prefinalresource = RResource cid rname ctype (Map.fromList rparams) mrrelations cpos
+        prefinalresource = RResource cid rname ctype nparams mrrelations cpos
         validatefunction = puppetvalidate (nativeTypes Map.! ctype)
         validated = validatefunction prefinalresource
     case validated of
@@ -125,11 +130,28 @@ collectionChecks res =
     if crvirtuality res == Normal
         then return [res]
         else do
-            isCollected <- liftM curCollect get >>= mapM (\x -> x res)
+            -- only use collection functions whose second member is empty : ie. not overrides.
+            isCollected <- liftM (filter (null . snd) . curCollect) get >>= mapM (\(x, _) -> x res)
             case (or isCollected, crvirtuality res) of
                 (True, Exported)    -> return [res { crvirtuality = Normal }, res]
                 (True,  _)          -> return [res { crvirtuality = Normal }     ]
                 (False, _)          -> return [res                               ]
+
+processOverride :: CResource -> Map.Map String ResolvedValue -> CatalogMonad (Map.Map String ResolvedValue)
+processOverride cr prms =
+    let applyOverride :: CResource -> Map.Map String ResolvedValue -> (CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)]) -> CatalogMonad (Map.Map String ResolvedValue)
+        applyOverride c prm (func, overs) = do
+            check <- func c
+            if check
+                then foldM tryReplace prm overs
+                else return prm
+        tryReplace :: Map.Map String ResolvedValue -> (GeneralString, GeneralValue) -> CatalogMonad (Map.Map String ResolvedValue)
+        tryReplace curmap (gs, gv) = do
+            rs <- resolveGeneralString gs
+            rv <- resolveGeneralValue gv
+            return $ Map.insert rs rv curmap
+    in liftM (filter (not . null . snd) . curCollect) get >>= foldM (applyOverride cr) prms
+
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
@@ -405,16 +427,18 @@ evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) positi
 -- <<| |>>
 evaluateStatements (ResourceCollection rtype expr overrides position) = do
     setPos position
-    unless (null overrides) (throwPosError "Collection overrides not handled")
+    when (not $ null overrides) $ throwPosError $ "Amending attributes with a Collector only works with <| |>, not <<| |>>."
     func <- collectionFunction Exported rtype expr
-    addCollect func
+    addCollect (func, [])
     return []
 -- <| |>
+-- TODO : check that this is a native type when overrides are defined.
+-- The behaviour is not explained in the documentation, so I won't support it.
 evaluateStatements (VirtualResourceCollection rtype expr overrides position) = do
     setPos position
-    unless (null overrides) (throwPosError "Collection overrides not handled")
     func <- collectionFunction Virtual rtype expr
-    addCollect func
+    prms <- mapM resolveParams overrides
+    addCollect (func, prms)
     return []
 
 evaluateStatements (VariableAssignment vname vexpr position) = do
@@ -834,7 +858,7 @@ pushRealize (ResolvedRReference rtype (ResolvedString rname)) = do
         myfunction (CResource _ mcrname mcrtype _ _ _) = do
             srname <- resolveGeneralString mcrname
             return ((srname == rname) && (mcrtype == rtype))
-    addCollect myfunction
+    addCollect (myfunction, [])
     return ()
 pushRealize (ResolvedRReference _ x) = throwPosError (show x ++ " was not resolved to a string")
 pushRealize x                        = throwPosError ("A reference was expected instead of " ++ show x)
@@ -983,8 +1007,9 @@ collectionFunction virt mrtype exprs = do
                         return (cmp == rb)
                 )
         x -> throwPosError $ "TODO : implement collection function for " ++ show x
-    return (\res ->
-        if (crtype res == mrtype) && (crvirtuality res == virt)
+    return (\res -> do
+        -- <| |> matches Normal resources
+        if (crtype res == mrtype) && ( ((virt == Virtual) &&  (crvirtuality res == Normal)) || (crvirtuality res == virt))
             then finalfunc res
             else return False
             )
