@@ -269,7 +269,7 @@ applyDefaults res = liftM curDefaults get >>= foldM applyDefaults' res
 applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
 applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults dtype rdefs dpos) = do
     srname <- resolveGeneralString rname
-    let (nparams, nrelations) = mergeParams rparams rdefs False 
+    let (nparams, nrelations) = mergeParams rparams rdefs False
     if dtype == rtype
         then do
             addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
@@ -311,7 +311,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
         putVariable "title" (expr, rpos)
         putVariable "name" (expr, rpos)
         mapM_ (loadClassVariable rpos mparams) args
-     
+
         -- parse statements
         res <- mapM evaluateStatements dstmts
         nres <- handleDelayedActions (concat res)
@@ -326,7 +326,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
             evaluateDefineDeclaration dtype args dstmts dpos
         (Normal, Just (DefineDeclaration dtype args dstmts dpos)) -> evaluateDefineDeclaration dtype args dstmts dpos
         _ -> return [r]
-        
+
 
 -- handling delayed actions (such as defaults and define resolution)
 handleDelayedActions :: Catalog -> CatalogMonad Catalog
@@ -470,7 +470,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
             Nothing -> pushScope [classname] -- sets the scope
             Just ac -> pushScope [classname, ac]
         mapM_ (loadClassVariable position inputparams) parameters -- add variables for parametrized classes
-        
+
         -- load inherited classes
         inherited <- case inherits of
             Just parentclass -> do
@@ -849,7 +849,7 @@ executeFunction "create_resources" [mrtype, rdefs] = do
         _                -> throwPosError $ "Resource type must be a string and not " ++ show mrtype
     arghash <- case rdefs of
         ResolvedHash x -> return x
-        _              -> throwPosError $ "Resource definition must be a hash, and not " ++ show rdefs 
+        _              -> throwPosError $ "Resource definition must be a hash, and not " ++ show rdefs
     position <- getPos
     let prestatements = map (\(rname, rargs) -> (Value $ Literal rname, resolved2expression rargs)) arghash
     resources <- mapM (\(resname, pval) -> do
@@ -939,7 +939,7 @@ tryResolveBoolean v = do
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "true"))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the string "true"
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "false"))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the string "false"
         _ -> return rv
- 
+
 resolveBoolean :: GeneralValue -> CatalogMonad Bool
 resolveBoolean v = do
     rv <- tryResolveBoolean v
@@ -964,7 +964,7 @@ collectionFunction virt mrtype exprs = do
             rb <- resolveExpression b
             paramname <- case ra of
                 ResolvedString pname -> return pname
-                _ -> throwPosError "We only support collection of the form 'parameter == value'" 
+                _ -> throwPosError "We only support collection of the form 'parameter == value'"
             defstatement <- checkDefine mrtype
             paramset <- case defstatement of
                 Nothing -> case Map.lookup mrtype nativeTypes of
