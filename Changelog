@@ -1,3 +1,5 @@
+v0.1.8
+
 v0.1.7 (2012/08/24)
   Bugs fixed
     * Fix bug with '<' in the Erb parser !
@@ -7,7 +9,7 @@ v0.1.7 (2012/08/24)
     * Quick resolution of boolean conditions.
     * Start of the move to a real PCRE library.
     * Function is_domain_name.
-    * New native types : zone_record, cron, exec, group, host, mount.
+    * New native types : zone_record, cron, exec, group, host, mount, file.
 
 v0.1.6 (2012/08/01)
   New features
