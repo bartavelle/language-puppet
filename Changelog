@@ -1,4 +1,4 @@
-v0.1.7 ()
+v0.1.7 (2012/08/24)
   Bugs fixed
     * Fix bug with '<' in the Erb parser !
     * Assignments can now be any valid Puppet expression.
