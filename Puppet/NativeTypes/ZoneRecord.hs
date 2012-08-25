@@ -11,7 +11,7 @@ nativeZoneRecord = ("zone_record", PuppetTypeMethods validateZoneRecord paramete
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterset = Set.fromList $ map fst parameterfunctions
 parameterfunctions = 
-    [("name"                , [string]) -- automatically nameval
+    [("name"                , [nameval])
     ,("owner"               , [string])
     ,("dest"                , [string])
     ,("rtype"               , [string, defaultvalue "A", values ["SOA", "A", "AAAA", "MX", "NS", "CNAME", "PTR", "SRV"]])

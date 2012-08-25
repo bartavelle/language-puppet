@@ -6,13 +6,27 @@ tests, but ruby is unreadable and tests are boring.
 
 Here is a list of known discrepencies with Puppet :
 
-* Resources references using the <| |> syntax are not yet supported.
+* Resources references using the \<| |\> syntax are not yet supported.
 
 * Things defined in classes that are not included cannot be accessed. In vanilla
 puppet, you can use subclass to classes that are not imported themselves.
 
 * Amending attributes with a reference will not cause an error when done out of
 an inherited class.
+
+* Variables $0 to $9, set after regexp matching, are not handled.
+
+* Tags work like regular parameters, and are not automatically populated or inherited.
+
+* Modules, nodes, classes and type names starting with _ are allowed.
+
+* Arrows between resource declarations or collectors are not yet handled.
+
+* Reversed form arrows are not handled.
+
+* Node inheritance is not handled, and class inheritance seems to work well,
+but is probably not Puppet-perfect.
+
 -}
 module Puppet.Interpreter.Catalog (
     getCatalog
@@ -130,8 +144,9 @@ collectionChecks res =
     if crvirtuality res == Normal
         then return [res]
         else do
-            -- only use collection functions whose second member is empty : ie. not overrides.
-            isCollected <- liftM (filter (null . snd) . curCollect) get >>= mapM (\(x, _) -> x res)
+            -- Note that amending attributes with a collector does collect virtual
+            -- values. Hence no filtering on the collectors is done here.
+            isCollected <- liftM curCollect get >>= mapM (\(x, _) -> x res)
             case (or isCollected, crvirtuality res) of
                 (True, Exported)    -> return [res { crvirtuality = Normal }, res]
                 (True,  _)          -> return [res { crvirtuality = Normal }     ]
@@ -140,16 +155,20 @@ collectionChecks res =
 processOverride :: CResource -> Map.Map String ResolvedValue -> CatalogMonad (Map.Map String ResolvedValue)
 processOverride cr prms =
     let applyOverride :: CResource -> Map.Map String ResolvedValue -> (CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)]) -> CatalogMonad (Map.Map String ResolvedValue)
+        -- this checks if the collection function matches
         applyOverride c prm (func, overs) = do
             check <- func c
             if check
                 then foldM tryReplace prm overs
                 else return prm
         tryReplace :: Map.Map String ResolvedValue -> (GeneralString, GeneralValue) -> CatalogMonad (Map.Map String ResolvedValue)
+        -- if it does, this resolves the override and applies it
+        -- this is obviously wasteful
         tryReplace curmap (gs, gv) = do
             rs <- resolveGeneralString gs
             rv <- resolveGeneralValue gv
             return $ Map.insert rs rv curmap
+    -- Collectors are filtered so that only those with overrides are passed to the fold.
     in liftM (filter (not . null . snd) . curCollect) get >>= foldM (applyOverride cr) prms
 
 
@@ -598,6 +617,8 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
         (_, Left y) -> throwPosError ("Could not resolve index " ++ show y)
         (Left x, _) -> throwPosError ("Could not resolve lookup " ++ show x)
         (Right x, _) -> throwPosError ("Could not resolve something that is not an array nor a hash, but " ++ show x)
+-- TODO : for hashes, checks the keys
+-- for strings, substrings
 tryResolveGeneralValue o@(Left (IsElementOperation b a)) = do
     ra <- tryResolveExpression a
     rb <- tryResolveExpressionString b
@@ -951,13 +972,11 @@ tryResolveBoolean v = do
         Left BFalse                     -> return $ Right $ ResolvedBool False
         Left BTrue                      -> return $ Right $ ResolvedBool True
         Right (ResolvedString "")       -> return $ Right $ ResolvedBool False
-        Right (ResolvedString "false")  -> return $ Right $ ResolvedBool False
         Right (ResolvedString _)        -> return $ Right $ ResolvedBool True
-        Right (ResolvedInt 0)           -> return $ Right $ ResolvedBool False
         Right (ResolvedInt _)           -> return $ Right $ ResolvedBool True
         Right  ResolvedUndefined        -> return $ Right $ ResolvedBool False
-        Right (ResolvedArray [])        -> return $ Right $ ResolvedBool False
         Right (ResolvedArray _)         -> return $ Right $ ResolvedBool True
+        Right (ResolvedRReference _ _)  -> return $ Right $ ResolvedBool True
         Left (Value (VariableReference _)) -> return $ Right $ ResolvedBool False
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal ""))) -> return $ Right $ ResolvedBool True -- case where a variable was not resolved and compared to the empty string
         Left (EqualOperation (Value (VariableReference _)) (Value (Literal "true"))) -> return $ Right $ ResolvedBool False -- case where a variable was not resolved and compared to the string "true"

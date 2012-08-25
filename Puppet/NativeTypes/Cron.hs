@@ -19,7 +19,7 @@ parameterfunctions =
     ,("minute"              , [vrange 0 59 [] ])
     ,("month"               , [vrange 1 12 ["January","February","March","April","May","June","July","August","September","October","November","December"] ])
     ,("monthday"            , [vrange 1 31 [] ])
-    ,("name"                , [string])
+    ,("name"                , [nameval])
     ,("provider"            , [defaultvalue "crontab", string, values ["crontab"]])
     ,("special"             , [string])
     ,("target"              , [string])

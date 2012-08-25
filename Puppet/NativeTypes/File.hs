@@ -22,7 +22,7 @@ parameterfunctions =
     ,("links"       , [string])
     ,("mode"        , [integer])
     ,("owner"       , [string])
-    ,("path"        , [nameval, string, mandatory, fullyQualified])
+    ,("path"        , [nameval, fullyQualified])
     ,("provider"    , [values ["posix","windows"]])
     ,("purge"       , [string, values ["true","false"]])
     ,("recurse"     , [string, values ["inf","true","false","remote"]])

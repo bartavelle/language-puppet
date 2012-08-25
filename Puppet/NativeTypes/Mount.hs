@@ -14,7 +14,7 @@ parameterfunctions =
     ,("dump"        , [integer, inrange 0 2])
     ,("ensure"      , [defaultvalue "present", string, values ["present","absent","mounted"]])
     ,("fstype"      , [string, mandatory])
-    ,("name"        , [string])
+    ,("name"        , [nameval])
     ,("options"     , [string])
     ,("pass"        , [defaultvalue "0", integer])
     ,("provider"    , [defaultvalue "parsed", string, values ["parsed"]])

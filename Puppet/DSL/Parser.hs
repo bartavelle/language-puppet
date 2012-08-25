@@ -23,6 +23,9 @@ import Text.Parsec.Expr
 import Text.Parsec.Language (emptyDef)
 import Data.List.Utils
 import Puppet.DSL.Types
+import qualified Data.Map as Map
+import Puppet.NativeTypes
+import Control.Monad (when)
 
 def = emptyDef
     { P.commentStart   = "/*"
@@ -30,8 +33,8 @@ def = emptyDef
     , P.commentLine    = "#"
     , P.nestedComments = True
     , P.identStart     = letter
-    , P.identLetter    = alphaNum <|> oneOf "_"
-    , P.reservedNames  = ["if", "else", "case", "elsif", "and", "or", "in", "import", "include", "define", "require", "class", "node"]
+    , P.identLetter    = alphaNum <|> char '_'
+    , P.reservedNames  = ["if", "else", "case", "elsif", "default", "import", "define", "class", "node", "inherits", "true", "false", "undef"]
     , P.reservedOpNames= ["=>","=","+","-","/","*","+>","->","~>","!"]
     , P.caseSensitive  = True
     }
@@ -59,21 +62,21 @@ table =     [
             , [ Prefix ( symbol "-" >> return NegOperation ) ]
             , [ Prefix ( symbol "!" >> return NotOperation ) ]
             , [ Infix ( reserved   "in" >> return IsElementOperation ) AssocLeft ]
-            , [ Infix ( reserved   "and" >> return AndOperation ) AssocLeft 
-              , Infix ( reserved   "or" >> return OrOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "<<" >> return ShiftLeftOperation ) AssocLeft 
-              , Infix ( reservedOp ">>" >> return ShiftRightOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "/" >> return DivOperation ) AssocLeft 
+            , [ Infix ( reservedOp "/" >> return DivOperation ) AssocLeft
               , Infix ( reservedOp "*" >> return MultiplyOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft 
+            , [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
               , Infix ( reservedOp "-" >> return MinusOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "==" >> return EqualOperation ) AssocLeft 
+            , [ Infix ( reservedOp "<<" >> return ShiftLeftOperation ) AssocLeft
+              , Infix ( reservedOp ">>" >> return ShiftRightOperation ) AssocLeft ]
+            , [ Infix ( reservedOp "==" >> return EqualOperation ) AssocLeft
               , Infix ( reservedOp "!=" >> return DifferentOperation ) AssocLeft ]
-            , [ Infix ( reservedOp ">" >> return AboveOperation ) AssocLeft 
+            , [ Infix ( reservedOp ">" >> return AboveOperation ) AssocLeft
               , Infix ( reservedOp ">=" >> return AboveEqualOperation ) AssocLeft
-              , Infix ( reservedOp "<=" >> return UnderEqualOperation ) AssocLeft 
+              , Infix ( reservedOp "<=" >> return UnderEqualOperation ) AssocLeft
               , Infix ( reservedOp "<" >> return UnderOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "=~" >> return RegexpOperation ) AssocLeft 
+            , [ Infix ( reserved   "and" >> return AndOperation ) AssocLeft
+              , Infix ( reserved   "or" >> return OrOperation ) AssocLeft ]
+            , [ Infix ( reservedOp "=~" >> return RegexpOperation ) AssocLeft
               , Infix ( reservedOp "!~" >> return NotRegexpOperation ) AssocLeft ]
             ]
 term = parens exprparser
@@ -95,18 +98,19 @@ hashRef = do { symbol "["
     ; return e
     }
 
-puppetVariableOrHashLookup = do { v <- puppetVariable
-    ; whiteSpace
-    ; hashlist <- many hashRef
-    ; case hashlist of
+puppetVariableOrHashLookup = do
+    v <- puppetVariable
+    whiteSpace
+    hashlist <- many hashRef
+    when (v == "string") $ unexpected "You are not allowed to name variables $string."
+    case hashlist of
         [] -> return $ Value (VariableReference v)
         _ -> return $ makeLookupOperation v hashlist
-    }
 
 makeLookupOperation :: String -> [Expression] -> Expression
 makeLookupOperation name exprs = foldl LookupOperation (LookupOperation (Value (VariableReference name)) (head exprs)) (tail exprs)
 
-identstring = many1 (alphaNum <|> oneOf "-_")
+identstring = many1 (alphaNum <|> char '_')
 
 identifier = do {
     x <- identstring
@@ -207,13 +211,14 @@ puppetVariable = do
         , do { s <- option "" (string "::") ; o <- identstring `sepBy` (try $ string "::") ; return $ s ++ (join "::" o) }
         ]
 
-variableAssignment = do { pos <- getPosition
-    ; varname <- puppetVariable
-    ; whiteSpace
-    ; symbol "="
-    ; e <- exprparser
-    ; return [VariableAssignment varname e pos]
-    }
+variableAssignment = do
+    pos <- getPosition
+    varname <- puppetVariable
+    whiteSpace
+    symbol "="
+    e <- exprparser
+    when (varname == "string") $ unexpected "You are not allowed to name variables $string."
+    return [VariableAssignment varname e pos]
 
 -- types de base
 -- puppetLiteral : toutes les strings puppet
@@ -252,6 +257,7 @@ doubleQuotedString = do { char '"'
 puppetInterpolableString = do { char '"'
     ; v <- many (
         try ( do { x <- puppetVariable
+            ; when (x == "string") $ unexpected "You are not allowed to name variables $string."
             ; return $ VariableReference x
             } )
         <|> do { x <- doubleQuotedStringContent
@@ -355,6 +361,7 @@ puppetClassParameter = do { varname <- puppetVariable
         ; e <- exprparser
         ; return e
         } )
+    ; when (varname == "string") $ unexpected "You are not allowed to name variables $string."
     ; return (varname, defaultvalue)
     }
 
@@ -375,15 +382,17 @@ puppetClassDefinition = do { pos <- getPosition
     ; return [ClassDeclaration cname cparent params (concat st) pos]
     }
 
-puppetDefine = do { pos <- getPosition
-    ; try $ reserved "define"
-    ; cname <- puppetQualifiedName
-    ; params <- option [] puppetClassParameters
-    ; symbol "{"
-    ; st <- many stmtparser
-    ; symbol "}"
-    ; return [DefineDeclaration cname params (concat st) pos]
-    }
+puppetDefine = do
+    pos <- getPosition
+    try $ reserved "define"
+    cname <- puppetQualifiedName
+    params <- option [] puppetClassParameters
+    symbol "{"
+    st <- many stmtparser
+    symbol "}"
+    case Map.lookup cname nativeTypes of
+        Just _  -> unexpected "Can't use a native type name for a define."
+        Nothing -> return [DefineDeclaration cname params (concat st) pos]
 
 puppetIfStyleCondition = do { cond <- exprparser <?> "Conditional expression"
     ; symbol "{"

@@ -16,7 +16,7 @@ parameterfunctions =
     ,("ensure"       , [defaultvalue "present", string, values ["present","absent"]])
     ,("host_aliases" , [rarray, strings, checkhostname])
     ,("ip"           , [string, mandatory, ipaddr])
-    ,("name"         , [string, checkhostname]) -- auto nameval
+    ,("name"         , [nameval, checkhostname])
     ,("provider"     , [string, values ["parsed"]])
     ,("target"       , [string, fullyQualified])
     ]

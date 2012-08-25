@@ -40,12 +40,12 @@ checkParameterList validparameters res | Set.null validparameters = Right res
         setdiff = Set.difference keyset (Set.union metaparameters validparameters)
 
 -- | This validator always accept the resources, but add the default parameters
--- (such as title and name).
+-- (such as title).
 addDefaults :: PuppetTypeValidate
 addDefaults res = Right (res { rrparams = newparams } )
     where
         newparams = Map.filter (/= ResolvedUndefined) $ Map.union (rrparams res) defaults
-        defaults  = Map.fromList [("name", nm),("title", nm)]
+        defaults  = Map.fromList [("title", nm)]
         nm = ResolvedString $ rrname res
 
 -- | Helper function that runs a validor on a ResolvedArray
@@ -112,14 +112,15 @@ integer'' param val res = case val of
     ResolvedInt _ -> Right res
     _ -> Left $ "Parameter " ++ param ++ " must be an integer"
 
--- | Copies the "name" value into this if this is not set.
+-- | Copies the "name" value into the parameter if this is not set. It implies
+-- the `string` validator.
 nameval :: String -> PuppetTypeValidate
 nameval prm res = do
     nres <- string prm res
-    case Map.lookup "name" (rrparams res) of
-        Just (ResolvedString nm) -> defaultvalue nm prm nres
-        Just x                   -> Left $ "Parameter name should be a string, and not " ++ show x
-        Nothing                  -> Left "Parameter name not set."
+    case Map.lookup "title" (rrparams res) of
+        Just (ResolvedString nm) -> defaultvalue nm prm nres >>= string prm
+        Just x                   -> Left $ "The title should be a string, and not " ++ show x
+        Nothing                  -> Left "The title is not set. Not sure how that could ever happen."
 
 -- | Checks that a given parameter is set.
 mandatory :: String -> PuppetTypeValidate

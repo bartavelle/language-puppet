@@ -17,7 +17,7 @@ parameterfunctions =
     ,("gid"                     , [integer])
     ,("ia_load_module"          , [string])
     ,("members"                 , [strings])
-    ,("name"                    , [string]) -- auto nameval
+    ,("name"                    , [nameval])
     ,("provider"                , [string, values ["aix","directoryservice","groupadd","ldap","pw","window_adsi"]])
     ,("system"                  , [string, defaultvalue "false", values ["true","false"]])
     ]
