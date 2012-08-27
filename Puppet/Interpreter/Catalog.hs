@@ -40,7 +40,7 @@ import Puppet.Interpreter.Types
 
 import System.IO.Unsafe
 import Data.List
-import Data.Char (isDigit,toLower,toUpper, isAlpha, isAlphaNum)
+import Data.Char (isDigit,toLower,toUpper, isAlpha, isAlphaNum, isSpace)
 import Data.Maybe (isJust, fromJust, catMaybes)
 import Data.Either (lefts, rights, partitionEithers)
 import Data.Ord (comparing)
@@ -814,6 +814,16 @@ tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
         _                                                  -> return $ Left $ Value n
 tryResolveValue   (FunctionCall "regsubst" [str, src, dst]) = tryResolveValue (FunctionCall "regsubst" [str, src, dst, Value $ Literal ""])
 tryResolveValue   (FunctionCall "regsubst" args) = throwPosError ("Bad argument count for regsubst " ++ show args)
+
+tryResolveValue n@(FunctionCall "chomp" [str]) = do
+    let mychomp = reverse . dropWhile isSpace . reverse
+        mmychomp (ResolvedString str) = return $ ResolvedString (mychomp str)
+        mmychomp r                    = throwPosError $ "The chomp function expects strings or arrays of strings, not this: " ++ show r
+    rstr <- tryResolveExpression str
+    case rstr of
+        Left  _ -> return $ Left $ Value n
+        Right (ResolvedArray  arr) -> fmap (Right . ResolvedArray) (mapM mmychomp arr)
+        Right x                    -> fmap Right (mmychomp x)
 
 tryResolveValue n@(FunctionCall "split" [str, reg]) = do
     rstr   <- tryResolveExpressionString str
