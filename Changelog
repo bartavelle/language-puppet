@@ -2,6 +2,7 @@ v0.1.8
   Bugs fixed
     * Various details have been modified since the official language
       documentation has been published.
+    * Better handling of collector conditions.
   New features
     * Amending attributes with a collector.
     * Stdlib functions : chomp

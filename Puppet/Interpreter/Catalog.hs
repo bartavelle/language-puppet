@@ -1028,12 +1028,16 @@ collectionFunction virt mrtype exprs = do
             when (Set.notMember paramname paramset && (not $ Set.member paramname metaparameters)) $
                 throwPosError $ "Parameter " ++ paramname ++ " is not a valid parameter. It should be in : " ++ show (Set.toList paramset)
             return (\r -> do
-                let param = filter (\x -> fst x == Right paramname) (crparams r)
+                let param = filter (\x -> fst x == Right paramname) (crparams r) :: [(GeneralString, GeneralValue)]
                 if null param
                     then return False
                     else do
                         cmp <- resolveGeneralValue $ snd (head param)
-                        return (cmp == rb)
+                        case (paramname, cmp) of
+                            ("tag", ResolvedArray xs) ->
+                                let filtered = filter (compareRValues rb) xs
+                                in  return $ not $ null filtered
+                            _ -> return $ compareRValues cmp rb
                 )
         x -> throwPosError $ "TODO : implement collection function for " ++ show x
     return (\res -> do
