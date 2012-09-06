@@ -28,23 +28,27 @@ commaretsep = intercalate ",\n"
 showValue :: ResolvedValue -> String
 showValue (ResolvedString x) = show x
 showValue (ResolvedInt x) = show x
+showValue (ResolvedDouble x) = show x
 showValue (ResolvedBool True) = "true"
 showValue (ResolvedBool False) = "false"
 showValue (ResolvedRReference rt rn) = rt ++ "[" ++ showValue rn ++ "]"
 showValue (ResolvedArray ar) = "[" ++ commasep (map showValue ar) ++ "]"
 showValue (ResolvedHash h) = "{" ++ commasep (map (\(k,v) -> k ++ " => " ++ showValue v) h) ++ "}"
+showValue (ResolvedRegexp r) = "/" ++ r ++ "/"
 showValue (ResolvedUndefined) = "undef"
 
 showuniqueres :: [RResource] -> String
 showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
     where
         showrres (RResource _ rname _ params rels mpos)  =
-            "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ "\n"
-                ++ commaretsep (map showparams (Map.toList $ Map.delete "title" params))
+            let paramlist = (Map.toList $ Map.delete "title" params) :: [(String, ResolvedValue)]
+                maxlen    = maximum (map (length . fst) paramlist) :: Int
+            in  "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ "\n"
+                ++ commaretsep (map (showparams maxlen) paramlist)
                 ++ commareqs (null rels || Map.null params)
                 ++ commaretsep (map showrequire (sort rels)) ++ ";\n"
         commareqs c | c             = ""
                     | otherwise     = ",\n"
-        showparams  (name, val)     = "        " ++ name ++ " => " ++ showValue val
+        showparams  mxl (name, val) = "        " ++ name ++ replicate (mxl - length name) ' ' ++ " => " ++ showValue val
         showrequire (ltype, dst)    = "        " ++ show ltype ++ " " ++ show dst
         mrtype                      = rrtype (head res)
