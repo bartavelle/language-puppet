@@ -817,7 +817,7 @@ tryResolveValue   (FunctionCall "regsubst" args) = throwPosError ("Bad argument 
 
 tryResolveValue n@(FunctionCall "chomp" [str]) = do
     let mychomp = reverse . dropWhile isSpace . reverse
-        mmychomp (ResolvedString str) = return $ ResolvedString (mychomp str)
+        mmychomp (ResolvedString s) = return $ ResolvedString (mychomp s)
         mmychomp r                    = throwPosError $ "The chomp function expects strings or arrays of strings, not this: " ++ show r
     rstr <- tryResolveExpression str
     case rstr of
