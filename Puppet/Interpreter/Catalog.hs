@@ -573,6 +573,18 @@ tryResolveGeneralValue n@(Left (AboveOperation      a b))   = compareGeneralValu
 tryResolveGeneralValue n@(Left (UnderEqualOperation a b))   = compareGeneralValue n a b [LT,EQ]
 tryResolveGeneralValue n@(Left (UnderOperation      a b))   = compareGeneralValue n a b [LT]
 tryResolveGeneralValue n@(Left (DifferentOperation  a b))   = compareGeneralValue n a b [LT,GT]
+tryResolveGeneralValue n@(Left (RegexpOperation     a b)) = do
+    ra <- tryResolveExpression a
+    rb <- tryResolveExpression b
+    case (ra, rb) of
+        (Right (ResolvedString src), Right (ResolvedRegexp reg)) -> do
+                m <- liftIO $ regmatch src reg
+                case m of
+                    Right x  -> return $ Right $ ResolvedBool x
+                    Left err -> throwPosError $ "Error with regexp " ++ show reg ++ ": " ++ err
+        (Right x, _) -> throwPosError $ "Was expecting a string to match to a regexp, not " ++ show x
+        (_, Right x) -> throwPosError $ "Was expecting a regexp, not " ++ show x
+        _            -> return n
 tryResolveGeneralValue n@(Left (OrOperation a b)) = do
     ra <- tryResolveBoolean $ Left a
     if( ra == Right (ResolvedBool True) )
