@@ -723,11 +723,14 @@ tryResolveValue   (VariableReference vname) = do
         else return $ case head matching of
             (x,_) -> x
 
-tryResolveValue n@(Interpolable x) = do
+tryResolveValue   (Interpolable x) = do
     resolved <- mapM tryResolveValueString x
     if null $ lefts resolved
         then return $ Right $ ResolvedString $ concat $ rights resolved
-        else return $ Left $ Value n
+        -- if it is not resolved, we will try to store it as resolved as
+        -- possible, so as not to lose the context
+        else fmap (Left . Value . Interpolable)
+                    (mapM tryResolveValue x >>= mapM generalValue2Value)
 
 tryResolveValue n@(PuppetHash (Parameters x)) = do
     resolvedKeys <- mapM (tryResolveExpressionString . fst) x
@@ -1059,6 +1062,15 @@ collectionFunction virt mrtype exprs = do
             else return False
             )
 
+
+generalValue2Expression :: GeneralValue -> Expression
+generalValue2Expression (Left x) = x
+generalValue2Expression (Right y) = resolved2expression y
+
+generalValue2Value :: GeneralValue -> CatalogMonad Value
+generalValue2Value x = case (generalValue2Expression x) of
+                           (Value x) -> return x
+                           y         -> throwPosError $ "Could not downgrade this to a value: " ++ show y
 
 resolved2expression :: ResolvedValue -> Expression
 resolved2expression (ResolvedString str) = Value $ Literal str
