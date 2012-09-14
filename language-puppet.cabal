@@ -7,7 +7,7 @@ Name:                language-puppet
 -- The package version. See the Haskell package versioning policy
 -- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
 -- standards guiding when and how versions should be incremented.
-Version:             0.1.7
+Version:             0.1.7.1
 
 -- A short (one-line) description of the package.
 Synopsis:            Tools to parse and evaluate the Puppet DSL.
