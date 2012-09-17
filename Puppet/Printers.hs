@@ -2,6 +2,7 @@ module Puppet.Printers (
     showRes
     , showRRes
     , showFCatalog
+    , showValue
 ) where
 
 import Puppet.Interpreter.Types

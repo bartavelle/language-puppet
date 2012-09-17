@@ -6,6 +6,8 @@ import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import GHC.Exts
+import Data.List
 
 -- | This is the potentially unsolved list of resources in the catalog.
 type Catalog =[CResource]
@@ -143,4 +145,23 @@ generalizeStringS = Right
 
 -- |This is the set of meta parameters
 metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule"]
+
+getPos               = liftM curPos get
+modifyScope     f sc = sc { curScope       = f $ curScope sc }
+modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
+modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
+modifyDefaults  f sc = sc { curDefaults    = f $ curDefaults sc }
+incrementResId    sc = sc { curResId       = curResId sc + 1 }
+setStatePos  npos sc = sc { curPos         = npos }
+emptyDefaults     sc = sc { curDefaults    = [] }
+pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
+pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
+pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
+
+throwPosError :: String -> CatalogMonad a
+throwPosError msg = do
+    p <- getPos
+    st <- liftIO currentCallStack
+    throwError (msg ++ " at " ++ show p ++ intercalate "\n\t" st )
+
 

@@ -1,3 +1,7 @@
+v0.1.7.2
+  New features
+	* Preliminary support for PuppetDB
+
 v0.1.7.1 (2012/09/14)
   Bugs fixed
 	* Various details have been modified since the official language

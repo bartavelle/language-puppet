@@ -52,10 +52,11 @@ Library
     ghc-options:       -Wall -fno-warn-missing-signatures -fno-warn-unused-do-bind -funbox-strict-fields
   -- Modules exported by the library.
   Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes, Puppet.DSL.Types,
-                       Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers
+                       Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers, PuppetDB.Rest
 
   -- Packages needed in order to build this package.
-  Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring,cryptohash,base16-bytestring,regex-pcre-builtin
+  Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring,cryptohash,base16-bytestring,regex-pcre-builtin,
+                        iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec
 
   -- Modules not exported by this package.
   Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby, Erb.Evaluate

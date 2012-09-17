@@ -9,7 +9,12 @@ module Puppet.Interpreter.Functions
     ,puppetSHA1
     ,puppetMD5
     ,generate
+    ,pdbresourcequery
     ) where
+
+import PuppetDB.Rest
+import Puppet.Printers
+import Puppet.Interpreter.Types
 
 import Data.Hash.MD5
 import qualified Crypto.Hash.SHA1 as SHA1
@@ -17,11 +22,12 @@ import qualified Data.ByteString.Char8 as BS
 import Data.String.Utils (join,replace)
 import Text.RegexPR
 import Text.Regex.PCRE.String
-import Puppet.Interpreter.Types
 import Control.Monad.Error
 import System.IO
 import qualified Data.ByteString.Base16 as B16
 import SafeProcess
+import Data.Either (lefts, rights)
+import Data.List (intercalate)
 
 puppetMD5  = md5s . Str
 puppetSHA1 = BS.unpack . B16.encode . SHA1.hash . BS.pack
@@ -105,3 +111,31 @@ generate command args = do
     case cmdout of
         Just (Right x)  -> return $ Just x
         _               -> return Nothing
+
+pdbresourcequery :: String -> Maybe String -> CatalogMonad ResolvedValue
+pdbresourcequery query key = do
+    let
+        extractSubHash :: String -> [ResolvedValue] -> Either String ResolvedValue
+        extractSubHash k vals = let o = map (extractSubHash' k) vals
+                                  in  if (null $ lefts o)
+                                          then Right $ ResolvedArray $ rights o
+                                          else Left $ "Something wrong happened while extracting the subhashes for key " ++ k ++ ": " ++ Data.List.intercalate ", " (lefts o)
+        extractSubHash' :: String -> ResolvedValue -> Either String ResolvedValue
+        extractSubHash' k (ResolvedHash hs) = let f = map snd $ filter ( (==k) . fst ) hs
+                                                in  case f of
+                                                        [o] -> Right o
+                                                        []  -> Left "Key not found"
+                                                        _   -> Left "More than one result, this is extremely bad."
+        extractSubHash' _ x = Left $ "Expected a hash, not " ++ showValue x
+    v <- liftIO $ rawRequest "http://localhost:8080" "resources" query
+    rv <- case v of
+        Right rh@(ResolvedArray _)  -> return rh
+        Right wtf                   -> throwPosError $ "Expected an array from PuppetDB, not " ++ showValue wtf
+        Left err                    -> throwPosError $ "Error during Puppet query: " ++ err
+    case (key, rv) of
+        (Nothing, _) -> return rv
+        (Just k , ResolvedArray ar) -> case extractSubHash k ar of
+                                               Right x -> return x
+                                               Left  r -> throwPosError r
+        _            -> throwPosError $ "Can't happen at pdbresourcequery"
+

@@ -37,6 +37,7 @@ import Puppet.NativeTypes
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
+import Puppet.Printers
 
 import System.IO.Unsafe
 import Data.List
@@ -47,7 +48,6 @@ import Data.Ord (comparing)
 import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
-import GHC.Exts
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -64,11 +64,6 @@ checkDuplicateFirst list =
 qualified []  = False
 qualified str = isPrefixOf "::" str || qualified (tail str)
 
-throwPosError msg = do
-    p <- getPos
-    st <- liftIO currentCallStack
-    throwError (msg ++ " at " ++ show p ++ intercalate "\n\t" st )
-
 -- Int handling stuff
 isInt :: String -> Bool
 isInt = all isDigit
@@ -76,17 +71,6 @@ readint :: String -> CatalogMonad Integer
 readint x = if isInt x
     then return (read x)
     else throwPosError $ "Expected an integer instead of '" ++ x
-
-modifyScope     f sc = sc { curScope       = f $ curScope sc }
-modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
-modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
-modifyDefaults  f sc = sc { curDefaults    = f $ curDefaults sc }
-incrementResId    sc = sc { curResId       = curResId sc + 1 }
-setStatePos  npos sc = sc { curPos         = npos }
-emptyDefaults     sc = sc { curDefaults    = [] }
-pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
-pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
-pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
 
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -- ^ The \"get statements\" function. Given a top level type and its name it
@@ -221,7 +205,6 @@ getNextId = do
     put $ incrementResId curscope
     return (curResId curscope)
 setPos = modify . setStatePos
-getPos = liftM curPos get
 
 -- qualifies a variable k depending on the context cs
 qualify k cs | qualified k || (cs == "::") = cs ++ k
@@ -756,6 +739,22 @@ tryResolveValue   (FunctionCall "generate" args) = if null args
             Just w  -> return $ Right $ ResolvedString w
             Nothing -> throwPosError $ "Function call generate for command " ++ cmdname ++ " (" ++ show cmdargs ++ ") failed"
 
+tryResolveValue n@(FunctionCall "pdbresourcequery" (query:xs)) = do
+        rkey <- case xs of
+                    [key] -> do
+                        r <- tryResolveExpression key
+                        case r of
+                            Right (ResolvedString keyname) -> return $ Right $ Just keyname
+                            Right x                        -> throwPosError $ "The pdbresourcequery function expects a string as the second argument, not " ++ showValue x
+                            Left  y                        -> return $ Left $ y
+                    []    -> return $ Right Nothing
+                    _     -> throwPosError "Bad number of arguments for function pdbresourcequery"
+        rquery <- tryResolveExpression query
+        case (rquery, rkey) of
+            (Right a@(ResolvedArray _), Right keyname)  -> fmap Right (pdbresourcequery (showValue a) keyname)
+            (Right a, Right _) -> throwPosError $ "The pdbresourcequery function expects an array as the first argument, not " ++ showValue a
+            _ -> return $ Left $ Value n
+
 tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
     rx <- tryResolveExpressionString x
     case rx of
@@ -1069,7 +1068,7 @@ generalValue2Expression (Right y) = resolved2expression y
 
 generalValue2Value :: GeneralValue -> CatalogMonad Value
 generalValue2Value x = case (generalValue2Expression x) of
-                           (Value x) -> return x
+                           (Value z) -> return z
                            y         -> throwPosError $ "Could not downgrade this to a value: " ++ show y
 
 resolved2expression :: ResolvedValue -> Expression
