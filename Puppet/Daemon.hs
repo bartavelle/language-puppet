@@ -13,7 +13,7 @@ import System.FilePath.Posix (takeDirectory)
 import Control.Monad.State
 import Control.Monad.Error
 import qualified System.Log.Logger as LOG
-import Data.List 
+import Data.List
 import Data.Either (rights, lefts)
 import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
