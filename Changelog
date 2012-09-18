@@ -1,6 +1,7 @@
 v0.1.7.2 ()
   Bugs fixed
 	* Exception handling for the HTTP failures.
+	* Handles undefined variables in Ruby templates.
 
 v0.1.7.2 (2012/09/17)
   New features

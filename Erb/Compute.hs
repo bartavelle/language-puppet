@@ -77,4 +77,5 @@ toRuby' (ResolvedBool True) = "true"
 toRuby' (ResolvedBool False) = "false"
 toRuby' (ResolvedArray rr) = "[" ++ intercalate ", " (map toRuby' rr) ++ "]"
 toRuby' (ResolvedHash hh) = "{ " ++ intercalate ", " (map (\(varname, varval) -> show varname ++ " => " ++ toRuby' varval) hh) ++ " }"
+toRuby' ResolvedUndefined = ":undef"
 toRuby' x = show x
