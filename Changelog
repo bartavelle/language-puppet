@@ -1,4 +1,6 @@
-v0.1.7.2 ()
+v0.1.7.3 ()
+  New features
+	* Refactoring of the PuppetDB API for interfacing with the facter library.
   Bugs fixed
 	* Exception handling for the HTTP failures.
 	* Handles undefined variables in Ruby templates.

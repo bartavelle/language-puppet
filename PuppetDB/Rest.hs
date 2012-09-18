@@ -39,23 +39,28 @@ simpleNodeQuery url query = rawRequest url "nodes" (toAndQuery query)
 simpleResourceQuery :: String -> [(String, String)] -> IO (Either String ResolvedValue)
 simpleResourceQuery url query = rawRequest url "resources" (toAndQuery query)
 
+runRequest req = do
+    let doRequest = withManager (\manager -> fmap responseBody $ httpLbs req manager) :: IO L.ByteString
+        eHandler :: X.SomeException -> IO (Either String  L.ByteString)
+        eHandler e = return $ Left $ show e
+    mo <- liftIO ((fmap Right doRequest) `X.catch` eHandler)
+    case mo of
+        Right o -> do
+            let utf8 = IConv.convert "LATIN1" "UTF-8" o
+            case decode' utf8 :: Maybe ResolvedValue of
+                Just x                   -> return x
+                Nothing                  -> throwError "Json decoding has failed"
+        Left err -> throwError err
+
+
 rawRequest :: String -> String -> String -> IO (Either String ResolvedValue)
 rawRequest url querytype query = runErrorT $ do
-        unless (querytype `elem` ["resources", "nodes"]) (throwError $ "Invalid query type " ++ querytype)
-        let q = BC.unpack $ W.renderSimpleQuery False [("query", BC.pack query)]
-        initReq <- case (parseUrl (url ++ "/" ++ querytype ++ "?" ++ q) :: Maybe (Request a)) of
+        unless (querytype `elem` ["resources", "nodes", "facts"]) (throwError $ "Invalid query type " ++ querytype)
+        let q = case querytype of
+                    "facts" -> '/' : query
+                    _       -> "?" ++ (BC.unpack $ W.renderSimpleQuery False [("query", BC.pack query)])
+        initReq <- case (parseUrl (url ++ "/" ++ querytype ++ q) :: Maybe (Request a)) of
             Just x -> return x
             Nothing -> throwError "Something failed when parsing the PuppetDB URL"
         let req = initReq { requestHeaders = [("Accept", "application/json")] }
-            doRequest = withManager (\manager -> fmap responseBody $ httpLbs req manager) :: IO L.ByteString
-            eHandler :: X.SomeException -> IO (Either String  L.ByteString)
-            eHandler e = return $ Left $ show e
-        mo <- liftIO ((fmap Right doRequest) `X.catch` eHandler)
-        case mo of
-            Right o -> do
-                let utf8 = IConv.convert "LATIN1" "UTF-8" o
-                case decode' utf8 :: Maybe ResolvedValue of
-                    Just x@(ResolvedArray _) -> return x
-                    Just x                   -> throwError $ "PuppetDB should have returned an array, not " ++ showValue x
-                    Nothing                  -> throwError "Json decoding has failed"
-            Left err -> throwError err
+        runRequest req
