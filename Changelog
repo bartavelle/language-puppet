@@ -4,6 +4,9 @@ v0.1.7.3 ()
   Bugs fixed
 	* Exception handling for the HTTP failures.
 	* Handles undefined variables in Ruby templates.
+	* Undefined variables in Erbs now always throw exceptions. This is
+	stricter than Puppet (which throws exceptions for "native" variables), but
+	is I believe good practice.
 
 v0.1.7.2 (2012/09/17)
   New features

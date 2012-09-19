@@ -15,7 +15,7 @@ class Scope
         elsif has_variable?(@context + "::" + name)
             @mvars[@context + "::" + name]
         else
-            :undef
+            throw("Unknown variable " + name)
         end
     end
 
