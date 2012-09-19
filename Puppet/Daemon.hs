@@ -19,6 +19,7 @@ import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
 import Text.Parsec.Pos (initialPos)
+import PuppetDB.Rest
 
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
@@ -86,7 +87,7 @@ master prefs chan getstmts gettemplate = do
     case message of
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
-            (stmts, warnings) <- getCatalog getstmts gettemplate nodename facts
+            (stmts, warnings) <- getCatalog getstmts gettemplate (Just (pdbRequest "http://localhost:8080/")) nodename facts
             mapM_ logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)

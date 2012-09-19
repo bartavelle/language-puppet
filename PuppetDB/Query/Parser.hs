@@ -1,21 +1,9 @@
 module PupperDb.Query.Parser where
 
+import PupperDb.Query
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.String
 import Control.Applicative hiding (many)
-
-data Query = Query QueryType [Matcher]
-    deriving (Show, Ord, Eq)
-
-data QueryType = QAnd | QOr | QNot
-    deriving (Show, Ord, Eq)
-
-data Operator = OEqual | OOver | OUnder | OOverE | OUnderE | OAnd | OOr | ONot
-    deriving (Show, Ord, Eq)
-
--- [Field] Value
-data Matcher = Matcher Operator [Matcher] | Term String
-    deriving (Show, Ord, Eq)
 
 quotedvariable :: Parser String
 quotedvariable = (char '"' *> many (noneOf "\"") <* symbol "\"") <?> "Quoted value"

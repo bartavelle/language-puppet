@@ -38,6 +38,7 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 import Puppet.Printers
+import qualified PuppetDB.Query as PDB
 
 import System.IO.Unsafe
 import Data.List
@@ -78,14 +79,33 @@ getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
     -- ^ The \"get template\" function. Given a file name, a scope name and a
     -- list of variables, it should return the computed template.
+    -> Maybe (String -> PDB.Query -> IO (Either String ResolvedValue))
+    -- ^ The \"puppetDB Rest API\" function. Given a request type
+    -- (resources, nodes, facts, ..) and a query, it returns
+    -- a ResolvedValue, or some error.
     -> String -- ^ Name of the node.
     -> Facts -- ^ Facts of this node.
     -> IO (Either String FinalCatalog, [String])
-getCatalog getstatements gettemplate nodename facts = do
+getCatalog getstatements gettemplate puppetdb nodename facts = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) ) (ScopeState [["::"]] convertedfacts Map.empty [] 1 (initialPos "dummy") Map.empty getstatements [] [] [] gettemplate)
+    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) )
+                                (ScopeState
+                                   { curScope                   = [["::"]]
+                                   , curVariables               = convertedfacts
+                                   , curClasses                 = Map.empty
+                                   , curDefaults                = []
+                                   , curResId                   = 1
+                                   , curPos                     = (initialPos "dummy")
+                                   , nestedtoplevels            = Map.empty
+                                   , getStatementsFunction      = getstatements
+                                   , getWarnings                = []
+                                   , curCollect                 = []
+                                   , unresolvedRels             = []
+                                   , computeTemplateFunction    = gettemplate
+                                   , puppetDBFunction           = puppetdb
+                                   } )
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right _ -> return (output, getWarnings finalstate)
@@ -130,7 +150,7 @@ collectionChecks res =
         else do
             -- Note that amending attributes with a collector does collect virtual
             -- values. Hence no filtering on the collectors is done here.
-            isCollected <- liftM curCollect get >>= mapM (\(x, _) -> x res)
+            isCollected <- liftM curCollect get >>= mapM (\(x, _, _) -> x res)
             case (or isCollected, crvirtuality res) of
                 (True, Exported)    -> return [res { crvirtuality = Normal }, res]
                 (True,  _)          -> return [res { crvirtuality = Normal }     ]
@@ -138,9 +158,9 @@ collectionChecks res =
 
 processOverride :: CResource -> Map.Map String ResolvedValue -> CatalogMonad (Map.Map String ResolvedValue)
 processOverride cr prms =
-    let applyOverride :: CResource -> Map.Map String ResolvedValue -> (CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)]) -> CatalogMonad (Map.Map String ResolvedValue)
+    let applyOverride :: CResource -> Map.Map String ResolvedValue -> (CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)], Maybe PDB.Query) -> CatalogMonad (Map.Map String ResolvedValue)
         -- this checks if the collection function matches
-        applyOverride c prm (func, overs) = do
+        applyOverride c prm (func, overs, _) = do
             check <- func c
             if check
                 then foldM tryReplace prm overs
@@ -153,7 +173,7 @@ processOverride cr prms =
             rv <- resolveGeneralValue gv
             return $ Map.insert rs rv curmap
     -- Collectors are filtered so that only those with overrides are passed to the fold.
-    in liftM (filter (not . null . snd) . curCollect) get >>= foldM (applyOverride cr) prms
+    in liftM (filter (\(_, x, _) -> not $ null x) . curCollect) get >>= foldM (applyOverride cr) prms
 
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
@@ -231,7 +251,7 @@ addNestedTopLevel rtype rname rstatement = do
         nstate = curstate { nestedtoplevels = ntop }
     put nstate
 addWarning = modify . pushWarning
-addCollect = modify . pushCollect
+addCollect ((func, query), overrides) = modify $ pushCollect (func, overrides, query)
 -- this pushes the relations only if they exist
 -- the parameter is of the form
 -- ( [dstrelations], srcresource, type, pos )
@@ -910,7 +930,7 @@ pushRealize (ResolvedRReference rtype (ResolvedString rname)) = do
         myfunction (CResource _ mcrname mcrtype _ _ _) = do
             srname <- resolveGeneralString mcrname
             return ((srname == rname) && (mcrtype == rtype))
-    addCollect (myfunction, [])
+    addCollect ((myfunction, Just $ PDB.queryRealize rtype rname) , [])
     return ()
 pushRealize (ResolvedRReference _ x) = throwPosError (show x ++ " was not resolved to a string")
 pushRealize x                        = throwPosError ("A reference was expected instead of " ++ show x)
@@ -1029,7 +1049,7 @@ gs2gv :: GeneralString -> GeneralValue
 gs2gv (Left e)  = Left e
 gs2gv (Right s) = Right $ ResolvedString s
 
-collectionFunction :: Virtuality -> String -> Expression -> CatalogMonad (CResource -> CatalogMonad Bool)
+collectionFunction :: Virtuality -> String -> Expression -> CatalogMonad (CResource -> CatalogMonad Bool, Maybe PDB.Query)
 collectionFunction virt mrtype exprs = do
     finalfunc <- case exprs of
         BTrue -> return (\_ -> return True)
@@ -1066,7 +1086,8 @@ collectionFunction virt mrtype exprs = do
         if (crtype res == mrtype) && ( ((virt == Virtual) &&  (crvirtuality res == Normal)) || (crvirtuality res == virt))
             then finalfunc res
             else return False
-            )
+           ,
+            Nothing)
 
 
 generalValue2Expression :: GeneralValue -> Expression

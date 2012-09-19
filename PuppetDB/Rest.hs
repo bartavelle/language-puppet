@@ -3,7 +3,7 @@
 module PuppetDB.Rest where
 
 import Puppet.Interpreter.Types
-import Puppet.Printers
+import qualified PuppetDB.Query as PDB
 
 import Network.HTTP.Conduit
 import qualified Network.HTTP.Types as W
@@ -52,6 +52,8 @@ runRequest req = do
                 Nothing                  -> throwError "Json decoding has failed"
         Left err -> throwError err
 
+pdbRequest :: String -> String -> PDB.Query -> IO (Either String ResolvedValue)
+pdbRequest url querytype qquery = rawRequest url querytype (PDB.showQuery qquery)
 
 rawRequest :: String -> String -> String -> IO (Either String ResolvedValue)
 rawRequest url querytype query = runErrorT $ do

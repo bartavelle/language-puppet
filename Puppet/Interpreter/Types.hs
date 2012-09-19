@@ -1,6 +1,7 @@
 module Puppet.Interpreter.Types where
 
 import Puppet.DSL.Types
+import qualified PuppetDB.Query as PDB
 import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
@@ -118,17 +119,20 @@ data ScopeState = ScopeState {
     -- ^ This is a function that, given the type of a top level statement and
     -- its name, should return it.
     getWarnings :: ![String], -- ^ List of warnings.
-    curCollect :: ![(CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)])],
+    curCollect :: ![(CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)], Maybe PDB.Query)],
     -- ^ A bit complicated, this stores the collection functions. These are
     -- functions that determine whether a resource should be collected or not.
     -- It can optionally store overrides, which will be applied in the end on
-    -- all resources.
+    -- all resources. It can also store a PuppetDB query.
     unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
     -- ^ This stores unresolved relationships, because the original string name
     -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]
-    computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String)
+    computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String),
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
+    puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String ResolvedValue))
+    -- ^ Function that takes a request type (resources, nodes, facts, ..)
+    -- and a query, and returns a resolved value from puppetDB.
 }
 
 -- | The monad all the interpreter lives in. It is 'ErrorT' with a state.
