@@ -1051,8 +1051,8 @@ gs2gv (Right s) = Right $ ResolvedString s
 
 collectionFunction :: Virtuality -> String -> Expression -> CatalogMonad (CResource -> CatalogMonad Bool, Maybe PDB.Query)
 collectionFunction virt mrtype exprs = do
-    finalfunc <- case exprs of
-        BTrue -> return (\_ -> return True)
+    (finalfunc, pdbquery) <- case exprs of
+        BTrue -> return (\_ -> return True, Just (PDB.collectAll mrtype))
         EqualOperation a b -> do
             ra <- resolveExpression a
             rb <- resolveExpression b
@@ -1079,6 +1079,10 @@ collectionFunction virt mrtype exprs = do
                                 let filtered = filter (compareRValues rb) xs
                                 in  return $ not $ null filtered
                             _ -> return $ compareRValues cmp rb
+                , case (paramname, rb) of
+                      ("tag", ResolvedString tagval) -> Just (PDB.collectTag mrtype tagval)
+                      (param, ResolvedString prmval) -> Just (PDB.collectParam mrtype param prmval)
+                      _                              -> Nothing
                 )
         x -> throwPosError $ "TODO : implement collection function for " ++ show x
     return (\res -> do
@@ -1086,8 +1090,10 @@ collectionFunction virt mrtype exprs = do
         if (crtype res == mrtype) && ( ((virt == Virtual) &&  (crvirtuality res == Normal)) || (crvirtuality res == virt))
             then finalfunc res
             else return False
-           ,
-            Nothing)
+        , if (virt == Exported)
+              then pdbquery
+              else Nothing
+        )
 
 
 generalValue2Expression :: GeneralValue -> Expression
