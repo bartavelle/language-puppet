@@ -42,7 +42,7 @@ import Puppet.Printers
 import System.IO.Unsafe
 import Data.List
 import Data.Char (isDigit,toLower,toUpper, isAlpha, isAlphaNum, isSpace)
-import Data.Maybe (isJust, fromJust, catMaybes)
+import Data.Maybe (isJust, fromJust, catMaybes, isNothing)
 import Data.Either (lefts, rights, partitionEithers)
 import Data.Ord (comparing)
 import Text.Parsec.Pos
@@ -326,16 +326,23 @@ evaluateDefine :: CResource -> CatalogMonad [CResource]
 evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
     evaluateDefineDeclaration dtype args dstmts dpos = do
         --oldpos <- getPos
-        setPos dpos
         pushScope ["#DEFINE#" ++ dtype]
         -- add variables
         mrrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
         let expr = gs2gv rname
             mparams = Map.fromList mrrparams
+            defineparamset = Set.fromList $ map fst args
+            mandatoryparams = Set.fromList $ map fst $ filter (isNothing . snd) args
+            resourceparamset = Set.fromList $ map fst mrrparams
+            extraparams = Set.difference resourceparamset (Set.union defineparamset metaparameters)
+            unsetparams = Set.difference mandatoryparams resourceparamset
+        unless (Set.null extraparams) $ throwPosError $ "Spurious parameters set for " ++ dtype ++ ": " ++ intercalate ", " (Set.toList extraparams)
+        unless (Set.null unsetparams) $ throwPosError $ "Unset parameters set for " ++ dtype ++ ": " ++ intercalate ", " (Set.toList unsetparams)
         putVariable "title" (expr, rpos)
         putVariable "name" (expr, rpos)
         mapM_ (loadClassVariable rpos mparams) args
 
+        setPos dpos
         -- parse statements
         res <- mapM evaluateStatements dstmts
         nres <- handleDelayedActions (concat res)
