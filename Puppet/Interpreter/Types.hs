@@ -130,8 +130,8 @@ data ScopeState = ScopeState {
     computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String),
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
-    puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String ResolvedValue))
-    -- ^ Function that takes a request type (resources, nodes, facts, ..)
+    puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource]))
+    -- ^ Function that takes a fqdn, request type (resources, nodes, facts, ..)
     -- and a query, and returns a resolved value from puppetDB.
 }
 
@@ -148,7 +148,7 @@ generalizeStringS :: String -> GeneralString
 generalizeStringS = Right
 
 -- |This is the set of meta parameters
-metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule"]
+metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE"]
 
 getPos               = liftM curPos get
 modifyScope     f sc = sc { curScope       = f $ curScope sc }

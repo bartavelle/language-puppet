@@ -87,7 +87,7 @@ master prefs chan getstmts gettemplate = do
     case message of
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
-            (stmts, warnings) <- getCatalog getstmts gettemplate (Just (pdbRequest "http://localhost:8080/")) nodename facts
+            (stmts, warnings) <- getCatalog getstmts gettemplate (Just (pdbResRequest "http://localhost:8080")) nodename facts
             mapM_ logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)

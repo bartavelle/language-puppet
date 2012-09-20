@@ -79,10 +79,10 @@ getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
     -- ^ The \"get template\" function. Given a file name, a scope name and a
     -- list of variables, it should return the computed template.
-    -> Maybe (String -> PDB.Query -> IO (Either String ResolvedValue))
-    -- ^ The \"puppetDB Rest API\" function. Given a request type
-    -- (resources, nodes, facts, ..) and a query, it returns
-    -- a ResolvedValue, or some error.
+    -> Maybe (String -> PDB.Query -> IO (Either String [CResource]))
+    -- ^ The \"puppetDB Rest API\" function. Given the machine fqdn, a request
+    -- type (resources, nodes, facts, ..) and a query, it returns a
+    -- ResolvedValue, or some error.
     -> String -- ^ Name of the node.
     -> Facts -- ^ Facts of this node.
     -> IO (Either String FinalCatalog, [String])
@@ -175,11 +175,35 @@ processOverride cr prms =
     -- Collectors are filtered so that only those with overrides are passed to the fold.
     in liftM (filter (\(_, x, _) -> not $ null x) . curCollect) get >>= foldM (applyOverride cr) prms
 
+retrieveRemoteResources :: (PDB.Query -> IO (Either String [CResource])) -> PDB.Query -> CatalogMonad [CResource]
+retrieveRemoteResources f q = do
+    res <- liftIO $ f q
+    hashes <- case res of
+        Right h     -> return h
+        Left err    -> throwError $ "PuppetDB error: " ++ err
+    return hashes
+
+extractRelations :: CResource -> CatalogMonad CResource
+extractRelations cr = do
+    let (params, rels) = partitionParamsRelations (crparams cr)
+    -- TODO export relations
+    return cr { crparams = params }
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
-    --liftIO $ putStrLn $ "FINAL RESOLUTION"
-    collected <- mapM collectionChecks cat >>= mapM evaluateDefine . concat
+    pdbfunction <- fmap puppetDBFunction get
+    fqdnr       <- getVariable "::fqdn"
+    collectedRemote <- case pdbfunction of
+                           Just f -> do
+                               fqdn <- case fqdnr of
+                                   Just (Right (ResolvedString f), _) -> return f
+                                   _ -> throwError "Could not get FQDN during final resolution"
+                               remoteCollects <- fmap (catMaybes . map (\(_,_,x) -> x) . curCollect) get
+                               fmap concat (mapM (retrieveRemoteResources (f fqdn)) remoteCollects)
+                           Nothing -> return []
+    collectedRemote' <- mapM extractRelations collectedRemote
+    collectedLocal <- fmap concat (mapM collectionChecks cat)
+    collected <- mapM evaluateDefine (collectedLocal ++ collectedRemote')
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
         (_,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
     --export stuff
