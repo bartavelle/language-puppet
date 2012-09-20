@@ -1,4 +1,4 @@
-v0.1.8.0 ()
+v0.1.8.0 (2012/09/20)
   New features
 	* Refactoring of the PuppetDB API for interfacing with the facter library.
 	* Support of exported resource resolution through PuppetDB ! This results
