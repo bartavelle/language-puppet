@@ -51,6 +51,12 @@ template evaluation, it is way faster than the puppet stack.
 It is recommended to ask for as many parser and interpreter threads as there are
 CPUs.
 
+It can optionnaly talk with PuppetDB, by setting an URL in the 'Prefs' data
+structure. The recommended way to set it to http://localhost:8080 and set a SSH
+tunnel :
+
+> ssh -L 8080:localhost:8080 puppet.host
+
 Known bugs :
 
 * It might be buggy when top level statements that are not class/define/nodes
