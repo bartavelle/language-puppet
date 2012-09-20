@@ -9,14 +9,15 @@ data Prefs = Prefs {
     modules :: FilePath, -- ^ The path to the modules.
     templates :: FilePath, -- ^ The path to the template.
     compilepoolsize :: Int, -- ^ Size of the compiler pool.
-    parsepoolsize :: Int -- ^ Size of the parser pool.
+    parsepoolsize :: Int, -- ^ Size of the parser pool.
+    puppetDBurl :: Maybe String -- ^ Url of the PuppetDB connector (must be cleartext).
 } deriving (Show)
 
 -- | Generates the 'Prefs' structure from a single path.
 --
 -- > genPrefs "/etc/puppet"
 genPrefs :: String -> Prefs
-genPrefs basedir = Prefs (basedir ++ "/manifests") (basedir ++ "/modules") (basedir ++ "/templates") 1 1
+genPrefs basedir = Prefs (basedir ++ "/manifests") (basedir ++ "/modules") (basedir ++ "/templates") 1 1 Nothing
 
 -- | Generates 'Facts' from pairs of strings.
 --

@@ -18,7 +18,7 @@ type TemplateQuery = (Chan TemplateAnswer, String, String, [(String, GeneralValu
 type TemplateAnswer = Either String String
 
 initTemplateDaemon :: Prefs -> IO (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
-initTemplateDaemon (Prefs _ modpath templatepath _ _) = do
+initTemplateDaemon (Prefs _ modpath templatepath _ _ _) = do
     controlchan <- newChan
     forkIO (templateDaemon modpath templatepath controlchan)
     return (templateQuery controlchan)

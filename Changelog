@@ -1,6 +1,8 @@
-v0.1.7.3 ()
+v0.1.8.0 ()
   New features
 	* Refactoring of the PuppetDB API for interfacing with the facter library.
+	* Support of exported resource resolution through PuppetDB ! This results
+	in an API breakage.
   Bugs fixed
 	* Defines with spurious parameters, or unset mandatory parameters, should
 	now be catched.
