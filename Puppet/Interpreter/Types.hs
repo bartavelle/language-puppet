@@ -131,8 +131,8 @@ data ScopeState = ScopeState {
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
     puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource]))
-    -- ^ Function that takes a fqdn, request type (resources, nodes, facts, ..)
-    -- and a query, and returns a resolved value from puppetDB.
+    -- ^ Function that takes a request type (resources, nodes, facts, ..),
+    -- a query, and returns a resolved value from puppetDB.
 }
 
 -- | The monad all the interpreter lives in. It is 'ErrorT' with a state.
