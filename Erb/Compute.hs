@@ -52,7 +52,12 @@ computeTemplateWRuby :: String -> String -> [(String, GeneralValue)] -> IO Templ
 computeTemplateWRuby filename curcontext variables = do
     let rubyvars = "{\n" ++ intercalate ",\n" (concatMap toRuby variables ) ++ "\n}\n"
         input = curcontext ++ "\n" ++ filename ++ "\n" ++ rubyvars
-    rubyscriptpath <- getDataFileName "ruby/calcerb.rb"
+    rubyscriptpath <- do
+        cabalPath <- getDataFileName "ruby/calcerb.rb"
+        exists    <- fileExist cabalPath
+        case exists of
+            True -> return cabalPath
+            False -> return "calcerb.rb"
     ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] input 1000
     case ret of
         Just (Right x) -> return $ Right x
