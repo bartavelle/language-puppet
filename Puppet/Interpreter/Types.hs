@@ -2,6 +2,7 @@ module Puppet.Interpreter.Types where
 
 import Puppet.DSL.Types
 import qualified PuppetDB.Query as PDB
+import qualified Scripting.Lua as Lua
 import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
@@ -130,9 +131,11 @@ data ScopeState = ScopeState {
     computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String),
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
-    puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource]))
+    puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource])),
     -- ^ Function that takes a request type (resources, nodes, facts, ..),
     -- a query, and returns a resolved value from puppetDB.
+    luaState :: Maybe Lua.LuaState
+    -- ^ The Lua state, used for user supplied content.
 }
 
 -- | The monad all the interpreter lives in. It is 'ErrorT' with a state.

@@ -96,7 +96,7 @@ master prefs chan getstmts gettemplate = do
             let pdbfunc = case (puppetDBurl prefs) of
                               Just x  -> Just (pdbResRequest x)
                               Nothing -> Nothing
-            (stmts, warnings) <- getCatalog getstmts gettemplate pdbfunc nodename facts
+            (stmts, warnings) <- getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs)
             mapM_ logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)

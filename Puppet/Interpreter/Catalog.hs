@@ -38,6 +38,7 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 import Puppet.Printers
+import Puppet.Plugins
 import qualified PuppetDB.Query as PDB
 
 import System.IO.Unsafe
@@ -85,11 +86,15 @@ getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -- ResolvedValue, or some error.
     -> String -- ^ Name of the node.
     -> Facts -- ^ Facts of this node.
+    -> Maybe String -- ^ Path to the modules, for user plugins. If set to Nothing, plugins are disabled.
     -> IO (Either String FinalCatalog, [String])
-getCatalog getstatements gettemplate puppetdb nodename facts = do
+getCatalog getstatements gettemplate puppetdb nodename facts modules = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
+    (luastate, userfunctions) <- case modules of
+        Just m  -> fmap (\(a,b) -> (Just a, b)) (initLua m)
+        Nothing -> return (Nothing, [])
     (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) )
                                 (ScopeState
                                    { curScope                   = [["::"]]
@@ -105,7 +110,11 @@ getCatalog getstatements gettemplate puppetdb nodename facts = do
                                    , unresolvedRels             = []
                                    , computeTemplateFunction    = gettemplate
                                    , puppetDBFunction           = puppetdb
+                                   , luaState                   = luastate
                                    } )
+    case luastate of
+        Just l  -> closeLua l
+        Nothing -> return ()
     case output of
         Left x -> return (Left x, getWarnings finalstate)
         Right _ -> return (output, getWarnings finalstate)
