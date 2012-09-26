@@ -1,4 +1,4 @@
-module Puppet.Plugins (initLua) where
+module Puppet.Plugins (initLua, puppetFunc, closeLua) where
 
 import Prelude hiding (catch)
 import qualified Scripting.Lua as Lua
@@ -10,7 +10,33 @@ import qualified Data.Map as Map
 import Control.Monad
 import Data.Maybe (fromJust)
 import Control.Monad.Loops (whileM)
+import Puppet.Interpreter.Types
+import Control.Monad.IO.Class
 
+instance Lua.StackValue ResolvedValue
+    where
+        push l (ResolvedString s) = Lua.push l s
+        push l (ResolvedRegexp s) = Lua.push l s
+        push l (ResolvedInt i) = Lua.push l (fromIntegral i :: Int)
+        push l (ResolvedDouble d) = Lua.push l d
+        push l (ResolvedBool b) = Lua.push l b
+        push l (ResolvedRReference rr _) = Lua.push l rr
+        push l (ResolvedArray arr) = Lua.push l arr
+        push l (ResolvedHash h) = Lua.push l (Map.fromList h)
+        push l (ResolvedUndefined) = Lua.push l "undefined"
+
+        peek l n = do
+            t <- Lua.ltype l n
+            case t of
+                Lua.TBOOLEAN -> fmap (fmap ResolvedBool) (Lua.peek l n)
+                Lua.TSTRING -> fmap (fmap ResolvedString) (Lua.peek l n)
+                Lua.TNUMBER -> fmap (fmap ResolvedDouble) (Lua.peek l n)
+                Lua.TNIL -> return (Just ResolvedUndefined)
+                Lua.TNONE -> return (Just ResolvedUndefined)
+                Lua.TTABLE -> fmap (fmap (ResolvedHash . Map.toList)) (Lua.peek l n)
+                _ -> return Nothing
+
+        valuetype _ = Lua.TUSERDATA
 
 instance (Lua.StackValue a, Lua.StackValue b, Ord a) => Lua.StackValue (Map.Map a b)
     where
@@ -61,16 +87,20 @@ loadLuaFile l file = do
         0 -> Lua.call l 0 0 >> return [gbasename file]
         _ -> return []
 
-initLua :: String -> IO ()
+puppetFunc :: Lua.LuaState -> String -> [ResolvedValue] -> CatalogMonad ResolvedValue
+puppetFunc l fn args = do
+    content <- liftIO $ catch (fmap Right (Lua.callfunc l fn args)) (\e -> return $ Left $ show (e :: IOException))
+    case content of
+        Right x -> return x
+        Left  y -> throwPosError y
+
+initLua :: String -> IO (Lua.LuaState, [String])
 initLua moduledir = do
     funcfiles <- getLuaFiles moduledir
     l <- Lua.newstate
     Lua.openlibs l
     luafuncs <- fmap concat $ mapM (loadLuaFile l) funcfiles
-    print luafuncs
-    o <- Lua.callfunc l "create_static_sites" (Map.fromList [("a", "b"), ("c", "d")]) "x"
-    -- putStrLn o
-    print (o :: Map.Map String String)
+    return (l , luafuncs)
 
---    Lua.callfunc l "create_static_sites" "test" "test" >>= putStrLn
-    Lua.close l
+closeLua :: Lua.LuaState -> IO ()
+closeLua = Lua.close

@@ -47,16 +47,15 @@ Cabal-version:       >=1.8
 Data-Files:
   ruby/calcerb.rb
 
-
 Library
     ghc-options:       -Wall -fno-warn-missing-signatures -fno-warn-unused-do-bind -funbox-strict-fields
   -- Modules exported by the library.
   Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes, Puppet.DSL.Types,
-                       Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers, PuppetDB.Rest, PuppetDB.Query
+                       Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers, PuppetDB.Rest, PuppetDB.Query, Puppet.Plugins
 
   -- Packages needed in order to build this package.
   Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring,cryptohash,base16-bytestring,regex-pcre-builtin,
-                        iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec, failure
+                        iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec, failure, hslua, monad-loops, directory, luautils, transformers
 
   -- Modules not exported by this package.
   Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby, Erb.Evaluate
