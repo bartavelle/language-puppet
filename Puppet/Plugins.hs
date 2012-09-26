@@ -1,3 +1,25 @@
+{-| This module is used for user plugins. It exports three functions that should
+be easy to use: 'initLua', 'puppetFunc' and 'closeLua'. Right now it is used by
+the "Puppet.Daemon" by initializing and destroying the Lua context for each
+catalog computation. Obviously such plugins will be implemented in Lua.
+
+Users plugins are right now limited to custom functions. The user must put them
+at the exact same place as their Ruby counterparts, except the extension must be
+lua instead of rb. In the file, a function called by the same name that takes a
+single argument must be defined. This argument will be an array made of all the
+functions arguments. If the file doesn't parse, it will be silently ignored.
+
+Here are the things that must be kept in mind:
+
+* Lua doesn't have integers. All numbers are double.
+
+* All Lua associative arrays that are returned must have a "simple" type for all
+the keys, as it will be converted to a string. Numbers will be directly
+converted and other types will produce strange results.
+
+* This currently only works for functions that must return a value. They will
+have no access to the manifests data.
+-}
 module Puppet.Plugins (initLua, puppetFunc, closeLua) where
 
 import Prelude hiding (catch)
@@ -98,7 +120,9 @@ loadLuaFile l file = do
     case r of
         0 -> Lua.call l 0 0 >> return [gbasename file]
         _ -> return []
-
+{-| Runs a puppet function in the 'CatalogMonad' monad. It takes a state,
+function name and list of arguments. It returns a valid Puppet value.
+-}
 puppetFunc :: Lua.LuaState -> String -> [ResolvedValue] -> CatalogMonad ResolvedValue
 puppetFunc l fn args = do
     content <- liftIO $ catch (fmap Right (Lua.callfunc l fn args)) (\e -> return $ Left $ show (e :: SomeException))
@@ -106,6 +130,9 @@ puppetFunc l fn args = do
         Right x -> return x
         Left  y -> throwPosError y
 
+-- | Initializes the Lua state. The argument is the modules directory. Each
+-- subdirectory will be traversed for functions.
+-- The default location is @\/lib\/puppet\/parser\/functions@.
 initLua :: String -> IO (Lua.LuaState, [String])
 initLua moduledir = do
     funcfiles <- getLuaFiles moduledir
@@ -114,5 +141,6 @@ initLua moduledir = do
     luafuncs <- fmap concat $ mapM (loadLuaFile l) funcfiles
     return (l , luafuncs)
 
+-- | Obviously releases the Lua state.
 closeLua :: Lua.LuaState -> IO ()
 closeLua = Lua.close
