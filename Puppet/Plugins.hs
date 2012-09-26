@@ -2,7 +2,7 @@ module Puppet.Plugins (initLua, puppetFunc, closeLua) where
 
 import Prelude hiding (catch)
 import qualified Scripting.Lua as Lua
-import Scripting.LuaUtils
+import Scripting.LuaUtils()
 import System.Directory
 import Control.Exception
 import Data.String.Utils (endswith)
@@ -10,30 +10,40 @@ import qualified Data.Map as Map
 import Control.Monad
 import Data.Maybe (fromJust)
 import Control.Monad.Loops (whileM)
-import Puppet.Interpreter.Types
 import Control.Monad.IO.Class
+
+import Puppet.Interpreter.Types
+import Puppet.Printers
 
 instance Lua.StackValue ResolvedValue
     where
-        push l (ResolvedString s) = Lua.push l s
-        push l (ResolvedRegexp s) = Lua.push l s
-        push l (ResolvedInt i) = Lua.push l (fromIntegral i :: Int)
-        push l (ResolvedDouble d) = Lua.push l d
-        push l (ResolvedBool b) = Lua.push l b
+        push l (ResolvedString s)        = Lua.push l s
+        push l (ResolvedRegexp s)        = Lua.push l s
+        push l (ResolvedInt i)           = Lua.push l (fromIntegral i :: Int)
+        push l (ResolvedDouble d)        = Lua.push l d
+        push l (ResolvedBool b)          = Lua.push l b
         push l (ResolvedRReference rr _) = Lua.push l rr
-        push l (ResolvedArray arr) = Lua.push l arr
-        push l (ResolvedHash h) = Lua.push l (Map.fromList h)
-        push l (ResolvedUndefined) = Lua.push l "undefined"
+        push l (ResolvedArray arr)       = Lua.push l arr
+        push l (ResolvedHash h)          = Lua.push l (Map.fromList h)
+        push l (ResolvedUndefined)       = Lua.push l "undefined"
 
         peek l n = do
             t <- Lua.ltype l n
             case t of
                 Lua.TBOOLEAN -> fmap (fmap ResolvedBool) (Lua.peek l n)
-                Lua.TSTRING -> fmap (fmap ResolvedString) (Lua.peek l n)
-                Lua.TNUMBER -> fmap (fmap ResolvedDouble) (Lua.peek l n)
-                Lua.TNIL -> return (Just ResolvedUndefined)
-                Lua.TNONE -> return (Just ResolvedUndefined)
-                Lua.TTABLE -> fmap (fmap (ResolvedHash . Map.toList)) (Lua.peek l n)
+                Lua.TSTRING  -> fmap (fmap ResolvedString) (Lua.peek l n)
+                Lua.TNUMBER  -> fmap (fmap ResolvedDouble) (Lua.peek l n)
+                Lua.TNIL     -> return (Just ResolvedUndefined)
+                Lua.TNONE    -> return (Just ResolvedUndefined)
+                Lua.TTABLE   -> do
+                    p <- Lua.peek l n :: IO (Maybe (Map.Map ResolvedValue ResolvedValue))
+                    case p of
+                        Just kp -> let ks = Map.keys kp
+                                       cp = map (\(a,b) -> (showValue a, b)) $ Map.toList kp
+                                   in  if (all (\(a,b) -> a == ResolvedDouble b) (zip ks [1.0..]))
+                                        then return $ Just (ResolvedArray (map snd cp))
+                                        else return $ Just (ResolvedHash cp)
+                        _ -> return Nothing
                 _ -> return Nothing
 
         valuetype _ = Lua.TUSERDATA

@@ -111,6 +111,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules = do
                                    , computeTemplateFunction    = gettemplate
                                    , puppetDBFunction           = puppetdb
                                    , luaState                   = luastate
+                                   , userFunctions              = Set.fromList userfunctions
                                    } )
     case luastate of
         Just l  -> closeLua l
@@ -200,12 +201,12 @@ extractRelations cr = do
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
-    pdbfunction <- fmap puppetDBFunction get
-    fqdnr       <- getVariable "::fqdn"
+    pdbfunction     <- fmap puppetDBFunction get
+    fqdnr           <- getVariable "::fqdn"
     collectedRemote <- case pdbfunction of
                            Just f -> do
                                fqdn <- case fqdnr of
-                                   Just (Right (ResolvedString f), _) -> return f
+                                   Just (Right (ResolvedString f'), _) -> return f'
                                    _ -> throwError "Could not get FQDN during final resolution"
                                remoteCollects <- fmap (catMaybes . map (\(_,_,x) -> x) . curCollect) get
                                fmap concat (mapM (retrieveRemoteResources (f fqdn)) remoteCollects)
@@ -215,6 +216,7 @@ finalResolution cat = do
     collected <- mapM evaluateDefine (collectedLocal ++ collectedRemote')
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
         (_,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
+    -- TODO
     --export stuff
     --liftIO $ putStrLn "EXPORTED:"
     --liftIO $ mapM print exported
@@ -714,6 +716,7 @@ rstring resolved = case resolved of
             p <- getPos
             throwError ("'" ++ show e ++ "' will not resolve to a string at " ++ show p)
 
+
 resolveExpression :: Expression -> CatalogMonad ResolvedValue
 resolveExpression e = do
     resolved <- tryResolveExpression e
@@ -736,6 +739,7 @@ resolveExpressionString x = do
 tryResolveValue :: Value -> CatalogMonad GeneralValue
 tryResolveValue (Literal x) = return $ Right $ ResolvedString x
 tryResolveValue (Integer x) = return $ Right $ ResolvedInt x
+tryResolveValue (Double  x) = return $ Right $ ResolvedDouble x
 
 tryResolveValue n@(ResourceReference rtype vals) = do
     rvals <- tryResolveExpression vals
@@ -933,7 +937,16 @@ tryResolveValue n@(FunctionCall "file" filelist) = do
                 Just x  -> return $ Right $ ResolvedString x
         else return $ Left $ Value n
 
-tryResolveValue   (FunctionCall fname _) = throwPosError ("FunctionCall " ++ fname ++ " not implemented")
+tryResolveValue n@(FunctionCall fname args) = do
+    ufunctions <- fmap userFunctions get
+    l <- fmap luaState get
+    case (l, Set.member fname ufunctions) of
+     (Just ls, True) -> do
+        rargs <- mapM tryResolveExpression args
+        if null (lefts rargs)
+            then fmap Right (puppetFunc ls fname (rights rargs))
+            else return $ Left $ Value n
+     _               -> throwPosError ("FunctionCall " ++ fname ++ " not implemented")
 
 tryResolveValue Undefined = return $ Right ResolvedUndefined
 tryResolveValue (PuppetRegexp x) = return $ Right $ ResolvedRegexp x
@@ -946,6 +959,7 @@ tryResolveValueString x = do
     case r of
         Right (ResolvedString v) -> return $ Right v
         Right (ResolvedInt    i) -> return $ Right (show i)
+        Right (ResolvedDouble i) -> return $ Right (show i)
         Right v                  -> throwPosError ("Can't resolve valuestring for " ++ show v)
         Left  v                  -> return $ Left v
 

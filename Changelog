@@ -1,3 +1,7 @@
+v0.1.9 ()
+  New features
+    * Lua integration for custom functions.
+
 v0.1.8.0 (2012/09/20)
   New features
 	* Refactoring of the PuppetDB API for interfacing with the facter library.

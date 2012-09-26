@@ -134,8 +134,10 @@ data ScopeState = ScopeState {
     puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource])),
     -- ^ Function that takes a request type (resources, nodes, facts, ..),
     -- a query, and returns a resolved value from puppetDB.
-    luaState :: Maybe Lua.LuaState
+    luaState :: Maybe Lua.LuaState,
     -- ^ The Lua state, used for user supplied content.
+    userFunctions :: Set.Set String
+    -- ^ The list of registered user functions
 }
 
 -- | The monad all the interpreter lives in. It is 'ErrorT' with a state.

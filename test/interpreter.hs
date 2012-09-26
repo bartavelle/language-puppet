@@ -44,7 +44,7 @@ testinterpreter fp = do
                 topclass = ClassDeclaration "::" Nothing [] othertoplevels (initialPos fp)
                 stmtpmap :: Map.Map (TopLevelType, String) Statement
                 stmtpmap = foldl' (\mp (ttype,tname,ts) -> Map.insert (ttype,tname) (TopContainer [(fp, topclass)] ts) mp) Map.empty oktoplevels
-            ctlg <- getCatalog (getstatement stmtpmap) gettemplate "test" facts
+            ctlg <- getCatalog (getstatement stmtpmap) gettemplate Nothing "test" facts (Just "test/modules")
             print ctlg
             case ctlg of
                 (Right _, _) -> return ("PASS", True)
