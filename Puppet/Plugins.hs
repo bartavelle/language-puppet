@@ -41,6 +41,8 @@ instance Lua.StackValue ResolvedValue
                         Just kp -> let ks = Map.keys kp
                                        cp = map (\(a,b) -> (showValue a, b)) $ Map.toList kp
                                    in  if (all (\(a,b) -> a == ResolvedDouble b) (zip ks [1.0..]))
+                                       -- horrible trick to check whether we are being returned a list or a hash
+                                       -- this will probably fail somehow
                                         then return $ Just (ResolvedArray (map snd cp))
                                         else return $ Just (ResolvedHash cp)
                         _ -> return Nothing
@@ -99,7 +101,7 @@ loadLuaFile l file = do
 
 puppetFunc :: Lua.LuaState -> String -> [ResolvedValue] -> CatalogMonad ResolvedValue
 puppetFunc l fn args = do
-    content <- liftIO $ catch (fmap Right (Lua.callfunc l fn args)) (\e -> return $ Left $ show (e :: IOException))
+    content <- liftIO $ catch (fmap Right (Lua.callfunc l fn args)) (\e -> return $ Left $ show (e :: SomeException))
     case content of
         Right x -> return x
         Left  y -> throwPosError y
