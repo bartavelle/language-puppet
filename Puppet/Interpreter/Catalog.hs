@@ -849,7 +849,6 @@ tryResolveValue   (FunctionCall "mysql_password" args) = if length args /= 1
         case es of
             Right s -> liftM (Right . ResolvedString) (mysql_password s)
             Left  u -> return $ Left u
-tryResolveValue   (FunctionCall "jbossmem" _) = return $ Right $ ResolvedString "512"
 tryResolveValue   (FunctionCall "template" [name]) = do
     fname <- tryResolveExpressionString name
     case fname of
