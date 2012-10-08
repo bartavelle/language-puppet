@@ -350,7 +350,7 @@ resourceDeclaration = do { pos <- getPosition
 puppetResourceDefaults = do { pos <- getPosition
     ; rtype <- puppetQualifiedReference
     ; symbol "{"
-    ; e <- puppetAssignment `sepBy` symbol ","
+    ; e <- puppetAssignment `sepEndBy` symbol ","
     ; symbol "}"
     ; return [ResourceDefault rtype e pos]
     }
