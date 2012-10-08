@@ -5,6 +5,8 @@ import Puppet.Interpreter.Types
 import Puppet.Interpreter.Catalog
 import Puppet.DSL.Types
 import Puppet.DSL.Loader
+import PuppetDB.Rest
+
 import Erb.Compute
 import Control.Concurrent
 import System.Posix.Files
@@ -19,7 +21,6 @@ import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
 import Text.Parsec.Pos (initialPos)
-import PuppetDB.Rest
 
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
@@ -96,7 +97,7 @@ master prefs chan getstmts gettemplate = do
             let pdbfunc = case (puppetDBurl prefs) of
                               Just x  -> Just (pdbResRequest x)
                               Nothing -> Nothing
-            (stmts, warnings) <- getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs)
+            (stmts, warnings) <- getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs) (natTypes prefs)
             mapM_ logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)

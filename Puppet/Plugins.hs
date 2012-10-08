@@ -20,7 +20,7 @@ converted and other types will produce strange results.
 * This currently only works for functions that must return a value. They will
 have no access to the manifests data.
 -}
-module Puppet.Plugins (initLua, puppetFunc, closeLua) where
+module Puppet.Plugins (initLua, puppetFunc, closeLua, getFiles, getBasename) where
 
 import Prelude hiding (catch)
 import qualified Scripting.Lua as Lua
@@ -97,28 +97,37 @@ instance (Lua.StackValue a, Lua.StackValue b, Ord a) => Lua.StackValue (Map.Map 
 getDirContents :: FilePath -> IO [FilePath]
 getDirContents x = fmap (filter (not . all (=='.'))) (getDirectoryContents x)
 
-checkForLuaFiles :: String -> IO [String]
-checkForLuaFiles dir = do
-    let funcdir = dir ++ "/lib/puppet/parser/functions"
-    content <- catch (fmap Right (getDirContents funcdir)) (\e -> return $ Left (e :: IOException))
+-- find files in subdirectories
+checkForSubFiles :: String -> String -> IO [String]
+checkForSubFiles extension dir = do
+    content <- catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException))
     case content of
         Right o -> do
-            return ((map (\x -> funcdir ++ "/" ++ x) . filter (endswith ".lua")) o )
+            return ((map (\x -> dir ++ "/" ++ x) . filter (endswith extension)) o )
         Left _ -> return []
 
+-- Find files in the module directory that are in a module subdirectory and
+-- finish with a specific extension
+getFiles :: String -> String -> String -> IO [String]
+getFiles moduledir subdir extension =
+        getDirContents moduledir
+        >>= mapM ( (checkForSubFiles extension) . (\x -> moduledir ++ "/" ++ x ++ "/" ++ subdir))
+        >>= return . concat
+
 getLuaFiles :: String -> IO [String]
-getLuaFiles moduledir = do
-    getDirContents moduledir >>= mapM (checkForLuaFiles . (\x -> moduledir ++ "/" ++ x)) >>= return . concat
+getLuaFiles moduledir = getFiles moduledir "lib/puppet/parser/functions" ".lua"
+
+-- retrieves the base name of a file (very slow and naïve implementation).
+getBasename :: String -> String
+getBasename fullname =
+    let lastpart = reverse $ fst $ break (=='/') $ reverse fullname
+    in  fst $ break (=='.') lastpart
 
 loadLuaFile :: Lua.LuaState -> String -> IO [String]
 loadLuaFile l file = do
-    let gbasename :: String -> String
-        gbasename fullname =
-            let lastpart = reverse $ fst $ break (=='/') $ reverse fullname
-            in  fst $ break (=='.') lastpart
     r <- Lua.loadfile l file
     case r of
-        0 -> Lua.call l 0 0 >> return [gbasename file]
+        0 -> Lua.call l 0 0 >> return [getBasename file]
         _ -> return []
 {-| Runs a puppet function in the 'CatalogMonad' monad. It takes a state,
 function name and list of arguments. It returns a valid Puppet value.

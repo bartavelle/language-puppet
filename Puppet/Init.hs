@@ -2,6 +2,10 @@
 module Puppet.Init where
 
 import Puppet.Interpreter.Types
+import Puppet.NativeTypes
+import Puppet.NativeTypes.Helpers
+import Puppet.Plugins
+
 import qualified Data.Map as Map
 
 data Prefs = Prefs {
@@ -10,14 +14,21 @@ data Prefs = Prefs {
     templates :: FilePath, -- ^ The path to the template.
     compilepoolsize :: Int, -- ^ Size of the compiler pool.
     parsepoolsize :: Int, -- ^ Size of the parser pool.
-    puppetDBurl :: Maybe String -- ^ Url of the PuppetDB connector (must be cleartext).
-} deriving (Show)
+    puppetDBurl :: Maybe String, -- ^ Url of the PuppetDB connector (must be cleartext).
+    natTypes :: Map.Map PuppetTypeName PuppetTypeMethods -- ^ The list of native types.
+}
 
 -- | Generates the 'Prefs' structure from a single path.
 --
 -- > genPrefs "/etc/puppet"
-genPrefs :: String -> Prefs
-genPrefs basedir = Prefs (basedir ++ "/manifests") (basedir ++ "/modules") (basedir ++ "/templates") 1 1 Nothing
+genPrefs :: String -> IO Prefs
+genPrefs basedir = do
+    let manifestdir = basedir ++ "/manifests"
+        modulesdir  = basedir ++ "/modules"
+        templatedir = basedir ++ "/templates"
+    typenames <- fmap (map getBasename) (getFiles modulesdir "lib/puppet/type" ".rb")
+    let loadedTypes = Map.fromList (map defaulttype typenames)
+    return $ Prefs manifestdir modulesdir templatedir 1 1 Nothing (Map.union baseNativeTypes loadedTypes)
 
 -- | Generates 'Facts' from pairs of strings.
 --

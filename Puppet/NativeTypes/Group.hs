@@ -1,6 +1,7 @@
 module Puppet.NativeTypes.Group (nativeGroup) where
 
 import Puppet.NativeTypes.Helpers
+import Puppet.Interpreter.Types
 import Control.Monad.Error
 import qualified Data.Set as Set
 

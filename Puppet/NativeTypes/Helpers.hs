@@ -9,15 +9,6 @@ import qualified Data.Set as Set
 import Data.Char (isDigit)
 import Control.Monad
 
-type PuppetTypeName = String
--- |This is a function type than can be bound. It is the type of all subsequent
--- validators.
-type PuppetTypeValidate = RResource -> Either String RResource
-data PuppetTypeMethods = PuppetTypeMethods {
-    puppetvalidate :: PuppetTypeValidate,
-    puppetfields   :: Set.Set String
-    }
-
 faketype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 faketype tname = (tname, PuppetTypeMethods Right Set.empty)
 

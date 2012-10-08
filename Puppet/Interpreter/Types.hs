@@ -1,6 +1,7 @@
 module Puppet.Interpreter.Types where
 
 import Puppet.DSL.Types
+
 import qualified PuppetDB.Query as PDB
 import qualified Scripting.Lua as Lua
 import Text.Parsec.Pos
@@ -10,6 +11,16 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import GHC.Exts
 import Data.List
+
+-- | Types for the native type system.
+type PuppetTypeName = String
+-- |This is a function type than can be bound. It is the type of all subsequent
+-- validators.
+type PuppetTypeValidate = RResource -> Either String RResource
+data PuppetTypeMethods = PuppetTypeMethods {
+    puppetvalidate :: PuppetTypeValidate,
+    puppetfields   :: Set.Set String
+    }
 
 -- | This is the potentially unsolved list of resources in the catalog.
 type Catalog =[CResource]
@@ -136,8 +147,10 @@ data ScopeState = ScopeState {
     -- a query, and returns a resolved value from puppetDB.
     luaState :: Maybe Lua.LuaState,
     -- ^ The Lua state, used for user supplied content.
-    userFunctions :: Set.Set String
+    userFunctions :: Set.Set String,
     -- ^ The list of registered user functions
+    nativeTypes :: Map.Map PuppetTypeName PuppetTypeMethods
+    -- ^ The list of native types.
 }
 
 -- | The monad all the interpreter lives in. It is 'ErrorT' with a state.

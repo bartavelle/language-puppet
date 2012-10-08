@@ -33,8 +33,6 @@ module Puppet.Interpreter.Catalog (
     ) where
 
 import Puppet.DSL.Types
-import Puppet.NativeTypes
-import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Functions
 import Puppet.Interpreter.Types
 import Puppet.Printers
@@ -87,8 +85,9 @@ getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -> String -- ^ Name of the node.
     -> Facts -- ^ Facts of this node.
     -> Maybe String -- ^ Path to the modules, for user plugins. If set to Nothing, plugins are disabled.
+    -> Map.Map PuppetTypeName PuppetTypeMethods -- ^ The list of native types
     -> IO (Either String FinalCatalog, [String])
-getCatalog getstatements gettemplate puppetdb nodename facts modules = do
+getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
@@ -112,6 +111,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules = do
                                    , puppetDBFunction           = puppetdb
                                    , luaState                   = luastate
                                    , userFunctions              = Set.fromList userfunctions
+                                   , nativeTypes                = ntypes
                                    } )
     case luastate of
         Just l  -> closeLua l
@@ -138,12 +138,13 @@ finalizeResource cr@(CResource cid cname ctype cparams _ cpos) = do
     checkDuplicateFirst rparams
     -- add collected relations
     -- TODO
-    unless (Map.member ctype nativeTypes) $ throwPosError $ "Can't find native type " ++ ctype
+    ntypes <- fmap nativeTypes get
+    unless (Map.member ctype ntypes) $ throwPosError $ "Can't find native type " ++ ctype
     -- now run the collection checks for overrides
     nparams <- processOverride cr (Map.fromList rparams)
     let mrrelations = []
         prefinalresource = RResource cid rname ctype nparams mrrelations cpos
-        validatefunction = puppetvalidate (nativeTypes Map.! ctype)
+        validatefunction = puppetvalidate (ntypes Map.! ctype)
         validated = validatefunction prefinalresource
     case validated of
         Left err -> throwError (err ++ " for resource " ++ ctype ++ "[" ++ rname ++ "] at " ++ show cpos)
@@ -294,7 +295,7 @@ addUnresRel ncol@(rels, _, _, _)  = unless (null rels) (modify (pushUnresRel nco
 
 -- finds out if a resource name refers to a define
 checkDefine :: String -> CatalogMonad (Maybe Statement)
-checkDefine dname = if Map.member dname nativeTypes
+checkDefine dname = fmap nativeTypes get >>= \nt -> if Map.member dname nt
   then return Nothing
   else do
     curstate <- get
@@ -867,9 +868,10 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
     case rv of
         Left n -> return $ Left n
         -- TODO BUG
-        Right (ResolvedString typeorclass) ->
+        Right (ResolvedString typeorclass) -> do
+            ntypes <- fmap nativeTypes get
             -- is it a loaded class or a define ?
-            if Map.member typeorclass nativeTypes
+            if Map.member typeorclass ntypes
                 then return $ Right $ ResolvedBool True
                 else do
                     isdefine <- checkDefine typeorclass
@@ -1107,7 +1109,7 @@ collectionFunction virt mrtype exprs = do
                 _ -> throwPosError "We only support collection of the form 'parameter == value'"
             defstatement <- checkDefine mrtype
             paramset <- case defstatement of
-                Nothing -> case Map.lookup mrtype nativeTypes of
+                Nothing -> fmap nativeTypes get >>= \nt -> case Map.lookup mrtype nt of
                     Just (PuppetTypeMethods _ ps) -> return ps
                     Nothing -> throwPosError $ "Unknown type " ++ mrtype ++ " when trying to collect"
                 Just (DefineDeclaration _ params _ _) -> return $ Set.fromList $ map fst params

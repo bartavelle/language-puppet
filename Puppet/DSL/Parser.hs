@@ -390,7 +390,7 @@ puppetDefine = do
     symbol "{"
     st <- many stmtparser
     symbol "}"
-    case Map.lookup cname nativeTypes of
+    case Map.lookup cname baseNativeTypes of
         Just _  -> unexpected "Can't use a native type name for a define."
         Nothing -> return [DefineDeclaration cname params (concat st) pos]
 

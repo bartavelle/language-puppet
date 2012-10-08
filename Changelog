@@ -1,6 +1,7 @@
 v0.1.9 ()
   New features
 	* Lua integration for custom functions.
+	* Automatically creates magic types based on the content of the modules.
   Bugs fixed
 	* Defaults parameters can now end with a comma.
 

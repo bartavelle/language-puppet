@@ -1,8 +1,8 @@
 module Puppet.NativeTypes.ZoneRecord (nativeZoneRecord) where
 
 import Puppet.NativeTypes.Helpers
-import Control.Monad.Error
 import Puppet.Interpreter.Types
+import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
