@@ -987,7 +987,11 @@ executeFunction :: String -> [ResolvedValue] -> CatalogMonad Catalog
 executeFunction "fail" [ResolvedString errmsg] = throwPosError ("Error: " ++ errmsg)
 executeFunction "fail" args = throwPosError ("Error: " ++ show args)
 executeFunction "realize" rlist = mapM_ pushRealize rlist >> return []
-executeFunction "create_resources" [mrtype, rdefs] = do
+executeFunction "create_resources" (mrtype:rdefs:rest) = do
+--        applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
+--        data ResDefaults = RDefaults String [(GeneralString, GeneralValue)] SourcePos
+--
+--
     mrrtype <- case mrtype of
         ResolvedString x -> return x
         _                -> throwPosError $ "Resource type must be a string and not " ++ show mrtype
@@ -995,6 +999,10 @@ executeFunction "create_resources" [mrtype, rdefs] = do
         ResolvedHash x -> return x
         _              -> throwPosError $ "Resource definition must be a hash, and not " ++ show rdefs
     position <- getPos
+    defaults <- case rest of
+                    [ResolvedHash h] -> return $ RDefaults mrrtype (map (\(a,b) -> (Right a, Right b)) h) position
+                    []  -> return $ RDefaults mrrtype [] position
+                    _   -> throwPosError ("Bad many arguments to create_resources: " ++ show rest)
     let prestatements = map (\(rname, rargs) -> (Value $ Literal rname, resolved2expression rargs)) arghash
     resources <- mapM (\(resname, pval) -> do
             realargs <- case pval of
@@ -1002,7 +1010,7 @@ executeFunction "create_resources" [mrtype, rdefs] = do
                 _                    -> throwPosError "This should not happen, create_resources argument is not a hash"
             return $ Resource mrrtype resname realargs Normal position
         ) prestatements
-    liftM concat (mapM evaluateStatements resources)
+    liftM concat (mapM evaluateStatements resources) >>= mapM (\r -> applyDefaults' r defaults)
 executeFunction "create_resources" x = throwPosError ("Bad arguments to create_resources: " ++ show x)
 executeFunction "validate_array" [x] = case x of
     ResolvedArray _ -> return []
