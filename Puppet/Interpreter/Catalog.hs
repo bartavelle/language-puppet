@@ -690,6 +690,13 @@ tryResolveGeneralValue o@(Left (IsElementOperation b a)) = do
             if null filtered
                 then return $ Right $ ResolvedBool False
                 else return $ Right $ ResolvedBool True
+        (Right (ResolvedHash h), Right idx) -> do
+            let filtered = filter (\(fa,_) -> fa == idx) h
+            if null filtered
+                then return $ Right $ ResolvedBool False
+                else return $ Right $ ResolvedBool True
+        (Right (ResolvedString _), Right _) -> throwPosError "in operator not yet implemented for substrings"
+        (Right ba, Right bb) -> throwPosError $ "Expected a string and a hash, array or string for the in operator, not " ++ show (ba,bb)
         _ -> return o
 -- horrible hack, because I do not know how to supply a single operator for Int and Float
 tryResolveGeneralValue o@(Left (PlusOperation a b)) = arithmeticOperation a b (+) (+) o
