@@ -112,6 +112,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
                                    , luaState                   = luastate
                                    , userFunctions              = Set.fromList userfunctions
                                    , nativeTypes                = ntypes
+                                   , definedResources           = Set.empty
                                    } )
     case luastate of
         Just l  -> closeLua l
@@ -428,7 +429,10 @@ addResource rtype parameters virtuality position grname = do
     rparameters <- mapM resolveParams parameters
     -- il faut transformer grname qui est une generalvalue en generalstring
     srname <- case grname of
-        Right e -> liftM Right (rstring e)
+        Right e -> do
+                    rse <- rstring e
+                    addDefinedResource (rtype, rse)
+                    return $ Right rse
         Left  e -> return $ Left e
     let (realparams, relations) = partitionParamsRelations rparameters
     -- push all the relations
@@ -878,10 +882,9 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
                     case isdefine of
                         Just _  -> return $ Right $ ResolvedBool True
                         Nothing -> liftM (Right . ResolvedBool . Map.member typeorclass . curClasses) get
-        Right (ResolvedRReference _ (ResolvedString _)) -> do
-            position <- getPos
-            addWarning $ "The defined() function is not implemented for resource references. Returning true at " ++ show position
-            return $ Right $ ResolvedBool True
+        Right (ResolvedRReference rtype (ResolvedString rname)) -> do
+            defset <- fmap definedResources get
+            return $ Right $ ResolvedBool (Set.member (rtype, rname) defset)
         Right x -> throwPosError $ "Can't know if this could be defined : " ++ show x
 tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str

@@ -1,6 +1,7 @@
 v0.2.1 ()
   New features
 	* create_resources now supports the defaults system.
+	* defined() function works for resource references.
 
 v0.2.0 (2012/10/08)
   New features

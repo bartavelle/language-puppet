@@ -149,8 +149,10 @@ data ScopeState = ScopeState {
     -- ^ The Lua state, used for user supplied content.
     userFunctions :: Set.Set String,
     -- ^ The list of registered user functions
-    nativeTypes :: Map.Map PuppetTypeName PuppetTypeMethods
+    nativeTypes :: Map.Map PuppetTypeName PuppetTypeMethods,
     -- ^ The list of native types.
+    definedResources :: Set.Set (String, String)
+    -- ^ Horrible hack to kind of support the "defined" function
 }
 
 -- | The monad all the interpreter lives in. It is 'ErrorT' with a state.
@@ -179,6 +181,7 @@ emptyDefaults     sc = sc { curDefaults    = [] }
 pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
 pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
+addDefinedResource r = modify (\st -> st { definedResources = Set.insert r (definedResources st) } )
 
 throwPosError :: String -> CatalogMonad a
 throwPosError msg = do
