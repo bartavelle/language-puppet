@@ -1,5 +1,6 @@
 v0.2.1 ()
   New features
+	* Basic testing framework started.
 	* create_resources now supports the defaults system.
 	* defined() function works for resource references.
 	* in operator implemented for hashes.
