@@ -30,6 +30,11 @@ Maintainer:          bartavelle@gmail.com
 
 Homepage:            http://lpuppet.banquise.net
 
+source-repository head
+  type: git
+  location: git://github.com/bartavelle/language-puppet.git
+
+
 -- A copyright notice.
 -- Copyright:           
 
