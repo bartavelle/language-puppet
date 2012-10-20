@@ -30,10 +30,6 @@ Maintainer:          bartavelle@gmail.com
 
 Homepage:            http://lpuppet.banquise.net
 
-source-repository head
-  type: git
-  location: git://github.com/bartavelle/language-puppet.git
-
 
 -- A copyright notice.
 -- Copyright:           
@@ -51,6 +47,10 @@ Cabal-version:       >=1.8
 
 Data-Files:
   ruby/calcerb.rb
+
+source-repository head
+  type: git
+  location: git://github.com/bartavelle/language-puppet.git
 
 Library
     ghc-options:       -Wall -fno-warn-missing-signatures -fno-warn-unused-do-bind -funbox-strict-fields
