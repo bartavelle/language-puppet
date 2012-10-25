@@ -54,7 +54,7 @@ testFileSources puppetdir cat =
             let stringdir = drop (length protostring) src
                 place = findPlace stringdir
             case place of
-                          Just dir -> liftIO (fileExist dir) >>= \x -> unless x (throwError $ "Searched in " ++ dir)
+                          Just dir -> liftIO (fileExist dir) >>= (`unless` (throwError $ "Searched in " ++ dir))
                           Nothing  -> throwError ("Unknown path: " ++ stringdir)
         genFileTest :: ResolvedValue -> Test
         genFileTest (ResolvedString src) = SingleTest (src ++ " exists") (checkSrcExists src)
