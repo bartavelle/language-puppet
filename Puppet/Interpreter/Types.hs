@@ -116,7 +116,7 @@ data ScopeState = ScopeState {
     curClasses :: !(Map.Map String SourcePos),
     -- ^ The list of classes that have already been included, along with the
     -- place where this happened.
-    curDefaults :: ![ResDefaults],
+    curDefaults :: !(Map.Map [ScopeName] [ResDefaults]),
     -- ^ List of defaults to apply. All defaults are applied at the end of the
     -- interpretation of each top level statement.
     curResId :: !Int, -- ^ Stores the value of the current 'crid'.
@@ -174,10 +174,8 @@ getPos               = liftM curPos get
 modifyScope     f sc = sc { curScope       = f $ curScope sc }
 modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
 modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
-modifyDefaults  f sc = sc { curDefaults    = f $ curDefaults sc }
 incrementResId    sc = sc { curResId       = curResId sc + 1 }
 setStatePos  npos sc = sc { curPos         = npos }
-emptyDefaults     sc = sc { curDefaults    = [] }
 pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
 pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }

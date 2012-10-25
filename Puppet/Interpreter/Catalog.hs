@@ -99,7 +99,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
                                    { curScope                   = [["::"]]
                                    , curVariables               = convertedfacts
                                    , curClasses                 = Map.empty
-                                   , curDefaults                = []
+                                   , curDefaults                = Map.empty
                                    , curResId                   = 1
                                    , curPos                     = (initialPos "dummy")
                                    , nestedtoplevels            = Map.empty
@@ -249,7 +249,32 @@ getstatement qtype name = do
 
 -- State alteration functions
 pushScope = modify . modifyScope . (:)
-pushDefaults = modify . modifyDefaults . (:)
+
+pushDefaults :: ResDefaults -> CatalogMonad ()
+pushDefaults d = do
+    curstate <- get
+    let curscope = (head . curScope) curstate
+        curdefaults = curDefaults curstate
+        newdefaults = Map.insertWith (++) curscope [d] curdefaults
+    put (curstate { curDefaults = newdefaults })
+
+emptyDefaults :: CatalogMonad ()
+emptyDefaults = do
+    curstate <- get
+    let curscope = (head . curScope) curstate
+        curdefaults = curDefaults curstate
+        newdefaults = Map.delete curscope curdefaults
+    put (curstate { curDefaults = newdefaults })
+
+getCurDefaults :: CatalogMonad [ResDefaults]
+getCurDefaults = do
+    curstate <- get
+    let curscope = (head . curScope) curstate
+        curdefaults = curDefaults curstate
+    case Map.lookup curscope curdefaults of
+        Nothing -> return []
+        Just  x -> return x
+
 popScope        = modify (modifyScope tail)
 getScope        = do
     scope <- liftM curScope get
@@ -345,7 +370,7 @@ resolveParams (a,b) = do
 
 -- apply default values to a resource
 applyDefaults :: CResource -> CatalogMonad CResource
-applyDefaults res = liftM curDefaults get >>= foldM applyDefaults' res
+applyDefaults res = getCurDefaults >>= foldM applyDefaults' res
 
 applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
 applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults dtype rdefs dpos) = do
@@ -420,7 +445,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
 handleDelayedActions :: Catalog -> CatalogMonad Catalog
 handleDelayedActions res = do
     dres <- liftM concat (mapM applyDefaults res >>= mapM evaluateDefine)
-    modify emptyDefaults
+    emptyDefaults
     return dres
 
 addResource :: String -> [(Expression, Expression)] -> Virtuality -> SourcePos -> GeneralValue -> CatalogMonad [CResource]

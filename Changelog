@@ -1,4 +1,6 @@
 v0.2.1 ()
+  Bugs fixed
+	* The defaults system was pretty much broken, it should be better now.:
   New features
 	* Basic testing framework started.
 	* create_resources now supports the defaults system.
