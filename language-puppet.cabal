@@ -30,11 +30,6 @@ Maintainer:          bartavelle@gmail.com
 
 Homepage:            http://lpuppet.banquise.net
 
-source-repository head
-  type: git
-  location: git://github.com/bartavelle/language-puppet.git
-
-
 -- A copyright notice.
 -- Copyright:           
 
@@ -99,4 +94,9 @@ benchmark bench-lexer
     ghc-options:    -Wall
     build-depends:  language-puppet,base
     main-is:        lexer.hs
+
+source-repository head
+  type: git
+  location: git://github.com/bartavelle/language-puppet.git
+
 
