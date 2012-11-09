@@ -51,8 +51,8 @@ computeTemplate :: String -> String -> Map.Map String GeneralValue -> IO Templat
 computeTemplate filename curcontext variables = do
     parsed <- parseErbFile filename
     case parsed of
-        Left _    -> do
-            let !msg = "template " ++ filename ++ " could not be parsed"
+        Left err -> do
+            let !msg = "template " ++ filename ++ " could not be parsed " ++ show err
             traceEventIO msg
             LOG.debugM "Erb.Compute" msg
             computeTemplateWRuby filename curcontext variables

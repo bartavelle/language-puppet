@@ -2,6 +2,7 @@ module Erb.Ruby where
 
 data Value
     = Literal String
+    | Array [Expression]
     deriving (Show, Ord, Eq)
 
 data Expression
