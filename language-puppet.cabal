@@ -54,7 +54,7 @@ Library
                        Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers, PuppetDB.Rest, PuppetDB.Query, Puppet.Plugins, Puppet.Testing
 
   -- Packages needed in order to build this package.
-  Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring,cryptohash,base16-bytestring,regex-pcre-builtin,
+  Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring>=0.10.2.0,cryptohash,base16-bytestring,regex-pcre-builtin,
                         iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec, failure, hslua, monad-loops, directory, luautils, transformers
 
   -- Modules not exported by this package.
