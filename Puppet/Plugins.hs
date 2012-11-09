@@ -29,9 +29,6 @@ import System.Directory
 import Control.Exception
 import Data.String.Utils (endswith)
 import qualified Data.Map as Map
-import Control.Monad
-import Data.Maybe (fromJust)
-import Control.Monad.Loops (whileM)
 import Control.Monad.IO.Class
 
 import Puppet.Interpreter.Types
@@ -71,28 +68,6 @@ instance Lua.StackValue ResolvedValue
                 _ -> return Nothing
 
         valuetype _ = Lua.TUSERDATA
-
-instance (Lua.StackValue a, Lua.StackValue b, Ord a) => Lua.StackValue (Map.Map a b)
-    where
-        push l mp = do
-            let llen = Map.size mp + 1
-            Lua.createtable l llen 0
-            forM_ (Map.toList mp) $ \(key, val) -> do
-                Lua.push    l key
-                Lua.push    l val
-                Lua.rawset  l (-3)
-        peek l i = do
-            top <- Lua.gettop l
-            let ix = if (i < 0) then top + i + 1 else i
-            Lua.pushnil l
-            arr <- whileM (Lua.next l ix) $ do
-                xk <- Lua.peek l (-2)
-                xv <- Lua.peek l (-1)
-                Lua.pop l 1
-                return (fromJust xk, fromJust xv)
-            return $ Just (Map.fromList arr)
-        valuetype _ = Lua.TTABLE
-
 
 getDirContents :: FilePath -> IO [FilePath]
 getDirContents x = fmap (filter (not . all (=='.'))) (getDirectoryContents x)
