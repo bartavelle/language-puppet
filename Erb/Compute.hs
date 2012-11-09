@@ -18,6 +18,7 @@ import Debug.Trace
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.ByteString.Builder as BB
 import Data.Monoid
+import qualified System.Log.Logger as LOG
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, Map.Map String GeneralValue)
 type TemplateAnswer = Either String String
@@ -37,7 +38,6 @@ templateQuery qchan filename scope variables = do
 templateDaemon :: String -> String -> Chan TemplateQuery -> IO ()
 templateDaemon modpath templatepath qchan = do
     (respchan, filename, scope, variables) <- readChan qchan
-    traceEventIO ("template request " ++ filename)
     let parts = DLU.split "/" filename
         searchpathes | length parts > 1 = [modpath ++ "/" ++ head parts ++ "/templates/" ++ (DLU.join "/" (tail parts)), templatepath ++ "/" ++ filename]
                      | otherwise        = [templatepath ++ "/" ++ filename]
@@ -45,14 +45,17 @@ templateDaemon modpath templatepath qchan = do
     if(null acceptablefiles)
         then writeChan respchan (Left $ "Can't find template file for " ++ filename ++ ", looked in " ++ show searchpathes)
         else computeTemplate (head acceptablefiles) scope variables >>= writeChan respchan
-    traceEventIO ("template finished " ++ filename)
     templateDaemon modpath templatepath qchan
 
 computeTemplate :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
 computeTemplate filename curcontext variables = do
     parsed <- parseErbFile filename
     case parsed of
-        Left _    -> computeTemplateWRuby filename curcontext variables
+        Left _    -> do
+            let !msg = "template " ++ filename ++ " could not be parsed"
+            traceEventIO msg
+            LOG.debugM "Erb.Compute" msg
+            computeTemplateWRuby filename curcontext variables
         Right ast -> return $ rubyEvaluate variables curcontext ast
 
 computeTemplateWRuby :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
