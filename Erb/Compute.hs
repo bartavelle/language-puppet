@@ -15,16 +15,16 @@ import Erb.Evaluate
 import qualified Data.Map as Map
 import Debug.Trace
 
-type TemplateQuery = (Chan TemplateAnswer, String, String, [(String, GeneralValue)])
+type TemplateQuery = (Chan TemplateAnswer, String, String, Map.Map String GeneralValue)
 type TemplateAnswer = Either String String
 
-initTemplateDaemon :: Prefs -> IO (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
+initTemplateDaemon :: Prefs -> IO (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
 initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) = do
     controlchan <- newChan
     replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan))
     return (templateQuery controlchan)
 
-templateQuery :: Chan TemplateQuery -> String -> String -> [(String, GeneralValue)] -> IO (Either String String)
+templateQuery :: Chan TemplateQuery -> String -> String -> Map.Map String GeneralValue -> IO (Either String String)
 templateQuery qchan filename scope variables = do
     rchan <- newChan
     writeChan qchan (rchan, filename, scope, variables)
@@ -44,16 +44,16 @@ templateDaemon modpath templatepath qchan = do
     traceEventIO ("template finished " ++ filename)
     templateDaemon modpath templatepath qchan
 
-computeTemplate :: String -> String -> [(String, GeneralValue)] -> IO TemplateAnswer
+computeTemplate :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
 computeTemplate filename curcontext variables = do
     parsed <- parseErbFile filename
     case parsed of
         Left _    -> computeTemplateWRuby filename curcontext variables
-        Right ast -> return $ rubyEvaluate (Map.fromList variables) curcontext ast
+        Right ast -> return $ rubyEvaluate variables curcontext ast
 
-computeTemplateWRuby :: String -> String -> [(String, GeneralValue)] -> IO TemplateAnswer
+computeTemplateWRuby :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
 computeTemplateWRuby filename curcontext variables = do
-    let rubyvars = "{\n" ++ intercalate ",\n" (concatMap toRuby variables ) ++ "\n}\n"
+    let rubyvars = "{\n" ++ intercalate ",\n" (concatMap toRuby (Map.toList variables) ) ++ "\n}\n"
         input = curcontext ++ "\n" ++ filename ++ "\n" ++ rubyvars
     rubyscriptpath <- do
         cabalPath <- getDataFileName "ruby/calcerb.rb"

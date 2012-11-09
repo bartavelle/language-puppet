@@ -91,7 +91,7 @@ initDaemon prefs = do
 master :: Prefs
     -> Chan DaemonMessage
     -> (TopLevelType -> String -> IO (Either String Statement))
-    -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
+    -> (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
     -> IO ()
 master prefs chan getstmts gettemplate = do
     message <- readChan chan

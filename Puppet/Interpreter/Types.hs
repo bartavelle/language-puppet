@@ -139,7 +139,7 @@ data ScopeState = ScopeState {
     unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
     -- ^ This stores unresolved relationships, because the original string name
     -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]
-    computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String),
+    computeTemplateFunction :: String -> String -> Map.Map String GeneralValue -> IO (Either String String),
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
     puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource])),
@@ -180,6 +180,7 @@ pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
 pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
 addDefinedResource r = modify (\st -> st { definedResources = Set.insert r (definedResources st) } )
+saveVariables vars = modify (\st -> st { curVariables = vars })
 
 throwPosError :: String -> CatalogMonad a
 throwPosError msg = do

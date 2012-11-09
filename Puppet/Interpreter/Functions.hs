@@ -28,6 +28,7 @@ import qualified Data.ByteString.Base16 as B16
 import SafeProcess
 import Data.Either (lefts, rights)
 import Data.List (intercalate)
+import qualified Data.ByteString.Lazy.Char8 as BSL
 
 puppetMD5  = md5s . Str
 puppetSHA1 = BS.unpack . B16.encode . SHA1.hash . BS.pack

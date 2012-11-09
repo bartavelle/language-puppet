@@ -51,6 +51,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Traversable as DT
 
 -- Utility function used to check if the there are duplicates a in [(a,_)]
 checkDuplicateFirst :: (Show a, Eq a) => [(a,b)] -> CatalogMonad ()
@@ -76,7 +77,7 @@ readint x = if isInt x
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -- ^ The \"get statements\" function. Given a top level type and its name it
     -- should return the corresponding statement.
-    -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
+    -> (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
     -- ^ The \"get template\" function. Given a file name, a scope name and a
     -- list of variables, it should return the computed template.
     -> Maybe (String -> PDB.Query -> IO (Either String [CResource]))
@@ -892,10 +893,11 @@ tryResolveValue   (FunctionCall "template" [name]) = do
     case fname of
         Left x -> throwPosError $ "Can't resolve template path " ++ show x
         Right filename -> do
-            vars <- get >>= mapM (\(varname, (varval, _)) -> do { rvarval <- tryResolveGeneralValue varval; return (varname, rvarval) }) . Map.toList . curVariables
+            vars <- fmap curVariables get >>= DT.mapM (\(v,p) -> fmap (\x -> (x,p)) (tryResolveGeneralValue v))
+            saveVariables vars
             scp <- liftM head getScope -- TODO check if that sucks
             templatefunc <- liftM computeTemplateFunction get
-            out <- liftIO (templatefunc filename scp vars)
+            out <- liftIO (templatefunc filename scp (Map.map fst vars))
             case out of
                 Right x -> return $ Right $ ResolvedString x
                 Left err -> throwPosError err
