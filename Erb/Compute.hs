@@ -13,14 +13,15 @@ import Paths_language_puppet (getDataFileName)
 import Erb.Parser
 import Erb.Evaluate
 import qualified Data.Map as Map
+import Debug.Trace
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, [(String, GeneralValue)])
 type TemplateAnswer = Either String String
 
 initTemplateDaemon :: Prefs -> IO (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
-initTemplateDaemon (Prefs _ modpath templatepath _ _ _ _) = do
+initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) = do
     controlchan <- newChan
-    forkIO (templateDaemon modpath templatepath controlchan)
+    replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan))
     return (templateQuery controlchan)
 
 templateQuery :: Chan TemplateQuery -> String -> String -> [(String, GeneralValue)] -> IO (Either String String)
@@ -32,6 +33,7 @@ templateQuery qchan filename scope variables = do
 templateDaemon :: String -> String -> Chan TemplateQuery -> IO ()
 templateDaemon modpath templatepath qchan = do
     (respchan, filename, scope, variables) <- readChan qchan
+    traceEventIO ("template request " ++ filename)
     let parts = DLU.split "/" filename
         searchpathes | length parts > 1 = [modpath ++ "/" ++ head parts ++ "/templates/" ++ (DLU.join "/" (tail parts)), templatepath ++ "/" ++ filename]
                      | otherwise        = [templatepath ++ "/" ++ filename]
@@ -39,6 +41,7 @@ templateDaemon modpath templatepath qchan = do
     if(null acceptablefiles)
         then writeChan respchan (Left $ "Can't find template file for " ++ filename ++ ", looked in " ++ show searchpathes)
         else computeTemplate (head acceptablefiles) scope variables >>= writeChan respchan
+    traceEventIO ("template finished " ++ filename)
     templateDaemon modpath templatepath qchan
 
 computeTemplate :: String -> String -> [(String, GeneralValue)] -> IO TemplateAnswer

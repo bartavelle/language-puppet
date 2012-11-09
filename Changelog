@@ -6,6 +6,7 @@ v0.2.1 ()
 	* create_resources now supports the defaults system.
 	* defined() function works for resource references.
 	* in operator implemented for hashes.
+	* Multithreading works.
 
 v0.2.0 (2012/10/08)
   New features

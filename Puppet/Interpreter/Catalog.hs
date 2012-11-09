@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-| This module exports the 'getCatalog' function, that computes catalogs from
 parsed manifests. The behaviour of this module is probably non canonical on many
 details. The problem is that most of Puppet behaviour is undocumented or
@@ -94,7 +95,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
     (luastate, userfunctions) <- case modules of
         Just m  -> fmap (\(a,b) -> (Just a, b)) (initLua m)
         Nothing -> return (Nothing, [])
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) )
+    (!output, !finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) )
                                 (ScopeState
                                    { curScope                   = [["::"]]
                                    , curVariables               = convertedfacts
