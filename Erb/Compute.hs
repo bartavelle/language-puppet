@@ -87,7 +87,7 @@ getTemplateFile :: String -> CatalogMonad String
 getTemplateFile rawpath = do
     throwError rawpath
 renderString :: String -> BB.Builder
-renderString = BB.stringUtf8 . show
+renderString x = let !y = BB.stringUtf8 (show x) in y
 {-
 renderString cs = BB.char8 '"' <> foldMap escape cs <> BB.char8 '"'
     where
