@@ -30,7 +30,6 @@ Maintainer:          bartavelle@gmail.com
 
 Homepage:            http://lpuppet.banquise.net
 
-
 -- A copyright notice.
 -- Copyright:           
 
@@ -59,16 +58,8 @@ Library
                        Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers, PuppetDB.Rest, PuppetDB.Query, Puppet.Plugins, Puppet.Testing
 
   -- Packages needed in order to build this package.
-  Build-depends:       base >=3 && <5,
-                       parsec >= 3.1.3,
-                       MissingH >= 1.2,
-                       containers >= 0.4.2.1,
-                       pretty,
-                       mtl >= 2.1.1,
-                       unix,hslogger,filepath,Glob,regexpr,process,bytestring,cryptohash,base16-bytestring,regex-pcre-builtin,
-                       iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec, failure, hslua, monad-loops, directory,
-                       luautils >= 0.1.1,
-                       transformers
+  Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring>=0.10.2.0,cryptohash,base16-bytestring,regex-pcre-builtin,
+                        iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec, failure, hslua, monad-loops, directory, luautils >= 0.1.1.0, transformers
 
   -- Modules not exported by this package.
   Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby, Erb.Evaluate
@@ -78,7 +69,7 @@ Library
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
 
-  GHC-Prof-Options:     -auto-all
+  GHC-Prof-Options:     -auto-all -caf-all
   
 Test-Suite test-lexer
     hs-source-dirs: test
@@ -107,4 +98,9 @@ benchmark bench-lexer
     ghc-options:    -Wall
     build-depends:  language-puppet,base
     main-is:        lexer.hs
+
+source-repository head
+  type: git
+  location: git://github.com/bartavelle/language-puppet.git
+
 

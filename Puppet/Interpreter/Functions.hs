@@ -28,6 +28,7 @@ import qualified Data.ByteString.Base16 as B16
 import SafeProcess
 import Data.Either (lefts, rights)
 import Data.List (intercalate)
+import qualified Data.ByteString.Lazy.Char8 as BSL
 
 puppetMD5  = md5s . Str
 puppetSHA1 = BS.unpack . B16.encode . SHA1.hash . BS.pack
@@ -107,9 +108,9 @@ execSplit rr str = do
 
 generate :: String -> [String] -> IO (Maybe String)
 generate command args = do
-    cmdout <- safeReadProcessTimeout command args "" 60000
+    cmdout <- safeReadProcessTimeout command args (BSL.empty) 60000
     case cmdout of
-        Just (Right x)  -> return $ Just x
+        Just (Right x)  -> return $ Just (BSL.unpack x)
         _               -> return Nothing
 
 pdbresourcequery :: String -> Maybe String -> CatalogMonad ResolvedValue

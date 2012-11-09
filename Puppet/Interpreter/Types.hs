@@ -116,7 +116,7 @@ data ScopeState = ScopeState {
     curClasses :: !(Map.Map String SourcePos),
     -- ^ The list of classes that have already been included, along with the
     -- place where this happened.
-    curDefaults :: ![ResDefaults],
+    curDefaults :: !(Map.Map [ScopeName] [ResDefaults]),
     -- ^ List of defaults to apply. All defaults are applied at the end of the
     -- interpretation of each top level statement.
     curResId :: !Int, -- ^ Stores the value of the current 'crid'.
@@ -139,7 +139,7 @@ data ScopeState = ScopeState {
     unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
     -- ^ This stores unresolved relationships, because the original string name
     -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]
-    computeTemplateFunction :: String -> String -> [(String, GeneralValue)] -> IO (Either String String),
+    computeTemplateFunction :: String -> String -> Map.Map String GeneralValue -> IO (Either String String),
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
     puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource])),
@@ -174,14 +174,13 @@ getPos               = liftM curPos get
 modifyScope     f sc = sc { curScope       = f $ curScope sc }
 modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
 modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
-modifyDefaults  f sc = sc { curDefaults    = f $ curDefaults sc }
 incrementResId    sc = sc { curResId       = curResId sc + 1 }
 setStatePos  npos sc = sc { curPos         = npos }
-emptyDefaults     sc = sc { curDefaults    = [] }
 pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
 pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
 addDefinedResource r = modify (\st -> st { definedResources = Set.insert r (definedResources st) } )
+saveVariables vars = modify (\st -> st { curVariables = vars })
 
 throwPosError :: String -> CatalogMonad a
 throwPosError msg = do

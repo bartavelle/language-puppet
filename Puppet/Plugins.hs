@@ -29,9 +29,6 @@ import System.Directory
 import Control.Exception
 import Data.String.Utils (endswith)
 import qualified Data.Map as Map
-import Control.Monad
-import Data.Maybe (fromJust)
-import Control.Monad.Loops (whileM)
 import Control.Monad.IO.Class
 
 import Puppet.Interpreter.Types

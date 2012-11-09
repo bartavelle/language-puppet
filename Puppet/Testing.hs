@@ -40,22 +40,22 @@ testFileSources :: String -> FinalCatalog -> Test
 testFileSources puppetdir cat =
     let fileresources = Map.elems $ Map.filterWithKey (\k _ -> fst k == "file") cat
         filesources = catMaybes $ map (Map.lookup "source" . rrparams) fileresources
-        findPlaces :: String -> [String]
-        findPlaces stringdir =
-            let defaultsearch = puppetdir ++ "/files/" ++ stringdir
-            in case split "/" stringdir of
-                ("private":_) -> [puppetdir] -- not handled
-                ("modules":modulename:rest) -> [puppetdir ++ "/modules/" ++ modulename ++ "/files/" ++ intercalate "/" rest, defaultsearch]
-                _ -> [defaultsearch]
+        findPlace :: String -> Maybe String
+        findPlace stringdir =
+            case split "/" stringdir of
+                ("private":_)               -> Just puppetdir -- not handled
+                ("modules":modulename:rest) -> Just $ puppetdir ++ "/modules/" ++ modulename ++ "/files/" ++ intercalate "/" rest
+                ("files":rest)              -> Just $ puppetdir ++ "/files/" ++ intercalate "/" rest
+                _                           -> Nothing
         checkSrcExists :: String -> FinalCatalog -> TestResult
         checkSrcExists src _ = runErrorT $ do
             let protostring = "puppet:///"
             unless (startswith protostring src) (throwError "Does not start with puppet:///")
             let stringdir = drop (length protostring) src
-                places = findPlaces stringdir
-            exists <- liftIO $ foldM (\c n -> if c then return True else fileExist n) False places
-            unless exists (throwError $ "Searched in " ++ show places)
-            return ()
+                place = findPlace stringdir
+            case place of
+                          Just dir -> liftIO (fileExist dir) >>= (`unless` (throwError $ "Searched in " ++ dir))
+                          Nothing  -> throwError ("Unknown path: " ++ stringdir)
         genFileTest :: ResolvedValue -> Test
         genFileTest (ResolvedString src) = SingleTest (src ++ " exists") (checkSrcExists src)
         genFileTest (ResolvedArray  arr) = TestFirstOk "First exists" (map genFileTest arr)

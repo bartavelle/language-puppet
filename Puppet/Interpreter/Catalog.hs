@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-| This module exports the 'getCatalog' function, that computes catalogs from
 parsed manifests. The behaviour of this module is probably non canonical on many
 details. The problem is that most of Puppet behaviour is undocumented or
@@ -50,6 +51,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Traversable as DT
 
 -- Utility function used to check if the there are duplicates a in [(a,_)]
 checkDuplicateFirst :: (Show a, Eq a) => [(a,b)] -> CatalogMonad ()
@@ -75,7 +77,7 @@ readint x = if isInt x
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -- ^ The \"get statements\" function. Given a top level type and its name it
     -- should return the corresponding statement.
-    -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
+    -> (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
     -- ^ The \"get template\" function. Given a file name, a scope name and a
     -- list of variables, it should return the computed template.
     -> Maybe (String -> PDB.Query -> IO (Either String [CResource]))
@@ -94,12 +96,12 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
     (luastate, userfunctions) <- case modules of
         Just m  -> fmap (\(a,b) -> (Just a, b)) (initLua m)
         Nothing -> return (Nothing, [])
-    (output, finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) )
+    (!output, !finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) )
                                 (ScopeState
                                    { curScope                   = [["::"]]
                                    , curVariables               = convertedfacts
                                    , curClasses                 = Map.empty
-                                   , curDefaults                = []
+                                   , curDefaults                = Map.empty
                                    , curResId                   = 1
                                    , curPos                     = (initialPos "dummy")
                                    , nestedtoplevels            = Map.empty
@@ -249,7 +251,32 @@ getstatement qtype name = do
 
 -- State alteration functions
 pushScope = modify . modifyScope . (:)
-pushDefaults = modify . modifyDefaults . (:)
+
+pushDefaults :: ResDefaults -> CatalogMonad ()
+pushDefaults d = do
+    curstate <- get
+    let curscope = (head . curScope) curstate
+        curdefaults = curDefaults curstate
+        newdefaults = Map.insertWith (++) curscope [d] curdefaults
+    put (curstate { curDefaults = newdefaults })
+
+emptyDefaults :: CatalogMonad ()
+emptyDefaults = do
+    curstate <- get
+    let curscope = (head . curScope) curstate
+        curdefaults = curDefaults curstate
+        newdefaults = Map.delete curscope curdefaults
+    put (curstate { curDefaults = newdefaults })
+
+getCurDefaults :: CatalogMonad [ResDefaults]
+getCurDefaults = do
+    curstate <- get
+    let curscope = (head . curScope) curstate
+        curdefaults = curDefaults curstate
+    case Map.lookup curscope curdefaults of
+        Nothing -> return []
+        Just  x -> return x
+
 popScope        = modify (modifyScope tail)
 getScope        = do
     scope <- liftM curScope get
@@ -345,7 +372,7 @@ resolveParams (a,b) = do
 
 -- apply default values to a resource
 applyDefaults :: CResource -> CatalogMonad CResource
-applyDefaults res = liftM curDefaults get >>= foldM applyDefaults' res
+applyDefaults res = getCurDefaults >>= foldM applyDefaults' res
 
 applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
 applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults dtype rdefs dpos) = do
@@ -420,7 +447,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
 handleDelayedActions :: Catalog -> CatalogMonad Catalog
 handleDelayedActions res = do
     dres <- liftM concat (mapM applyDefaults res >>= mapM evaluateDefine)
-    modify emptyDefaults
+    emptyDefaults
     return dres
 
 addResource :: String -> [(Expression, Expression)] -> Virtuality -> SourcePos -> GeneralValue -> CatalogMonad [CResource]
@@ -866,10 +893,11 @@ tryResolveValue   (FunctionCall "template" [name]) = do
     case fname of
         Left x -> throwPosError $ "Can't resolve template path " ++ show x
         Right filename -> do
-            vars <- get >>= mapM (\(varname, (varval, _)) -> do { rvarval <- tryResolveGeneralValue varval; return (varname, rvarval) }) . Map.toList . curVariables
+            vars <- fmap curVariables get >>= DT.mapM (\(v,p) -> fmap (\x -> (x,p)) (tryResolveGeneralValue v))
+            saveVariables vars
             scp <- liftM head getScope -- TODO check if that sucks
             templatefunc <- liftM computeTemplateFunction get
-            out <- liftIO (templatefunc filename scp vars)
+            out <- liftIO (templatefunc filename scp (Map.map fst vars))
             case out of
                 Right x -> return $ Right $ ResolvedString x
                 Left err -> throwPosError err

@@ -1,9 +1,15 @@
 v0.2.1 ()
+  Bugs fixed
+	* The defaults system was pretty much broken, it should be better now.:
   New features
 	* Basic testing framework started.
 	* create_resources now supports the defaults system.
 	* defined() function works for resource references.
 	* in operator implemented for hashes.
+	* Multithreading works.
+	* The ruby <> daemon communication is now over ByteStrings.
+	* The toRuby function has been optimized, doubling the overall speed for
+	rendering complex catalogs.
 
 v0.2.0 (2012/10/08)
   New features

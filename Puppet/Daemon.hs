@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Puppet.Daemon (initDaemon) where
 
 import Puppet.Init
@@ -21,6 +22,8 @@ import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
 import Text.Parsec.Pos (initialPos)
+
+import Debug.Trace
 
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
@@ -78,30 +81,33 @@ is not existent. This will need fixing.
 initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog) )
 initDaemon prefs = do
     logDebug "initDaemon"
+    traceEventIO "initDaemon"
     controlChan <- newChan
     getstmts <- initParserDaemon prefs
     templatefunc <- initTemplateDaemon prefs
-    forkIO (master prefs controlChan getstmts templatefunc)
+    replicateM_ (compilepoolsize prefs) (forkIO (master prefs controlChan getstmts templatefunc))
     return (gCatalog controlChan)
 
 master :: Prefs
     -> Chan DaemonMessage
     -> (TopLevelType -> String -> IO (Either String Statement))
-    -> (String -> String -> [(String, GeneralValue)] -> IO (Either String String))
+    -> (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
     -> IO ()
 master prefs chan getstmts gettemplate = do
     message <- readChan chan
     case message of
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
+            traceEventIO ("Received query for node " ++ nodename)
             let pdbfunc = case (puppetDBurl prefs) of
                               Just x  -> Just (pdbResRequest x)
                               Nothing -> Nothing
-            (stmts, warnings) <- getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs) (natTypes prefs)
+            (!stmts, !warnings) <- getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs) (natTypes prefs)
+            traceEventIO ("getCatalog finished for " ++ nodename)
             mapM_ logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)
-                Right x -> writeChan respchan (RCatalog $ Right x)
+                Right !x -> writeChan respchan (RCatalog $ Right x)
         _ -> logError "Bad message type for master"
     master prefs chan getstmts gettemplate
 
@@ -126,7 +132,7 @@ initParserDaemon prefs = do
     logDebug "initParserDaemon"
     controlChan <- newChan
     getparsed <- initParsedDaemon prefs
-    forkIO (pmaster prefs controlChan getparsed)
+    replicateM_ (parsepoolsize prefs) (forkIO (pmaster prefs controlChan getparsed))
     return (getStatements controlChan)
 
 -- extracts data from a filestatus

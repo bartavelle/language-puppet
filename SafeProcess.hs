@@ -10,8 +10,9 @@ import System.Timeout
 import System.Posix.Signals
 import System.Process
 import System.Process.Internals
+import qualified Data.ByteString.Lazy as BS
 
-safeReadProcessTimeout :: String -> [String] -> String -> Int -> IO (Maybe (Either String String))
+safeReadProcessTimeout :: String -> [String] -> BS.ByteString -> Int -> IO (Maybe (Either String BS.ByteString))
 safeReadProcessTimeout prog args input tout = timeout (tout*1000) $ safeReadProcess prog args input
 
 safeCreateProcess :: String -> [String] -> StdStream -> StdStream -> StdStream
@@ -37,18 +38,18 @@ safeCreateProcess prog args streamIn streamOut streamErr fun = bracket
     fun
 {-# NOINLINE safeCreateProcess #-}
 
-safeReadProcess :: String -> [String] -> String -> IO (Either String String)
+safeReadProcess :: String -> [String] -> BS.ByteString -> IO (Either String BS.ByteString)
 safeReadProcess prog args str =
     safeCreateProcess prog args CreatePipe CreatePipe Inherit
       (\(Just inh, Just outh, _, ph) -> do
         hSetBinaryMode inh True
         hSetBinaryMode outh True
-        hPutStr inh str
+        BS.hPut inh str
         hClose inh
         -- fork a thread to consume output
-        output <- hGetContents outh
+        output <- BS.hGetContents outh
         outMVar <- newEmptyMVar
-        forkIO $ evaluate (length output) >> putMVar outMVar ()
+        forkIO $ evaluate (BS.length output) >> putMVar outMVar ()
         -- wait on output
         takeMVar outMVar
         hClose outh
