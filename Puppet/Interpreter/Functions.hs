@@ -108,9 +108,9 @@ execSplit rr str = do
 
 generate :: String -> [String] -> IO (Maybe String)
 generate command args = do
-    cmdout <- safeReadProcessTimeout command args "" 60000
+    cmdout <- safeReadProcessTimeout command args (BSL.empty) 60000
     case cmdout of
-        Just (Right x)  -> return $ Just x
+        Just (Right x)  -> return $ Just (BSL.unpack x)
         _               -> return Nothing
 
 pdbresourcequery :: String -> Maybe String -> CatalogMonad ResolvedValue

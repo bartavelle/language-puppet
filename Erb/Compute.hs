@@ -14,6 +14,7 @@ import Erb.Parser
 import Erb.Evaluate
 import qualified Data.Map as Map
 import Debug.Trace
+import qualified Data.ByteString.Lazy.Char8 as BS
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, Map.Map String GeneralValue)
 type TemplateAnswer = Either String String
@@ -63,7 +64,7 @@ computeTemplateWRuby filename curcontext variables = do
             False -> return "calcerb.rb"
     ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] input 1000
     case ret of
-        Just (Right x) -> return $ Right x
+        Just (Right x) -> return $ Right (BS.unpack x)
         Just (Left er) -> do
             (tmpfilename, tmphandle) <- openTempFile "/tmp" "templatefail"
             hPutStr tmphandle input
