@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Erb.Compute(computeTemplate, getTemplateFile, initTemplateDaemon) where
 
 import Data.List
@@ -15,6 +16,8 @@ import Erb.Evaluate
 import qualified Data.Map as Map
 import Debug.Trace
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.ByteString.Builder as BB
+import Data.Monoid
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, Map.Map String GeneralValue)
 type TemplateAnswer = Either String String
@@ -54,37 +57,55 @@ computeTemplate filename curcontext variables = do
 
 computeTemplateWRuby :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
 computeTemplateWRuby filename curcontext variables = do
-    let rubyvars = "{\n" ++ intercalate ",\n" (concatMap toRuby (Map.toList variables) ) ++ "\n}\n"
-        input = curcontext ++ "\n" ++ filename ++ "\n" ++ rubyvars
+    let rubyvars = BB.string8 "{\n" <> mconcat (intersperse (BB.string8 ",\n") (concatMap toRuby (Map.toList variables))) <> BB.string8 "\n}\n" :: BB.Builder
+        input = BB.stringUtf8 curcontext <> BB.charUtf8 '\n' <> BB.stringUtf8 filename <> BB.charUtf8 '\n' <> rubyvars :: BB.Builder
     rubyscriptpath <- do
         cabalPath <- getDataFileName "ruby/calcerb.rb"
         exists    <- fileExist cabalPath
         case exists of
             True -> return cabalPath
             False -> return "calcerb.rb"
-    ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] input 1000
+    ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] (BB.toLazyByteString input) 1000
     case ret of
         Just (Right x) -> return $ Right (BS.unpack x)
         Just (Left er) -> do
             (tmpfilename, tmphandle) <- openTempFile "/tmp" "templatefail"
-            hPutStr tmphandle input
+            BS.hPut tmphandle (BB.toLazyByteString input)
             hClose tmphandle
             return $ Left $ er ++ " - for template " ++ filename ++ " input in " ++ tmpfilename
         Nothing -> do
             return $ Left "Process did not terminate"
 
+minterc :: BB.Builder -> [BB.Builder] -> BB.Builder
+minterc _ [] = mempty
+minterc _ [a] = a
+minterc !sep !(x:xs) = x <> foldl' minterc' mempty xs
+    where
+        minterc' !curbuilder !b  = curbuilder <> sep <> b
+
 getTemplateFile :: String -> CatalogMonad String
 getTemplateFile rawpath = do
     throwError rawpath
-
+renderString :: String -> BB.Builder
+renderString = BB.stringUtf8 . show
+{-
+renderString cs = BB.char8 '"' <> foldMap escape cs <> BB.char8 '"'
+    where
+        escape '\\' = BB.string8 "\\\\"
+        escape '\"' = BB.string8 "\\\""
+        escape '\n' = BB.string8 "\\n"
+        escape c    = BB.charUtf8 c
+-}
 toRuby (_, Left _) = []
 toRuby (_, Right ResolvedUndefined) = []
-toRuby (varname, Right varval) = ["\t" ++ show varname ++ " => " ++ toRuby' varval]
-toRuby' (ResolvedString str) = show str
-toRuby' (ResolvedInt i) = "'" ++ show i ++ "'"
-toRuby' (ResolvedBool True) = "true"
-toRuby' (ResolvedBool False) = "false"
-toRuby' (ResolvedArray rr) = "[" ++ intercalate ", " (map toRuby' rr) ++ "]"
-toRuby' (ResolvedHash hh) = "{ " ++ intercalate ", " (map (\(varname, varval) -> show varname ++ " => " ++ toRuby' varval) hh) ++ " }"
-toRuby' ResolvedUndefined = ":undef"
-toRuby' x = show x
+toRuby (varname, Right varval) = [BB.charUtf8 '\t' <> renderString varname <> BB.string8 " => " <> toRuby' varval]
+toRuby' (ResolvedString str) = renderString str
+toRuby' (ResolvedInt i) = BB.charUtf8 '\'' <> BB.intDec (fromIntegral i) <> BB.charUtf8 '\''
+toRuby' (ResolvedBool True) = BB.string8 "true"
+toRuby' (ResolvedBool False) = BB.string8 "false"
+--toRuby' (ResolvedArray rr) = BB.charUtf8 '[' <> mconcat (intercalate [BB.string8 ", "] (map (return . toRuby') rr)) <> BB.charUtf8 ']'
+--toRuby' (ResolvedHash hh) = BB.string8 "{ " <> mconcat (intercalate [BB.string8 ", "] (map (\(varname, varval) -> [renderString varname <> BB.string8 " => " <> toRuby' varval]) hh)) <> BB.string8 " }"
+toRuby' (ResolvedArray rr) = BB.charUtf8 '[' <> minterc (BB.string8 ", ") (map toRuby' rr) <> BB.charUtf8 ']'
+toRuby' (ResolvedHash hh) = BB.string8 "{ " <> minterc (BB.string8 ", ") (map (\(varname, varval) -> renderString varname <> BB.string8 " => " <> toRuby' varval) hh) <> BB.string8 " }"
+toRuby' ResolvedUndefined = BB.string8 ":undef"
+toRuby' x = BB.string8 $ show x

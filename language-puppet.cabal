@@ -65,7 +65,7 @@ Library
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
 
-  GHC-Prof-Options:     -auto-all
+  GHC-Prof-Options:     -auto-all -caf-all
   
 Test-Suite test-lexer
     hs-source-dirs: test
