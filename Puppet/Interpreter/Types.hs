@@ -62,7 +62,7 @@ data CResource = CResource {
     crid :: Int, -- ^ Resource ID, used in the Puppet YAML.
     crname :: GeneralString, -- ^ Resource name.
     crtype :: String, -- ^ Resource type.
-    crparams :: [(GeneralString, GeneralValue)], -- ^ Resource parameters.
+    crparams :: Map.Map GeneralString GeneralValue, -- ^ Resource parameters.
     crvirtuality :: Virtuality, -- ^ Resource virtuality.
     pos :: SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show)
@@ -96,8 +96,8 @@ data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord,
 
 {-| A data type to hold defaults values
  -}
-data ResDefaults = RDefaults String [(GeneralString, GeneralValue)] SourcePos
-                 | ROverride String GeneralString [(GeneralString, GeneralValue)] SourcePos
+data ResDefaults = RDefaults String (Map.Map GeneralString GeneralValue) SourcePos
+                 | ROverride String GeneralString (Map.Map GeneralString GeneralValue) SourcePos
                  deriving (Show, Ord, Eq)
 
 {-| The most important data structure for the interpreter. It stores its
@@ -131,7 +131,7 @@ data ScopeState = ScopeState {
     -- ^ This is a function that, given the type of a top level statement and
     -- its name, should return it.
     getWarnings :: ![String], -- ^ List of warnings.
-    curCollect :: ![(CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)], Maybe PDB.Query)],
+    curCollect :: ![(CResource -> CatalogMonad Bool, Map.Map GeneralString GeneralValue, Maybe PDB.Query)],
     -- ^ A bit complicated, this stores the collection functions. These are
     -- functions that determine whether a resource should be collected or not.
     -- It can optionally store overrides, which will be applied in the end on

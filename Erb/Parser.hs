@@ -33,22 +33,22 @@ naturalOrFloat     = P.naturalOrFloat lexer
 identifier  = P.identifier lexer
 
 rubyexpression = buildExpressionParser table term <?> "expression"
-        
-table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft 
+
+table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
               , Infix ( reservedOp "-" >> return MinusOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "/" >> return DivOperation ) AssocLeft 
+            , [ Infix ( reservedOp "/" >> return DivOperation ) AssocLeft
               , Infix ( reservedOp "*" >> return MultiplyOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "<<" >> return ShiftLeftOperation ) AssocLeft 
+            , [ Infix ( reservedOp "<<" >> return ShiftLeftOperation ) AssocLeft
               , Infix ( reservedOp ">>" >> return ShiftRightOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "and" >> return AndOperation ) AssocLeft 
+            , [ Infix ( reservedOp "and" >> return AndOperation ) AssocLeft
               , Infix ( reservedOp "or" >> return OrOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "==" >> return EqualOperation ) AssocLeft 
+            , [ Infix ( reservedOp "==" >> return EqualOperation ) AssocLeft
               , Infix ( reservedOp "!=" >> return DifferentOperation ) AssocLeft ]
-            , [ Infix ( reservedOp ">" >> return AboveOperation ) AssocLeft 
+            , [ Infix ( reservedOp ">" >> return AboveOperation ) AssocLeft
               , Infix ( reservedOp ">=" >> return AboveEqualOperation ) AssocLeft
-              , Infix ( reservedOp "<=" >> return UnderEqualOperation ) AssocLeft 
+              , Infix ( reservedOp "<=" >> return UnderEqualOperation ) AssocLeft
               , Infix ( reservedOp "<" >> return UnderOperation ) AssocLeft ]
-            , [ Infix ( reservedOp "=~" >> return RegexpOperation ) AssocLeft 
+            , [ Infix ( reservedOp "=~" >> return RegexpOperation ) AssocLeft
               , Infix ( reservedOp "!~" >> return NotRegexpOperation ) AssocLeft ]
             , [ Prefix ( symbol "!" >> return NotOperation ) ]
             , [ Prefix ( symbol "-" >> return NegOperation ) ]
@@ -57,20 +57,37 @@ table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
             ]
 term
     =   parens rubyexpression
+    <|> scopeLookup
+    <|> stringLiteral
     <|> objectterm
     <|> variablereference
 
+scopeLookup = do
+    try $ string "scope.lookupvar("
+    expr <- rubyexpression
+    char ')'
+    return $ Object $ expr
+
 blockinfo = many1 $ noneOf "}"
+
+stringLiteral = doubleQuoted <|> singleQuoted
+
+doubleQuoted = fmap (Value . Literal) $ between (char '"') (char '"') (many $ noneOf "\"")
+singleQuoted = fmap (Value . Literal) $ between (char '\'') (char '\'') (many $ noneOf "'")
 
 objectterm = do
     methodname <- identifier >>= return . Value . Literal
-    isblock <- optionMaybe (symbol "{")
-    case isblock of
-        Just _ -> do
+    nc <- lookAhead anyChar
+    case nc of
+        '{' -> do
+            symbol "{"
             b <- blockinfo
             symbol "}"
             return $ MethodCall methodname (BlockOperation b)
-        Nothing -> return $ Object methodname
+        '(' -> do
+            args <- parens (rubyexpression `sepBy` symbol ",")
+            return $ MethodCall methodname (Value $ Array args)
+        _ -> return $ Object methodname
 
 variablereference = identifier >>= return . Object . Value . Literal
 
