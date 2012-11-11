@@ -56,7 +56,13 @@ computeTemplate filename curcontext variables = do
             traceEventIO msg
             LOG.debugM "Erb.Compute" msg
             computeTemplateWRuby filename curcontext variables
-        Right ast -> return $ rubyEvaluate variables curcontext ast
+        Right ast -> case rubyEvaluate variables curcontext ast of
+                Right ev -> return (Right ev)
+                Left err -> do
+                    let !msg = "template " ++ filename ++ " evaluation failed " ++ show err
+                    traceEventIO msg
+                    LOG.debugM "Erb.Compute" msg
+                    computeTemplateWRuby filename curcontext variables
 
 computeTemplateWRuby :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
 computeTemplateWRuby filename curcontext variables = do

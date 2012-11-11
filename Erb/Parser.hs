@@ -57,9 +57,16 @@ table =     [ [ Infix ( reservedOp "+" >> return PlusOperation ) AssocLeft
             ]
 term
     =   parens rubyexpression
+    <|> scopeLookup
     <|> stringLiteral
     <|> objectterm
     <|> variablereference
+
+scopeLookup = do
+    try $ string "scope.lookupvar("
+    expr <- rubyexpression
+    char ')'
+    return $ Object $ expr
 
 blockinfo = many1 $ noneOf "}"
 
