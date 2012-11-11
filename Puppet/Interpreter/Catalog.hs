@@ -53,16 +53,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Traversable as DT
 
--- Utility function used to check if the there are duplicates a in [(a,_)]
-checkDuplicateFirst :: (Show a, Eq a) => [(a,b)] -> CatalogMonad ()
-checkDuplicateFirst list =
-    let fsts = ldups (map fst list) []
-        ldups [] a      = a
-        ldups (x:xs) a  | x `elem` xs = x:a
-                        | otherwise   = ldups xs a
-    in unless (null fsts) $ throwPosError $ "Duplicate parameters " ++ show fsts
-
-
 qualified []  = False
 qualified str = isPrefixOf "::" str || qualified (tail str)
 
@@ -137,8 +127,7 @@ finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
 finalizeResource cr@(CResource cid cname ctype cparams _ cpos) = do
     setPos cpos
     rname <- resolveGeneralString cname
-    rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) cparams
-    checkDuplicateFirst rparams
+    rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) (Map.toList cparams)
     -- add collected relations
     -- TODO
     ntypes <- fmap nativeTypes get
@@ -172,12 +161,12 @@ collectionChecks res =
 
 processOverride :: CResource -> Map.Map String ResolvedValue -> CatalogMonad (Map.Map String ResolvedValue)
 processOverride cr prms =
-    let applyOverride :: CResource -> Map.Map String ResolvedValue -> (CResource -> CatalogMonad Bool, [(GeneralString, GeneralValue)], Maybe PDB.Query) -> CatalogMonad (Map.Map String ResolvedValue)
+    let applyOverride :: CResource -> Map.Map String ResolvedValue -> (CResource -> CatalogMonad Bool, Map.Map GeneralString GeneralValue, Maybe PDB.Query) -> CatalogMonad (Map.Map String ResolvedValue)
         -- this checks if the collection function matches
         applyOverride c prm (func, overs, _) = do
             check <- func c
             if check
-                then foldM tryReplace prm overs
+                then foldM tryReplace prm (Map.toList overs)
                 else return prm
         tryReplace :: Map.Map String ResolvedValue -> (GeneralString, GeneralValue) -> CatalogMonad (Map.Map String ResolvedValue)
         -- if it does, this resolves the override and applies it
@@ -187,7 +176,7 @@ processOverride cr prms =
             rv <- resolveGeneralValue gv
             return $ Map.insert rs rv curmap
     -- Collectors are filtered so that only those with overrides are passed to the fold.
-    in liftM (filter (\(_, x, _) -> not $ null x) . curCollect) get >>= foldM (applyOverride cr) prms
+    in liftM (filter (\(_, x, _) -> not $ Map.null x) . curCollect) get >>= foldM (applyOverride cr) prms
 
 retrieveRemoteResources :: (PDB.Query -> IO (Either String [CResource])) -> PDB.Query -> CatalogMonad [CResource]
 retrieveRemoteResources f q = do
@@ -343,10 +332,10 @@ Partition parameters between those that are actual parameters and those that def
 
 Those that define relationship must be properly resolved or hell will break loose. This is a BUG.
 -}
-partitionParamsRelations :: [(GeneralString, GeneralValue)] -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
+partitionParamsRelations :: Map.Map GeneralString GeneralValue -> (Map.Map GeneralString GeneralValue, [(LinkType, GeneralValue, GeneralValue)])
 partitionParamsRelations rparameters = (realparams, relations)
-    where   realparams = filteredparams
-            relations = concatMap convertrelation filteredrelations
+    where   realparams = filteredparams :: Map.Map GeneralString GeneralValue
+            relations = concatMap convertrelation (Map.toList filteredrelations) :: [(LinkType, GeneralValue, GeneralValue)]
             convertrelation :: (GeneralString, GeneralValue) -> [(LinkType, GeneralValue, GeneralValue)]
             convertrelation (_,       Right ResolvedUndefined)          = []
             convertrelation (reltype, Right (ResolvedArray rs))         = concatMap (\x -> convertrelation (reltype, Right x)) rs
@@ -354,7 +343,7 @@ partitionParamsRelations rparameters = (realparams, relations)
             convertrelation (reltype, Right (ResolvedString "undef"))   = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
             convertrelation (_,       Left x) = error ("partitionParamsRelations unresolved : " ++ show x)
             convertrelation x = error ("partitionParamsRelations error : " ++ show x)
-            (filteredrelations, filteredparams) = partition (isJust . getRelationParameterType . fst) rparameters -- filters relations with actual parameters
+            (filteredrelations, filteredparams) = Map.partitionWithKey (const . isJust . getRelationParameterType) rparameters -- filters relations with actual parameters
 
 -- TODO check whether parameters changed
 checkLoaded name = do
@@ -369,6 +358,17 @@ resolveParams (a,b) = do
     ra <- tryResolveExpressionString a
     rb <- tryResolveExpression b
     return (ra, rb)
+
+-- safely insert parameters, checking they are not already defined
+addParameters :: Map.Map GeneralString GeneralValue -> [(Expression, Expression)] -> CatalogMonad (Map.Map GeneralString GeneralValue)
+addParameters m p = foldM rp m p
+    where
+        rp :: Map.Map GeneralString GeneralValue -> (Expression, Expression) -> CatalogMonad (Map.Map GeneralString GeneralValue)
+        rp curmap prm = do
+            (k, v) <- resolveParams prm
+            case Map.lookup k curmap of
+                Just _ -> throwPosError $ "Parameter " ++ show k ++ " had been declared twice!"
+                Nothing -> return (Map.insert k v curmap)
 
 -- apply default values to a resource
 applyDefaults :: CResource -> CatalogMonad CResource
@@ -394,14 +394,12 @@ applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ROverride d
         else return r
 
 -- merge defaults and actual parameters depending on the override flag
-mergeParams :: [(GeneralString, GeneralValue)] -> [(GeneralString, GeneralValue)] -> Bool -> ([(GeneralString, GeneralValue)], [(LinkType, GeneralValue, GeneralValue)])
-mergeParams srcparams defs override = let
-    (dstparams, dstrels) = partitionParamsRelations defs
-    srcprm = Map.fromList srcparams
-    dstprm = Map.fromList dstparams
+mergeParams :: Map.Map GeneralString GeneralValue -> Map.Map GeneralString GeneralValue -> Bool -> (Map.Map GeneralString GeneralValue, [(LinkType, GeneralValue, GeneralValue)])
+mergeParams srcprm defs override = let
+    (dstprm, dstrels) = partitionParamsRelations defs
     prm = if override
-        then Map.toList $ Map.union dstprm srcprm
-        else Map.toList $ Map.union srcprm dstprm
+        then Map.union dstprm srcprm
+        else Map.union srcprm dstprm
     in (prm, dstrels)
 
 -- The actual meat
@@ -412,12 +410,11 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
         --oldpos <- getPos
         pushScope ["#DEFINE#" ++ dtype]
         -- add variables
-        mrrparams <- mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) rparams
+        mparams <- fmap Map.fromList $ mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) (Map.toList rparams)
         let expr = gs2gv rname
-            mparams = Map.fromList mrrparams
             defineparamset = Set.fromList $ map fst args
             mandatoryparams = Set.fromList $ map fst $ filter (isNothing . snd) args
-            resourceparamset = Set.fromList $ map fst mrrparams
+            resourceparamset = Map.keysSet mparams
             extraparams = Set.difference resourceparamset (Set.union defineparamset metaparameters)
             unsetparams = Set.difference mandatoryparams resourceparamset
         unless (Set.null extraparams) $ throwPosError $ "Spurious parameters set for " ++ dtype ++ ": " ++ intercalate ", " (Set.toList extraparams)
@@ -453,8 +450,7 @@ handleDelayedActions res = do
 addResource :: String -> [(Expression, Expression)] -> Virtuality -> SourcePos -> GeneralValue -> CatalogMonad [CResource]
 addResource rtype parameters virtuality position grname = do
     resid <- getNextId
-    rparameters <- mapM resolveParams parameters
-    -- il faut transformer grname qui est une generalvalue en generalstring
+    rparameters <- addParameters Map.empty parameters
     srname <- case grname of
         Right e -> do
                     rse <- rstring e
@@ -493,11 +489,10 @@ evaluateStatements (Resource rtype rname parameters virtuality position) = do
     case rtype of
         -- checks whether we are handling a parametrized class
         "class" -> do
-            rparameters <- mapM (\(a,b) -> do { pa <- resolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
-            checkDuplicateFirst rparameters
+            rparameters <- fmap Map.fromList $ mapM (\(a,b) -> do { pa <- resolveExpressionString a; pb <- tryResolveExpression b; return (pa, pb) } ) parameters
             classname <- resolveExpressionString rname
             topstatement <- getstatement TopClass classname
-            let classparameters = Map.fromList $ map (\(pname, pvalue) -> (pname, (pvalue, position))) rparameters
+            let classparameters = Map.map (\pvalue -> (pvalue, position)) rparameters :: Map.Map String (GeneralValue, SourcePos)
             evaluateClass topstatement classparameters Nothing
         _ -> do
             srname <- tryResolveExpression rname
@@ -506,12 +501,12 @@ evaluateStatements (Resource rtype rname parameters virtuality position) = do
                 _ -> addResource rtype parameters virtuality position srname
 
 evaluateStatements (ResourceDefault rdtype rdparams rdpos) = do
-    rrdparams <- mapM resolveParams rdparams
+    rrdparams <- addParameters Map.empty rdparams
     pushDefaults $ RDefaults rdtype rrdparams rdpos
     return []
 evaluateStatements (ResourceOverride rotype roname roparams ropos) = do
     rroname <- tryResolveExpressionString roname
-    rroparams <- mapM resolveParams roparams
+    rroparams <- addParameters Map.empty roparams
     pushDefaults $ ROverride rotype rroname rroparams ropos
     return []
 evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) position) = do
@@ -525,7 +520,7 @@ evaluateStatements (ResourceCollection rtype expr overrides position) = do
     setPos position
     when (not $ null overrides) $ throwPosError $ "Amending attributes with a Collector only works with <| |>, not <<| |>>."
     func <- collectionFunction Exported rtype expr
-    addCollect (func, [])
+    addCollect (func, Map.empty)
     return []
 -- <| |>
 -- TODO : check that this is a native type when overrides are defined.
@@ -533,7 +528,7 @@ evaluateStatements (ResourceCollection rtype expr overrides position) = do
 evaluateStatements (VirtualResourceCollection rtype expr overrides position) = do
     setPos position
     func <- collectionFunction Virtual rtype expr
-    prms <- mapM resolveParams overrides
+    prms <- addParameters Map.empty overrides
     addCollect (func, prms)
     return []
 
@@ -612,7 +607,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
                                                     -- depend explicitely on a class
         popScope
         return $
-            [CResource resid (Right classname) "class" [] Normal position]
+            [CResource resid (Right classname) "class" Map.empty Normal position]
             ++ inherited
             ++ nres
 
@@ -1016,7 +1011,7 @@ pushRealize (ResolvedRReference rtype (ResolvedString rname)) = do
         myfunction (CResource _ mcrname mcrtype _ _ _) = do
             srname <- resolveGeneralString mcrname
             return ((srname == rname) && (mcrtype == rtype))
-    addCollect ((myfunction, Just $ PDB.queryRealize rtype rname) , [])
+    addCollect ((myfunction, Just $ PDB.queryRealize rtype rname) , Map.empty)
     return ()
 pushRealize (ResolvedRReference _ x) = throwPosError (show x ++ " was not resolved to a string")
 pushRealize x                        = throwPosError ("A reference was expected instead of " ++ show x)
@@ -1038,8 +1033,8 @@ executeFunction "create_resources" (mrtype:rdefs:rest) = do
         _              -> throwPosError $ "Resource definition must be a hash, and not " ++ show rdefs
     position <- getPos
     defaults <- case rest of
-                    [ResolvedHash h] -> return $ RDefaults mrrtype (map (\(a,b) -> (Right a, Right b)) h) position
-                    []  -> return $ RDefaults mrrtype [] position
+                    [ResolvedHash h] -> return $ RDefaults mrrtype (Map.fromList $ map (\(a,b) -> (Right a, Right b)) h) position
+                    []  -> return $ RDefaults mrrtype Map.empty position
                     _   -> throwPosError ("Bad many arguments to create_resources: " ++ show rest)
     let prestatements = map (\(rname, rargs) -> (Value $ Literal rname, resolved2expression rargs)) arghash
     resources <- mapM (\(resname, pval) -> do
@@ -1163,11 +1158,10 @@ collectionFunction virt mrtype exprs = do
             when (Set.notMember paramname paramset && (not $ Set.member paramname metaparameters)) $
                 throwPosError $ "Parameter " ++ paramname ++ " is not a valid parameter. It should be in : " ++ show (Set.toList paramset)
             return (\r -> do
-                let param = filter (\x -> fst x == Right paramname) (crparams r) :: [(GeneralString, GeneralValue)]
-                if null param
-                    then return False
-                    else do
-                        cmp <- resolveGeneralValue $ snd (head param)
+                case Map.lookup (Right paramname) (crparams r) of
+                    Nothing -> return False
+                    Just prmmatch -> do
+                        cmp <- resolveGeneralValue prmmatch
                         case (paramname, cmp) of
                             ("tag", ResolvedArray xs) ->
                                 let filtered = filter (compareRValues rb) xs

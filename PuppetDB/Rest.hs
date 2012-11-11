@@ -20,6 +20,7 @@ import qualified Control.Exception as X
 import Control.Monad.Error
 import Control.Applicative
 import qualified Text.Parsec.Pos as TPP
+import qualified Data.Map as Map
 
 instance FromJSON ResolvedValue where
     parseJSON Null = return ResolvedUndefined
@@ -42,7 +43,7 @@ instance FromJSON CResource where
         sourceline <- o .: "sourceline"
         certname   <- o .: "certname"
         let _ = params :: HM.HashMap String ResolvedValue
-            parameters = map (\(k,v) -> (Right k, Right v)) $ ("EXPORTEDSOURCE", ResolvedString certname) : HM.toList params :: [(GeneralString, GeneralValue)]
+            parameters = Map.fromList $ map (\(k,v) -> (Right k, Right v)) $ ("EXPORTEDSOURCE", ResolvedString certname) : HM.toList params :: Map.Map GeneralString GeneralValue
             position   = TPP.newPos (sourcefile ++ "(host: " ++ certname ++ ")") sourceline 1
         CResource <$> pure 0
                   <*> pure (Right utitle)
@@ -66,12 +67,9 @@ runRequest req = do
         Left err -> throwError err
 
 isNotLocal :: String -> CResource -> Bool
-isNotLocal fqdn cr =
-    let prms = crparams cr
-        e    = filter ((== Right "EXPORTEDSOURCE") . fst ) prms :: [(GeneralString, GeneralValue)]
-    in case e of
-        [(_, Right (ResolvedString x))] -> x /= fqdn
-        _ -> True
+isNotLocal fqdn cr = case Map.lookup (Right "EXPORTEDSOURCE") (crparams cr) of
+                        Just (Right (ResolvedString x)) -> x /= fqdn
+                        _ -> True
 
 pdbResRequest :: String -> String -> PDB.Query -> IO (Either String [CResource])
 pdbResRequest url fqdn qquery = do
