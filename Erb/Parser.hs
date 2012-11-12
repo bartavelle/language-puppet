@@ -119,6 +119,7 @@ rubyblock = do
     parsed <- case isequal of
         Just _  -> spaces >> rubyexpression >>= return . Puts
         Nothing -> spaces >> rubystatement
+    spaces
     string "%>"
     n <- textblock
     return (parsed : n)

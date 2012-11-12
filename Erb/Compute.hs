@@ -19,14 +19,15 @@ import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.ByteString.Builder as BB
 import Data.Monoid
 import qualified System.Log.Logger as LOG
+import Puppet.Stats
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, Map.Map String GeneralValue)
 type TemplateAnswer = Either String String
 
-initTemplateDaemon :: Prefs -> IO (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
-initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) = do
+initTemplateDaemon :: Prefs -> MStats -> IO (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
+initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) mvstats = do
     controlchan <- newChan
-    replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan))
+    replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan mvstats))
     return (templateQuery controlchan)
 
 templateQuery :: Chan TemplateQuery -> String -> String -> Map.Map String GeneralValue -> IO (Either String String)
@@ -35,8 +36,8 @@ templateQuery qchan filename scope variables = do
     writeChan qchan (rchan, filename, scope, variables)
     readChan rchan
 
-templateDaemon :: String -> String -> Chan TemplateQuery -> IO ()
-templateDaemon modpath templatepath qchan = do
+templateDaemon :: String -> String -> Chan TemplateQuery -> MStats -> IO ()
+templateDaemon modpath templatepath qchan mvstats = do
     (respchan, filename, scope, variables) <- readChan qchan
     let parts = DLU.split "/" filename
         searchpathes | length parts > 1 = [modpath ++ "/" ++ head parts ++ "/templates/" ++ (DLU.join "/" (tail parts)), templatepath ++ "/" ++ filename]
@@ -44,25 +45,25 @@ templateDaemon modpath templatepath qchan = do
     acceptablefiles <- filterM fileExist searchpathes
     if(null acceptablefiles)
         then writeChan respchan (Left $ "Can't find template file for " ++ filename ++ ", looked in " ++ show searchpathes)
-        else computeTemplate (head acceptablefiles) scope variables >>= writeChan respchan
-    templateDaemon modpath templatepath qchan
+        else measure mvstats ("total - " ++ filename) (computeTemplate (head acceptablefiles) scope variables mvstats) >>= writeChan respchan
+    templateDaemon modpath templatepath qchan mvstats
 
-computeTemplate :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
-computeTemplate filename curcontext variables = do
-    parsed <- parseErbFile filename
+computeTemplate :: String -> String -> Map.Map String GeneralValue -> MStats -> IO TemplateAnswer
+computeTemplate filename curcontext variables mstats = do
+    parsed <- measure mstats ("parsing - " ++ filename) $ parseErbFile filename
     case parsed of
         Left err -> do
             let !msg = "template " ++ filename ++ " could not be parsed " ++ show err
             traceEventIO msg
             LOG.debugM "Erb.Compute" msg
-            computeTemplateWRuby filename curcontext variables
+            measure mstats ("ruby - " ++ filename) $ computeTemplateWRuby filename curcontext variables
         Right ast -> case rubyEvaluate variables curcontext ast of
                 Right ev -> return (Right ev)
                 Left err -> do
                     let !msg = "template " ++ filename ++ " evaluation failed " ++ show err
                     traceEventIO msg
                     LOG.debugM "Erb.Compute" msg
-                    computeTemplateWRuby filename curcontext variables
+                    measure mstats ("ruby efail - " ++ filename) $ computeTemplateWRuby filename curcontext variables
 
 computeTemplateWRuby :: String -> String -> Map.Map String GeneralValue -> IO TemplateAnswer
 computeTemplateWRuby filename curcontext variables = do

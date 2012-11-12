@@ -1,3 +1,7 @@
+v0.2.2 ()
+  New features
+	* A few statistics are exported.
+
 v0.2.1 ()
   Bugs fixed
 	* The defaults system was pretty much broken, it should be better now.:

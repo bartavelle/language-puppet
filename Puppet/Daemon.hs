@@ -22,18 +22,13 @@ import Data.Foldable (foldlM)
 import qualified Data.List.Utils as DLU
 import qualified Data.Map as Map
 import Text.Parsec.Pos (initialPos)
-
+import Puppet.Stats
 import Debug.Trace
 
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
     = QCatalog (String, Facts, Chan DaemonMessage)
     | RCatalog (Either String FinalCatalog)
-
--- nbstats nbrequests
-data DaemonStats = DaemonStats Int Integer
-    deriving (Show)
-
 
 logDebug = LOG.debugM "Puppet.Daemon"
 logInfo = LOG.infoM "Puppet.Daemon"
@@ -43,7 +38,8 @@ logError = LOG.errorM "Puppet.Daemon"
 {-| This is a high level function, that will initialize the parsing and
 interpretation infrastructure from the 'Prefs' structure, and will return a
 function that will take a node name, 'Facts' and return either an error or the
-'FinalCatalog'.
+'FinalCatalog'. It also return a few IO functions that can be used in order to
+query the daemon for statistics, following the format in "Puppet.Stats".
 
 It will internaly initialize several threads that communicate with channels. It
 should scale well, althrough it hasn't really been tested yet. It should cache
@@ -66,7 +62,7 @@ Known bugs :
 * It might be buggy when top level statements that are not class/define/nodes
 are altered, or when files loaded with require are changed.
 
-* Exported resources are not yet supported.
+* Exported resources are supported through the PuppetDB interface.
 
 * The catalog is not computed exactly the same way Puppet does. Take a look at
 "Puppet.Interpreter.Catalog" for a list of differences.
@@ -78,22 +74,26 @@ are opened. This means the program might end with an exception when the file
 is not existent. This will need fixing.
 
 -}
-initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog) )
+initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog), IO StatsTable, IO StatsTable, IO StatsTable )
 initDaemon prefs = do
     logDebug "initDaemon"
     traceEventIO "initDaemon"
-    controlChan <- newChan
-    getstmts <- initParserDaemon prefs
-    templatefunc <- initTemplateDaemon prefs
-    replicateM_ (compilepoolsize prefs) (forkIO (master prefs controlChan getstmts templatefunc))
-    return (gCatalog controlChan)
+    controlChan   <- newChan
+    templateStats <- newStats
+    parserStats   <- newStats
+    catalogStats  <- newStats
+    getstmts      <- initParserDaemon prefs parserStats
+    templatefunc  <- initTemplateDaemon prefs templateStats
+    replicateM_ (compilepoolsize prefs) (forkIO (master prefs controlChan getstmts templatefunc catalogStats))
+    return (gCatalog controlChan, getStats parserStats, getStats catalogStats, getStats templateStats)
 
 master :: Prefs
     -> Chan DaemonMessage
     -> (TopLevelType -> String -> IO (Either String Statement))
     -> (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
+    -> MStats
     -> IO ()
-master prefs chan getstmts gettemplate = do
+master prefs chan getstmts gettemplate mstats = do
     message <- readChan chan
     case message of
         QCatalog (nodename, facts, respchan) -> do
@@ -102,14 +102,14 @@ master prefs chan getstmts gettemplate = do
             let pdbfunc = case (puppetDBurl prefs) of
                               Just x  -> Just (pdbResRequest x)
                               Nothing -> Nothing
-            (!stmts, !warnings) <- getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs) (natTypes prefs)
+            (!stmts, !warnings) <- measure mstats nodename $ getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs) (natTypes prefs)
             traceEventIO ("getCatalog finished for " ++ nodename)
             mapM_ logWarning warnings
             case stmts of
                 Left x -> writeChan respchan (RCatalog $ Left x)
                 Right !x -> writeChan respchan (RCatalog $ Right x)
         _ -> logError "Bad message type for master"
-    master prefs chan getstmts gettemplate
+    master prefs chan getstmts gettemplate mstats
 
 gCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String FinalCatalog)
 gCatalog channel nodename facts = do
@@ -125,13 +125,13 @@ data ParserMessage
     = QStatement (TopLevelType, String, Chan ParserMessage)
     | RStatement (Either String Statement)
 
-initParserDaemon :: Prefs -> IO
+initParserDaemon :: Prefs -> MStats -> IO
     ( TopLevelType -> String -> IO (Either String Statement)
     )
-initParserDaemon prefs = do
+initParserDaemon prefs mstats = do
     logDebug "initParserDaemon"
     controlChan <- newChan
-    getparsed <- initParsedDaemon prefs
+    getparsed <- initParsedDaemon prefs mstats
     replicateM_ (parsepoolsize prefs) (forkIO (pmaster prefs controlChan getparsed))
     return (getStatements controlChan)
 
@@ -291,7 +291,7 @@ pmaster prefs chan cachefuncs = do
     pmessage <- readChan chan
     case pmessage of
         QStatement (qtype, name, respchan) -> do
-            out <- runErrorT $ handlePRequest prefs cachefuncs qtype name 
+            out <- runErrorT $ handlePRequest prefs cachefuncs qtype name
             case out of
                 Left  x -> writeChan respchan $ RStatement $ Left  x
                 Right y -> writeChan respchan $ RStatement $ Right y
@@ -314,23 +314,22 @@ data ParsedCacheQuery
     = GetParsedData TopLevelType String (Chan ParsedCacheResponse)
     | UpdateParsedData TopLevelType String CacheEntry (Chan ParsedCacheResponse)
     | InvalidateCacheFile String (Chan ParsedCacheResponse)
-    | GetStats (Chan DaemonStats)
 data ParsedCacheResponse
     = CacheError String
     | RCacheEntry CacheEntry
     | NoCacheEntry
     | CacheUpdated
-    
+
 -- this one is singleton, and is used to cache de parsed values, along with the file names they depend on
-initParsedDaemon :: Prefs -> IO
+initParsedDaemon :: Prefs -> MStats -> IO
     ( TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry)
     , TopLevelType -> String -> CacheEntry -> IO ParsedCacheResponse
     , String -> IO ParsedCacheResponse
     )
-initParsedDaemon prefs = do
+initParsedDaemon prefs mstats = do
     logDebug "initParsedDaemon"
     controlChan <- newChan
-    forkIO ( evalStateT (parsedmaster prefs controlChan) (Map.empty, Map.empty, 0 :: Integer) )
+    forkIO ( evalStateT (parsedmaster prefs controlChan mstats) (Map.empty, Map.empty) )
     return (getParsedInformation controlChan, updateParsedInformation controlChan, invalidateCachedFile controlChan)
 
 getParsedInformation :: Chan ParsedCacheQuery -> TopLevelType -> String -> ErrorT String IO (Maybe CacheEntry)
@@ -357,27 +356,22 @@ invalidateCachedFile pchannel name = do
     readChan respchan
 
 -- state : (parsed statements map, file association map, nbrequests)
-parsedmaster :: Prefs -> Chan ParsedCacheQuery -> StateT 
+parsedmaster :: Prefs -> Chan ParsedCacheQuery -> MStats -> StateT 
     ( Map.Map (TopLevelType, String) CacheEntry
     , Map.Map FilePath (FileStatus, [(TopLevelType, String)])
-    , Integer
     ) IO ()
-parsedmaster prefs controlchan = do
+parsedmaster prefs controlchan mstats = do
     curmsg <- liftIO $ readChan controlchan
     case curmsg of
-        GetStats respchan -> do
-            (curmap, _, nbrequests) <- get
-            liftIO $ writeChan respchan $ DaemonStats (Map.size curmap) nbrequests
         GetParsedData qtype name respchan -> do
-            (curmap, _, _) <- get
-            modify (\(mp, fm, rq) -> (mp, fm, rq + 1))
+            (curmap, _) <- get
             case Map.lookup (qtype, name) curmap of
-                Just x  -> liftIO $ writeChan respchan (RCacheEntry x)
-                Nothing -> liftIO $ writeChan respchan NoCacheEntry
+                Just x  -> liftIO $ measure mstats "hit" (writeChan respchan (RCacheEntry x))
+                Nothing -> liftIO $ measure mstats "miss" (writeChan respchan NoCacheEntry)
         UpdateParsedData qtype name val@(_, filepath, filestatus, _) respchan -> do
-            liftIO $ logDebug ("Updating parsed cache for " ++ show qtype ++ " " ++ name)
-            (mp, fm, rq) <- get
-            let 
+            liftIO $ logInfo ("Updating parsed cache for " ++ show qtype ++ " " ++ name)
+            (mp, fm) <- get
+            let
                 -- retrieve the current status
                 curstatus       = Map.lookup filepath fm
                 fmclean         = case curstatus of
@@ -388,16 +382,16 @@ parsedmaster prefs controlchan = do
                 addsnd (a1, b1) (_, b2) = (a1, b1 ++ b2)
                 fileassocmap    = Map.insertWith addsnd filepath (filestatus, [(qtype, name)]) fmclean
                 statementmap    = Map.insert (qtype, name) val mp
-            put (statementmap, fileassocmap, rq+1)
-            liftIO $ writeChan respchan CacheUpdated
+            put (statementmap, fileassocmap)
+            liftIO $ measure mstats "update" (writeChan respchan CacheUpdated)
         InvalidateCacheFile fname respchan -> do
             liftIO $ logDebug $ "Invalidating files for " ++ fname
-            (mp, fm, rq) <- get
+            (mp, fm) <- get
             let
                 nfm = Map.delete fname fm
                 nmp = case Map.lookup fname fm of
                     Just (_, remlist) -> foldl' (flip Map.delete) mp remlist
                     Nothing           -> mp
-            put (nmp, nfm, rq)
-            liftIO $ writeChan respchan CacheUpdated
-    parsedmaster prefs controlchan
+            put (nmp, nfm)
+            liftIO $ measure mstats "invalidate" (writeChan respchan CacheUpdated)
+    parsedmaster prefs controlchan mstats
