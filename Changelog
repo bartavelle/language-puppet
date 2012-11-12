@@ -1,10 +1,10 @@
-v0.2.2 ()
+v0.2.2 (2012/11/12)
   New features
 	* A few statistics are exported.
 
-v0.2.1 ()
+v0.2.1 (2012/11/12)
   Bugs fixed
-	* The defaults system was pretty much broken, it should be better now.:
+	* The defaults system was pretty much broken, it should be better now.
   New features
 	* Basic testing framework started.
 	* create_resources now supports the defaults system.
@@ -14,7 +14,7 @@ v0.2.1 ()
 	* The ruby <> daemon communication is now over ByteStrings.
 	* The toRuby function has been optimized, doubling the overall speed for
 	rendering complex catalogs.
-    * Various internal changes.
+	* Various internal changes.
 
 v0.2.0 (2012/10/08)
   New features
