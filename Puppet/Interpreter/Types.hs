@@ -59,12 +59,12 @@ The relations are not stored here, as they are pushed into a separate internal
 data structure by the interpreter.
 -}
 data CResource = CResource {
-    crid :: Int, -- ^ Resource ID, used in the Puppet YAML.
-    crname :: GeneralString, -- ^ Resource name.
-    crtype :: String, -- ^ Resource type.
-    crparams :: Map.Map GeneralString GeneralValue, -- ^ Resource parameters.
-    crvirtuality :: Virtuality, -- ^ Resource virtuality.
-    pos :: SourcePos -- ^ Source code position of the resource definition.
+    crid :: !Int, -- ^ Resource ID, used in the Puppet YAML.
+    crname :: !GeneralString, -- ^ Resource name.
+    crtype :: !String, -- ^ Resource type.
+    crparams :: !(Map.Map GeneralString GeneralValue), -- ^ Resource parameters.
+    crvirtuality :: !Virtuality, -- ^ Resource virtuality.
+    pos :: !SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show)
 
 -- | Resource identifier, made of a type, name pair.
@@ -147,11 +147,11 @@ data ScopeState = ScopeState {
     -- a query, and returns a resolved value from puppetDB.
     luaState :: Maybe Lua.LuaState,
     -- ^ The Lua state, used for user supplied content.
-    userFunctions :: Set.Set String,
+    userFunctions :: !(Set.Set String),
     -- ^ The list of registered user functions
-    nativeTypes :: Map.Map PuppetTypeName PuppetTypeMethods,
+    nativeTypes :: !(Map.Map PuppetTypeName PuppetTypeMethods),
     -- ^ The list of native types.
-    definedResources :: Set.Set (String, String)
+    definedResources :: !(Set.Set (String, String))
     -- ^ Horrible hack to kind of support the "defined" function
 }
 
