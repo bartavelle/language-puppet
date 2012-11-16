@@ -24,15 +24,15 @@ newStats = newMVar Map.empty
 measure :: MStats -> String -> IO a -> IO a
 measure mtable statsname action = do
     (tm, out) <- time action
-    stats <- takeMVar mtable :: IO StatsTable
+    !stats <- takeMVar mtable :: IO StatsTable
     let nstats :: StatsTable
-        nstats = case Map.lookup statsname stats of
+        !nstats = case Map.lookup statsname stats of
                      Nothing -> Map.insert statsname (StatsPoint 1 tm tm tm) stats
                      Just (StatsPoint sc st smi sma) ->
-                        let nmax = if tm > sma
+                        let !nmax = if tm > sma
                                        then tm
                                        else sma
-                            nmin = if tm < smi
+                            !nmin = if tm < smi
                                        then tm
                                        else smi
                             in Map.insert statsname (StatsPoint (sc+1) (st+tm) nmin nmax) stats
@@ -48,7 +48,7 @@ getTime = realToFrac `fmap` getPOSIXTime
 time :: IO a -> IO (Double, a)
 time act = do
     start <- getTime
-    result <- act
+    !result <- act
     end <- getTime
     let !delta = end - start
     return (delta, result)

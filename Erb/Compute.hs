@@ -75,9 +75,11 @@ computeTemplateWRuby filename curcontext variables = do
         case exists of
             True -> return cabalPath
             False -> return "calcerb.rb"
-    ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] (BB.toLazyByteString input) 1000
+    traceEventIO ("start running ruby" ++ filename)
+    !ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] (BB.toLazyByteString input) 1000
+    traceEventIO ("finished running ruby" ++ filename)
     case ret of
-        Just (Right x) -> return $ Right (BS.unpack x)
+        Just (Right x) -> return $! Right (BS.unpack x)
         Just (Left er) -> do
             (tmpfilename, tmphandle) <- openTempFile "/tmp" "templatefail"
             BS.hPut tmphandle (BB.toLazyByteString input)
