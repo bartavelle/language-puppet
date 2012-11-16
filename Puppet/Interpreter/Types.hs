@@ -151,7 +151,7 @@ data ScopeState = ScopeState {
     -- ^ The list of registered user functions
     nativeTypes :: !(Map.Map PuppetTypeName PuppetTypeMethods),
     -- ^ The list of native types.
-    definedResources :: !(Set.Set (String, String))
+    definedResources :: !(Set.Set ResIdentifier)
     -- ^ Horrible hack to kind of support the "defined" function
 }
 

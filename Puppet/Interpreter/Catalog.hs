@@ -50,7 +50,9 @@ import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
+import qualified Data.Graph as Graph
 import qualified Data.Set as Set
+import qualified Data.Array as Array
 import qualified Data.Traversable as DT
 
 qualified []  = False
@@ -192,6 +194,52 @@ extractRelations cr = do
     -- TODO export relations
     return cr { crparams = params }
 
+type LinkInfo = (LinkType, RelUpdateType, SourcePos)
+
+-- resolves a single relationship
+resolveRelationship :: ([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)
+                        -> CatalogMonad ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos)
+resolveRelationship (udsts, (stype, usname), uptype, spos) = do
+    let resolveSrcRel (ltype, udtype, udname) = do
+            dtype <- resolveGeneralValue udtype >>= rstring
+            dname <- resolveGeneralValue udname >>= rstring
+            return (ltype, (dtype, dname))
+    dsts  <- mapM resolveSrcRel udsts
+    sname <- resolveGeneralString usname
+    return (dsts, (stype, sname), uptype, spos)
+
+-- this does all the relation stuff
+finalizeRelations :: FinalCatalog -> CatalogMonad FinalCatalog
+finalizeRelations cat = do
+    grels <- fmap unresolvedRels get >>= mapM resolveRelationship
+    drs   <- fmap definedResources get
+    let extr :: ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos)
+                    -> [(ResIdentifier, ResIdentifier, LinkInfo)]
+        extr (dsts, src, rutype, spos) = do
+            (ltype, dst) <- dsts
+            return (dst, src, (ltype, rutype, spos))
+        rels = concatMap extr grels :: [(ResIdentifier, ResIdentifier, LinkInfo)]
+        checkRelationExists :: (ResIdentifier, ResIdentifier, LinkInfo) -> CatalogMonad (Maybe (ResIdentifier, ResIdentifier, LinkInfo))
+        checkRelationExists o@(src, dst, (_,_,lpos)) = do
+            -- if the source of the relation doesn't exist (is virtual),
+            -- then when drop this relation
+            case (Set.member src drs, Set.member dst drs) of
+                (False, _) -> return Nothing
+                (_, True)  -> return (Just o)
+                _          -> throwError $ "Unknown resource " ++ show dst ++ " used at " ++ show lpos
+    checkedrels <- fmap catMaybes $ mapM checkRelationExists rels
+    let edgeMap = Map.fromList (map (\(d,s,i) -> ((d,s),i)) checkedrels) :: Map.Map (ResIdentifier, ResIdentifier) LinkInfo
+        nodeRel = Map.fromListWith (++) (map (\(d,s,_) -> (s,[d])) checkedrels) :: Map.Map ResIdentifier [ResIdentifier]
+        (relgraph,qfunc) = Graph.graphFromEdges' $ map (\(a,b) -> (a,a,b)) $ Map.toList nodeRel
+        reachableFromAny :: Graph.Graph -> Graph.Vertex -> [Graph.Vertex] -> Bool
+        reachableFromAny graph node = elem node . concatMap (Graph.reachable graph)
+        cyclicNodes :: Graph.Graph -> [Graph.Vertex]
+        cyclicNodes graph = map fst . filter isCyclicAssoc . Array.assocs $ graph
+            where
+                isCyclicAssoc = uncurry $ reachableFromAny graph
+    liftIO $ print $ cyclicNodes relgraph
+    return cat
+
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
     pdbfunction     <- fmap puppetDBFunction get
@@ -214,7 +262,7 @@ finalResolution cat = do
     --liftIO $ putStrLn "EXPORTED:"
     --liftIO $ mapM print exported
     --get >>= return . unresolvedRels >>= liftIO . (mapM print)
-    mapM finalizeResource real >>= createResourceMap
+    mapM finalizeResource real >>= createResourceMap >>= finalizeRelations
 
 createResourceMap :: [(ResIdentifier, RResource)] -> CatalogMonad FinalCatalog
 createResourceMap = foldM insertres Map.empty
@@ -572,6 +620,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     if isloaded
         then return []
         else do
+        addDefinedResource ("class",classname)
         -- detection of spurious parameters
         let classparamset = Set.fromList $ map fst parameters
             inputparamset = Set.filter (\x -> getRelationParameterType (Right x) == Nothing) $ Map.keysSet inputparams
