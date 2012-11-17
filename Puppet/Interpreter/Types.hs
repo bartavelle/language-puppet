@@ -151,7 +151,7 @@ data ScopeState = ScopeState {
     -- ^ The list of registered user functions
     nativeTypes :: !(Map.Map PuppetTypeName PuppetTypeMethods),
     -- ^ The list of native types.
-    definedResources :: !(Set.Set ResIdentifier)
+    definedResources :: !(Map.Map ResIdentifier SourcePos)
     -- ^ Horrible hack to kind of support the "defined" function
 }
 
@@ -179,7 +179,7 @@ setStatePos  npos sc = sc { curPos         = npos }
 pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
 pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
 pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
-addDefinedResource r = modify (\st -> st { definedResources = Set.insert r (definedResources st) } )
+addDefinedResource r p = modify (\st -> st { definedResources = Map.insert r p (definedResources st) } )
 saveVariables vars = modify (\st -> st { curVariables = vars })
 
 throwPosError :: String -> CatalogMonad a

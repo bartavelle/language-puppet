@@ -50,10 +50,12 @@ import Text.Parsec.Pos
 import Control.Monad.State
 import Control.Monad.Error
 import qualified Data.Map as Map
-import qualified Data.Graph as Graph
 import qualified Data.Set as Set
-import qualified Data.Array as Array
 import qualified Data.Traversable as DT
+import qualified Data.Graph as Graph
+import qualified Data.Tree as Tree
+--import qualified Data.Graph.Inductive as Graph
+--import Data.Graph.Analysis.Algorithms.Common (cyclesIn)
 
 qualified []  = False
 qualified str = isPrefixOf "::" str || qualified (tail str)
@@ -106,7 +108,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
                                    , luaState                   = luastate
                                    , userFunctions              = Set.fromList userfunctions
                                    , nativeTypes                = ntypes
-                                   , definedResources           = Set.empty
+                                   , definedResources           = Map.empty
                                    } )
     case luastate of
         Just l  -> closeLua l
@@ -190,8 +192,8 @@ retrieveRemoteResources f q = do
 
 extractRelations :: CResource -> CatalogMonad CResource
 extractRelations cr = do
-    let (params, rels) = partitionParamsRelations (crparams cr)
-    -- TODO export relations
+    let (params, relations) = partitionParamsRelations (crparams cr)
+    addUnresRel (relations, (crtype cr, crname cr), UNormal, pos cr)
     return cr { crparams = params }
 
 type LinkInfo = (LinkType, RelUpdateType, SourcePos)
@@ -218,27 +220,33 @@ finalizeRelations cat = do
         extr (dsts, src, rutype, spos) = do
             (ltype, dst) <- dsts
             return (dst, src, (ltype, rutype, spos))
-        rels = concatMap extr grels :: [(ResIdentifier, ResIdentifier, LinkInfo)]
+        !rels = concatMap extr grels :: [(ResIdentifier, ResIdentifier, LinkInfo)]
         checkRelationExists :: (ResIdentifier, ResIdentifier, LinkInfo) -> CatalogMonad (Maybe (ResIdentifier, ResIdentifier, LinkInfo))
-        checkRelationExists o@(src, dst, (_,_,lpos)) = do
+        checkRelationExists !o@(!src, !dst, (!ltype,!lutype,!lpos)) = do
             -- if the source of the relation doesn't exist (is virtual),
             -- then when drop this relation
-            case (Set.member src drs, Set.member dst drs) of
-                (False, _) -> return Nothing
-                (_, True)  -> return (Just o)
+            case (Map.member src drs, Map.member dst drs) of
+                (False, _) -> addWarning ("Dropping relation " ++ show o) >> return Nothing
+                -- we have a good relation, reorder it so that all arrows point the same way
+                (_, True)  -> case ltype of
+                                RSubscribe -> return $ Just (dst, src, (RNotify, lutype,lpos))
+                                RRequire   -> return $ Just (dst, src, (RBefore, lutype,lpos))
+                                _ -> return (Just o)
                 _          -> throwError $ "Unknown resource " ++ show dst ++ " used at " ++ show lpos
     checkedrels <- fmap catMaybes $ mapM checkRelationExists rels
-    let edgeMap = Map.fromList (map (\(d,s,i) -> ((d,s),i)) checkedrels) :: Map.Map (ResIdentifier, ResIdentifier) LinkInfo
-        nodeRel = Map.fromListWith (++) (map (\(d,s,_) -> (s,[d])) checkedrels) :: Map.Map ResIdentifier [ResIdentifier]
-        (relgraph,qfunc) = Graph.graphFromEdges' $ map (\(a,b) -> (a,a,b)) $ Map.toList nodeRel
-        reachableFromAny :: Graph.Graph -> Graph.Vertex -> [Graph.Vertex] -> Bool
-        reachableFromAny graph node = elem node . concatMap (Graph.reachable graph)
-        cyclicNodes :: Graph.Graph -> [Graph.Vertex]
-        cyclicNodes graph = map fst . filter isCyclicAssoc . Array.assocs $ graph
-            where
-                isCyclicAssoc = uncurry $ reachableFromAny graph
-    liftIO $ print $ cyclicNodes relgraph
-    return cat
+    let !edgeMap = Map.fromList (map (\(d,s,i) -> ((d,s),i)) checkedrels) :: Map.Map (ResIdentifier, ResIdentifier) LinkInfo
+        !nodeRel = Map.fromListWith (++) (map (\(d,s,_) -> (s,[d])) checkedrels) :: Map.Map ResIdentifier [ResIdentifier]
+        !(relgraph,qfunc) = Graph.graphFromEdges' $ map (\(a,b) -> (a,a,b)) $ Map.toList nodeRel
+        !cycles = map (map ((\(a,_,_) -> a) . qfunc) . Tree.flatten) $ filter (not . null . Tree.subForest) $ Graph.scc relgraph :: [[ResIdentifier]]
+        describe :: [ResIdentifier] -> String
+        describe x = let rx = map (\i -> (i, drs Map.! i)) x
+                     in  intercalate "\n\t\t" (showRRef (head x) : map describe' (zip x (tail rx)))
+        describe' :: (ResIdentifier, (ResIdentifier, SourcePos)) -> String
+        describe' (src,(dst,dpos)) = " -> " ++ showRRef dst ++ " [" ++ show dpos ++ "] link is " ++ show (Map.lookup (src,dst) edgeMap)
+    if null cycles
+        then return cat
+        else throwError $ "The following cycles have been found:\n\t" ++ intercalate "\n\t" (map describe cycles)
+
 
 finalResolution :: Catalog -> CatalogMonad FinalCatalog
 finalResolution cat = do
@@ -502,7 +510,7 @@ addResource rtype parameters virtuality position grname = do
     srname <- case grname of
         Right e -> do
                     rse <- rstring e
-                    addDefinedResource (rtype, rse)
+                    getPos >>= addDefinedResource (rtype, rse)
                     return $ Right rse
         Left  e -> return $ Left e
     let (realparams, relations) = partitionParamsRelations rparameters
@@ -620,7 +628,8 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     if isloaded
         then return []
         else do
-        addDefinedResource ("class",classname)
+        oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
+        addDefinedResource ("class",classname) oldpos
         -- detection of spurious parameters
         let classparamset = Set.fromList $ map fst parameters
             inputparamset = Set.filter (\x -> getRelationParameterType (Right x) == Nothing) $ Map.keysSet inputparams
@@ -628,7 +637,6 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         unless (Set.null overparams) (throwError $ "Spurious parameters " ++ intercalate ", " (Set.toList overparams) ++ " at " ++ show position)
 
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
-        oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
         setPos position
         case actualname of
             Nothing -> pushScope [classname] -- sets the scope
@@ -963,7 +971,7 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
                         Nothing -> liftM (Right . ResolvedBool . Map.member typeorclass . curClasses) get
         Right (ResolvedRReference rtype (ResolvedString rname)) -> do
             defset <- fmap definedResources get
-            return $ Right $ ResolvedBool (Set.member (rtype, rname) defset)
+            return $ Right $ ResolvedBool (Map.member (rtype, rname) defset)
         Right x -> throwPosError $ "Can't know if this could be defined : " ++ show x
 tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str

@@ -3,6 +3,7 @@ module Puppet.Printers (
     , showRRes
     , showFCatalog
     , showValue
+    , showRRef
 ) where
 
 import Puppet.Interpreter.Types
@@ -22,9 +23,12 @@ showFCatalog rmap = let
 -- helpers
 
 commasep :: [String] -> String
-commasep = intercalate ", " 
+commasep = intercalate ", "
 commaretsep :: [String] -> String
-commaretsep = intercalate ",\n" 
+commaretsep = intercalate ",\n"
+
+showRRef :: ResIdentifier -> String
+showRRef (rt, rn) = rt ++ "[" ++ rn ++ "]"
 
 showValue :: ResolvedValue -> String
 showValue (ResolvedString x) = show x
@@ -32,7 +36,7 @@ showValue (ResolvedInt x) = show x
 showValue (ResolvedDouble x) = show x
 showValue (ResolvedBool True) = "true"
 showValue (ResolvedBool False) = "false"
-showValue (ResolvedRReference rt rn) = rt ++ "[" ++ showValue rn ++ "]"
+showValue (ResolvedRReference rt rn) = showRRef (rt, showValue rn)
 showValue (ResolvedArray ar) = "[" ++ commasep (map showValue ar) ++ "]"
 showValue (ResolvedHash h) = "{" ++ commasep (map (\(k,v) -> k ++ " => " ++ showValue v) h) ++ "}"
 showValue (ResolvedRegexp r) = "/" ++ r ++ "/"
