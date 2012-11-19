@@ -3,6 +3,7 @@ module Puppet.Printers (
     , showRRes
     , showFCatalog
     , showValue
+    , showRRef
 ) where
 
 import Puppet.Interpreter.Types
@@ -22,9 +23,12 @@ showFCatalog rmap = let
 -- helpers
 
 commasep :: [String] -> String
-commasep = intercalate ", " 
+commasep = intercalate ", "
 commaretsep :: [String] -> String
-commaretsep = intercalate ",\n" 
+commaretsep = intercalate ",\n"
+
+showRRef :: ResIdentifier -> String
+showRRef (rt, rn) = rt ++ "[" ++ rn ++ "]"
 
 showValue :: ResolvedValue -> String
 showValue (ResolvedString x) = show x
@@ -32,7 +36,7 @@ showValue (ResolvedInt x) = show x
 showValue (ResolvedDouble x) = show x
 showValue (ResolvedBool True) = "true"
 showValue (ResolvedBool False) = "false"
-showValue (ResolvedRReference rt rn) = rt ++ "[" ++ showValue rn ++ "]"
+showValue (ResolvedRReference rt rn) = showRRef (rt, showValue rn)
 showValue (ResolvedArray ar) = "[" ++ commasep (map showValue ar) ++ "]"
 showValue (ResolvedHash h) = "{" ++ commasep (map (\(k,v) -> k ++ " => " ++ showValue v) h) ++ "}"
 showValue (ResolvedRegexp r) = "/" ++ r ++ "/"
@@ -42,14 +46,17 @@ showuniqueres :: [RResource] -> String
 showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
     where
         showrres (RResource _ rname _ params rels mpos)  =
-            let paramlist = (Map.toList $ Map.delete "title" params) :: [(String, ResolvedValue)]
+            let relslist = map asparams rels
+                groupedrels = Map.fromListWith (++) relslist :: Map.Map String [ResolvedValue]
+                maybeArray (s,[a]) = (s,a)
+                maybeArray (s, x ) = (s,ResolvedArray x)
+                paramlist = (Map.toList $ Map.delete "title" params) ++ map maybeArray (Map.toList groupedrels) :: [(String, ResolvedValue)]
                 maxlen    = maximum (map (length . fst) paramlist) :: Int
             in  "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ "\n"
-                ++ commaretsep (map (showparams maxlen) paramlist)
-                ++ commareqs (null rels || Map.null params)
-                ++ commaretsep (map showrequire (sort rels)) ++ ";\n"
-        commareqs c | c             = ""
-                    | otherwise     = ",\n"
+                ++ commaretsep (map (showparams maxlen) paramlist) ++ ";\n"
         showparams  mxl (name, val) = "        " ++ name ++ replicate (mxl - length name) ' ' ++ " => " ++ showValue val
-        showrequire (ltype, dst)    = "        " ++ show ltype ++ " " ++ show dst
-        mrtype                      = rrtype (head res)
+        asparams    (RBefore, (dtype, dname))    = ("before",    [ResolvedRReference dtype (ResolvedString dname)])
+        asparams    (RNotify, (dtype, dname))    = ("notify",    [ResolvedRReference dtype (ResolvedString dname)])
+        asparams    (RSubscribe, (dtype, dname)) = ("subscribe", [ResolvedRReference dtype (ResolvedString dname)])
+        asparams    (RRequire, (dtype, dname))   = ("require",   [ResolvedRReference dtype (ResolvedString dname)])
+        mrtype = rrtype (head res)

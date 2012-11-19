@@ -28,7 +28,7 @@ import Debug.Trace
 -- this daemon returns a catalog when asked for a node and facts
 data DaemonMessage
     = QCatalog (String, Facts, Chan DaemonMessage)
-    | RCatalog (Either String FinalCatalog)
+    | RCatalog (Either String (FinalCatalog, EdgeMap, FinalCatalog))
 
 logDebug = LOG.debugM "Puppet.Daemon"
 logInfo = LOG.infoM "Puppet.Daemon"
@@ -38,8 +38,9 @@ logError = LOG.errorM "Puppet.Daemon"
 {-| This is a high level function, that will initialize the parsing and
 interpretation infrastructure from the 'Prefs' structure, and will return a
 function that will take a node name, 'Facts' and return either an error or the
-'FinalCatalog'. It also return a few IO functions that can be used in order to
-query the daemon for statistics, following the format in "Puppet.Stats".
+'FinalCatalog', along with the dependency graph and catalog of exported resources. It also return a few IO
+functions that can be used in order to query the daemon for statistics,
+following the format in "Puppet.Stats".
 
 It will internaly initialize several threads that communicate with channels. It
 should scale well, althrough it hasn't really been tested yet. It should cache
@@ -74,7 +75,7 @@ are opened. This means the program might end with an exception when the file
 is not existent. This will need fixing.
 
 -}
-initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String FinalCatalog), IO StatsTable, IO StatsTable, IO StatsTable )
+initDaemon :: Prefs -> IO ( String -> Facts -> IO(Either String (FinalCatalog, EdgeMap, FinalCatalog)), IO StatsTable, IO StatsTable, IO StatsTable )
 initDaemon prefs = do
     logDebug "initDaemon"
     traceEventIO "initDaemon"
@@ -111,7 +112,7 @@ master prefs chan getstmts gettemplate mstats = do
         _ -> logError "Bad message type for master"
     master prefs chan getstmts gettemplate mstats
 
-gCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String FinalCatalog)
+gCatalog :: Chan DaemonMessage -> String -> Facts -> IO (Either String (FinalCatalog, EdgeMap, FinalCatalog))
 gCatalog channel nodename facts = do
     respchan <- newChan
     writeChan channel $ QCatalog (nodename, facts, respchan)

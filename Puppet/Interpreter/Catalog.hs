@@ -52,6 +52,10 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Traversable as DT
+import qualified Data.Graph as Graph
+import qualified Data.Tree as Tree
+--import qualified Data.Graph.Inductive as Graph
+--import Data.Graph.Analysis.Algorithms.Common (cyclesIn)
 
 qualified []  = False
 qualified str = isPrefixOf "::" str || qualified (tail str)
@@ -64,6 +68,9 @@ readint x = if isInt x
     then return (read x)
     else throwPosError $ "Expected an integer instead of '" ++ x
 
+-- | This function returns an error, or the 'FinalCatalog' of resources to
+-- apply, the map of all edges between resources, and the 'FinalCatalog' of
+-- exported resources.
 getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -- ^ The \"get statements\" function. Given a top level type and its name it
     -- should return the corresponding statement.
@@ -78,7 +85,7 @@ getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -> Facts -- ^ Facts of this node.
     -> Maybe String -- ^ Path to the modules, for user plugins. If set to Nothing, plugins are disabled.
     -> Map.Map PuppetTypeName PuppetTypeMethods -- ^ The list of native types
-    -> IO (Either String FinalCatalog, [String])
+    -> IO (Either String (FinalCatalog, EdgeMap, FinalCatalog), [String])
 getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
     let convertedfacts = Map.map
             (\fval -> (Right fval, initialPos "FACTS"))
@@ -104,7 +111,8 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
                                    , luaState                   = luastate
                                    , userFunctions              = Set.fromList userfunctions
                                    , nativeTypes                = ntypes
-                                   , definedResources           = Set.empty
+                                   , definedResources           = Map.empty
+                                   , currentDependencyStack     = [("node",nodename)]
                                    } )
     case luastate of
         Just l  -> closeLua l
@@ -113,30 +121,34 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
         Left x -> return (Left x, getWarnings finalstate)
         Right _ -> return (output, getWarnings finalstate)
 
-computeCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> CatalogMonad FinalCatalog
+computeCatalog :: (TopLevelType -> String -> IO (Either String Statement)) -> String -> CatalogMonad (FinalCatalog, EdgeMap, FinalCatalog)
 computeCatalog getstatements nodename = do
     nodestatements <- liftIO $ getstatements TopNode nodename
     case nodestatements of
         Left x -> throwError x
         Right nodestmts -> evaluateStatements nodestmts >>= finalResolution
 
+resolveResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
+resolveResource cr@(CResource cid cname ctype cparams _ cpos) = do
+    setPos cpos
+    rname <- resolveGeneralString cname
+    rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) (Map.toList cparams)
+    nparams <- processOverride cr (Map.fromList rparams)
+    let mrrelations = []
+        prefinalresource = RResource cid rname ctype nparams mrrelations cpos
+    return ((ctype, rname), prefinalresource)
 
 -- this validates the resolved resources
 -- it should only be called with native types or the validatefunction lookup with abord with an error
 finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
-finalizeResource cr@(CResource cid cname ctype cparams _ cpos) = do
-    setPos cpos
-    rname <- resolveGeneralString cname
-    rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) (Map.toList cparams)
-    -- add collected relations
-    -- TODO
+finalizeResource cr = do
+    ((_, rname), prefinalresource) <- resolveResource cr
+    let ctype   = rrtype   prefinalresource
+        cpos    = rrpos    prefinalresource
     ntypes <- fmap nativeTypes get
     unless (Map.member ctype ntypes) $ throwPosError $ "Can't find native type " ++ ctype
     -- now run the collection checks for overrides
-    nparams <- processOverride cr (Map.fromList rparams)
-    let mrrelations = []
-        prefinalresource = RResource cid rname ctype nparams mrrelations cpos
-        validatefunction = puppetvalidate (ntypes Map.! ctype)
+    let validatefunction = puppetvalidate (ntypes Map.! ctype)
         validated = validatefunction prefinalresource
     case validated of
         Left err -> throwError (err ++ " for resource " ++ ctype ++ "[" ++ rname ++ "] at " ++ show cpos)
@@ -188,11 +200,62 @@ retrieveRemoteResources f q = do
 
 extractRelations :: CResource -> CatalogMonad CResource
 extractRelations cr = do
-    let (params, rels) = partitionParamsRelations (crparams cr)
-    -- TODO export relations
+    let (params, relations) = partitionParamsRelations (crparams cr)
+    addUnresRel (relations, (crtype cr, crname cr), UNormal, pos cr)
     return cr { crparams = params }
 
-finalResolution :: Catalog -> CatalogMonad FinalCatalog
+-- resolves a single relationship
+resolveRelationship :: ([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)
+                        -> CatalogMonad ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos)
+resolveRelationship (udsts, (stype, usname), uptype, spos) = do
+    let resolveSrcRel (ltype, udtype, udname) = do
+            dtype <- resolveGeneralValue udtype >>= rstring
+            dname <- resolveGeneralValue udname >>= rstring
+            return (ltype, (dtype, dname))
+    dsts  <- mapM resolveSrcRel udsts
+    sname <- resolveGeneralString usname
+    return (dsts, (stype, sname), uptype, spos)
+
+-- this does all the relation stuff
+finalizeRelations :: FinalCatalog -> FinalCatalog -> CatalogMonad (FinalCatalog, EdgeMap)
+finalizeRelations exported cat = do
+    grels <- fmap unresolvedRels get >>= mapM resolveRelationship
+    drs   <- fmap definedResources get
+    let extr :: ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos)
+                    -> [(ResIdentifier, ResIdentifier, LinkInfo)]
+        extr (dsts, src, rutype, spos) = do
+            (ltype, dst) <- dsts
+            return (dst, src, (ltype, rutype, spos))
+        !rels = concatMap extr grels :: [(ResIdentifier, ResIdentifier, LinkInfo)]
+        checkRelationExists :: (ResIdentifier, ResIdentifier, LinkInfo) -> CatalogMonad (Maybe (ResIdentifier, ResIdentifier, LinkInfo))
+        checkRelationExists !o@(!src, !dst, (!ltype,!lutype,!lpos)) = do
+            -- if the source of the relation doesn't exist (is exported),
+            -- then when drop this relation
+            case (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported) of
+                (_, _, _, True)     -> return Nothing
+                -- we have a good relation, reorder it so that all arrows point the same way
+                (True, True,_ , _)  -> case ltype of
+                                RNotify -> return $ Just (dst, src, (RSubscribe, lutype,lpos))
+                                RBefore -> return $ Just (dst, src, (RRequire  , lutype,lpos))
+                                _ -> return (Just o)
+                _          -> throwError $ "Unknown resource " ++ show dst ++ " used at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
+    -- now look for cycles in the graph
+    checkedrels <- fmap catMaybes $ mapM checkRelationExists rels
+    let !edgeMap = Map.fromList (map (\(d,s,i) -> ((s,d),i)) checkedrels) :: EdgeMap -- warning, in the edgemap we have (src, dst), contrary to all other uses
+        !nodeRel = Map.fromListWith (++) (map (\(d,s,_) -> (s,[d])) checkedrels) :: Map.Map ResIdentifier [ResIdentifier]
+        !(relgraph,qfunc) = Graph.graphFromEdges' $ map (\(a,b) -> (a,a,b)) $ Map.toList nodeRel
+        !cycles = map (map ((\(a,_,_) -> a) . qfunc) . Tree.flatten) $ filter (not . null . Tree.subForest) $ Graph.scc relgraph :: [[ResIdentifier]]
+        describe :: [ResIdentifier] -> String
+        describe x = let rx = map (\i -> (i, drs Map.! i)) x
+                     in  intercalate "\n\t\t" (showRRef (head x) : map describe' (zip x (tail rx)))
+        describe' :: (ResIdentifier, (ResIdentifier, SourcePos)) -> String
+        describe' (src,(dst,dpos)) = " -> " ++ showRRef dst ++ " [" ++ show dpos ++ "] link is " ++ show (Map.lookup (src,dst) edgeMap)
+    if null cycles
+        then return (cat, edgeMap)
+        else throwError $ "The following cycles have been found:\n\t" ++ intercalate "\n\t" (map describe cycles)
+
+
+finalResolution :: Catalog -> CatalogMonad (FinalCatalog, EdgeMap, FinalCatalog)
 finalResolution cat = do
     pdbfunction     <- fmap puppetDBFunction get
     fqdnr           <- getVariable "::fqdn"
@@ -209,12 +272,15 @@ finalResolution cat = do
     collected <- mapM evaluateDefine (collectedLocal ++ collectedRemote')
     let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
         (_,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
+    rexported <- mapM resolveResource exported
+    let !exportMap = Map.fromList rexported
     -- TODO
     --export stuff
     --liftIO $ putStrLn "EXPORTED:"
     --liftIO $ mapM print exported
     --get >>= return . unresolvedRels >>= liftIO . (mapM print)
-    mapM finalizeResource real >>= createResourceMap
+    (fc, em) <- mapM finalizeResource real >>= createResourceMap >>= finalizeRelations exportMap
+    return (fc, em, exportMap)
 
 createResourceMap :: [(ResIdentifier, RResource)] -> CatalogMonad FinalCatalog
 createResourceMap = foldM insertres Map.empty
@@ -239,7 +305,6 @@ getstatement qtype name = do
         Right y -> return y
 
 -- State alteration functions
-pushScope = modify . modifyScope . (:)
 
 pushDefaults :: ResDefaults -> CatalogMonad ()
 pushDefaults d = do
@@ -266,7 +331,10 @@ getCurDefaults = do
         Nothing -> return []
         Just  x -> return x
 
-popScope        = modify (modifyScope tail)
+pushDependency = modify . modifyDeps . (:)
+popDependency = modify (modifyDeps tail)
+pushScope = modify . modifyScope . (:)
+popScope       = modify (modifyScope tail)
 getScope        = do
     scope <- liftM curScope get
     if null scope
@@ -409,9 +477,11 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
     evaluateDefineDeclaration dtype args dstmts dpos = do
         --oldpos <- getPos
         pushScope ["#DEFINE#" ++ dtype]
+        rexpr <- resolveGeneralString rname
+        pushDependency (dtype, rexpr)
         -- add variables
         mparams <- fmap Map.fromList $ mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) (Map.toList rparams)
-        let expr = gs2gv rname
+        let expr = Right (ResolvedString rexpr)
             defineparamset = Set.fromList $ map fst args
             mandatoryparams = Set.fromList $ map fst $ filter (isNothing . snd) args
             resourceparamset = Map.keysSet mparams
@@ -427,6 +497,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
         -- parse statements
         res <- mapM evaluateStatements dstmts
         nres <- handleDelayedActions (concat res)
+        popDependency
         popScope
         return nres
     in do
@@ -454,12 +525,14 @@ addResource rtype parameters virtuality position grname = do
     srname <- case grname of
         Right e -> do
                     rse <- rstring e
-                    addDefinedResource (rtype, rse)
+                    getPos >>= addDefinedResource (rtype, rse)
                     return $ Right rse
         Left  e -> return $ Left e
     let (realparams, relations) = partitionParamsRelations rparameters
     -- push all the relations
-    addUnresRel (relations, (rtype, srname), UNormal, position)
+    (curdeptype, curdepname) <- fmap (head . currentDependencyStack) get
+    let defaultdependency = (RRequire, Right (ResolvedString curdeptype), Right (ResolvedString curdepname))
+    addUnresRel (defaultdependency : relations, (rtype, srname), UNormal, position)
     return [CResource resid srname rtype realparams virtuality position]
 
 -- node
@@ -572,6 +645,8 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
     if isloaded
         then return []
         else do
+        oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
+        addDefinedResource ("class",classname) oldpos
         -- detection of spurious parameters
         let classparamset = Set.fromList $ map fst parameters
             inputparamset = Set.filter (\x -> getRelationParameterType (Right x) == Nothing) $ Map.keysSet inputparams
@@ -579,8 +654,8 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         unless (Set.null overparams) (throwError $ "Spurious parameters " ++ intercalate ", " (Set.toList overparams) ++ " at " ++ show position)
 
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
-        oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
         setPos position
+        pushDependency ("class",classname)
         case actualname of
             Nothing -> pushScope [classname] -- sets the scope
             Just ac -> pushScope [classname, ac]
@@ -606,6 +681,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
                                                     -- this is probably not puppet perfect with resources that
                                                     -- depend explicitely on a class
         popScope
+        popDependency
         return $
             [CResource resid (Right classname) "class" Map.empty Normal position]
             ++ inherited
@@ -914,7 +990,7 @@ tryResolveValue   (FunctionCall "defined" [v]) = do
                         Nothing -> liftM (Right . ResolvedBool . Map.member typeorclass . curClasses) get
         Right (ResolvedRReference rtype (ResolvedString rname)) -> do
             defset <- fmap definedResources get
-            return $ Right $ ResolvedBool (Set.member (rtype, rname) defset)
+            return $ Right $ ResolvedBool (Map.member (rtype, rname) defset)
         Right x -> throwPosError $ "Can't know if this could be defined : " ++ show x
 tryResolveValue n@(FunctionCall "regsubst" [str, src, dst, flags]) = do
     rstr   <- tryResolveExpressionString str
@@ -1133,10 +1209,6 @@ resolveBoolean v = do
 resolveGeneralString :: GeneralString -> CatalogMonad String
 resolveGeneralString (Right x) = return x
 resolveGeneralString (Left y) = resolveExpressionString y
-
-gs2gv :: GeneralString -> GeneralValue
-gs2gv (Left e)  = Left e
-gs2gv (Right s) = Right $ ResolvedString s
 
 collectionFunction :: Virtuality -> String -> Expression -> CatalogMonad (CResource -> CatalogMonad Bool, Maybe PDB.Query)
 collectionFunction virt mrtype exprs = do
