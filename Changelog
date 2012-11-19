@@ -1,3 +1,9 @@
+v0.3.0 (2012/11/19)
+  New features
+	* Resource relationships are somehow supported. The API is broken as a
+	result.
+	* Exported resources are now returned.
+
 v0.2.2 (2012/11/12)
   New features
 	* A few statistics are exported.
