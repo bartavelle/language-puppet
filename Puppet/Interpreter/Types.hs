@@ -28,6 +28,7 @@ type Facts = Map.Map String ResolvedValue
 
 -- | Relationship link type.
 data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Ord, Eq)
+type LinkInfo = (LinkType, RelUpdateType, SourcePos)
 
 -- | The list of resolved values that are used to define everything in a
 -- 'FinalCatalog' and in the resolved parts of a 'Catalog'. They are to be
@@ -151,12 +152,17 @@ data ScopeState = ScopeState {
     -- ^ The list of registered user functions
     nativeTypes :: !(Map.Map PuppetTypeName PuppetTypeMethods),
     -- ^ The list of native types.
-    definedResources :: !(Map.Map ResIdentifier SourcePos)
+    definedResources :: !(Map.Map ResIdentifier SourcePos),
     -- ^ Horrible hack to kind of support the "defined" function
+    currentDependencyStack :: [ResIdentifier]
 }
 
 -- | The monad all the interpreter lives in. It is 'ErrorT' with a state.
 type CatalogMonad = ErrorT String (StateT ScopeState IO)
+
+-- | This is the map of all edges associated with the 'FinalCatalog'.
+-- The key is (source, target).
+type EdgeMap = Map.Map (ResIdentifier, ResIdentifier) LinkInfo
 
 generalizeValueE :: Expression -> GeneralValue
 generalizeValueE = Left
@@ -172,6 +178,7 @@ metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","che
 
 getPos               = liftM curPos get
 modifyScope     f sc = sc { curScope       = f $ curScope sc }
+modifyDeps      f sc = sc { currentDependencyStack = f $ currentDependencyStack sc }
 modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
 modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
 incrementResId    sc = sc { curResId       = curResId sc + 1 }
