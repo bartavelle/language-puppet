@@ -1,3 +1,7 @@
+v0.3.1 ()
+  Bugs fixed
+	* Several bugs about resource relationships.
+
 v0.3.0 (2012/11/19)
   New features
 	* Resource relationships are somehow supported. The API is broken as a

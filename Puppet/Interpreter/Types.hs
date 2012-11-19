@@ -174,7 +174,7 @@ generalizeStringS :: String -> GeneralString
 generalizeStringS = Right
 
 -- |This is the set of meta parameters
-metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE"]
+metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
 
 getPos               = liftM curPos get
 modifyScope     f sc = sc { curScope       = f $ curScope sc }

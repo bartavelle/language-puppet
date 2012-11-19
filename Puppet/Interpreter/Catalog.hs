@@ -111,7 +111,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
                                    , luaState                   = luastate
                                    , userFunctions              = Set.fromList userfunctions
                                    , nativeTypes                = ntypes
-                                   , definedResources           = Map.empty
+                                   , definedResources           = Map.singleton ("node",nodename) (newPos "site.pp" 0 0)
                                    , currentDependencyStack     = [("node",nodename)]
                                    } )
     case luastate of
@@ -142,7 +142,7 @@ resolveResource cr@(CResource cid cname ctype cparams _ cpos) = do
 -- it should only be called with native types or the validatefunction lookup with abord with an error
 finalizeResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
 finalizeResource cr = do
-    ((_, rname), prefinalresource) <- resolveResource cr
+    ((_, rname), prefinalresource) <- extractRelations cr >>= resolveResource
     let ctype   = rrtype   prefinalresource
         cpos    = rrpos    prefinalresource
     ntypes <- fmap nativeTypes get
@@ -238,7 +238,7 @@ finalizeRelations exported cat = do
                                 RNotify -> return $ Just (dst, src, (RSubscribe, lutype,lpos))
                                 RBefore -> return $ Just (dst, src, (RRequire  , lutype,lpos))
                                 _ -> return (Just o)
-                _          -> throwError $ "Unknown resource " ++ show dst ++ " used at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
+                _          -> throwError $ "Unknown relation " ++ show src ++ " -> " ++ show dst ++ " used at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
     -- now look for cycles in the graph
     checkedrels <- fmap catMaybes $ mapM checkRelationExists rels
     let !edgeMap = Map.fromList (map (\(d,s,i) -> ((s,d),i)) checkedrels) :: EdgeMap -- warning, in the edgemap we have (src, dst), contrary to all other uses
@@ -443,32 +443,24 @@ applyDefaults :: CResource -> CatalogMonad CResource
 applyDefaults res = getCurDefaults >>= foldM applyDefaults' res
 
 applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
-applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults dtype rdefs dpos) = do
-    srname <- resolveGeneralString rname
-    let (nparams, nrelations) = mergeParams rparams rdefs False
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults dtype rdefs _) = do
+    let nparams = mergeParams rparams rdefs False
     if dtype == rtype
-        then do
-            addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
-            return $ CResource i rname rtype nparams rvirtuality rpos
+        then return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
-applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ROverride dtype dname rdefs dpos) = do
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ROverride dtype dname rdefs _) = do
     srname <- resolveGeneralString rname
     sdname <- resolveGeneralString dname
-    let (nparams, nrelations) = mergeParams rparams rdefs True
+    let nparams = mergeParams rparams rdefs True
     if (dtype == rtype) && (srname == sdname)
-        then do
-            addUnresRel (nrelations, (rtype, Right srname), UDefault, dpos)
-            return $ CResource i rname rtype nparams rvirtuality rpos
+        then return $ CResource i rname rtype nparams rvirtuality rpos
         else return r
 
 -- merge defaults and actual parameters depending on the override flag
-mergeParams :: Map.Map GeneralString GeneralValue -> Map.Map GeneralString GeneralValue -> Bool -> (Map.Map GeneralString GeneralValue, [(LinkType, GeneralValue, GeneralValue)])
-mergeParams srcprm defs override = let
-    (dstprm, dstrels) = partitionParamsRelations defs
-    prm = if override
-        then Map.union dstprm srcprm
-        else Map.union srcprm dstprm
-    in (prm, dstrels)
+mergeParams :: Map.Map GeneralString GeneralValue -> Map.Map GeneralString GeneralValue -> Bool -> Map.Map GeneralString GeneralValue
+mergeParams srcprm defs override = if override
+                                       then Map.union defs srcprm
+                                       else Map.union srcprm defs
 
 -- The actual meat
 
@@ -528,12 +520,10 @@ addResource rtype parameters virtuality position grname = do
                     getPos >>= addDefinedResource (rtype, rse)
                     return $ Right rse
         Left  e -> return $ Left e
-    let (realparams, relations) = partitionParamsRelations rparameters
-    -- push all the relations
     (curdeptype, curdepname) <- fmap (head . currentDependencyStack) get
     let defaultdependency = (RRequire, Right (ResolvedString curdeptype), Right (ResolvedString curdepname))
-    addUnresRel (defaultdependency : relations, (rtype, srname), UNormal, position)
-    return [CResource resid srname rtype realparams virtuality position]
+    addUnresRel ([defaultdependency], (rtype, srname), UNormal, position)
+    return [CResource resid srname rtype rparameters virtuality position]
 
 -- node
 evaluateStatements :: Statement -> CatalogMonad Catalog
