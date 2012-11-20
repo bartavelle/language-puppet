@@ -29,9 +29,11 @@ import SafeProcess
 import Data.Either (lefts, rights)
 import Data.List (intercalate)
 import qualified Data.ByteString.Lazy.Char8 as BSL
+import Data.Char (toUpper)
 
 puppetMD5  = md5s . Str
 puppetSHA1 = BS.unpack . B16.encode . SHA1.hash . BS.pack
+puppetMysql = BS.unpack . B16.encode . SHA1.hash . SHA1.hash . BS.pack
 
 {-
 TODO : achieve compatibility with puppet
@@ -46,7 +48,7 @@ fqdn_rand n args = return (hash `mod` n)
 mysql_password :: String -> CatalogMonad String
 mysql_password pwd = return $ '*':hash
     where
-        hash = puppetSHA1 pwd
+        hash = map toUpper $ puppetMysql pwd
 
 regsubst :: String -> String -> String -> String -> CatalogMonad String
 regsubst str src dst flags = do

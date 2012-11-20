@@ -1,4 +1,6 @@
-v0.3.1 ()
+v0.3.1 (2012/11/23)
+  New features
+	* Yes, we can generate JSon catalogs now.
   Bugs fixed
 	* Several bugs about resource relationships.
 

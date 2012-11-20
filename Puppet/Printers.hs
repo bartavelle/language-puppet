@@ -4,9 +4,11 @@ module Puppet.Printers (
     , showFCatalog
     , showValue
     , showRRef
+    , capitalizeResType
 ) where
 
 import Puppet.Interpreter.Types
+import Puppet.DSL.Types
 import qualified Data.Map as Map
 import Data.List
 
@@ -28,7 +30,8 @@ commaretsep :: [String] -> String
 commaretsep = intercalate ",\n"
 
 showRRef :: ResIdentifier -> String
-showRRef (rt, rn) = rt ++ "[" ++ rn ++ "]"
+showRRef (rt, rn) = capitalizeResType rt ++ "[" ++ rn ++ "]"
+
 
 showValue :: ResolvedValue -> String
 showValue (ResolvedString x) = show x

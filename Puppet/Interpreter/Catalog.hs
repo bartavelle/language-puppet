@@ -41,6 +41,7 @@ import Puppet.Plugins
 import qualified PuppetDB.Query as PDB
 
 import System.IO.Unsafe
+import Control.Arrow (first)
 import Data.List
 import Data.Char (isDigit,toLower,toUpper, isAlpha, isAlphaNum, isSpace)
 import Data.Maybe (isJust, fromJust, catMaybes, isNothing)
@@ -238,7 +239,8 @@ finalizeRelations exported cat = do
                                 RNotify -> return $ Just (dst, src, (RSubscribe, lutype,lpos))
                                 RBefore -> return $ Just (dst, src, (RRequire  , lutype,lpos))
                                 _ -> return (Just o)
-                _          -> throwError $ "Unknown relation " ++ show src ++ " -> " ++ show dst ++ " used at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
+                (False, _, _, _)  -> throwError $ "Unknown resources " ++ show src ++ " used in a relation at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
+                (_, False, _, _)  -> throwError $ "Unknown resources " ++ show dst ++ " used in a relation at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
     -- now look for cycles in the graph
     checkedrels <- fmap catMaybes $ mapM checkRelationExists rels
     let !edgeMap = Map.fromList (map (\(d,s,i) -> ((s,d),i)) checkedrels) :: EdgeMap -- warning, in the edgemap we have (src, dst), contrary to all other uses
@@ -613,7 +615,7 @@ evaluateStatements (TopContainer toplevels curstatement) = do
 evaluateStatements x = throwError ("Can't evaluate " ++ show x)
 
 -- function used to load defines / class variables into the global context
-loadClassVariable :: SourcePos -> Map.Map String (GeneralValue, SourcePos) -> (String, Maybe Expression) -> CatalogMonad ()
+loadClassVariable :: SourcePos -> Map.Map String (GeneralValue, SourcePos) -> (String, Maybe Expression) -> CatalogMonad (String, GeneralValue)
 loadClassVariable position inputs (paramname, defvalue) = do
     let inputvalue = Map.lookup paramname inputs
     (v, vpos) <- case (inputvalue, defvalue) of
@@ -622,7 +624,7 @@ loadClassVariable position inputs (paramname, defvalue) = do
         (Nothing, Nothing) -> throwError $ "Must define parameter " ++ paramname ++ " at " ++ show position
     rv <- tryResolveGeneralValue v
     putVariable paramname (rv, vpos)
-    return ()
+    return (paramname, rv)
 
 -- class
 -- ClassDeclaration String (Maybe String) [(String, Maybe Expression)] [Statement] SourcePos
@@ -636,20 +638,21 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         then return []
         else do
         oldpos <- getPos    -- saves where we were at class declaration so that we known were the class was included
-        addDefinedResource ("class",classname) oldpos
+        addDefinedResource ("class", classname) oldpos
         -- detection of spurious parameters
         let classparamset = Set.fromList $ map fst parameters
             inputparamset = Set.filter (\x -> getRelationParameterType (Right x) == Nothing) $ Map.keysSet inputparams
             overparams = Set.difference inputparamset (Set.union metaparameters classparamset)
+            -- to insert into the final resource
         unless (Set.null overparams) (throwError $ "Spurious parameters " ++ intercalate ", " (Set.toList overparams) ++ " at " ++ show position)
 
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
         setPos position
-        pushDependency ("class",classname)
+        pushDependency ("class", classname)
         case actualname of
             Nothing -> pushScope [classname] -- sets the scope
             Just ac -> pushScope [classname, ac]
-        mapM_ (loadClassVariable position inputparams) parameters -- add variables for parametrized classes
+        mparameters <- mapM (loadClassVariable position inputparams) parameters -- add variables for parametrized classes
 
         -- load inherited classes
         inherited <- case inherits of
@@ -673,7 +676,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         popScope
         popDependency
         return $
-            [CResource resid (Right classname) "class" Map.empty Normal position]
+            [CResource resid (Right classname) "class" (Map.fromList $ map (first Right) mparameters) Normal position]
             ++ inherited
             ++ nres
 

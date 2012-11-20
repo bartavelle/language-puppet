@@ -3,6 +3,10 @@
 module Puppet.DSL.Types where
 
 import Text.Parsec.Pos
+import Data.List (intercalate)
+import Data.Char (toUpper)
+import Data.String.Utils (split)
+
 
 data Parameters = Parameters ![(Expression, Expression)] deriving(Show, Ord, Eq)
 
@@ -139,3 +143,13 @@ data Expression
     | BFalse -- ^ False expression
     | Error !String -- ^ Not used anymore.
     deriving(Show, Ord, Eq)
+
+-- function that capitalizes types so that they look good
+capitalizeResType :: String -> String
+capitalizeResType = intercalate "::" . map capitalize' . split "::"
+
+capitalize' :: String -> String
+capitalize' "" = ""
+capitalize' (x:xs) = toUpper x : xs
+
+
