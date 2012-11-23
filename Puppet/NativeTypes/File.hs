@@ -5,12 +5,13 @@ import Control.Monad.Error
 import Puppet.Interpreter.Types
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Char (isDigit)
 
 nativeFile = ("file", PuppetTypeMethods validateFile parameterset)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterset = Set.fromList $ map fst parameterfunctions
-parameterfunctions = 
+parameterfunctions =
     [("backup"      , [string])
     ,("checksum"    , [values ["md5", "md5lite", "mtime", "ctime", "none"]])
     ,("content"     , [string])
@@ -20,7 +21,7 @@ parameterfunctions =
     ,("group"       , [defaultvalue "root", string])
     ,("ignore"      , [string])
     ,("links"       , [string])
-    ,("mode"        , [integer])
+    ,("mode"        , [defaultvalue "0644", string])
     ,("owner"       , [string])
     ,("path"        , [nameval, fullyQualified])
     ,("provider"    , [values ["posix","windows"]])
@@ -34,7 +35,19 @@ parameterfunctions =
     ]
 
 validateFile :: PuppetTypeValidate
-validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent
+validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent >=> validateMode
+
+validateMode :: PuppetTypeValidate
+validateMode res = let
+    modestr = case ((rrparams res) Map.! "mode") of
+                  ResolvedString s -> s
+                  _ -> "0644"
+    in do
+        when ((length modestr /= 3) && (length modestr /= 4)) (throwError "Invalid mode size")
+        when (not (all isDigit modestr)) (throwError "The mode should only be made of digits")
+        if length modestr == 3
+            then return $ insertparam res "mode" (ResolvedString ('0':modestr))
+            else return res
 
 validateSourceOrContent :: PuppetTypeValidate
 validateSourceOrContent res = let
