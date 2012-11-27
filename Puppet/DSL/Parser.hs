@@ -140,7 +140,7 @@ puppetResourceOverride = do { pos <- getPosition
 
 puppetInclude = do { pos <- getPosition
     ; try $ reserved "include"
-    ; vs <- (puppetQualifiedName <|> puppetLiteral) `sepBy` (symbol ",")
+    ; vs <- exprparser `sepBy` (symbol ",")
     ; return $ map (\v -> Include v pos) vs
     }
 

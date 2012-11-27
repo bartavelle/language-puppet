@@ -65,7 +65,7 @@ data Statement
     = Node String ![Statement] !SourcePos -- ^ This holds the node name and list of statements.
     -- | This holds the variable name and the expression that it represents.
     | VariableAssignment !String !Expression !SourcePos
-    | Include !String !SourcePos
+    | Include !Expression !SourcePos
     | Import !String !SourcePos
     | Require !String !SourcePos
     -- | This holds the resource type, name, parameter list and virtuality.

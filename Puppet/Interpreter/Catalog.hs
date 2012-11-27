@@ -535,7 +535,7 @@ evaluateStatements (Node _ stmts position) = do
     handleDelayedActions (concat res)
 
 -- include
-evaluateStatements (Include includename position) = setPos position >> getstatement TopClass includename >>= \st -> evaluateClass st Map.empty Nothing
+evaluateStatements (Include includename position) = setPos position >> resolveExpressionString includename >>= getstatement TopClass >>= \st -> evaluateClass st Map.empty Nothing
 evaluateStatements x@(ClassDeclaration cname _ _ _ _) = do
     addNestedTopLevel TopClass cname x
     return []

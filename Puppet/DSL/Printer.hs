@@ -15,7 +15,7 @@ showAST x = render (vcat (map showStatement x))
 showStatement :: Statement -> Doc
 showStatement (Node name x _) = text "node" <+> text name <+> lbrace $$ nest 4 (vcat (map showStatement x)) $$ rbrace
 showStatement (VariableAssignment name x _) = text "$" <> text name <+> text "=" <+> showExpression x
-showStatement (Include inc _) = text("include " ++ inc)
+showStatement (Include inc _) = text("include") <+> showExpression inc
 showStatement (Require req _) = text("require " ++ req)
 showStatement (Resource rtype rname params Normal _) = text (rtype) <+> lbrace <+> showExpression rname <> text ":" $$ nest 4 ( showAssignments params )  <> text ";" $$ rbrace 
 showStatement (Resource rtype rname params Virtual p) = text "@" <> showStatement (Resource rtype rname params Normal p)

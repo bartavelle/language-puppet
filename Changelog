@@ -1,3 +1,8 @@
+v0.3.2 ()
+  Bugs fixed
+	* It is now possible to use expressions in include blocks. This is
+	temporary, as include should be handled just like every other function.
+
 v0.3.1 (2012/11/23)
   New features
 	* Yes, we can generate JSon catalogs now.
