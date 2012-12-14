@@ -1,3 +1,9 @@
+v0.3.3 ()
+  New features
+	* Tries to find calcerb.rb next to the executable.
+	* Started cleaning imports ...
+  Bugs fixed
+
 v0.3.2 (2012/12/13)
   The license has been changed to BSD3.
   Bugs fixed

@@ -20,6 +20,9 @@ import qualified Data.ByteString.Builder as BB
 import Data.Monoid
 import qualified System.Log.Logger as LOG
 import Puppet.Stats
+import System.FilePath
+
+import Puppet.Utils
 
 type TemplateQuery = (Chan TemplateAnswer, String, String, Map.Map String GeneralValue)
 type TemplateAnswer = Either String String
@@ -70,11 +73,18 @@ computeTemplateWRuby filename curcontext variables = do
     let rubyvars = BB.string8 "{\n" <> mconcat (intersperse (BB.string8 ",\n") (concatMap toRuby (Map.toList variables))) <> BB.string8 "\n}\n" :: BB.Builder
         input = BB.stringUtf8 curcontext <> BB.charUtf8 '\n' <> BB.stringUtf8 filename <> BB.charUtf8 '\n' <> rubyvars :: BB.Builder
     rubyscriptpath <- do
-        cabalPath <- getDataFileName "ruby/calcerb.rb"
+        let rubybin = "calcerb.rb"
+        cabalPath <- getDataFileName $ combine "ruby" rubybin
         exists    <- fileExist cabalPath
         case exists of
             True -> return cabalPath
-            False -> return "calcerb.rb"
+            False -> do
+                path <- fmap takeDirectory mGetExecutablePath
+                let fullpath = combine path rubybin
+                lexists <- fileExist cabalPath
+                case lexists of
+                    True  -> return fullpath
+                    False -> return rubybin
     traceEventIO ("start running ruby" ++ filename)
     !ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] (BB.toLazyByteString input) 1000
     traceEventIO ("finished running ruby" ++ filename)

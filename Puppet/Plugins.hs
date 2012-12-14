@@ -20,7 +20,7 @@ converted and other types will produce strange results.
 * This currently only works for functions that must return a value. They will
 have no access to the manifests data.
 -}
-module Puppet.Plugins (initLua, puppetFunc, closeLua, getFiles, getBasename) where
+module Puppet.Plugins (initLua, puppetFunc, closeLua, getFiles) where
 
 import Prelude hiding (catch)
 import qualified Scripting.Lua as Lua
@@ -30,6 +30,7 @@ import Control.Exception
 import Data.String.Utils (endswith)
 import qualified Data.Map as Map
 import Control.Monad.IO.Class
+import System.FilePath
 
 import Puppet.Interpreter.Types
 import Puppet.Printers
@@ -92,17 +93,11 @@ getFiles moduledir subdir extension =
 getLuaFiles :: String -> IO [String]
 getLuaFiles moduledir = getFiles moduledir "lib/puppet/parser/functions" ".lua"
 
--- retrieves the base name of a file (very slow and naïve implementation).
-getBasename :: String -> String
-getBasename fullname =
-    let lastpart = reverse $ fst $ break (=='/') $ reverse fullname
-    in  fst $ break (=='.') lastpart
-
 loadLuaFile :: Lua.LuaState -> String -> IO [String]
 loadLuaFile l file = do
     r <- Lua.loadfile l file
     case r of
-        0 -> Lua.call l 0 0 >> return [getBasename file]
+        0 -> Lua.call l 0 0 >> return [takeBaseName file]
         _ -> return []
 {-| Runs a puppet function in the 'CatalogMonad' monad. It takes a state,
 function name and list of arguments. It returns a valid Puppet value.

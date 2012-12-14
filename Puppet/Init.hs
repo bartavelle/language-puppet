@@ -5,6 +5,7 @@ import Puppet.Interpreter.Types
 import Puppet.NativeTypes
 import Puppet.NativeTypes.Helpers
 import Puppet.Plugins
+import System.FilePath
 
 import qualified Data.Map as Map
 
@@ -27,7 +28,7 @@ genPrefs basedir = do
     let manifestdir = basedir ++ "/manifests"
         modulesdir  = basedir ++ "/modules"
         templatedir = basedir ++ "/templates"
-    typenames <- fmap (map getBasename) (getFiles modulesdir "lib/puppet/type" ".rb")
+    typenames <- fmap (map takeBaseName) (getFiles modulesdir "lib/puppet/type" ".rb")
     let loadedTypes = Map.fromList (map defaulttype typenames)
     return $ Prefs manifestdir modulesdir templatedir 1 1 1 Nothing (Map.union baseNativeTypes loadedTypes)
 

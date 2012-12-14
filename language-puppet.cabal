@@ -65,7 +65,7 @@ Library
   -- Modules not exported by this package.
   Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby, Erb.Evaluate
                        Puppet.NativeTypes.ZoneRecord, Puppet.NativeTypes.Cron, Puppet.NativeTypes.Exec, Puppet.NativeTypes.Group, Puppet.NativeTypes.Host
-                       Puppet.NativeTypes.Mount
+                       Puppet.NativeTypes.Mount, Puppet.Utils
 
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
