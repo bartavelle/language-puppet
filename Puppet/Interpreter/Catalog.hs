@@ -201,7 +201,8 @@ retrieveRemoteResources f q = do
 
 extractRelations :: CResource -> CatalogMonad CResource
 extractRelations cr = do
-    let (params, relations) = partitionParamsRelations (crparams cr)
+    setPos (pos cr)
+    (params, relations) <- partitionParamsRelations (crparams cr)
     addUnresRel (relations, (crtype cr, crname cr), UNormal, pos cr)
     return cr { crparams = params }
 
@@ -270,9 +271,17 @@ finalResolution cat = do
                                fmap concat (mapM (retrieveRemoteResources (f fqdn)) remoteCollects)
                            Nothing -> return []
     collectedRemote' <- mapM extractRelations collectedRemote
-    collectedLocal <- fmap concat (mapM collectionChecks cat)
-    collected <- mapM evaluateDefine (collectedLocal ++ collectedRemote')
-    let (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal)  (concat collected)
+    collectedLocal   <- fmap concat $ mapM collectionChecks cat
+    collectedLocalD  <- fmap concat $ mapM evaluateDefine collectedLocal
+    collectedRemoteD <- fmap concat $ mapM evaluateDefine collectedRemote'
+    -- collectedRemoteD resource names SHOULD be resolved (coming from
+    -- PuppetDB)
+    let addCollectedRemoteResource :: CResource -> CatalogMonad ()
+        addCollectedRemoteResource (CResource _ (Right cn) ct _ _ cp) = addDefinedResource (ct, cn) cp
+        addCollectedRemoteResource x = throwPosError $ "finalResolution/addCollectedRemoteResource the remote resource name was not properly defined: " ++ show (crname x)
+    mapM_ addCollectedRemoteResource collectedRemoteD
+    let collected = collectedLocalD ++ collectedRemoteD
+        (real,  allvirtual)  = partition (\x -> crvirtuality x == Normal) collected
         (_,  exported) = partition (\x -> crvirtuality x == Virtual)  allvirtual
     rexported <- mapM resolveResource exported
     let !exportMap = Map.fromList rexported
@@ -402,18 +411,20 @@ Partition parameters between those that are actual parameters and those that def
 
 Those that define relationship must be properly resolved or hell will break loose. This is a BUG.
 -}
-partitionParamsRelations :: Map.Map GeneralString GeneralValue -> (Map.Map GeneralString GeneralValue, [(LinkType, GeneralValue, GeneralValue)])
-partitionParamsRelations rparameters = (realparams, relations)
-    where   realparams = filteredparams :: Map.Map GeneralString GeneralValue
-            relations = concatMap convertrelation (Map.toList filteredrelations) :: [(LinkType, GeneralValue, GeneralValue)]
-            convertrelation :: (GeneralString, GeneralValue) -> [(LinkType, GeneralValue, GeneralValue)]
-            convertrelation (_,       Right ResolvedUndefined)          = []
-            convertrelation (reltype, Right (ResolvedArray rs))         = concatMap (\x -> convertrelation (reltype, Right x)) rs
-            convertrelation (reltype, Right (ResolvedRReference rt rv)) = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
-            convertrelation (reltype, Right (ResolvedString "undef"))   = [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
-            convertrelation (_,       Left x) = error ("partitionParamsRelations unresolved : " ++ show x)
-            convertrelation x = error ("partitionParamsRelations error : " ++ show x)
-            (filteredrelations, filteredparams) = Map.partitionWithKey (const . isJust . getRelationParameterType) rparameters -- filters relations with actual parameters
+partitionParamsRelations :: Map.Map GeneralString GeneralValue -> CatalogMonad (Map.Map GeneralString GeneralValue, [(LinkType, GeneralValue, GeneralValue)])
+partitionParamsRelations rparameters = do
+    let realparams = filteredparams :: Map.Map GeneralString GeneralValue
+        convertrelation :: (GeneralString, GeneralValue) -> CatalogMonad [(LinkType, GeneralValue, GeneralValue)]
+        convertrelation (_,       Right ResolvedUndefined)          = return []
+        convertrelation (reltype, Right (ResolvedArray rs))         = fmap concat $ mapM (\x -> convertrelation (reltype, Right x)) rs
+        convertrelation (reltype, Right (ResolvedRReference rt rv)) = return [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
+        convertrelation (reltype, Right (ResolvedString "undef"))   = return [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
+        convertrelation (reltype, Right (ResolvedString x)) = throwPosError ("partitionParamsRelations error : " ++ show x)
+        convertrelation (_,       Left x) = throwPosError ("partitionParamsRelations unresolved : " ++ show x)
+        convertrelation x = throwPosError ("partitionParamsRelations error : " ++ show x)
+        (filteredrelations, filteredparams) = Map.partitionWithKey (const . isJust . getRelationParameterType) rparameters -- filters relations with actual parameters
+    relations <- fmap concat (mapM convertrelation (Map.toList filteredrelations)) :: CatalogMonad [(LinkType, GeneralValue, GeneralValue)]
+    return (realparams, relations)
 
 -- TODO check whether parameters changed
 checkLoaded name = do

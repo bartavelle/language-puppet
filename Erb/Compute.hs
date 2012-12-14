@@ -130,4 +130,5 @@ toRuby' (ResolvedBool False) = BB.string8 "false"
 toRuby' (ResolvedArray rr) = BB.charUtf8 '[' <> minterc (BB.string8 ", ") (map toRuby' rr) <> BB.charUtf8 ']'
 toRuby' (ResolvedHash hh) = BB.string8 "{ " <> minterc (BB.string8 ", ") (map (\(varname, varval) -> renderString varname <> BB.string8 " => " <> toRuby' varval) hh) <> BB.string8 " }"
 toRuby' ResolvedUndefined = BB.string8 ":undef"
+toRuby' (ResolvedRReference rtype (ResolvedString rname)) = renderString ( rtype ++ "[" ++ rname ++ "]" )
 toRuby' x = BB.string8 $ show x

@@ -3,6 +3,7 @@
 module PuppetDB.Rest where
 
 import qualified Puppet.DSL.Types as DT
+import Puppet.DSL.Types
 import Puppet.Interpreter.Types
 import qualified PuppetDB.Query as PDB
 
@@ -21,13 +22,24 @@ import Control.Monad.Error
 import Control.Applicative
 import qualified Text.Parsec.Pos as TPP
 import qualified Data.Map as Map
+import Data.Char (toLower)
+
+parseResourceReference :: T.Text -> Maybe ResolvedValue
+parseResourceReference instr = case break (=='[') (T.unpack instr) of
+                                              (restype, '[':renamee) -> if (last renamee == ']')
+                                                                            then Just (ResolvedRReference (map toLower restype) (ResolvedString (init renamee)))
+                                                                            else Nothing
+                                              _ -> Nothing
+
 
 instance FromJSON ResolvedValue where
     parseJSON Null = return ResolvedUndefined
     parseJSON (Number x) = return $ case x of
                                         (I n) -> ResolvedInt n
                                         (D d) -> ResolvedDouble d
-    parseJSON (String s) = return $ ResolvedString $ T.unpack s
+    parseJSON (String s) = case parseResourceReference s of
+                               Just x  -> return x
+                               Nothing -> return $ ResolvedString $ T.unpack s
     parseJSON (Array a) = fmap ResolvedArray (mapM parseJSON (V.toList a))
     parseJSON (Object o) = fmap ResolvedHash (mapM (\(a,b) -> do {
                                                                  b' <- parseJSON b ;
