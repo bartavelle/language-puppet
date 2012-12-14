@@ -14,6 +14,7 @@ parameterfunctions =
     [("name"                , [nameval])
     ,("owner"               , [string])
     ,("dest"                , [string])
+    ,("ensure"              , [defaultvalue "present", string, values ["present","absent"]])
     ,("rtype"               , [string, defaultvalue "A", values ["SOA", "A", "AAAA", "MX", "NS", "CNAME", "PTR", "SRV"]])
     ,("rclass"              , [defaultvalue "IN", string])
     ,("ttl"                 , [defaultvalue "2d", string])

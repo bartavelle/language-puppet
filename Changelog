@@ -4,6 +4,7 @@ v0.3.3 ()
 	* Started cleaning imports ...
   Bugs fixed
 	* Fixed a ton of problems related to exported resources and relations.
+	* Minor fix about zonerecord.
 
 v0.3.2 (2012/12/13)
   The license has been changed to BSD3.
