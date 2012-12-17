@@ -12,6 +12,8 @@ module Puppet.Interpreter.Functions
     ,pdbresourcequery
     ) where
 
+import Prelude hiding (catch)
+import Control.Exception
 import PuppetDB.Rest
 import Puppet.Printers
 import Puppet.Interpreter.Types
@@ -85,7 +87,8 @@ versioncmp a b | a > b = 1
 
 file :: [String] -> IO (Maybe String)
 file [] = return Nothing
-file (x:xs) = catch (liftM Just (withFile x ReadMode hGetContents)) (\_ -> file xs)
+-- this is bad, is should be rewritten as a ByteString
+file (x:xs) = catch (fmap Just (withFile x ReadMode (\fh -> do { y <- hGetContents fh; evaluate (length y); return y }))) ((\_ -> file xs) :: SomeException -> IO (Maybe String))
 
 puppetSplit :: String -> String -> IO (Either String [String])
 puppetSplit str reg = do

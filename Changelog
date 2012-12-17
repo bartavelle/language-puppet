@@ -8,6 +8,7 @@ v0.3.3 ()
 	* Fixed a ton of problems related to exported resources and relations.
 	* Minor fix about zonerecord.
 	* Resolving variable names starting with :: in templates
+	* Fixed the file function.
 
 v0.3.2 (2012/12/13)
   The license has been changed to BSD3.
