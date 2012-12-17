@@ -8,6 +8,9 @@ class Scope
     end
 
     def lookupvar(name)
+        if name.start_with?("::")
+            name = name[2..-1]
+        end
         if has_variable?(name)
             @mvars[name]
         elsif has_variable?("::" + name)
