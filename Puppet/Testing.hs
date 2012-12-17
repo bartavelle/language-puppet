@@ -1,4 +1,4 @@
-module Puppet.Testing (testCatalog, Test, testFileSources) where
+module Puppet.Testing (testCatalog, Test(..), testFileSources, TestResult) where
 
 import qualified Data.Map as Map
 import Puppet.Interpreter.Types
