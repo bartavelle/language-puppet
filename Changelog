@@ -3,6 +3,7 @@ v0.3.3 ()
 	* Tries to find calcerb.rb next to the executable.
 	* Started cleaning imports ...
 	* It is now possible to write "top level" functions in lua.
+	* Function getvar (stdlib)
   Bugs fixed
 	* Fixed a ton of problems related to exported resources and relations.
 	* Minor fix about zonerecord.

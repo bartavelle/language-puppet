@@ -1050,6 +1050,12 @@ tryResolveValue n@(FunctionCall "file" filelist) = do
                 Nothing -> throwPosError $ "Files " ++ show rf ++ " could not be found"
                 Just x  -> return $ Right $ ResolvedString x
         else return $ Left $ Value n
+tryResolveValue n@(FunctionCall "getvar" [varinfo]) = do
+    varname <- tryResolveExpressionString varinfo
+    case varname of
+        Right s -> tryResolveValue (VariableReference s)
+        Left  _ -> return $ Left $ Value n
+tryResolveValue   (FunctionCall "getvar" nn) = throwPosError $ "getvar expects a single argument, not " ++ show (length nn)
 
 tryResolveValue n@(FunctionCall fname args) = do
     ufunctions <- fmap userFunctions get
