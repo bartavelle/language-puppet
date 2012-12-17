@@ -1145,10 +1145,20 @@ executeFunction "validate_re" [x,re] = case (x,re) of
 executeFunction "validate_bool" [x] = case x of
     ResolvedBool _ -> return []
     y              -> throwPosError $ show y ++ " is not a boolean"
-executeFunction a b = do
-    position <- getPos
-    addWarning $ "Function " ++ a ++ "(" ++ show b ++ ") not handled at " ++ show position
-    return []
+executeFunction fname args = do
+    ufunctions <- fmap userFunctions get
+    l <- fmap luaState get
+    case (l, Set.member fname ufunctions) of
+     (Just ls, True) -> do
+         o <- puppetFunc ls fname args
+         case o of
+             ResolvedBool True  -> return []
+             ResolvedBool False -> throwPosError ("Function " ++ fname ++ "(" ++ show args ++ ") returned false")
+             x                  -> throwPosError ("Function " ++ fname ++ "(" ++ show args ++ ") did not return a bool: " ++ show x)
+     _               -> do
+         position <- getPos
+         addWarning $ "Function " ++ fname ++ "(" ++ show args ++ ") not handled at " ++ show position
+         return []
 
 compareExpression :: Expression -> Expression -> CatalogMonad (Maybe Ordering)
 compareExpression a b = do

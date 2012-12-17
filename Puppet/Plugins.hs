@@ -31,6 +31,7 @@ import Data.String.Utils (endswith)
 import qualified Data.Map as Map
 import Control.Monad.IO.Class
 import System.FilePath
+import System.IO
 
 import Puppet.Interpreter.Types
 import Puppet.Printers
@@ -91,14 +92,16 @@ getFiles moduledir subdir extension =
         >>= return . concat
 
 getLuaFiles :: String -> IO [String]
-getLuaFiles moduledir = getFiles moduledir "lib/puppet/parser/functions" ".lua"
+getLuaFiles moduledir = getFiles moduledir "lib/puppet/parser/luafunctions" ".lua"
 
 loadLuaFile :: Lua.LuaState -> String -> IO [String]
 loadLuaFile l file = do
     r <- Lua.loadfile l file
     case r of
         0 -> Lua.call l 0 0 >> return [takeBaseName file]
-        _ -> return []
+        _ -> do
+            hPutStrLn stderr ("Could not load file " ++ file)
+            return []
 {-| Runs a puppet function in the 'CatalogMonad' monad. It takes a state,
 function name and list of arguments. It returns a valid Puppet value.
 -}
