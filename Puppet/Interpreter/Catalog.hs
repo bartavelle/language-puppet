@@ -277,7 +277,12 @@ finalResolution cat = do
     -- collectedRemoteD resource names SHOULD be resolved (coming from
     -- PuppetDB)
     let addCollectedRemoteResource :: CResource -> CatalogMonad ()
-        addCollectedRemoteResource (CResource _ (Right cn) ct _ _ cp) = addDefinedResource (ct, cn) cp
+        addCollectedRemoteResource (CResource _ (Right cn) ct prms _ cp) = do
+            addDefinedResource (ct, cn) cp
+            case Map.lookup (Right "alias") prms of
+                Just (Right (ResolvedString s)) -> addDefinedResource (ct, s) cp
+                Just x -> throwPosError ("Alias must be a single string, not " ++ show x)
+                _ -> return ()
         addCollectedRemoteResource x = throwPosError $ "finalResolution/addCollectedRemoteResource the remote resource name was not properly defined: " ++ show (crname x)
     mapM_ addCollectedRemoteResource collectedRemoteD
     let collected = collectedLocalD ++ collectedRemoteD
@@ -527,16 +532,20 @@ addResource :: String -> [(Expression, Expression)] -> Virtuality -> SourcePos -
 addResource rtype parameters virtuality position grname = do
     resid <- getNextId
     rparameters <- addParameters Map.empty parameters
-    srname <- case grname of
+    case grname of
         Right e -> do
-                    rse <- rstring e
-                    getPos >>= addDefinedResource (rtype, rse)
-                    return $ Right rse
-        Left  e -> return $ Left e
-    (curdeptype, curdepname) <- fmap (head . currentDependencyStack) get
-    let defaultdependency = (RRequire, Right (ResolvedString curdeptype), Right (ResolvedString curdepname))
-    addUnresRel ([defaultdependency], (rtype, srname), UNormal, position)
-    return [CResource resid srname rtype rparameters virtuality position]
+            rse <- rstring e
+            curpos <- getPos
+            addDefinedResource (rtype, rse) curpos
+            case Map.lookup (Right "alias") rparameters of
+                Just (Right (ResolvedString s)) -> addDefinedResource (rtype, s) curpos
+                Just x -> throwPosError ("Alias must be a single string, not " ++ show x)
+                _ -> return ()
+            (curdeptype, curdepname) <- fmap (head . currentDependencyStack) get
+            let defaultdependency = (RRequire, Right (ResolvedString curdeptype), Right (ResolvedString curdepname))
+            addUnresRel ([defaultdependency], (rtype, Right rse), UNormal, position)
+            return [CResource resid (Right rse) rtype rparameters virtuality position]
+        Left r -> throwPosError ("Could not determine the current resource name: " ++ show r)
 
 -- node
 evaluateStatements :: Statement -> CatalogMonad Catalog
