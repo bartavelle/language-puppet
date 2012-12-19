@@ -1,12 +1,15 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface #-}
 
-module Puppet.Utils (mGetExecutablePath) where
+module Puppet.Utils (mGetExecutablePath, readFile', readSymbolicLink) where
 
 -- copy pasted from base 4.6.0.0
-
+import Prelude hiding (catch)
 import Foreign.C
 import Foreign.Marshal.Array
 import System.Posix.Internals
+import System.IO
+import Control.Exception
+
 
 foreign import ccall unsafe "readlink" c_readlink :: CString -> CString -> CSize -> IO CInt
 
@@ -25,4 +28,11 @@ readSymbolicLink file =
 -- (Stolen from base 4.6.0)
 mGetExecutablePath :: IO FilePath
 mGetExecutablePath = readSymbolicLink $ "/proc/self/exe"
+
+-- | Strict readFile
+readFile' f = do
+    h <- openFile f ReadMode
+    s <- hGetContents h
+    evaluate (length s)
+    return s
 

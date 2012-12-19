@@ -12,12 +12,13 @@ module Puppet.Interpreter.Functions
     ,pdbresourcequery
     ) where
 
-import Prelude hiding (catch)
-import Control.Exception
 import PuppetDB.Rest
 import Puppet.Printers
 import Puppet.Interpreter.Types
+import Puppet.Utils
 
+import Prelude hiding (catch)
+import Control.Exception
 import Data.Hash.MD5
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Char8 as BS
@@ -25,7 +26,6 @@ import Data.String.Utils (join,replace)
 import Text.RegexPR
 import Text.Regex.PCRE.String
 import Control.Monad.Error
-import System.IO
 import qualified Data.ByteString.Base16 as B16
 import SafeProcess
 import Data.Either (lefts, rights)
@@ -88,7 +88,9 @@ versioncmp a b | a > b = 1
 file :: [String] -> IO (Maybe String)
 file [] = return Nothing
 -- this is bad, is should be rewritten as a ByteString
-file (x:xs) = catch (fmap Just (withFile x ReadMode (\fh -> do { y <- hGetContents fh; evaluate (length y); return y }))) ((\_ -> file xs) :: SomeException -> IO (Maybe String))
+file (x:xs) = catch
+    (fmap Just (readFile' x))
+    (\SomeException{} -> file xs)
 
 puppetSplit :: String -> String -> IO (Either String [String])
 puppetSplit str reg = do
