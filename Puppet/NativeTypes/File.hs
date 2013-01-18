@@ -23,7 +23,7 @@ parameterfunctions =
     ,("links"       , [string])
     ,("mode"        , [defaultvalue "0644", string])
     ,("owner"       , [string])
-    ,("path"        , [nameval, fullyQualified])
+    ,("path"        , [nameval, fullyQualified, noTrailingSlash])
     ,("provider"    , [values ["posix","windows"]])
     ,("purge"       , [string, values ["true","false"]])
     ,("recurse"     , [string, values ["inf","true","false","remote"]])
@@ -33,6 +33,13 @@ parameterfunctions =
     ,("target"      , [string])
     ,("source"      , [])
     ]
+
+noTrailingSlash :: String -> PuppetTypeValidate
+noTrailingSlash param res = case Map.lookup param (rrparams res) of
+     Just (ResolvedString x) -> if last x == '/'
+                                    then Left ("Parameter " ++ param ++ " should not have a trailing slash")
+                                    else Right res
+     Nothing -> Right res
 
 validateFile :: PuppetTypeValidate
 validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent >=> validateMode

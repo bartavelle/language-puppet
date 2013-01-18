@@ -5,6 +5,7 @@ v0.3.3 ()
 	* It is now possible to write "top level" functions in lua.
 	* Function getvar (stdlib)
 	* TENTATIVE support for aliases.
+	* Checks that file names don't have trailing slashes.
   Bugs fixed
 	* Fixed a ton of problems related to exported resources and relations.
 	* Minor fix about zonerecord.
