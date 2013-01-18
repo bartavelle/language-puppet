@@ -8,6 +8,7 @@ import Puppet.NativeTypes.Exec
 import Puppet.NativeTypes.Group
 import Puppet.NativeTypes.Host
 import Puppet.NativeTypes.Mount
+import Puppet.NativeTypes.Package
 import Puppet.NativeTypes.ZoneRecord
 import Puppet.Interpreter.Types
 import qualified Data.Map as Map
@@ -26,4 +27,5 @@ baseNativeTypes = Map.fromList
     : nativeZoneRecord
     : nativeCron
     : nativeExec
+    : nativePackage
     : fakeTypes ++ defaultTypes)
