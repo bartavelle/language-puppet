@@ -6,6 +6,7 @@ v0.3.3 ()
 	* Function getvar (stdlib)
 	* TENTATIVE support for aliases.
 	* Checks that file names don't have trailing slashes.
+	* Checks that exec commands are fully qualified if path is not defined.
   Bugs fixed
 	* Fixed a ton of problems related to exported resources and relations.
 	* Minor fix about zonerecord.

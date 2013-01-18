@@ -4,6 +4,7 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import Control.Monad.Error
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 nativeExec = ("exec", PuppetTypeMethods validateExec parameterset)
 
@@ -30,5 +31,11 @@ parameterfunctions =
     ]
 
 validateExec :: PuppetTypeValidate
-validateExec = defaultValidate parameterset >=> parameterFunctions parameterfunctions
+validateExec = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> fullyQualifiedOrPath
 
+fullyQualifiedOrPath :: PuppetTypeValidate
+fullyQualifiedOrPath res = case (Map.member "path" (rrparams res), Map.lookup "command" (rrparams res)) of
+                               (False, Just (ResolvedString x)) -> if head x == '/'
+                                                                       then Right res
+                                                                       else Left "Command must be fully qualified if path is not defined"
+                               _ -> Right res
