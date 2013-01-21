@@ -1,6 +1,6 @@
-module PupperDb.Query.Parser where
+module PuppetDB.Query.Parser where
 
-import PupperDb.Query
+import PuppetDB.Query
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.String
 import Control.Applicative hiding (many)
@@ -66,3 +66,6 @@ parser :: Parser Query
 parser = Query
     <$> (symbol "[" *> queryType <* symbol ",")
     <*> ((matcher `sepBy` symbol ",") <* symbol "]")
+
+doParse :: String -> Either String Query
+doParse = runP parser () "input"

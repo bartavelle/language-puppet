@@ -121,9 +121,8 @@ instance FromJSON CResource where
 
 
 -- | Used for puppetDB queries, converting values to CResources
-value2CResources :: Value -> Either String [CResource]
-value2CResources Null = Right []
-value2CResources x = case fromJSON x of
+json2puppet :: (FromJSON a) => Value -> Either String a
+json2puppet x = case fromJSON x of
                          Error s   -> Left s
                          Success a -> Right a
 

@@ -53,6 +53,17 @@ showOperator OAnd       = dq "and"
 showOperator OOr        = dq "or"
 showOperator ONot       = dq "not"
 
+getOperator :: String -> Maybe Operator
+getOperator "="   = Just OEqual
+getOperator ">"   = Just OOver
+getOperator "<"   = Just OUnder
+getOperator ">="  = Just OOverE
+getOperator "<="  = Just OUnderE
+getOperator "and" = Just OAnd
+getOperator "or"  = Just OOr
+getOperator "not" = Just ONot
+getOperator _ = Nothing
+
 showQuery :: Query -> String
 showQuery (Query op subqueries) = "[" ++ intercalate ", " (showOperator op : map showQuery subqueries) ++ "]"
 showQuery (Term t)              = show t

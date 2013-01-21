@@ -268,10 +268,17 @@ finalResolution cat = do
                                Just (Right (ResolvedString f'), _) -> return f'
                                _ -> throwError "Could not get FQDN during final resolution"
                            remoteCollects <- fmap (catMaybes . map (\(_,_,x) -> x) . curCollect) get
-                           let toCR :: Either String JSON.Value -> Either String [CResource]
+                           let
+                               isNotLocal :: CResource -> Bool
+                               isNotLocal cr = case Map.lookup (Right "EXPORTEDSOURCE") (crparams cr) of
+                                                        Just (Right (ResolvedString x)) -> x /= fqdn
+                                                        _ -> True
+                               toCR :: Either String JSON.Value -> Either String [CResource]
                                toCR (Left r) = Left r
-                               toCR (Right x) = value2CResources x
-                           fmap concat (mapM (retrieveRemoteResources (fmap toCR . pdbfunction fqdn)) remoteCollects)
+                               toCR (Right x) = case json2puppet x of
+                                                    Left rr -> Left rr
+                                                    Right s -> Right $ filter isNotLocal s
+                           fmap concat (mapM (retrieveRemoteResources (fmap toCR . pdbfunction "resources")) remoteCollects)
     collectedRemote' <- mapM extractRelations collectedRemote
     collectedLocal   <- fmap concat $ mapM collectionChecks cat
     collectedLocalD  <- fmap concat $ mapM evaluateDefine collectedLocal
@@ -929,20 +936,38 @@ tryResolveValue   (FunctionCall "generate" args) = if null args
             Nothing -> throwPosError $ "Function call generate for command " ++ cmdname ++ " (" ++ show cmdargs ++ ") failed"
 
 tryResolveValue n@(FunctionCall "pdbresourcequery" (query:xs)) = do
-        rkey <- case xs of
-                    [key] -> do
-                        r <- tryResolveExpression key
-                        case r of
-                            Right (ResolvedString keyname) -> return $ Right $ Just keyname
-                            Right x                        -> throwPosError $ "The pdbresourcequery function expects a string as the second argument, not " ++ showValue x
-                            Left  y                        -> return $ Left $ y
-                    []    -> return $ Right Nothing
-                    _     -> throwPosError "Bad number of arguments for function pdbresourcequery"
-        rquery <- tryResolveExpression query
-        case (rquery, rkey) of
-            (Right a@(ResolvedArray _), Right keyname)  -> fmap Right (pdbresourcequery (showValue a) keyname)
-            (Right a, Right _) -> throwPosError $ "The pdbresourcequery function expects an array as the first argument, not " ++ showValue a
-            _ -> return $ Left $ Value n
+    let
+        rvalue2query :: ResolvedValue -> Either String PDB.Query
+        rvalue2query (ResolvedArray (ResolvedString o : nxs)) = case PDB.getOperator o of
+                                                                    Just PDB.OAnd -> fmap (PDB.Query PDB.OAnd) (mapM rvalue2query nxs)
+                                                                    Just PDB.OOr  -> fmap (PDB.Query PDB.OOr)  (mapM rvalue2query nxs)
+                                                                    Just PDB.ONot -> fmap (PDB.Query PDB.ONot) (mapM rvalue2query nxs)
+                                                                    Just op       -> fmap (PDB.Query op)       (mapM rvalue2query' nxs)
+                                                                    Nothing       -> Left $ "Can't resolve operator " ++ o
+        rvalue2query x = Left $ "Don't know what to do with " ++ showValue x
+
+        rvalue2query' :: ResolvedValue -> Either String PDB.Query
+        rvalue2query' (ResolvedArray x)  = fmap PDB.Terms (mapM rvalue2string x)
+        rvalue2query' x = fmap PDB.Term (rvalue2string x)
+        rvalue2string :: ResolvedValue -> Either String String
+        rvalue2string (ResolvedString s) = Right s
+        rvalue2string x = Left $ "Don't know why we had " ++ showValue x
+    rkey <- case xs of
+                [key] -> do
+                    r <- tryResolveExpression key
+                    case r of
+                        Right (ResolvedString keyname) -> return $ Right $ Just keyname
+                        Right x                        -> throwPosError $ "The pdbresourcequery function expects a string as the second argument, not " ++ showValue x
+                        Left  y                        -> return $ Left $ y
+                []    -> return $ Right Nothing
+                _     -> throwPosError "Bad number of arguments for function pdbresourcequery"
+    rquery <- tryResolveExpression query
+    case (rquery, rkey) of
+        (Right a@(ResolvedArray _), Right keyname)  -> case rvalue2query a of
+                                                           Right q -> fmap Right (pdbresourcequery q keyname)
+                                                           Left rr -> throwPosError ("Could not transform " ++ showValue a ++ " to a PuppetDB query: " ++ rr)
+        (Right a, Right _) -> throwPosError $ "The pdbresourcequery function expects an array as the first argument, not " ++ showValue a
+        _ -> return $ Left $ Value n
 
 tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
     rx <- tryResolveExpressionString x

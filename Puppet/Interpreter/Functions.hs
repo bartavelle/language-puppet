@@ -1,4 +1,4 @@
-module Puppet.Interpreter.Functions 
+module Puppet.Interpreter.Functions
     (fqdn_rand
     ,regsubst
     ,mysql_password
@@ -12,11 +12,12 @@ module Puppet.Interpreter.Functions
     ,pdbresourcequery
     ) where
 
-import PuppetDB.Rest
+import PuppetDB.Query
 import Puppet.Printers
 import Puppet.Interpreter.Types
 import Puppet.Utils
 
+import Control.Monad.State
 import Prelude hiding (catch)
 import Control.Exception
 import Data.Hash.MD5
@@ -120,7 +121,7 @@ generate command args = do
         Just (Right x)  -> return $ Just (BSL.unpack x)
         _               -> return Nothing
 
-pdbresourcequery :: String -> Maybe String -> CatalogMonad ResolvedValue
+pdbresourcequery :: Query -> Maybe String -> CatalogMonad ResolvedValue
 pdbresourcequery query key = do
     let
         extractSubHash :: String -> [ResolvedValue] -> Either String ResolvedValue
@@ -135,8 +136,12 @@ pdbresourcequery query key = do
                                                         []  -> Left "Key not found"
                                                         _   -> Left "More than one result, this is extremely bad."
         extractSubHash' _ x = Left $ "Expected a hash, not " ++ showValue x
-    v <- liftIO $ rawRequest "http://localhost:8080" "resources" query
-    rv <- case v of
+    qf <- fmap puppetDBFunction get
+    v <- liftIO (qf "resources" query) >>= \r -> case r of
+                                                     Left rr -> throwPosError rr
+                                                     Right x -> return x
+    --v <- liftIO $ rawRequest "http://localhost:8080" "resources" query
+    rv <- case json2puppet v of
         Right rh@(ResolvedArray _)  -> return rh
         Right wtf                   -> throwPosError $ "Expected an array from PuppetDB, not " ++ showValue wtf
         Left err                    -> throwPosError $ "Error during Puppet query: " ++ err
