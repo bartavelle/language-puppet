@@ -1,6 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Puppet.Interpreter.Types where
 
-import Puppet.DSL.Types
+import Puppet.DSL.Types hiding (Value,Error) -- conflicts with aeson
 
 import qualified PuppetDB.Query as PDB
 import qualified Scripting.Lua as Lua
@@ -11,6 +13,14 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import GHC.Exts
 import Data.List
+import Data.Aeson
+import qualified Data.HashMap.Strict as HM
+import Control.Applicative
+import qualified Data.Text as T
+import Data.Attoparsec.Number
+import qualified Text.Parsec.Pos as TPP
+import qualified Data.Vector as V
+import Data.Char (toLower)
 
 -- | Types for the native type system.
 type PuppetTypeName = String
@@ -45,6 +55,29 @@ data ResolvedValue
     | ResolvedUndefined
     deriving(Show, Eq, Ord)
 
+parseResourceReference :: T.Text -> Maybe ResolvedValue
+parseResourceReference instr = case break (=='[') (T.unpack instr) of
+                                              (restype, '[':renamee) -> if (last renamee == ']')
+                                                                            then Just (ResolvedRReference (map toLower restype) (ResolvedString (init renamee)))
+                                                                            else Nothing
+                                              _ -> Nothing
+
+instance FromJSON ResolvedValue where
+    parseJSON Null = return ResolvedUndefined
+    parseJSON (Number x) = return $ case x of
+                                        (I n) -> ResolvedInt n
+                                        (D d) -> ResolvedDouble d
+    parseJSON (String s) = case parseResourceReference s of
+                               Just x  -> return x
+                               Nothing -> return $ ResolvedString $ T.unpack s
+    parseJSON (Array a) = fmap ResolvedArray (mapM parseJSON (V.toList a))
+    parseJSON (Object o) = fmap ResolvedHash (mapM (\(a,b) -> do {
+                                                                 b' <- parseJSON b ;
+                                                                 return (T.unpack a,b') }
+                                                                 ) (HM.toList o))
+    parseJSON (Bool b) = return $ ResolvedBool b
+
+
 -- | This type holds a value that is either from the ASL or fully resolved.
 type GeneralValue = Either Expression ResolvedValue
 -- | This type holds a value that is either from the ASL or a fully resolved
@@ -67,6 +100,32 @@ data CResource = CResource {
     crvirtuality :: !Virtuality, -- ^ Resource virtuality.
     pos :: !SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show)
+
+instance FromJSON CResource where
+    parseJSON (Object o) = do
+        utitle     <- o .: "title"
+        params     <- o .: "parameters"
+        sourcefile <- o .: "sourcefile"
+        sourceline <- o .: "sourceline"
+        certname   <- o .: "certname"
+        let _ = params :: HM.HashMap String ResolvedValue
+            parameters = Map.fromList $ map (\(k,v) -> (Right k, Right v)) $ ("EXPORTEDSOURCE", ResolvedString certname) : HM.toList params :: Map.Map GeneralString GeneralValue
+            position   = TPP.newPos (sourcefile ++ "(host: " ++ certname ++ ")") sourceline 1
+        CResource <$> pure 0
+                  <*> pure (Right utitle)
+                  <*> fmap (T.unpack . T.toLower) (o .: "type")
+                  <*> pure parameters
+                  <*> pure Normal
+                  <*> pure position
+    parseJSON _ = mzero
+
+
+-- | Used for puppetDB queries, converting values to CResources
+value2CResources :: Value -> Either String [CResource]
+value2CResources Null = Right []
+value2CResources x = case fromJSON x of
+                         Error s   -> Left s
+                         Success a -> Right a
 
 -- | Resource identifier, made of a type, name pair.
 type ResIdentifier = (String, String)
@@ -143,7 +202,7 @@ data ScopeState = ScopeState {
     computeTemplateFunction :: String -> String -> Map.Map String GeneralValue -> IO (Either String String),
     -- ^ Function that takes a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
-    puppetDBFunction :: Maybe (String -> PDB.Query -> IO (Either String [CResource])),
+    puppetDBFunction :: String -> PDB.Query -> IO (Either String Value),
     -- ^ Function that takes a request type (resources, nodes, facts, ..),
     -- a query, and returns a resolved value from puppetDB.
     luaState :: Maybe Lua.LuaState,
@@ -174,7 +233,7 @@ generalizeStringS :: String -> GeneralString
 generalizeStringS = Right
 
 -- |This is the set of meta parameters
-metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
+metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"] :: Set.Set String
 
 getPos               = liftM curPos get
 modifyScope     f sc = sc { curScope       = f $ curScope sc }

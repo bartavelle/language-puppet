@@ -57,3 +57,4 @@ showQuery :: Query -> String
 showQuery (Query op subqueries) = "[" ++ intercalate ", " (showOperator op : map showQuery subqueries) ++ "]"
 showQuery (Term t)              = show t
 showQuery (Terms ts)            = show ts
+

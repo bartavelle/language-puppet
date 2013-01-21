@@ -40,6 +40,7 @@ import Puppet.Printers
 import Puppet.Plugins
 import qualified PuppetDB.Query as PDB
 
+import qualified Data.Aeson as JSON
 import System.IO.Unsafe
 import Control.Arrow (first)
 import Data.List
@@ -78,10 +79,10 @@ getCatalog :: (TopLevelType -> String -> IO (Either String Statement))
     -> (String -> String -> Map.Map String GeneralValue -> IO (Either String String))
     -- ^ The \"get template\" function. Given a file name, a scope name and a
     -- list of variables, it should return the computed template.
-    -> Maybe (String -> PDB.Query -> IO (Either String [CResource]))
+    -> (String -> PDB.Query -> IO (Either String JSON.Value))
     -- ^ The \"puppetDB Rest API\" function. Given the machine fqdn, a request
     -- type (resources, nodes, facts, ..) and a query, it returns a
-    -- ResolvedValue, or some error.
+    -- JSON value, or some error.
     -> String -- ^ Name of the node.
     -> Facts -- ^ Facts of this node.
     -> Maybe String -- ^ Path to the modules, for user plugins. If set to Nothing, plugins are disabled.
@@ -262,14 +263,15 @@ finalResolution :: Catalog -> CatalogMonad (FinalCatalog, EdgeMap, FinalCatalog)
 finalResolution cat = do
     pdbfunction     <- fmap puppetDBFunction get
     fqdnr           <- getVariable "::fqdn"
-    collectedRemote <- case pdbfunction of
-                           Just f -> do
-                               fqdn <- case fqdnr of
-                                   Just (Right (ResolvedString f'), _) -> return f'
-                                   _ -> throwError "Could not get FQDN during final resolution"
-                               remoteCollects <- fmap (catMaybes . map (\(_,_,x) -> x) . curCollect) get
-                               fmap concat (mapM (retrieveRemoteResources (f fqdn)) remoteCollects)
-                           Nothing -> return []
+    collectedRemote <- do
+                           fqdn <- case fqdnr of
+                               Just (Right (ResolvedString f'), _) -> return f'
+                               _ -> throwError "Could not get FQDN during final resolution"
+                           remoteCollects <- fmap (catMaybes . map (\(_,_,x) -> x) . curCollect) get
+                           let toCR :: Either String JSON.Value -> Either String [CResource]
+                               toCR (Left r) = Left r
+                               toCR (Right x) = value2CResources x
+                           fmap concat (mapM (retrieveRemoteResources (fmap toCR . pdbfunction fqdn)) remoteCollects)
     collectedRemote' <- mapM extractRelations collectedRemote
     collectedLocal   <- fmap concat $ mapM collectionChecks cat
     collectedLocalD  <- fmap concat $ mapM evaluateDefine collectedLocal

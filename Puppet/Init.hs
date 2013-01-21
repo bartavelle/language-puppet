@@ -5,8 +5,10 @@ import Puppet.Interpreter.Types
 import Puppet.NativeTypes
 import Puppet.NativeTypes.Helpers
 import Puppet.Plugins
-import System.FilePath
+import qualified PuppetDB.Query as PDB
 
+import System.FilePath
+import Data.Aeson
 import qualified Data.Map as Map
 
 data Prefs = Prefs {
@@ -16,7 +18,7 @@ data Prefs = Prefs {
     compilepoolsize :: Int, -- ^ Size of the compiler pool.
     parsepoolsize :: Int, -- ^ Size of the parser pool.
     erbpoolsize :: Int, -- ^ Size of the template pool.
-    puppetDBurl :: Maybe String, -- ^ Url of the PuppetDB connector (must be cleartext).
+    puppetDBquery :: String -> PDB.Query -> IO (Either String Value), -- ^ A function that takes a query type, a query and might return stuff
     natTypes :: Map.Map PuppetTypeName PuppetTypeMethods -- ^ The list of native types.
 }
 
@@ -30,7 +32,9 @@ genPrefs basedir = do
         templatedir = basedir ++ "/templates"
     typenames <- fmap (map takeBaseName) (getFiles modulesdir "lib/puppet/type" ".rb")
     let loadedTypes = Map.fromList (map defaulttype typenames)
-    return $ Prefs manifestdir modulesdir templatedir 1 1 1 Nothing (Map.union baseNativeTypes loadedTypes)
+        cstpdb :: String -> PDB.Query -> IO (Either String Value)
+        cstpdb _ _ = return (Right Null)
+    return $ Prefs manifestdir modulesdir templatedir 1 1 1 cstpdb (Map.union baseNativeTypes loadedTypes)
 
 -- | Generates 'Facts' from pairs of strings.
 --

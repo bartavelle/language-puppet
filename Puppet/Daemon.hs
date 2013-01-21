@@ -6,7 +6,6 @@ import Puppet.Interpreter.Types
 import Puppet.Interpreter.Catalog
 import Puppet.DSL.Types
 import Puppet.DSL.Loader
-import PuppetDB.Rest
 
 import Erb.Compute
 import Control.Concurrent
@@ -100,10 +99,7 @@ master prefs chan getstmts gettemplate mstats = do
         QCatalog (nodename, facts, respchan) -> do
             logDebug ("Received query for node " ++ nodename)
             traceEventIO ("Received query for node " ++ nodename)
-            let pdbfunc = case (puppetDBurl prefs) of
-                              Just x  -> Just (pdbResRequest x)
-                              Nothing -> Nothing
-            (!stmts, !warnings) <- measure mstats nodename $ getCatalog getstmts gettemplate pdbfunc nodename facts (Just $ modules prefs) (natTypes prefs)
+            (!stmts, !warnings) <- measure mstats nodename $ getCatalog getstmts gettemplate (puppetDBquery prefs) nodename facts (Just $ modules prefs) (natTypes prefs)
             traceEventIO ("getCatalog finished for " ++ nodename)
             mapM_ logWarning warnings
             case stmts of
