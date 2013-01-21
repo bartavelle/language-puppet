@@ -1,4 +1,4 @@
-v0.3.3 ()
+v0.3.3 (2013/01/21)
   New features
 	* Tries to find calcerb.rb next to the executable.
 	* Started cleaning imports ...
