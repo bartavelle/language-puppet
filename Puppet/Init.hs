@@ -10,6 +10,7 @@ import qualified PuppetDB.Query as PDB
 import System.FilePath
 import Data.Aeson
 import qualified Data.Map as Map
+import qualified Data.Vector as V
 
 data Prefs = Prefs {
     manifest :: FilePath, -- ^ The path to the manifests.
@@ -33,7 +34,7 @@ genPrefs basedir = do
     typenames <- fmap (map takeBaseName) (getFiles modulesdir "lib/puppet/type" ".rb")
     let loadedTypes = Map.fromList (map defaulttype typenames)
         cstpdb :: String -> PDB.Query -> IO (Either String Value)
-        cstpdb _ _ = return (Right Null)
+        cstpdb _ _ = return (Right (Array V.empty))
     return $ Prefs manifestdir modulesdir templatedir 1 1 1 cstpdb (Map.union baseNativeTypes loadedTypes)
 
 -- | Generates 'Facts' from pairs of strings.
