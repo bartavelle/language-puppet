@@ -250,6 +250,7 @@ finalizeRelations exported cat = do
         !(relgraph,qfunc) = Graph.graphFromEdges' $ map (\(a,b) -> (a,a,b)) $ Map.toList nodeRel
         !cycles = map (map ((\(a,_,_) -> a) . qfunc) . Tree.flatten) $ filter (not . null . Tree.subForest) $ Graph.scc relgraph :: [[ResIdentifier]]
         describe :: [ResIdentifier] -> String
+        describe [] = "[]"
         describe x = let rx = map (\i -> (i, drs Map.! i)) x
                      in  intercalate "\n\t\t" (showRRef (head x) : map describe' (zip x (tail rx)))
         describe' :: (ResIdentifier, (ResIdentifier, SourcePos)) -> String
@@ -977,10 +978,10 @@ tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
             badparts "" = False
             badparts str =
                 let (b,e) = break (=='.') str
-                in case (goodpart b, null e) of
-                    (True, False) -> badparts (tail e)
-                    (True, _)     -> False
-                    (False, _)    -> True
+                in case (goodpart b, e) of
+                    (True , (_:xs)) -> badparts xs
+                    (True ,      _) -> False
+                    (False,      _) -> True
             bad = (null s) || (length s > 255) || (badparts s)
             -- TODO check the parts are 63 char long
             in return $ Right $ ResolvedBool $ not bad

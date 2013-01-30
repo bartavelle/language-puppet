@@ -165,6 +165,7 @@ compilefilelist prefs TopNode _ = [manifest prefs ++ "/site.pp"]
 compilefilelist prefs _ name = moduleInfo
     where
         moduleInfo | length nameparts == 1 = [modules prefs ++ "/" ++ name ++ "/manifests/init.pp"]
+                   | null nameparts = ["no name parts, error in compilefilelist"]
                    | otherwise = [modules prefs ++ "/" ++ head nameparts ++ "/manifests/" ++ DLU.join "/" (tail nameparts) ++ ".pp"]
         nameparts = DLU.split "::" name
 

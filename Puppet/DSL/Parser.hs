@@ -51,6 +51,7 @@ whiteSpace  = P.whiteSpace lexer
 naturalOrFloat     = P.naturalOrFloat lexer
 
 lowerFirstChar :: String -> String
+lowerFirstChar "" = ""
 lowerFirstChar x = toLower (head x) : tail x
 
 -- expression parser
@@ -108,6 +109,7 @@ puppetVariableOrHashLookup = do
         _ -> return $ makeLookupOperation v hashlist
 
 makeLookupOperation :: String -> [Expression] -> Expression
+makeLookupOperation name [] = error "Error in makeLookupOperation: empty list"
 makeLookupOperation name exprs = foldl LookupOperation (LookupOperation (Value (VariableReference name)) (head exprs)) (tail exprs)
 
 identstring = many1 (alphaNum <|> char '_')
@@ -485,7 +487,8 @@ puppetChains = do { pos <- getPosition
     ; let refToPair (Value (ResourceReference rtype name)) = (rtype, name)
           refToPair x = error $ "Could not run refToPair on " ++ show x
     ; let pairs = map refToPair refs
-    ; let refpairs = zip pairs (tail pairs)
+    ; let refpairs | null pairs = []
+                   | otherwise  = zip pairs (tail pairs)
     ; return $ map (\((n1,v1),(n2,v2)) -> DependenceChain (n1,v1) (n2,v2) pos) refpairs
     }
 
