@@ -1,13 +1,19 @@
-module Puppet.Testing (testCatalog, Test(..), testFileSources, TestResult) where
+module Puppet.Testing (testCatalog, Test(..), testFileSources, TestResult, testingDaemon) where
 
 import qualified Data.Map as Map
-import Puppet.Interpreter.Types
 import Data.List
 import Data.Maybe
 import Data.List.Utils
 import Data.Either
 import Control.Monad.Error
 import System.Posix.Files
+import qualified System.Log.Logger as LOG
+
+import Puppet.Interpreter.Types
+import Puppet.Init
+import Puppet.Daemon
+import PuppetDB.TestDB
+import PuppetDB.Rest
 
 type TestResult = IO (Either String ())
 
@@ -85,3 +91,26 @@ runTests tsts cat = do
 
 testCatalog :: String -> FinalCatalog -> [Test] -> IO (Either String ())
 testCatalog puppetdir catalog stests = runTests (TestGroup "All Tests" ( testFileSources puppetdir catalog : stests )) catalog
+
+-- | Initializes a daemon made for running tests, using the specific test
+-- puppetDB
+testingDaemon :: Maybe String -- ^ Might contain the URL of the actual PuppetDB, used for getting facts.
+              -> FilePath -- ^ Path to the manifests
+              -> (String -> IO (Map.Map String ResolvedValue)) -- ^ The facter function
+              -> IO (String -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+testingDaemon purl puppetdir allFacts = do
+    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
+    prefs <- genPrefs puppetdir
+    let realPuppetDB = case purl of
+                           Nothing  -> puppetDBquery prefs
+                           Just url -> pdbRequest url
+    (queryPDB, updatePDB) <- initTestDBFunctions realPuppetDB
+    let pdbr = prefs { puppetDBquery = queryPDB }
+    (queryfunc, _, _, _) <- initDaemon pdbr
+    return (\nodename -> do
+       o <- allFacts nodename >>= queryfunc nodename
+       case o of
+           Left err -> error err
+           Right x  -> updatePDB nodename x >> return x
+       )
+

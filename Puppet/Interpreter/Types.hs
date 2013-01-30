@@ -55,6 +55,17 @@ data ResolvedValue
     | ResolvedUndefined
     deriving(Show, Eq, Ord)
 
+instance ToJSON ResolvedValue where
+    toJSON (ResolvedString s)       = String (T.pack s)
+    toJSON (ResolvedRegexp r)       = String (T.pack r)
+    toJSON (ResolvedInt i)          = Number (I i)
+    toJSON (ResolvedDouble d)       = Number (D d)
+    toJSON (ResolvedBool b)         = Bool b
+    toJSON (ResolvedRReference _ _) = Null -- TODO
+    toJSON (ResolvedArray rr)       = toJSON rr
+    toJSON (ResolvedHash hh)        = object (map (\(t,v) -> T.pack t .= v) hh)
+    toJSON (ResolvedUndefined)      = Null
+
 parseResourceReference :: T.Text -> Maybe ResolvedValue
 parseResourceReference instr = case break (=='[') (T.unpack instr) of
                                               (restype, '[':renamee) -> if (last renamee == ']')
@@ -143,6 +154,20 @@ data RResource = RResource {
     rrpos :: !SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show, Ord, Eq)
 
+rr2json :: String -> RResource -> Value
+rr2json hostname rr =
+    let title      = case Map.lookup "title" (rrparams rr) of
+                         Just (ResolvedString r)  -> r
+                         _ -> "no name, should not happen"
+        sourcefile = sourceName (rrpos rr)
+        sourceline = sourceLine (rrpos rr)
+    in  object [ "title"      .= title
+               , "sourcefile" .= sourcefile
+               , "sourceline" .= sourceline
+               , "type"       .= capitalizeResType (rrtype rr)
+               , "certname"   .= hostname
+               , "parameters" .= rrparams rr
+               ]
 
 type FinalCatalog = Map.Map ResIdentifier RResource
 
