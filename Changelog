@@ -1,7 +1,9 @@
 v0.4.0 ()
   New features
-	* Big refactor of the PuppetDB API
+	* Big refactor of the PuppetDB API.
 	* New "fake" PuppetDB used for testing
+	* Support of the caller_module_name variable.
+	* Support for a dumpvariable() function.
 
 v0.3.3 (2013/01/21)
   New features

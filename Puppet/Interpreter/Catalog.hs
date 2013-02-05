@@ -382,6 +382,18 @@ qualify k cs | qualified k || (cs == "::") = cs ++ k
 -- BUG TODO : check that a variable is not already defined.
 putVariable k v = getScope >>= mapM_ (\x -> modify (modifyVariables (Map.insert (qualify k x) v)))
 
+-- Saves the current module name
+setModuleName :: String -> CatalogMonad ()
+setModuleName str = do
+    let (amodulename, remain) = break (==':') str
+        modulename = if null remain
+                         then "topmodule"
+                         else amodulename
+    cpos <- getPos
+    vars <- fmap curVariables get
+    let nvars = Map.insert "::caller_module_name" (Right (ResolvedString modulename), cpos) vars
+    saveVariables nvars
+
 getVariable vname = liftM (Map.lookup vname . curVariables) get
 
 -- BUG TODO : top levels are qualified only with the head of the scopes
@@ -514,6 +526,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
         mapM_ (loadClassVariable rpos mparams) args
 
         setPos dpos
+        setModuleName dtype
         -- parse statements
         res <- mapM evaluateStatements dstmts
         nres <- handleDelayedActions (concat res)
@@ -677,12 +690,13 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         unless (Set.null overparams) (throwError $ "Spurious parameters " ++ intercalate ", " (Set.toList overparams) ++ " at " ++ show position)
 
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
-        setPos position
-        pushDependency ("class", classname)
         case actualname of
             Nothing -> pushScope [classname] -- sets the scope
             Just ac -> pushScope [classname, ac]
         mparameters <- mapM (loadClassVariable position inputparams) parameters -- add variables for parametrized classes
+        setPos position -- the setPos is that late so that the error message about missing parameters is about the calling site
+        pushDependency ("class", classname)
+        setModuleName classname
 
         -- load inherited classes
         inherited <- case inherits of
@@ -1143,6 +1157,10 @@ executeFunction :: String -> [ResolvedValue] -> CatalogMonad Catalog
 executeFunction "fail" [ResolvedString errmsg] = throwPosError ("Error: " ++ errmsg)
 executeFunction "fail" args = throwPosError ("Error: " ++ show args)
 executeFunction "realize" rlist = mapM_ pushRealize rlist >> return []
+executeFunction "dumpvariables" _ = do
+    vars <- fmap curVariables get
+    mapM_ (liftIO . print) (Map.toList vars)
+    return []
 executeFunction "create_resources" (mrtype:rdefs:rest) = do
 --        applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
 --        data ResDefaults = RDefaults String [(GeneralString, GeneralValue)] SourcePos
