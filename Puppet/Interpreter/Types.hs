@@ -109,24 +109,30 @@ data CResource = CResource {
     crtype :: !String, -- ^ Resource type.
     crparams :: !(Map.Map GeneralString GeneralValue), -- ^ Resource parameters.
     crvirtuality :: !Virtuality, -- ^ Resource virtuality.
+    crscope :: ![[ScopeName]], -- ^ Resource scope when it was defined
     pos :: !SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show)
 
 instance FromJSON CResource where
     parseJSON (Object o) = do
-        utitle     <- o .: "title"
-        params     <- o .: "parameters"
-        sourcefile <- o .: "sourcefile"
-        sourceline <- o .: "sourceline"
-        certname   <- o .: "certname"
+        utitle     <- o .:  "title"
+        params     <- o .:  "parameters"
+        sourcefile <- o .:  "sourcefile"
+        sourceline <- o .:  "sourceline"
+        certname   <- o .:  "certname"
+        scope      <- o .:? "scope"
         let _ = params :: HM.HashMap String ResolvedValue
             parameters = Map.fromList $ map (\(k,v) -> (Right k, Right v)) $ ("EXPORTEDSOURCE", ResolvedString certname) : HM.toList params :: Map.Map GeneralString GeneralValue
             position   = TPP.newPos (sourcefile ++ "(host: " ++ certname ++ ")") sourceline 1
+            mscope = case scope of
+                         Just x  -> x
+                         Nothing -> [["json"]]
         CResource <$> pure 0
                   <*> pure (Right utitle)
                   <*> fmap (T.unpack . T.toLower) (o .: "type")
                   <*> pure parameters
                   <*> pure Normal
+                  <*> pure mscope
                   <*> pure position
     parseJSON _ = mzero
 
@@ -151,6 +157,7 @@ data RResource = RResource {
     rrtype :: !String, -- ^ Resource type.
     rrparams :: !(Map.Map String ResolvedValue), -- ^ Resource parameters.
 	rrelations :: ![Relation], -- ^ Resource relations.
+    rrscope :: ![[ScopeName]], -- ^ Resource scope when it was defined
     rrpos :: !SourcePos -- ^ Source code position of the resource definition.
     } deriving(Show, Ord, Eq)
 
@@ -166,6 +173,7 @@ rr2json hostname rr =
                , "sourceline" .= sourceline
                , "type"       .= capitalizeResType (rrtype rr)
                , "certname"   .= hostname
+               , "scope"      .= rrscope rr
                , "parameters" .= rrparams rr
                ]
 

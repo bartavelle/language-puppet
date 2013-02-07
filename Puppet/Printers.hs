@@ -12,8 +12,8 @@ import Puppet.DSL.Types
 import qualified Data.Map as Map
 import Data.List
 
-showRes (CResource _ rname rtype params virtuality _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show virtuality
-showRRes (RResource _ rname rtype params relations _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show relations
+showRes (CResource _ rname rtype params virtuality _ _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show virtuality
+showRRes (RResource _ rname rtype params relations _ _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show relations
 
 showFCatalog :: FinalCatalog -> String
 showFCatalog rmap = let
@@ -48,7 +48,7 @@ showValue (ResolvedUndefined) = "undef"
 showuniqueres :: [RResource] -> String
 showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
     where
-        showrres (RResource _ rname _ params rels mpos)  =
+        showrres (RResource _ rname _ params rels scopes mpos)  =
             let relslist = map asparams rels
                 groupedrels = Map.fromListWith (++) relslist :: Map.Map String [ResolvedValue]
                 maybeArray (s,[a]) = (s,a)
@@ -56,6 +56,7 @@ showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
                 paramlist = (Map.toList $ Map.delete "title" params) ++ map maybeArray (Map.toList groupedrels) :: [(String, ResolvedValue)]
                 maxlen    = maximum (map (length . fst) paramlist) :: Int
             in  "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ "\n"
+                ++ "    " ++ show scopes ++ "\n"
                 ++ commaretsep (map (showparams maxlen) paramlist) ++ ";\n"
         showparams  mxl (name, val) = "        " ++ name ++ replicate (mxl - length name) ' ' ++ " => " ++ showValue val
         asparams    (RBefore, (dtype, dname))    = ("before",    [ResolvedRReference dtype (ResolvedString dname)])

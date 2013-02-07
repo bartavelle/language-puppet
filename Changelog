@@ -4,6 +4,7 @@ v0.4.0 ()
 	* New "fake" PuppetDB used for testing
 	* Support of the caller_module_name variable.
 	* Support for a dumpvariable() function.
+	* More details stored in the resource types, and in error messages.
 
 v0.3.3 (2013/01/21)
   New features

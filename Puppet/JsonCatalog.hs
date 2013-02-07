@@ -34,19 +34,20 @@ mkJsonCatalog nodename version cat exports edges = Object $ HM.fromList [("data"
         resources = map (res2JSon False . snd) lcat
 
 fakeResource :: (ResIdentifier, SourcePos) -> RResource
-fakeResource ((t,n),p) = RResource 0 n t Map.empty [] p
+fakeResource ((t,n),p) = RResource 0 n t Map.empty [] [["fake"]] p
 
 -- stuff that is done
 -- * the EXPORTEDSOURCE is added for resources coming from PuppetDB
 res2JSon :: Bool -> RResource -> Value
-res2JSon isExported (RResource _ rn rt rp _ rpos) = Object $ HM.fromList [ ("exported", Bool isExported)
-                                                                         , ("file", String (T.pack (sourceName rpos)))
-                                                                         , ("line", Number (fromIntegral (sourceLine rpos)))
-                                                                         , ("parameters", Object (HM.delete "EXPORTEDSOURCE" $ HM.fromList paramlist))
-                                                                         , ("tags",  Array V.empty)
-                                                                         , ("title", String (T.pack realtitle))
-                                                                         , ("type", String . T.pack . capitalizeResType $ rt)
-                                                                         ]
+res2JSon isExported (RResource _ rn rt rp _ scopes rpos) = Object $ HM.fromList [ ("exported", Bool isExported)
+                                                                                , ("file", String (T.pack (sourceName rpos)))
+                                                                                , ("line", Number (fromIntegral (sourceLine rpos)))
+                                                                                , ("parameters", Object (HM.delete "EXPORTEDSOURCE" $ HM.fromList paramlist))
+                                                                                , ("tags",  Array V.empty)
+                                                                                , ("title", String (T.pack realtitle))
+                                                                                , ("type", String . T.pack . capitalizeResType $ rt)
+                                                                                , "scope" .= scopes
+                                                                                ]
     where
         -- in puppet class titles are capitalized ...
         realtitle = if rt == "class"

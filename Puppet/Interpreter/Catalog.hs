@@ -131,13 +131,13 @@ computeCatalog getstatements nodename = do
         Right nodestmts -> evaluateStatements nodestmts >>= finalResolution
 
 resolveResource :: CResource -> CatalogMonad (ResIdentifier, RResource)
-resolveResource cr@(CResource cid cname ctype cparams _ cpos) = do
+resolveResource cr@(CResource cid cname ctype cparams _ scopes cpos) = do
     setPos cpos
     rname <- resolveGeneralString cname
     rparams <- mapM (\(a,b) -> do { ra <- resolveGeneralString a; rb <- resolveGeneralValue b; return (ra,rb); }) (Map.toList cparams)
     nparams <- processOverride cr (Map.fromList rparams)
     let mrrelations = []
-        prefinalresource = RResource cid rname ctype nparams mrrelations cpos
+        prefinalresource = RResource cid rname ctype nparams mrrelations scopes cpos
     return ((ctype, rname), prefinalresource)
 
 -- this validates the resolved resources
@@ -287,7 +287,7 @@ finalResolution cat = do
     -- collectedRemoteD resource names SHOULD be resolved (coming from
     -- PuppetDB)
     let addCollectedRemoteResource :: CResource -> CatalogMonad ()
-        addCollectedRemoteResource (CResource _ (Right cn) ct prms _ cp) = do
+        addCollectedRemoteResource (CResource _ (Right cn) ct prms _ _ cp) = do
             addDefinedResource (ct, cn) cp
             case Map.lookup (Right "alias") prms of
                 Just (Right (ResolvedString s)) -> addDefinedResource (ct, s) cp
@@ -308,6 +308,9 @@ finalResolution cat = do
     (fc, em) <- mapM finalizeResource real >>= createResourceMap >>= finalizeRelations exportMap
     return (fc, em, exportMap)
 
+showScope :: [[ScopeName]] -> String
+showScope = show . reverse . concat . map (take 1)
+
 createResourceMap :: [(ResIdentifier, RResource)] -> CatalogMonad FinalCatalog
 createResourceMap = foldM insertres Map.empty
     where
@@ -317,8 +320,8 @@ createResourceMap = foldM insertres Map.empty
             in case (rrtype res, oldres) of
                 ("class", _) -> return newmap
                 (_, Just r ) -> throwError $ "Resource already defined:"
-                    ++ "\n\t" ++ rrtype r   ++ "[" ++ rrname r   ++ "] at " ++ show (rrpos r)
-                    ++ "\n\t" ++ rrtype res ++ "[" ++ rrname res ++ "] at " ++ show (rrpos res)
+                    ++ "\n\t" ++ rrtype r   ++ "[" ++ rrname r   ++ "] at " ++ show (rrpos r) ++ " " ++ showScope (rrscope r)
+                    ++ "\n\t" ++ rrtype res ++ "[" ++ rrname res ++ "] at " ++ show (rrpos res) ++ " " ++ showScope (rrscope res)
                 (_, Nothing) -> return newmap
 
 getstatement :: TopLevelType -> String -> CatalogMonad Statement
@@ -483,17 +486,17 @@ applyDefaults :: CResource -> CatalogMonad CResource
 applyDefaults res = getCurDefaults >>= foldM applyDefaults' res
 
 applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
-applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (RDefaults dtype rdefs _) = do
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality scopes rpos) (RDefaults dtype rdefs _) = do
     let nparams = mergeParams rparams rdefs False
     if dtype == rtype
-        then return $ CResource i rname rtype nparams rvirtuality rpos
+        then return $ CResource i rname rtype nparams rvirtuality scopes rpos
         else return r
-applyDefaults' r@(CResource i rname rtype rparams rvirtuality rpos) (ROverride dtype dname rdefs _) = do
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality scopes rpos) (ROverride dtype dname rdefs _) = do
     srname <- resolveGeneralString rname
     sdname <- resolveGeneralString dname
     let nparams = mergeParams rparams rdefs True
     if (dtype == rtype) && (srname == sdname)
-        then return $ CResource i rname rtype nparams rvirtuality rpos
+        then return $ CResource i rname rtype nparams rvirtuality scopes rpos
         else return r
 
 -- merge defaults and actual parameters depending on the override flag
@@ -505,7 +508,7 @@ mergeParams srcprm defs override = if override
 -- The actual meat
 
 evaluateDefine :: CResource -> CatalogMonad [CResource]
-evaluateDefine r@(CResource _ rname rtype rparams rvirtuality rpos) = let
+evaluateDefine r@(CResource _ rname rtype rparams rvirtuality _ rpos) = let
     evaluateDefineDeclaration dtype args dstmts dpos = do
         --oldpos <- getPos
         pushScope ["#DEFINE#" ++ dtype]
@@ -567,7 +570,8 @@ addResource rtype parameters virtuality position grname = do
             (curdeptype, curdepname) <- fmap (head . currentDependencyStack) get
             let defaultdependency = (RRequire, Right (ResolvedString curdeptype), Right (ResolvedString curdepname))
             addUnresRel ([defaultdependency], (rtype, Right rse), UNormal, position)
-            return [CResource resid (Right rse) rtype rparameters virtuality position]
+            scopes <- fmap curScope get
+            return [CResource resid (Right rse) rtype rparameters virtuality scopes position]
         Left r -> throwPosError ("Could not determine the current resource name: " ++ show r)
 
 -- node
@@ -717,10 +721,11 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
                                                     -- for all resources that do not already depend on a class
                                                     -- this is probably not puppet perfect with resources that
                                                     -- depend explicitely on a class
+        scopes <- fmap curScope get
         popScope
         popDependency
         return $
-            [CResource resid (Right classname) "class" (Map.fromList $ map (first Right) mparameters) Normal position]
+            [CResource resid (Right classname) "class" (Map.fromList $ map (first Right) mparameters) Normal scopes position]
             ++ inherited
             ++ nres
 
@@ -731,7 +736,7 @@ evaluateClass (TopContainer topstmts myclass) inputparams actualname = do
 evaluateClass x _ _ = throwError ("Someone managed to run evaluateClass against " ++ show x)
 
 addClassDependency :: String -> CResource -> CatalogMonad ()
-addClassDependency cname (CResource _ rname rtype _ _ position) = addUnresRel (
+addClassDependency cname (CResource _ rname rtype _ _ _ position) = addUnresRel (
     [(RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname)]
     , (rtype, rname)
     , UPlus, position)
@@ -1145,7 +1150,7 @@ getRelationParameterType _                   = Nothing
 pushRealize :: ResolvedValue -> CatalogMonad ()
 pushRealize (ResolvedRReference rtype (ResolvedString rname)) = do
     let myfunction :: CResource -> CatalogMonad Bool
-        myfunction (CResource _ mcrname mcrtype _ _ _) = do
+        myfunction (CResource _ mcrname mcrtype _ _ _ _) = do
             srname <- resolveGeneralString mcrname
             return ((srname == rname) && (mcrtype == rtype))
     addCollect ((myfunction, Just $ PDB.queryRealize rtype rname) , Map.empty)
