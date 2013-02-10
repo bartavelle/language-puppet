@@ -16,7 +16,8 @@ import Erb.Evaluate
 import qualified Data.Map as Map
 import Debug.Trace
 import qualified Data.ByteString.Lazy.Char8 as BS
-import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy.Builder as BB
+import qualified Data.ByteString.Lazy.Builder.ASCII as BB
 import Data.Monoid
 import qualified System.Log.Logger as LOG
 import Puppet.Stats
