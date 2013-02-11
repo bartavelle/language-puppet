@@ -5,6 +5,7 @@ module Puppet.Printers (
     , showValue
     , showRRef
     , capitalizeResType
+    , showScope
 ) where
 
 import Puppet.Interpreter.Types
@@ -55,8 +56,7 @@ showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
                 maybeArray (s, x ) = (s,ResolvedArray x)
                 paramlist = (Map.toList $ Map.delete "title" params) ++ map maybeArray (Map.toList groupedrels) :: [(String, ResolvedValue)]
                 maxlen    = maximum (map (length . fst) paramlist) :: Int
-            in  "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ "\n"
-                ++ "    " ++ show scopes ++ "\n"
+            in  "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ " " ++ showScope scopes ++ "\n"
                 ++ commaretsep (map (showparams maxlen) paramlist) ++ ";\n"
         showparams  mxl (name, val) = "        " ++ name ++ replicate (mxl - length name) ' ' ++ " => " ++ showValue val
         asparams    (RBefore, (dtype, dname))    = ("before",    [ResolvedRReference dtype (ResolvedString dname)])
@@ -64,3 +64,7 @@ showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
         asparams    (RSubscribe, (dtype, dname)) = ("subscribe", [ResolvedRReference dtype (ResolvedString dname)])
         asparams    (RRequire, (dtype, dname))   = ("require",   [ResolvedRReference dtype (ResolvedString dname)])
         mrtype = rrtype (head res)
+
+showScope :: [[ScopeName]] -> String
+showScope = show . reverse . concat . map (take 1)
+

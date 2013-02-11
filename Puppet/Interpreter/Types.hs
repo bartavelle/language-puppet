@@ -286,4 +286,3 @@ throwPosError msg = do
     st <- liftIO currentCallStack
     throwError (msg ++ " at " ++ show p ++ intercalate "\n\t" st )
 
-

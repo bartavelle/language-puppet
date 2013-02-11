@@ -308,9 +308,6 @@ finalResolution cat = do
     (fc, em) <- mapM finalizeResource real >>= createResourceMap >>= finalizeRelations exportMap
     return (fc, em, exportMap)
 
-showScope :: [[ScopeName]] -> String
-showScope = show . reverse . concat . map (take 1)
-
 createResourceMap :: [(ResIdentifier, RResource)] -> CatalogMonad FinalCatalog
 createResourceMap = foldM insertres Map.empty
     where
