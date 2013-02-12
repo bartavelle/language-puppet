@@ -97,7 +97,7 @@ testCatalog puppetdir catalog stests = runTests (TestGroup "All Tests" ( testFil
 testingDaemon :: Maybe String -- ^ Might contain the URL of the actual PuppetDB, used for getting facts.
               -> FilePath -- ^ Path to the manifests
               -> (String -> IO (Map.Map String ResolvedValue)) -- ^ The facter function
-              -> IO (String -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+              -> IO (String -> IO (Either String (FinalCatalog, EdgeMap, FinalCatalog)))
 testingDaemon purl puppetdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
     prefs <- genPrefs puppetdir
@@ -110,7 +110,7 @@ testingDaemon purl puppetdir allFacts = do
     return (\nodename -> do
        o <- allFacts nodename >>= queryfunc nodename
        case o of
-           Left err -> error err
-           Right x  -> updatePDB nodename x >> return x
+           Right x  -> updatePDB nodename x >> return (Right x)
+           x -> return x
        )
 
