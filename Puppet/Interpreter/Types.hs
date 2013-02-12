@@ -163,12 +163,9 @@ data RResource = RResource {
 
 rr2json :: String -> RResource -> Value
 rr2json hostname rr =
-    let title      = case Map.lookup "title" (rrparams rr) of
-                         Just (ResolvedString r)  -> r
-                         _ -> "no name, should not happen"
-        sourcefile = sourceName (rrpos rr)
+    let sourcefile = sourceName (rrpos rr)
         sourceline = sourceLine (rrpos rr)
-    in  object [ "title"      .= title
+    in  object [ "title"      .= rrname rr
                , "sourcefile" .= sourcefile
                , "sourceline" .= sourceline
                , "type"       .= capitalizeResType (rrtype rr)
