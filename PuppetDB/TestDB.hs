@@ -21,11 +21,25 @@ updatePDB v node res = do
     let ex' = Map.insert node res ex
     putMVar v ex'
 
+toBool :: String -> Either String Bool
+toBool "true"  = Right True
+toBool "false" = Right False
+toBool x       = Left ("Is not a boolean " ++ x) 
+
 evaluateQueryResource :: Query -> (Bool -> String -> ResIdentifier -> RResource -> Either String Bool)
 evaluateQueryResource (Query OAnd lst) e n rid rr = fmap and (mapM (\x -> evaluateQueryResource x e n rid rr) lst)
 evaluateQueryResource (Query OOr  lst) e n rid rr = fmap or  (mapM (\x -> evaluateQueryResource x e n rid rr) lst)
-evaluateQueryResource (Query OEqual [Terms ["node","active"],Term "true"]) _ _ _ _ = Right True
+evaluateQueryResource (Query OEqual [Terms ["node","active"],Term bool]) _ _ _ _ = toBool bool
 evaluateQueryResource (Query OEqual [Term "type",Term ctype]) _ _ _ rr = Right (capitalizeResType (rrtype rr) == ctype)
+evaluateQueryResource (Query OEqual [Term "exported",Term expo]) exported _ _ _ = toBool expo >>= \x -> return (x == exported)
+evaluateQueryResource (Query OEqual [Term "tag",Term tag]) _ _ _ rr    =
+    let tags = Map.findWithDefault (ResolvedArray []) "tag" (rrparams rr)
+        stringEqual y (ResolvedString x) = (x == y)
+        stringEqual _ _ = False
+    in  case tags of
+            ResolvedArray lst -> Right (any (stringEqual tag) lst)
+            _ -> Right (stringEqual tag tags)
+evaluateQueryResource (Query OEqual [Term "title", Term ttl]) _ _ _ rr = Right (rrname rr == ttl)
 evaluateQueryResource q _ _ _ _ = Left ("Not interpreted: " ++ show q)
 
 queryPDB :: MVar ExportedResources -> (String -> Query -> IO (Either String Value)) -> String -> Query -> IO (Either String Value)
