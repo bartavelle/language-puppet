@@ -102,7 +102,7 @@ testingDaemon purl puppetdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
     prefs <- genPrefs puppetdir
     let realPuppetDB = case purl of
-                           Nothing  -> puppetDBquery prefs
+                           Nothing  -> puppetDBquery prefs { compilepoolsize = 8, parsepoolsize = 3, erbpoolsize = 4 }
                            Just url -> pdbRequest url
     (queryPDB, updatePDB) <- initTestDBFunctions realPuppetDB
     let pdbr = prefs { puppetDBquery = queryPDB }
