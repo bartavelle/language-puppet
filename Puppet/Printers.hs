@@ -65,6 +65,3 @@ showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
         asparams    (RRequire, (dtype, dname))   = ("require",   [ResolvedRReference dtype (ResolvedString dname)])
         mrtype = rrtype (head res)
 
-showScope :: [[ScopeName]] -> String
-showScope = show . reverse . concat . map (take 1)
-

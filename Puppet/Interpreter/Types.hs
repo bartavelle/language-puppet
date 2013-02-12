@@ -38,7 +38,7 @@ type Facts = Map.Map String ResolvedValue
 
 -- | Relationship link type.
 data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Ord, Eq)
-type LinkInfo = (LinkType, RelUpdateType, SourcePos)
+type LinkInfo = (LinkType, RelUpdateType, SourcePos, [[ScopeName]])
 
 -- | The list of resolved values that are used to define everything in a
 -- 'FinalCatalog' and in the resolved parts of a 'Catalog'. They are to be
@@ -225,7 +225,7 @@ data ScopeState = ScopeState {
     -- functions that determine whether a resource should be collected or not.
     -- It can optionally store overrides, which will be applied in the end on
     -- all resources. It can also store a PuppetDB query.
-    unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)],
+    unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos, [[ScopeName]])],
     -- ^ This stores unresolved relationships, because the original string name
     -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]
     computeTemplateFunction :: String -> String -> Map.Map String GeneralValue -> IO (Either String String),
@@ -277,9 +277,12 @@ pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
 addDefinedResource r p = modify (\st -> st { definedResources = Map.insert r p (definedResources st) } )
 saveVariables vars = modify (\st -> st { curVariables = vars })
 
+showScope :: [[ScopeName]] -> String
+showScope = show . reverse . concat . map (take 1)
+
 throwPosError :: String -> CatalogMonad a
 throwPosError msg = do
     p <- getPos
     st <- liftIO currentCallStack
-    throwError (msg ++ " at " ++ show p ++ intercalate "\n\t" st )
+    throwError (msg ++ " at " ++ show p ++ intercalate "\n\t" st)
 

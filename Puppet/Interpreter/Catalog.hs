@@ -204,45 +204,45 @@ extractRelations :: CResource -> CatalogMonad CResource
 extractRelations cr = do
     setPos (pos cr)
     (params, relations) <- partitionParamsRelations (crparams cr)
-    addUnresRel (relations, (crtype cr, crname cr), UNormal, pos cr)
+    addUnresRel (relations, (crtype cr, crname cr), UNormal, pos cr, crscope cr)
     return cr { crparams = params }
 
 -- resolves a single relationship
-resolveRelationship :: ([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos)
-                        -> CatalogMonad ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos)
-resolveRelationship (udsts, (stype, usname), uptype, spos) = do
+resolveRelationship :: ([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos, [[ScopeName]])
+                        -> CatalogMonad ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos, [[ScopeName]])
+resolveRelationship (udsts, (stype, usname), uptype, spos, scop) = do
     let resolveSrcRel (ltype, udtype, udname) = do
             dtype <- resolveGeneralValue udtype >>= rstring
             dname <- resolveGeneralValue udname >>= rstring
             return (ltype, (dtype, dname))
     dsts  <- mapM resolveSrcRel udsts
     sname <- resolveGeneralString usname
-    return (dsts, (stype, sname), uptype, spos)
+    return (dsts, (stype, sname), uptype, spos, scop)
 
 -- this does all the relation stuff
 finalizeRelations :: FinalCatalog -> FinalCatalog -> CatalogMonad (FinalCatalog, EdgeMap)
 finalizeRelations exported cat = do
     grels <- fmap unresolvedRels get >>= mapM resolveRelationship
     drs   <- fmap definedResources get
-    let extr :: ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos)
+    let extr :: ([(LinkType, ResIdentifier)], ResIdentifier, RelUpdateType, SourcePos, [[ScopeName]])
                     -> [(ResIdentifier, ResIdentifier, LinkInfo)]
-        extr (dsts, src, rutype, spos) = do
+        extr (dsts, src, rutype, spos, scp) = do
             (ltype, dst) <- dsts
-            return (dst, src, (ltype, rutype, spos))
+            return (dst, src, (ltype, rutype, spos, scp))
         !rels = concatMap extr grels :: [(ResIdentifier, ResIdentifier, LinkInfo)]
         checkRelationExists :: (ResIdentifier, ResIdentifier, LinkInfo) -> CatalogMonad (Maybe (ResIdentifier, ResIdentifier, LinkInfo))
-        checkRelationExists !o@(!src, !dst, (!ltype,!lutype,!lpos)) = do
+        checkRelationExists !o@(!src, !dst, (!ltype,!lutype,!lpos,!lscope)) = do
             -- if the source of the relation doesn't exist (is exported),
             -- then when drop this relation
             case (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported) of
                 (_, _, _, True)     -> return Nothing
                 -- we have a good relation, reorder it so that all arrows point the same way
                 (True, True,_ , _)  -> case ltype of
-                                RNotify -> return $ Just (dst, src, (RSubscribe, lutype,lpos))
-                                RBefore -> return $ Just (dst, src, (RRequire  , lutype,lpos))
+                                RNotify -> return $ Just (dst, src, (RSubscribe, lutype,lpos,lscope))
+                                RBefore -> return $ Just (dst, src, (RRequire  , lutype,lpos,lscope))
                                 _ -> return (Just o)
-                (False, _, _, _)  -> throwError $ "Unknown resources " ++ show src ++ " used in a relation at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
-                (_, False, _, _)  -> throwError $ "Unknown resources " ++ show dst ++ " used in a relation at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported)
+                (False, _, _, _)  -> throwError $ "Unknown resources " ++ show src ++ " used as source (destination: " ++ show dst ++ ") in a relation at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported) ++ " " ++ showScope lscope
+                (_, False, _, _)  -> throwError $ "Unknown resources " ++ show dst ++ " used as destination (source: " ++ show src ++ ") in a relation at " ++ show lpos ++ " debug: " ++ show (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported) ++ " " ++ showScope lscope
     -- now look for cycles in the graph
     checkedrels <- fmap catMaybes $ mapM checkRelationExists rels
     let !edgeMap = Map.fromList (map (\(d,s,i) -> ((s,d),i)) checkedrels) :: EdgeMap -- warning, in the edgemap we have (src, dst), contrary to all other uses
@@ -414,7 +414,9 @@ addCollect ((func, query), overrides) = modify $ pushCollect (func, overrides, q
 -- this pushes the relations only if they exist
 -- the parameter is of the form
 -- ( [dstrelations], srcresource, type, pos )
-addUnresRel ncol@(rels, _, _, _)  = unless (null rels) (modify (pushUnresRel ncol))
+addUnresRel :: ([(LinkType, GeneralValue, GeneralValue)], (String, GeneralString), RelUpdateType, SourcePos, [[ScopeName]]) -> CatalogMonad ()
+addUnresRel ncol@(rels, _, _, _, _)  = do
+    unless (null rels) (modify (pushUnresRel ncol))
 
 -- finds out if a resource name refers to a define
 checkDefine :: String -> CatalogMonad (Maybe Statement)
@@ -566,8 +568,8 @@ addResource rtype parameters virtuality position grname = do
                 _ -> return ()
             (curdeptype, curdepname) <- fmap (head . currentDependencyStack) get
             let defaultdependency = (RRequire, Right (ResolvedString curdeptype), Right (ResolvedString curdepname))
-            addUnresRel ([defaultdependency], (rtype, Right rse), UNormal, position)
             scopes <- fmap curScope get
+            addUnresRel ([defaultdependency], (rtype, Right rse), UNormal, position, scopes)
             return [CResource resid (Right rse) rtype rparameters virtuality scopes position]
         Left r -> throwPosError ("Could not determine the current resource name: " ++ show r)
 
@@ -622,7 +624,8 @@ evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) positi
     setPos position
     gdstname <- tryResolveExpression dstname
     gsrcname <- tryResolveExpressionString srcname
-    addUnresRel ( [(RRequire, Right $ ResolvedString dsttype, gdstname)], (srctype, gsrcname), UPlus, position )
+    scp <- fmap curScope get
+    addUnresRel ( [(RRequire, Right $ ResolvedString dsttype, gdstname)], (srctype, gsrcname), UPlus, position, scp)
     return []
 -- <<| |>>
 evaluateStatements (ResourceCollection rtype expr overrides position) = do
@@ -733,10 +736,14 @@ evaluateClass (TopContainer topstmts myclass) inputparams actualname = do
 evaluateClass x _ _ = throwError ("Someone managed to run evaluateClass against " ++ show x)
 
 addClassDependency :: String -> CResource -> CatalogMonad ()
-addClassDependency cname (CResource _ rname rtype _ _ _ position) = addUnresRel (
-    [(RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname)]
-    , (rtype, rname)
-    , UPlus, position)
+addClassDependency cname (CResource _ rname rtype _ _ scp position) = do
+    addUnresRel (
+        [(RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname)]
+        , (rtype, rname)
+        , UPlus
+        , position
+        , scp
+        )
 
 tryResolveExpression :: Expression -> CatalogMonad GeneralValue
 tryResolveExpression = tryResolveGeneralValue . Left
