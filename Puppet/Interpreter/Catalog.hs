@@ -448,10 +448,10 @@ partitionParamsRelations rparameters = do
         convertrelation (reltype, Right (ResolvedArray rs))         = fmap concat $ mapM (\x -> convertrelation (reltype, Right x)) rs
         convertrelation (reltype, Right (ResolvedRReference rt rv)) = return [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
         convertrelation (reltype, Right (ResolvedString "undef"))   = return [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
-        convertrelation (reltype, Right (ResolvedString x)) = throwPosError ("partitionParamsRelations error : " ++ show x)
-        convertrelation (_,       Left x) = throwPosError ("partitionParamsRelations unresolved : " ++ show x)
-        convertrelation x = throwPosError ("partitionParamsRelations error : " ++ show x)
-        (filteredrelations, filteredparams) = Map.partitionWithKey (const . isJust . getRelationParameterType) rparameters -- filters relations with actual parameters
+        convertrelation (_,       Right (ResolvedString x))         = throwPosError ("partitionParamsRelations error : " ++ show x)
+        convertrelation (_,       Left x)                           = throwPosError ("partitionParamsRelations unresolved : " ++ show x)
+        convertrelation x                                           = throwPosError ("partitionParamsRelations error : " ++ show x)
+        (filteredrelations, filteredparams)                         = Map.partitionWithKey (const . isJust . getRelationParameterType) rparameters -- filters relations with actual parameters
     relations <- fmap concat (mapM convertrelation (Map.toList filteredrelations)) :: CatalogMonad [(LinkType, GeneralValue, GeneralValue)]
     return (realparams, relations)
 
@@ -1116,7 +1116,12 @@ tryResolveValue n@(FunctionCall "getvar" [varinfo]) = do
         Right s -> tryResolveValue (VariableReference s)
         Left  _ -> return $ Left $ Value n
 tryResolveValue   (FunctionCall "getvar" nn) = throwPosError $ "getvar expects a single argument, not " ++ show (length nn)
-
+tryResolveValue n@(FunctionCall "is_string" [varinfo]) = do
+    varname <- tryResolveExpression varinfo
+    case varname of
+        Right (ResolvedString _) -> return $ Right $ ResolvedBool True
+        Right _ -> return $ Right $ ResolvedBool False
+        Left _ -> return $ Left $ Value n
 tryResolveValue n@(FunctionCall fname args) = do
     ufunctions <- fmap userFunctions get
     l <- fmap luaState get
