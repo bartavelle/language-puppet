@@ -280,7 +280,16 @@ finalResolution cat = do
                                                     Left rr -> Left rr
                                                     Right s -> Right $ filter isNotLocal s
                            fmap concat (mapM (retrieveRemoteResources (fmap toCR . pdbfunction "resources")) remoteCollects)
+    let -- this adds the collected remote defines to the index of know resources, so that the dependencies check
+        addCollectedDefines cr = do
+            let rtype  = crtype cr
+            rname <- resolveGeneralString (crname cr)
+            isdef <- checkDefine rtype
+            case isdef of
+               Just _  -> addDefinedResource (rtype, rname) (pos cr)
+               Nothing -> return ()
     collectedRemote' <- mapM extractRelations collectedRemote
+    mapM_ addCollectedDefines collectedRemote'
     collectedLocal   <- fmap concat $ mapM collectionChecks cat
     collectedLocalD  <- fmap concat $ mapM evaluateDefine collectedLocal
     collectedRemoteD <- fmap concat $ mapM evaluateDefine collectedRemote'
@@ -509,9 +518,8 @@ mergeParams srcprm defs override = if override
 evaluateDefine :: CResource -> CatalogMonad [CResource]
 evaluateDefine r@(CResource _ rname rtype rparams rvirtuality _ rpos) = let
     evaluateDefineDeclaration dtype args dstmts dpos = do
-        --oldpos <- getPos
-        pushScope ["#DEFINE#" ++ dtype]
         rexpr <- resolveGeneralString rname
+        pushScope ["#DEFINE#" ++ dtype ++ "/" ++ rexpr]
         pushDependency (dtype, rexpr)
         -- add variables
         mparams <- fmap Map.fromList $ mapM (\(gs, gv) -> do { rgs <- resolveGeneralString gs; rgv <- tryResolveGeneralValue gv; return (rgs, (rgv, dpos)); }) (Map.toList rparams)
