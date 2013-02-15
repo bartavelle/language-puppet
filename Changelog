@@ -5,6 +5,7 @@ v0.4.0 ()
 	* Support of the caller_module_name variable.
 	* Support for a dumpvariable() function.
 	* More details stored in the resource types, and in error messages.
+	* User native type
   Bugs fixed
 	* Now depends on the built-in bytestring library that comes with
 	GHC-7.6.1.

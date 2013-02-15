@@ -134,6 +134,13 @@ fullyQualified param res = case Map.lookup param (rrparams res) of
     Just path -> fullyQualified' param path res
     Nothing -> Right res
 
+noTrailingSlash :: String -> PuppetTypeValidate
+noTrailingSlash param res = case Map.lookup param (rrparams res) of
+     Just (ResolvedString x) -> if last x == '/'
+                                    then Left ("Parameter " ++ param ++ " should not have a trailing slash")
+                                    else Right res
+     _ -> Right res
+
 fullyQualifieds :: String -> PuppetTypeValidate
 fullyQualifieds param = runarray param fullyQualified'
 

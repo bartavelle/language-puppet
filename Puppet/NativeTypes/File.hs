@@ -34,13 +34,6 @@ parameterfunctions =
     ,("source"      , [])
     ]
 
-noTrailingSlash :: String -> PuppetTypeValidate
-noTrailingSlash param res = case Map.lookup param (rrparams res) of
-     Just (ResolvedString x) -> if last x == '/'
-                                    then Left ("Parameter " ++ param ++ " should not have a trailing slash")
-                                    else Right res
-     Nothing -> Right res
-
 validateFile :: PuppetTypeValidate
 validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent >=> validateMode
 
