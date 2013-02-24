@@ -60,12 +60,16 @@ regsubst str reg dst flags = do
     let multiline   = if 'M' `textElem` flags then compMultiline else compBlank
         extended    = if 'E' `textElem` flags then compExtended  else compBlank
         insensitive = if 'I' `textElem` flags then compCaseless  else compBlank
-        global      = 'G' `textElem` flags
+        global      = 'G' `textElem` flags -- TODO fix global
         options = multiline .|. extended .|. insensitive
-    res <- liftIO $ substituteCompile (T.encodeUtf8 reg) options (T.encodeUtf8 str) (T.encodeUtf8 dst)
-    case res of
-        Right r -> return (T.decodeUtf8 r)
-        Left rr -> throwPosError (T.pack rr)
+    regexp <- liftIO $ compile options execBlank (T.encodeUtf8 reg)
+    case regexp of
+        Left rr -> throwPosError (tshow rr)
+        Right cr -> do
+            res <- liftIO $ substitute cr (T.encodeUtf8 str) (T.encodeUtf8 dst)
+            case res of
+                Right r -> return (T.decodeUtf8 r)
+                Left rr -> throwPosError (T.pack rr)
 
 
 -- TODO
@@ -82,7 +86,7 @@ file (x:xs) = catch
     (\SomeException{} -> file xs)
 
 puppetSplit :: T.Text -> T.Text -> IO (Either String [T.Text])
-puppetSplit str reg = fmap (fmap (map T.decodeUtf8)) (splitCompile (T.encodeUtf8 reg) compBlank (T.encodeUtf8 str))
+puppetSplit str reg = fmap (fmap (map T.decodeUtf8)) (splitCompile (T.encodeUtf8 reg) (T.encodeUtf8 str))
 
 generate :: T.Text -> [T.Text] -> IO (Maybe T.Text)
 generate command args = do
