@@ -16,18 +16,21 @@ module Puppet.DSL.Parser (
     exprparser
 ) where
 
+import Puppet.DSL.Types
+import Puppet.Utils
+
 import Data.Char
-import Text.Parsec
+import qualified Text.Parsec as TP
+import Text.Parsec hiding (string)
+import Text.Parsec.Text
 import qualified Text.Parsec.Token as P
 import Text.Parsec.Expr
-import Text.Parsec.Language (emptyDef)
-import Data.List.Utils
-import Puppet.DSL.Types
 import qualified Data.Map as Map
 import Puppet.NativeTypes
 import Control.Monad (when)
+import qualified Data.Text as T
 
-def = emptyDef
+def = P.LanguageDef
     { P.commentStart   = "/*"
     , P.commentEnd     = "*/"
     , P.commentLine    = "#"
@@ -37,22 +40,25 @@ def = emptyDef
     , P.reservedNames  = ["if", "else", "case", "elsif", "default", "import", "define", "class", "node", "inherits", "true", "false", "undef"]
     , P.reservedOpNames= ["=>","=","+","-","/","*","+>","->","~>","!"]
     , P.caseSensitive  = True
+    , P.opStart        = oneOf ":!#$%&*+./<=>?@\\^|-~"
+    , P.opLetter       = oneOf ":!#$%&*+./<=>?@\\^|-~"
     }
 
 lexer       = P.makeTokenParser def
 parens      = P.parens lexer
 --braces      = P.braces lexer
 --operator    = P.operator lexer
-symbol      = P.symbol lexer
+symbol      = fmap T.pack . P.symbol lexer
 reservedOp  = P.reservedOp lexer
 reserved    = P.reserved lexer
 whiteSpace  = P.whiteSpace lexer
 -- stringLiteral = P.stringLiteral lexer
 naturalOrFloat     = P.naturalOrFloat lexer
+string = fmap T.pack . TP.string
 
-lowerFirstChar :: String -> String
+lowerFirstChar :: T.Text -> T.Text
 lowerFirstChar "" = ""
-lowerFirstChar x = toLower (head x) : tail x
+lowerFirstChar x = T.cons (toLower (T.head x)) (T.tail x)
 
 -- expression parser
 {-| This is a parser for Puppet 'Expression's. -}
@@ -108,12 +114,14 @@ puppetVariableOrHashLookup = do
         [] -> return $ Value (VariableReference v)
         _ -> return $ makeLookupOperation v hashlist
 
-makeLookupOperation :: String -> [Expression] -> Expression
-makeLookupOperation name [] = error "Error in makeLookupOperation: empty list"
+makeLookupOperation :: T.Text -> [Expression] -> Expression
+makeLookupOperation _ [] = error "Error in makeLookupOperation: empty list"
 makeLookupOperation name exprs = foldl LookupOperation (LookupOperation (Value (VariableReference name)) (head exprs)) (tail exprs)
 
-identstring = many1 (alphaNum <|> char '_')
+identstring :: Parser T.Text
+identstring = fmap T.pack $ many1 (alphaNum <|> char '_')
 
+identifier :: Parser T.Text
 identifier = do {
     x <- identstring
     ; whiteSpace
@@ -156,14 +164,14 @@ puppetQualifiedName = do { optional (string "::")
     ; firstletter <- lower
     ; parts <- identstring `sepBy` (try $ string "::")
     ; whiteSpace
-    ; return $ [firstletter] ++ (join "::" parts)
+    ; return $ T.cons firstletter (T.intercalate "::" parts)
     }
 
 puppetQualifiedReference = do { optional (string "::")
     ; firstletter <- upper <?> "Uppercase letter for a reference"
     ; parts <- identstring `sepBy` (string "::")
     ; whiteSpace
-    ; return $ [toLower firstletter] ++ (join "::" $ map lowerFirstChar parts)
+    ; return $ T.cons (toLower firstletter) (T.intercalate "::" $ map lowerFirstChar parts)
     }
 
 puppetFunctionCall = do { funcname <- identifier
@@ -206,11 +214,12 @@ nodeDeclaration = do { pos <- getPosition
     }
 
 -- no trailing whiteSpace
+puppetVariable :: Parser T.Text
 puppetVariable = do
     char '$'
     choice
-        [ do { char '{' ; o <- many1 $ noneOf "}" ; char '}' ; return o }
-        , do { s <- option "" (string "::") ; o <- identstring `sepBy` (try $ string "::") ; return $ s ++ (join "::" o) }
+        [ do { char '{' ; o <- many1 $ noneOf "}" ; char '}' ; return (T.pack o) }
+        , do { s <- option "" (string "::") ; o <- identstring `sepBy` (try $ string "::") ; return (s <> (T.intercalate "::" o)) }
         ]
 
 variableAssignment = do
@@ -225,6 +234,7 @@ variableAssignment = do
 -- types de base
 -- puppetLiteral : toutes les strings puppet
 
+puppetLiteral :: Parser T.Text
 puppetLiteral = doubleQuotedString
     <|> singleQuotedString
     <|> puppetQualifiedName
@@ -234,10 +244,11 @@ puppetLiteralValue = do { v <- puppetLiteral
     ; return (Value (Literal v))
     }
 
+puppetRegexp :: Parser T.Text
 puppetRegexp = do { char '/'
     ; v <- many ( do { char '\\' ; x <- anyChar; return ['\\', x] } <|> many1 (noneOf "/\\") )
     ; symbol "/"
-    ; return $ concat v
+    ; return $ T.pack $ concat v
     }
 
 puppetRegexpExpr = puppetRegexp >>= return . Value . PuppetRegexp
@@ -246,7 +257,7 @@ singleQuotedString = do { char '\''
     ; v <- many ( do { char '\\' ; x <- anyChar; if x=='\'' then return "'" else return ['\\',x] } <|> many1 (noneOf "'\\") )
     ; char '\''
     ; whiteSpace
-    ; return $ concat v
+    ; return $ T.pack $ concat v
     }
 
 doubleQuotedString = do { char '"'
@@ -276,7 +287,7 @@ puppetInterpolableString = do { char '"'
     }
 
 doubleQuotedStringContent = do { x <- many1 (do { char '\\' ; x <- anyChar; return [stringEscape x] } <|> many1 (noneOf "\"\\$") )
-    ; return $ concat x
+    ; return $ T.pack $ concat x
     }
 
 stringEscape 'n' = '\n'
@@ -515,6 +526,7 @@ stmtparser = variableAssignment
     <|> puppetMainFunctionCall
     <?> "Statement"
 
+mparser :: Parser [Statement]
 mparser = do {
         whiteSpace
         ; result <- many stmtparser

@@ -11,13 +11,14 @@ import qualified Data.Map as Map
 import Data.Either
 import Data.List
 import Text.Parsec.Pos
+import qualified Data.Text as T
 
-getstatement :: Map.Map (TopLevelType, String) Statement -> TopLevelType -> String -> IO (Either String Statement)
+getstatement :: Map.Map (TopLevelType, T.Text) Statement -> TopLevelType -> T.Text -> IO (Either String Statement)
 getstatement stmtlist toplevel name = case (Map.lookup (toplevel, name) stmtlist) of
     Just x -> return $ Right x
     Nothing -> return $ Left "not found"
 
-gettemplate :: String -> String -> c -> IO (Either String String)
+gettemplate :: T.Text -> T.Text -> c -> IO (Either String T.Text)
 gettemplate n _ _ = return $ Right n
 
 main :: IO ()
@@ -32,20 +33,23 @@ main = do
         then return ()
         else error "fail"
 
+pdb :: b -> c -> IO (Either String a)
+pdb _ _ = return $ Left "No puppetdb"
+
 testinterpreter :: FilePath -> IO (String, Bool)
 testinterpreter fp = do
     parsed <- runErrorT (parseFile fp)
     case parsed of
         Left err -> return (err, False)
         Right p -> do
-            let facts = Map.fromList [("hostname",ResolvedString "test")]
+            let facts = Map.fromList [("::hostname",ResolvedString "test"), ("::fqdn", ResolvedString "fqdn")]
                 toplevels = map convertTopLevel p
                 oktoplevels = rights toplevels
                 othertoplevels = lefts toplevels
                 topclass = ClassDeclaration "::" Nothing [] othertoplevels (initialPos fp)
-                stmtpmap :: Map.Map (TopLevelType, String) Statement
-                stmtpmap = foldl' (\mp (ttype,tname,ts) -> Map.insert (ttype,tname) (TopContainer [(fp, topclass)] ts) mp) Map.empty oktoplevels
-            ctlg <- getCatalog (getstatement stmtpmap) gettemplate Nothing "test" facts (Just "test/modules") baseNativeTypes
+                stmtpmap :: Map.Map (TopLevelType, T.Text) Statement
+                stmtpmap = foldl' (\mp (ttype,tname,ts) -> Map.insert (ttype,tname) (TopContainer [(T.pack fp, topclass)] ts) mp) Map.empty oktoplevels
+            ctlg <- getCatalog (getstatement stmtpmap) gettemplate pdb "test" facts (Just "test/modules") baseNativeTypes
             print ctlg
             case ctlg of
                 (Right _, _) -> return ("PASS", True)

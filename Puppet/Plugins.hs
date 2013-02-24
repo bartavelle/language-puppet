@@ -25,16 +25,16 @@ module Puppet.Plugins (initLua, puppetFunc, closeLua, getFiles) where
 import Prelude hiding (catch)
 import qualified Scripting.Lua as Lua
 import Scripting.LuaUtils()
-import System.Directory
 import Control.Exception
-import Data.String.Utils (endswith)
 import qualified Data.Map as Map
 import Control.Monad.IO.Class
-import System.FilePath
 import System.IO
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import Puppet.Interpreter.Types
 import Puppet.Printers
+import Puppet.Utils
 
 instance Lua.StackValue ResolvedValue
     where
@@ -46,7 +46,7 @@ instance Lua.StackValue ResolvedValue
         push l (ResolvedRReference rr _) = Lua.push l rr
         push l (ResolvedArray arr)       = Lua.push l arr
         push l (ResolvedHash h)          = Lua.push l (Map.fromList h)
-        push l (ResolvedUndefined)       = Lua.push l "undefined"
+        push l (ResolvedUndefined)       = Lua.push l ("undefined" :: T.Text)
 
         peek l n = do
             t <- Lua.ltype l n
@@ -71,43 +71,43 @@ instance Lua.StackValue ResolvedValue
 
         valuetype _ = Lua.TUSERDATA
 
-getDirContents :: FilePath -> IO [FilePath]
-getDirContents x = fmap (filter (not . all (=='.'))) (getDirectoryContents x)
+getDirContents :: T.Text -> IO [T.Text]
+getDirContents x = fmap (filter (not . T.all (=='.'))) (getDirectoryContents x)
 
 -- find files in subdirectories
-checkForSubFiles :: String -> String -> IO [String]
+checkForSubFiles :: T.Text -> T.Text -> IO [T.Text]
 checkForSubFiles extension dir = do
     content <- catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException))
     case content of
         Right o -> do
-            return ((map (\x -> dir ++ "/" ++ x) . filter (endswith extension)) o )
+            return ((map (\x -> dir <> "/" <> x) . filter (T.isSuffixOf extension)) o )
         Left _ -> return []
 
 -- Find files in the module directory that are in a module subdirectory and
 -- finish with a specific extension
-getFiles :: String -> String -> String -> IO [String]
+getFiles :: T.Text -> T.Text -> T.Text -> IO [T.Text]
 getFiles moduledir subdir extension =
-        getDirContents moduledir
-        >>= mapM ( (checkForSubFiles extension) . (\x -> moduledir ++ "/" ++ x ++ "/" ++ subdir))
+    getDirContents moduledir
+        >>= mapM ( (checkForSubFiles extension) . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
         >>= return . concat
 
-getLuaFiles :: String -> IO [String]
+getLuaFiles :: T.Text -> IO [T.Text]
 getLuaFiles moduledir = getFiles moduledir "lib/puppet/parser/luafunctions" ".lua"
 
-loadLuaFile :: Lua.LuaState -> String -> IO [String]
+loadLuaFile :: Lua.LuaState -> T.Text -> IO [T.Text]
 loadLuaFile l file = do
-    r <- Lua.loadfile l file
+    r <- Lua.loadfile l (T.unpack file)
     case r of
         0 -> Lua.call l 0 0 >> return [takeBaseName file]
         _ -> do
-            hPutStrLn stderr ("Could not load file " ++ file)
+            T.hPutStrLn stderr ("Could not load file " <> file)
             return []
 {-| Runs a puppet function in the 'CatalogMonad' monad. It takes a state,
 function name and list of arguments. It returns a valid Puppet value.
 -}
-puppetFunc :: Lua.LuaState -> String -> [ResolvedValue] -> CatalogMonad ResolvedValue
+puppetFunc :: Lua.LuaState -> T.Text -> [ResolvedValue] -> CatalogMonad ResolvedValue
 puppetFunc l fn args = do
-    content <- liftIO $ catch (fmap Right (Lua.callfunc l fn args)) (\e -> return $ Left $ show (e :: SomeException))
+    content <- liftIO $ catch (fmap Right (Lua.callfunc l (T.unpack fn) args)) (\e -> return $ Left $ tshow (e :: SomeException))
     case content of
         Right x -> return x
         Left  y -> throwPosError y
@@ -115,7 +115,7 @@ puppetFunc l fn args = do
 -- | Initializes the Lua state. The argument is the modules directory. Each
 -- subdirectory will be traversed for functions.
 -- The default location is @\/lib\/puppet\/parser\/functions@.
-initLua :: String -> IO (Lua.LuaState, [String])
+initLua :: T.Text -> IO (Lua.LuaState, [T.Text])
 initLua moduledir = do
     funcfiles <- getLuaFiles moduledir
     l <- Lua.newstate

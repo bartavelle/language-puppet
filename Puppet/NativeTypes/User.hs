@@ -5,11 +5,12 @@ import Puppet.Interpreter.Types
 import Control.Monad.Error
 import qualified Data.Set as Set
 
+nativeUser :: (PuppetTypeName, PuppetTypeMethods)
 nativeUser = ("user", PuppetTypeMethods validateUser parameterset)
 
 -- Autorequires: If Puppet is managing the user or user that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterset = Set.fromList $ map fst parameterfunctions
-parameterfunctions = 
+parameterfunctions =
     [("allowdupe"               , [string, defaultvalue "false", values ["true","false"]])
     ,("attribute_membership"    , [string, defaultvalue "minimum", values ["inclusive","minimum"]])
     ,("attributes"              , [rarray,strings])

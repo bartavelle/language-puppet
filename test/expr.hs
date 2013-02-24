@@ -4,7 +4,7 @@ import Puppet.DSL.Parser
 import Puppet.DSL.Types
 import Text.Parsec
 
-testcases = 
+testcases =
     [ ("5 + 3 * 2", PlusOperation (Value $ Integer 5) (MultiplyOperation (Value $ Integer 3) (Value $ Integer 2)) )
     , ("5+2 == 7", EqualOperation ( PlusOperation (Value $ Integer 5) (Value $ Integer 2) ) (Value $ Integer 7) )
     ]

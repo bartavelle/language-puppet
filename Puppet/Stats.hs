@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-| A quickly done module that exports utility functions used to collect various
 statistics. All statistics are stored in a MVar holding a Map.
 -}
@@ -8,10 +7,11 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Control.Monad
 import Control.Concurrent.MVar
 import qualified Data.Map as Map
+import qualified Data.Text as T
 
 data StatsPoint = StatsPoint !Int !Double !Double !Double
     deriving(Show)
-type StatsTable = Map.Map String StatsPoint
+type StatsTable = Map.Map T.Text StatsPoint
 
 type MStats = MVar StatsTable
 
@@ -21,7 +21,7 @@ getStats = readMVar
 newStats :: IO MStats
 newStats = newMVar Map.empty
 
-measure :: MStats -> String -> IO a -> IO a
+measure :: MStats -> T.Text -> IO a -> IO a
 measure mtable statsname action = do
     (tm, out) <- time action
     !stats <- takeMVar mtable :: IO StatsTable
@@ -39,7 +39,7 @@ measure mtable statsname action = do
     putMVar mtable nstats
     return out
 
-measure_ :: MStats -> String -> IO a -> IO ()
+measure_ :: MStats -> T.Text -> IO a -> IO ()
 measure_ mtable statsname act = void ( measure mtable statsname act )
 
 getTime :: IO Double

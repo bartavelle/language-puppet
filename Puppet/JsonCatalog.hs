@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Puppet.JsonCatalog where
 
 import Puppet.DSL.Types hiding (Value)
@@ -14,7 +13,7 @@ import Data.Attoparsec.Number
 import Text.Parsec.Pos
 import qualified Data.ByteString.Lazy as BSL
 
-prref = String . T.pack . showRRef
+prref = String . showRRef
 
 mkJsonCatalog :: T.Text -> Integer -> FinalCatalog -> FinalCatalog -> EdgeMap -> Value
 mkJsonCatalog nodename version cat exports edges = Object $ HM.fromList [("data",datahash), ("document_type", String "Catalog"), ("metadata", Object (HM.fromList [("api_version", Number 1)]))]
@@ -28,7 +27,7 @@ mkJsonCatalog nodename version cat exports edges = Object $ HM.fromList [("data"
                                         , ("version"    , Number (I version))
                                         ]
         lcat = Map.toList cat
-        classes = map (String . T.pack . snd . fst) . filter (\((k,_),_) -> k == "class") $ lcat
+        classes = map (String . snd . fst) . filter (\((k,_),_) -> k == "class") $ lcat
         --notcatalog = map fakeResource $ nubBy (\(a,_) (b,_) -> a == b) .  filter (\(x,_) -> not (Map.member x cat)) . concatMap (\((a,b),(_,_,c)) -> [(a,c),(b,c)]) . Map.toList $ edges
         ledges = map (\(s,d) -> Object $ HM.fromList [("source", prref s),("target", prref d)] ) . filter (\i -> Map.member (fst i) cat && Map.member (snd i) cat) . Map.keys $ edges
         resources = map (res2JSon False . snd) lcat
@@ -40,12 +39,12 @@ fakeResource ((t,n),p) = RResource 0 n t Map.empty [] [["fake"]] p
 -- * the EXPORTEDSOURCE is added for resources coming from PuppetDB
 res2JSon :: Bool -> RResource -> Value
 res2JSon isExported (RResource _ rn rt rp _ scopes rpos) = Object $ HM.fromList [ ("exported", Bool isExported)
-                                                                                , ("file", String (T.pack (sourceName rpos)))
+                                                                                , ("file", String (T.pack $ sourceName rpos))
                                                                                 , ("line", Number (fromIntegral (sourceLine rpos)))
                                                                                 , ("parameters", Object (HM.delete "EXPORTEDSOURCE" $ HM.fromList paramlist))
                                                                                 , ("tags",  Array V.empty)
-                                                                                , ("title", String (T.pack realtitle))
-                                                                                , ("type", String . T.pack . capitalizeResType $ rt)
+                                                                                , ("title", String realtitle)
+                                                                                , ("type", String . capitalizeResType $ rt)
                                                                                 , "scope" .= scopes
                                                                                 ]
     where
@@ -56,17 +55,17 @@ res2JSon isExported (RResource _ rn rt rp _ scopes rpos) = Object $ HM.fromList 
         ctitle = case Map.lookup "title" rp of
                      Just (ResolvedString s) -> s
                      _ -> rn
-        paramlist = map (\(k,v) -> (T.pack k, rv2json v)) $ Map.toList $ Map.delete "title" rp
+        paramlist = map (\(k,v) -> (k, rv2json v)) $ Map.toList $ Map.delete "title" rp
 
 rv2json :: ResolvedValue -> Value
-rv2json (ResolvedString x) = String (T.pack x)
-rv2json (ResolvedRegexp x) = String (T.pack x)
+rv2json (ResolvedString x) = String x
+rv2json (ResolvedRegexp x) = String x
 rv2json (ResolvedInt x) = Number (I x)
 rv2json (ResolvedDouble x) = Number (D x)
 rv2json (ResolvedBool x) = Bool x
 rv2json (ResolvedArray h) = Array (V.fromList (map rv2json h))
-rv2json (ResolvedHash h) = Object $ HM.fromList $ map (\(k,v) -> (T.pack k, rv2json v)) h
+rv2json (ResolvedHash h) = Object $ HM.fromList $ map (\(k,v) -> (k, rv2json v)) h
 rv2json _ = Null
 
-catalog2JSon :: String -> Integer -> FinalCatalog -> FinalCatalog -> EdgeMap -> BSL.ByteString
-catalog2JSon nodename version dc de dm = encode (mkJsonCatalog (T.pack nodename) version dc de dm)
+catalog2JSon :: T.Text -> Integer -> FinalCatalog -> FinalCatalog -> EdgeMap -> BSL.ByteString
+catalog2JSon nodename version dc de dm = encode (mkJsonCatalog nodename version dc de dm)

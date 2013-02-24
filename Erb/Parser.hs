@@ -8,6 +8,7 @@ import Text.Parsec.Language (emptyDef)
 import Erb.Ruby
 import Text.Parsec.Expr
 import qualified Text.Parsec.Token as P
+import qualified Data.Text as T
 
 
 def = emptyDef
@@ -72,16 +73,16 @@ blockinfo = many1 $ noneOf "}"
 
 stringLiteral = doubleQuoted <|> singleQuoted
 
-doubleQuoted = fmap (Value . Literal) $ between (char '"') (char '"') (many $ noneOf "\"")
-singleQuoted = fmap (Value . Literal) $ between (char '\'') (char '\'') (many $ noneOf "'")
+doubleQuoted = fmap (Value . Literal . T.pack) $ between (char '"') (char '"') (many $ noneOf "\"")
+singleQuoted = fmap (Value . Literal . T.pack) $ between (char '\'') (char '\'') (many $ noneOf "'")
 
 objectterm = do
-    methodname <- identifier >>= return . Value . Literal
+    methodname <- identifier >>= return . Value . Literal . T.pack
     nc <- lookAhead anyChar
     case nc of
         '{' -> do
             symbol "{"
-            b <- blockinfo
+            b <- fmap T.pack blockinfo
             symbol "}"
             return $ MethodCall methodname (BlockOperation b)
         '(' -> do
@@ -89,7 +90,7 @@ objectterm = do
             return $ MethodCall methodname (Value $ Array args)
         _ -> return $ Object methodname
 
-variablereference = identifier >>= return . Object . Value . Literal
+variablereference = identifier >>= return . Object . Value . Literal . T.pack
 
 rubystatement = rubyexpression >>= return . Puts
 
@@ -99,7 +100,7 @@ textblockW c = do
     let ns = case c of
             Just x  -> x:s
             Nothing -> s
-        returned = Puts $ Value $ Literal ns
+        returned = Puts $ Value $ Literal $ T.pack ns
     isend <- optionMaybe eof
     case isend of
         Just _  -> return [returned]

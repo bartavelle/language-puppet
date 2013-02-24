@@ -1,7 +1,9 @@
 module Erb.Ruby where
 
+import qualified Data.Text as T
+
 data Value
-    = Literal !String
+    = Literal !T.Text
     | Array ![Expression]
     deriving (Show, Ord, Eq)
 
@@ -28,7 +30,7 @@ data Expression
     | ConditionalValue !Expression !Expression
     | Object !Expression
     | MethodCall !Expression !Expression
-    | BlockOperation !String
+    | BlockOperation !T.Text
     | Value !Value
     | BTrue
     | BFalse

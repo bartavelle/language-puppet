@@ -5,7 +5,9 @@ import Puppet.Interpreter.Types
 import Control.Monad.Error
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.Text as T
 
+nativeExec :: (PuppetTypeName, PuppetTypeMethods)
 nativeExec = ("exec", PuppetTypeMethods validateExec parameterset)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
@@ -35,7 +37,7 @@ validateExec = defaultValidate parameterset >=> parameterFunctions parameterfunc
 
 fullyQualifiedOrPath :: PuppetTypeValidate
 fullyQualifiedOrPath res = case (Map.member "path" (rrparams res), Map.lookup "command" (rrparams res)) of
-                               (False, Just (ResolvedString x)) -> if head x == '/'
+                               (False, Just (ResolvedString x)) -> if T.head x == '/'
                                                                        then Right res
                                                                        else Left "Command must be fully qualified if path is not defined"
                                _ -> Right res

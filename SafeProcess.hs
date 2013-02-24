@@ -10,9 +10,12 @@ import System.Timeout
 import System.Posix.Signals
 import System.Process
 import System.Process.Internals
-import qualified Data.ByteString.Lazy as BS
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.IO as TL
 
-safeReadProcessTimeout :: String -> [String] -> BS.ByteString -> Int -> IO (Maybe (Either String BS.ByteString))
+safeReadProcessTimeout :: String -> [String] -> TL.Text -> Int -> IO (Maybe (Either String T.Text))
 safeReadProcessTimeout prog args input tout = timeout (tout*1000) $ safeReadProcess prog args input
 
 safeCreateProcess :: String -> [String] -> StdStream -> StdStream -> StdStream
@@ -24,7 +27,7 @@ safeCreateProcess :: String -> [String] -> StdStream -> StdStream -> StdStream
                   -> IO a
 safeCreateProcess prog args streamIn streamOut streamErr fun = bracket
     ( do
-        h <- createProcess (proc prog args) 
+        h <- createProcess (proc prog args)
                  { std_in  = streamIn
                  , std_out = streamOut
                  , std_err = streamErr
@@ -38,18 +41,18 @@ safeCreateProcess prog args streamIn streamOut streamErr fun = bracket
     fun
 {-# NOINLINE safeCreateProcess #-}
 
-safeReadProcess :: String -> [String] -> BS.ByteString -> IO (Either String BS.ByteString)
+safeReadProcess :: String -> [String] -> TL.Text -> IO (Either String T.Text)
 safeReadProcess prog args str =
     safeCreateProcess prog args CreatePipe CreatePipe Inherit
       (\(Just inh, Just outh, _, ph) -> do
         hSetBinaryMode inh True
         hSetBinaryMode outh True
-        BS.hPut inh str
+        TL.hPutStr inh str
         hClose inh
         -- fork a thread to consume output
-        output <- BS.hGetContents outh
+        output <- T.hGetContents outh
         outMVar <- newEmptyMVar
-        forkIO $ evaluate (BS.length output) >> putMVar outMVar ()
+        forkIO $ evaluate (T.length output) >> putMVar outMVar ()
         -- wait on output
         takeMVar outMVar
         hClose outh

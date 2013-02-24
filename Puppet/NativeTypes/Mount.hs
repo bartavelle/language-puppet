@@ -5,6 +5,7 @@ import Puppet.Interpreter.Types
 import Control.Monad.Error
 import qualified Data.Set as Set
 
+nativeMount :: (PuppetTypeName, PuppetTypeMethods)
 nativeMount = ("mount", PuppetTypeMethods validateMount parameterset)
 
 parameterset = Set.fromList $ map fst parameterfunctions

@@ -1,6 +1,9 @@
 
 node 'test' {
     $root_group = 'root'
+    exec { 'mysqld-restart':
+        command => '/bin/truc';
+    }
   File {
     owner  => 'root',
     group  => $root_group,

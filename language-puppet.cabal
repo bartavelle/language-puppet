@@ -59,8 +59,9 @@ Library
                        Puppet.Stats, Puppet.JsonCatalog, PuppetDB.TestDB
 
   -- Packages needed in order to build this package.
-  Build-depends:       base >=3 && <5,parsec,MissingH,containers,pretty,mtl,unix,hslogger,filepath,Glob,regexpr,process,bytestring>=0.10.0.0,cryptohash,base16-bytestring,regex-pcre-builtin,
-                        iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec, failure, hslua, monad-loops, directory, luautils >= 0.1.1.0, transformers, time
+  Build-depends:       base >=3 && <5,parsec,containers,pretty,mtl,unix,hslogger,Glob,process,bytestring>=0.10.0.0,cryptohash,base16-bytestring,regex-pcre-builtin,
+                        iconv, text, unordered-containers, aeson, vector, http-types, http-conduit, attoparsec, failure, hslua, monad-loops, luautils >= 0.1.1.0, transformers, time,
+                        pcre-utils
 
   -- Modules not exported by this package.
   Other-modules:       Puppet.Interpreter.Functions, Puppet.NativeTypes.File, Erb.Compute, SafeProcess, Paths_language_puppet, Erb.Parser, Erb.Ruby, Erb.Evaluate
@@ -69,26 +70,29 @@ Library
 
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
-
+  Extensions:           OverloadedStrings, BangPatterns
   GHC-Prof-Options:     -auto-all -caf-all
   
 Test-Suite test-lexer
     hs-source-dirs: test
     type:           exitcode-stdio-1.0
     ghc-options:    -Wall
+    extensions:     OverloadedStrings
     build-depends:  language-puppet,base,Glob,mtl
     main-is:        lexer.hs
 Test-Suite test-expr
     hs-source-dirs: test
     type:           exitcode-stdio-1.0
     ghc-options:    -Wall
+    extensions:     OverloadedStrings
     build-depends:  language-puppet,base,parsec
     main-is:        expr.hs
 Test-Suite test-interpreter
     hs-source-dirs: test
     type:           exitcode-stdio-1.0
     ghc-options:    -Wall
-    build-depends:  language-puppet,base,Glob,mtl,containers,parsec
+    extensions:     OverloadedStrings
+    build-depends:  language-puppet,base,Glob,mtl,containers,parsec,text
     main-is:        interpreter.hs
 
 

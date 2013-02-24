@@ -5,12 +5,14 @@ import Puppet.Interpreter.Types
 import Control.Monad.Error
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.Text as T
 
+nativePackage :: (PuppetTypeName, PuppetTypeMethods)
 nativePackage = ("package", PuppetTypeMethods validatePackage parameterset)
 
 data PackagingFeatures = Holdable | InstallOptions | Installable | Purgeable | UninstallOptions | Uninstallable | Upgradeable | Versionable deriving (Show, Ord, Eq)
 
-isFeatureSupported :: Map.Map String (Set.Set PackagingFeatures)
+isFeatureSupported :: Map.Map T.Text (Set.Set PackagingFeatures)
 isFeatureSupported = Map.fromList [ ("aix", Set.fromList [Installable, Uninstallable, Upgradeable, Versionable])
                                   , ("appdmg", Set.fromList [Installable])
                                   , ("apple", Set.fromList [Installable])
@@ -66,7 +68,7 @@ getFeature :: RResource -> Either String (Set.Set PackagingFeatures, RResource)
 getFeature res = case Map.lookup "provider" (rrparams res) of
                      Just (ResolvedString x) -> case Map.lookup x isFeatureSupported of
                                                     Just s -> Right (s,res)
-                                                    Nothing -> Left ("Do not know provider " ++ x)
+                                                    Nothing -> Left ("Do not know provider " ++ T.unpack x)
                      _ -> Left "Can't happen at Puppet.NativeTypes.Package"
 
 checkFeatures :: (Set.Set PackagingFeatures, RResource) -> Either String RResource
@@ -81,7 +83,7 @@ checkFeatures =
         checkFeature s r f = if Set.member f s
                                  then Right (s, r)
                                  else Left ("Feature " ++ show f ++ " is required for the current configuration")
-        checkParam :: String -> PackagingFeatures -> (Set.Set PackagingFeatures, RResource) -> Either String (Set.Set PackagingFeatures, RResource)
+        checkParam :: T.Text -> PackagingFeatures -> (Set.Set PackagingFeatures, RResource) -> Either String (Set.Set PackagingFeatures, RResource)
         checkParam pn f (s,r) = if Map.member pn (rrparams r)
                                     then checkFeature s r f
                                     else Right (s,r)

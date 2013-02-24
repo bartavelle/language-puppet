@@ -8,31 +8,31 @@ module Puppet.Testing
     ) where
 
 import qualified Data.Map as Map
-import Data.List
 import Data.Maybe
-import Data.List.Utils
 import Data.Either
 import Control.Monad.Error
 import System.Posix.Files
 import qualified System.Log.Logger as LOG
+import qualified Data.Text as T
 
 import Puppet.Interpreter.Types
 import Puppet.Init
 import Puppet.Daemon
 import PuppetDB.TestDB
 import PuppetDB.Rest
+import Puppet.Utils
 
 type TestResult = IO (Either String ())
 
 data TestR
-        = TestGroupR  String [TestR]
-        | SingleTestR String (Either String ())
+        = TestGroupR  T.Text [TestR]
+        | SingleTestR T.Text (Either String ())
         deriving (Show)
 
 data Test
-        = TestGroup String [Test]
-        | TestFirstOk String [Test]
-        | SingleTest String (FinalCatalog -> TestResult)
+        = TestGroup T.Text [Test]
+        | TestFirstOk T.Text [Test]
+        | SingleTest T.Text (FinalCatalog -> TestResult)
 
 failedTests :: TestR -> Maybe TestR
 failedTests (TestGroupR d tests) = case catMaybes (map failedTests tests) of
@@ -41,42 +41,42 @@ failedTests (TestGroupR d tests) = case catMaybes (map failedTests tests) of
 failedTests t@(SingleTestR _ (Left _)) = Just t
 failedTests _ = Nothing
 
-showRes :: TestR -> String
+showRes :: TestR -> T.Text
 showRes = showRes' 0
     where
-        showRes' :: Int -> TestR -> String
-        showRes' dec (TestGroupR desc tsts) = replicate dec ' ' ++ desc ++ "\n" ++ unlines (map (showRes' (dec + 1)) tsts)
-        showRes' dec (SingleTestR desc (Right ())) = replicate dec ' ' ++ desc ++ " OK"
-        showRes' dec (SingleTestR desc (Left err)) = replicate dec ' ' ++ desc ++ " FAIL: " ++ err
+        showRes' :: Int -> TestR -> T.Text
+        showRes' dec (TestGroupR desc tsts)        = T.replicate dec " " <> desc <> "\n" <> T.unlines (map (showRes' (dec + 1)) tsts)
+        showRes' dec (SingleTestR desc (Right ())) = T.replicate dec " " <> desc <> " OK"
+        showRes' dec (SingleTestR desc (Left err)) = T.replicate dec " " <> desc <> " FAIL: " <> T.pack err
 
-testFileSources :: String -> FinalCatalog -> Test
+testFileSources :: T.Text -> FinalCatalog -> Test
 testFileSources puppetdir cat =
     let fileresources = Map.elems $ Map.filterWithKey (\k _ -> fst k == "file") cat
         filesources = catMaybes $ map (Map.lookup "source" . rrparams) fileresources
-        findPlace :: String -> Maybe String
+        findPlace :: T.Text -> Maybe T.Text
         findPlace stringdir =
-            case split "/" stringdir of
+            case T.splitOn "/" stringdir of
                 ("private":_)               -> Just puppetdir -- not handled
-                ("modules":modulename:rest) -> Just $ puppetdir ++ "/modules/" ++ modulename ++ "/files/" ++ intercalate "/" rest
-                ("files":rest)              -> Just $ puppetdir ++ "/files/" ++ intercalate "/" rest
+                ("modules":modulename:rest) -> Just $ puppetdir <> "/modules/" <> modulename <> "/files/" <> T.intercalate "/" rest
+                ("files":rest)              -> Just $ puppetdir <> "/files/"   <> T.intercalate "/" rest
                 _                           -> Nothing
-        checkSrcExists :: String -> FinalCatalog -> TestResult
+        checkSrcExists :: T.Text -> FinalCatalog -> TestResult
         checkSrcExists src _ = runErrorT $ do
             let protostring = "puppet:///"
-            unless (startswith protostring src) (throwError "Does not start with puppet:///")
-            let stringdir = drop (length protostring) src
+            unless (T.isPrefixOf protostring src) (throwError "Does not start with puppet:///")
+            let stringdir = T.drop (T.length protostring) src
                 place = findPlace stringdir
             case place of
-                          Just dir -> liftIO (fileExist dir) >>= (`unless` (throwError $ "Searched in " ++ dir))
-                          Nothing  -> throwError ("Unknown path: " ++ stringdir)
+                          Just dir -> liftIO (fileExist (T.unpack dir)) >>= (`unless` (throwError $ "Searched in " ++ T.unpack dir))
+                          Nothing  -> throwError ("Unknown path: " ++ T.unpack stringdir)
         genFileTest :: ResolvedValue -> Test
-        genFileTest (ResolvedString src) = SingleTest (src ++ " exists") (checkSrcExists src)
+        genFileTest (ResolvedString src) = SingleTest (src <> " exists") (checkSrcExists src)
         genFileTest (ResolvedArray  arr) = TestFirstOk "First exists" (map genFileTest arr)
         genFileTest x                    = SingleTest ("Valid source") (\_ -> return $ Left ("Not a valid data type: " ++ show x))
     in  (TestGroup "check that all files are defined" (map genFileTest filesources))
 
 unsingle :: TestR -> Either String ()
-unsingle (SingleTestR desc (Left err)) = Left (desc ++ " failed: " ++ err)
+unsingle (SingleTestR desc (Left err)) = Left (T.unpack desc ++ " failed: " ++ err)
 unsingle (SingleTestR _    _         ) = Right ()
 unsingle x                             = Left ("Bad type for unsingle " ++ show x)
 
@@ -94,17 +94,17 @@ runTests tsts cat = do
     tr <- fmap failedTests (runTest cat tsts)
     case tr of
         Nothing -> return $ Right ()
-        Just fl -> return $ Left $ showRes fl
+        Just fl -> return $ Left $ T.unpack $ showRes fl
 
-testCatalog :: String -> FinalCatalog -> [Test] -> IO (Either String ())
+testCatalog :: T.Text -> FinalCatalog -> [Test] -> IO (Either String ())
 testCatalog puppetdir catalog stests = runTests (TestGroup "All Tests" ( testFileSources puppetdir catalog : stests )) catalog
 
 -- | Initializes a daemon made for running tests, using the specific test
 -- puppetDB
-testingDaemon :: Maybe String -- ^ Might contain the URL of the actual PuppetDB, used for getting facts.
-              -> FilePath -- ^ Path to the manifests
-              -> (String -> IO (Map.Map String ResolvedValue)) -- ^ The facter function
-              -> IO (String -> IO (Either String (FinalCatalog, EdgeMap, FinalCatalog)))
+testingDaemon :: Maybe T.Text -- ^ Might contain the URL of the actual PuppetDB, used for getting facts.
+              -> T.Text -- ^ Path to the manifests
+              -> (T.Text -> IO (Map.Map T.Text ResolvedValue)) -- ^ The facter function
+              -> IO (T.Text -> IO (Either String (FinalCatalog, EdgeMap, FinalCatalog)))
 testingDaemon purl puppetdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
     prefs <- genPrefs puppetdir

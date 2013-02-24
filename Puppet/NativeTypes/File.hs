@@ -6,7 +6,9 @@ import Puppet.Interpreter.Types
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Char (isDigit)
+import qualified Data.Text as T
 
+nativeFile :: (PuppetTypeName, PuppetTypeMethods)
 nativeFile = ("file", PuppetTypeMethods validateFile parameterset)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
@@ -43,10 +45,10 @@ validateMode res = let
                   ResolvedString s -> s
                   _ -> "0644"
     in do
-        when ((length modestr /= 3) && (length modestr /= 4)) (throwError "Invalid mode size")
-        when (not (all isDigit modestr)) (throwError "The mode should only be made of digits")
-        if length modestr == 3
-            then return $ insertparam res "mode" (ResolvedString ('0':modestr))
+        when ((T.length modestr /= 3) && (T.length modestr /= 4)) (throwError "Invalid mode size")
+        when (not (T.all isDigit modestr)) (throwError "The mode should only be made of digits")
+        if T.length modestr == 3
+            then return $ insertparam res "mode" (ResolvedString (T.cons '0' modestr))
             else return res
 
 validateSourceOrContent :: PuppetTypeValidate

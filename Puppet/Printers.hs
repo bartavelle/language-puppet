@@ -11,54 +11,57 @@ module Puppet.Printers (
 import Puppet.Interpreter.Types
 import Puppet.DSL.Types
 import qualified Data.Map as Map
-import Data.List
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import Puppet.Utils
+import Data.List (groupBy,sort)
 
-showRes (CResource _ rname rtype params virtuality _ _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show virtuality
-showRRes (RResource _ rname rtype params relations _ _) = putStrLn $ rtype ++ " " ++ show rname ++ " " ++ show params ++ " " ++ show relations
+showRes (CResource _ rname rtype params virtuality _ _) = T.putStrLn $ rtype <> " " <> tshow rname <> " " <> tshow params <> " " <> tshow virtuality
+showRRes (RResource _ rname rtype params relations _ _) = T.putStrLn $ rtype <> " " <> tshow rname <> " " <> tshow params <> " " <> tshow relations
 
-showFCatalog :: FinalCatalog -> String
+showFCatalog :: FinalCatalog -> T.Text
 showFCatalog rmap = let
     rawlist = groupBy (\((rtype1,_), _) ((rtype2,_), _) -> rtype1 == rtype2) (sort $ Map.toList rmap)
     rlist = map (map snd) rawlist
-    out = concatMap showuniqueres rlist
+    out = T.concat$ map showuniqueres rlist
     in out
 
 -- helpers
 
-commasep :: [String] -> String
-commasep = intercalate ", "
-commaretsep :: [String] -> String
-commaretsep = intercalate ",\n"
+commasep :: [T.Text] -> T.Text
+commasep = T.intercalate ", "
+commaretsep :: [T.Text] -> T.Text
+commaretsep = T.intercalate ",\n"
 
-showRRef :: ResIdentifier -> String
-showRRef (rt, rn) = capitalizeResType rt ++ "[" ++ rn ++ "]"
+showRRef :: ResIdentifier -> T.Text
+showRRef (rt, rn) = capitalizeResType rt <> "[" <> rn <> "]"
 
 
-showValue :: ResolvedValue -> String
-showValue (ResolvedString x) = show x
-showValue (ResolvedInt x) = show x
-showValue (ResolvedDouble x) = show x
+showValue :: ResolvedValue -> T.Text
+showValue (ResolvedString x) = tshow x
+showValue (ResolvedInt x) = tshow x
+showValue (ResolvedDouble x) = tshow x
 showValue (ResolvedBool True) = "true"
 showValue (ResolvedBool False) = "false"
 showValue (ResolvedRReference rt rn) = showRRef (rt, showValue rn)
-showValue (ResolvedArray ar) = "[" ++ commasep (map showValue ar) ++ "]"
-showValue (ResolvedHash h) = "{" ++ commasep (map (\(k,v) -> k ++ " => " ++ showValue v) h) ++ "}"
-showValue (ResolvedRegexp r) = "/" ++ r ++ "/"
+showValue (ResolvedArray ar) = "[" <> commasep (map showValue ar) <> "]"
+showValue (ResolvedHash h) = "{" <> commasep (map (\(k,v) -> k <> " => " <> showValue v) h) <> "}"
+showValue (ResolvedRegexp r) = "/" <> r <> "/"
 showValue (ResolvedUndefined) = "undef"
 
-showuniqueres :: [RResource] -> String
-showuniqueres res = mrtype ++ " {\n" ++ concatMap showrres res ++ "}\n"
+showuniqueres :: [RResource] -> T.Text
+showuniqueres res = mrtype <> " {\n" <> T.concat (map showrres res) <> "}\n"
     where
         showrres (RResource _ rname _ params rels scopes mpos)  =
             let relslist = map asparams rels
-                groupedrels = Map.fromListWith (++) relslist :: Map.Map String [ResolvedValue]
+                groupedrels = Map.fromListWith (<>) relslist :: Map.Map T.Text [ResolvedValue]
                 maybeArray (s,[a]) = (s,a)
                 maybeArray (s, x ) = (s,ResolvedArray x)
-                paramlist = (Map.toList $ Map.delete "title" params) ++ map maybeArray (Map.toList groupedrels) :: [(String, ResolvedValue)]
-                maxlen    = maximum (map (length . fst) paramlist) :: Int
-            in  "    " ++ show rname ++ ":" ++ " #" ++ show mpos ++ " " ++ showScope scopes ++ "\n"
-                ++ commaretsep (map (showparams maxlen) paramlist) ++ ";\n"
-        showparams  mxl (name, val) = "        " ++ name ++ replicate (mxl - length name) ' ' ++ " => " ++ showValue val
+                paramlist = (Map.toList $ Map.delete "title" params) <> map maybeArray (Map.toList groupedrels) :: [(T.Text, ResolvedValue)]
+                maxlen    = maximum (map (T.length . fst) paramlist) :: Int
+            in  "    " <> tshow rname <> ":" <> " #" <> tshow mpos <> " " <> showScope scopes <> "\n"
+                <> commaretsep (map (showparams maxlen) paramlist) <> ";\n"
+        showparams  mxl (name, val) = "        " <> T.justifyLeft 15 ' ' name <> " => " <> showValue val
         asparams    (RBefore, (dtype, dname))    = ("before",    [ResolvedRReference dtype (ResolvedString dname)])
         asparams    (RNotify, (dtype, dname))    = ("notify",    [ResolvedRReference dtype (ResolvedString dname)])
         asparams    (RSubscribe, (dtype, dname)) = ("subscribe", [ResolvedRReference dtype (ResolvedString dname)])

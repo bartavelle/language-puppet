@@ -6,9 +6,11 @@ v0.4.0 ()
 	* Support for a dumpvariable() function.
 	* More details stored in the resource types, and in error messages.
 	* User native type
+	* Removal of the MissingH, filepath and directory dependency
   Bugs fixed
 	* Now depends on the built-in bytestring library that comes with
 	GHC-7.6.1.
+	* Aliases should now work as expected ... I wish!
 
 v0.3.3 (2013/01/21)
   New features

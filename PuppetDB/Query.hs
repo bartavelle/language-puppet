@@ -1,17 +1,19 @@
 module PuppetDB.Query where
 
 import Puppet.DSL.Types
-import Data.List (intercalate)
+import qualified Data.Text as T
+import Data.Monoid
+import Puppet.Utils
 
 data Operator = OEqual | OOver | OUnder | OOverE | OUnderE | OAnd | OOr | ONot
     deriving (Show, Ord, Eq)
 
 -- [Field] Value
-data Query = Query Operator [Query] | Term String | Terms [String]
+data Query = Query Operator [Query] | Term T.Text | Terms [T.Text]
     deriving (Show, Ord, Eq)
 
 -- | Query used for realizing a resources, when its type and title is known.
-queryRealize :: String -> String -> Query
+queryRealize :: T.Text -> T.Text -> Query
 queryRealize rtype rtitle = Query OAnd
                                 [ Query OEqual [ Term "type",       Term (capitalizeResType rtype) ]
                                 , Query OEqual [ Term "title",      Term rtitle ]
@@ -19,13 +21,13 @@ queryRealize rtype rtitle = Query OAnd
                                 ]
 
 -- | Collects all resources of a given type
-collectAll :: String -> Query
+collectAll :: T.Text -> Query
 collectAll rtype = Query OAnd [ Query OEqual [ Term "type",     Term (capitalizeResType rtype) ]
                               , Query OEqual [ Term "exported", Term "true" ]
                               ]
 
 -- | Collections based on tags.
-collectTag :: String -> String -> Query
+collectTag :: T.Text -> T.Text -> Query
 collectTag rtype tagval = Query OAnd
                                 [ Query OEqual [ Term "type",     Term (capitalizeResType rtype) ]
                                 , Query OEqual [ Term "tag" ,     Term tagval ]
@@ -33,17 +35,14 @@ collectTag rtype tagval = Query OAnd
                                 ]
 
 -- | Used to emulate collections such as `Type<|| prmname == "prmval" ||>`
-collectParam :: String -> String -> String -> Query
+collectParam :: T.Text -> T.Text -> T.Text -> Query
 collectParam rtype prmname prmval = Query OAnd
                                     [ Query OEqual [ Term "type",                    Term (capitalizeResType rtype) ]
                                     , Query OEqual [ Terms ["parameter", "prmname"], Term prmval ]
                                     , Query OEqual [ Term "exported",                Term "true" ]
                                     ]
 
-dq :: String -> String
-dq x = '"' : x ++ "\""
-
-showOperator :: Operator -> String
+showOperator :: Operator -> T.Text
 showOperator OEqual     = dq "="
 showOperator OOver      = dq ">"
 showOperator OUnder     = dq "<"
@@ -53,7 +52,7 @@ showOperator OAnd       = dq "and"
 showOperator OOr        = dq "or"
 showOperator ONot       = dq "not"
 
-getOperator :: String -> Maybe Operator
+getOperator :: T.Text -> Maybe Operator
 getOperator "="   = Just OEqual
 getOperator ">"   = Just OOver
 getOperator "<"   = Just OUnder
@@ -64,8 +63,8 @@ getOperator "or"  = Just OOr
 getOperator "not" = Just ONot
 getOperator _ = Nothing
 
-showQuery :: Query -> String
-showQuery (Query op subqueries) = "[" ++ intercalate ", " (showOperator op : map showQuery subqueries) ++ "]"
-showQuery (Term t)              = show t
-showQuery (Terms ts)            = show ts
+showQuery :: Query -> T.Text
+showQuery (Query op subqueries) = "[" <> T.intercalate ", " (showOperator op : map showQuery subqueries) <> "]"
+showQuery (Term t)              = tshow t
+showQuery (Terms ts)            = tshow ts
 

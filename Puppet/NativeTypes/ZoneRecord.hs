@@ -6,11 +6,12 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+nativeZoneRecord :: (PuppetTypeName, PuppetTypeMethods)
 nativeZoneRecord = ("zone_record", PuppetTypeMethods validateZoneRecord parameterset)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterset = Set.fromList $ map fst parameterfunctions
-parameterfunctions = 
+parameterfunctions =
     [("name"                , [nameval])
     ,("owner"               , [string])
     ,("dest"                , [string])

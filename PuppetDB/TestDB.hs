@@ -7,26 +7,27 @@ import Puppet.DSL.Types hiding (Value)
 import Data.Aeson
 import qualified Data.Map as Map
 import Control.Concurrent.MVar
+import qualified Data.Text as T
 
-type ExportedResources = Map.Map String (FinalCatalog, EdgeMap, FinalCatalog)
+type ExportedResources = Map.Map T.Text (FinalCatalog, EdgeMap, FinalCatalog)
 
-initTestDBFunctions :: (String -> Query -> IO (Either String Value)) -> IO (String -> Query -> IO (Either String Value), String -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ())
+initTestDBFunctions :: (T.Text -> Query -> IO (Either String Value)) -> IO (T.Text -> Query -> IO (Either String Value), T.Text -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ())
 initTestDBFunctions defaultquery = do
     v <- newMVar (Map.empty)
     return (queryPDB v defaultquery, updatePDB v)
 
-updatePDB :: MVar ExportedResources -> String -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ()
+updatePDB :: MVar ExportedResources -> T.Text -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ()
 updatePDB v node res = do
     ex <- takeMVar v
     let ex' = Map.insert node res ex
     putMVar v ex'
 
-toBool :: String -> Either String Bool
+toBool :: T.Text -> Either String Bool
 toBool "true"  = Right True
 toBool "false" = Right False
-toBool x       = Left ("Is not a boolean " ++ x) 
+toBool x       = Left ("Is not a boolean " ++ T.unpack x) 
 
-evaluateQueryResource :: Query -> (Bool -> String -> ResIdentifier -> RResource -> Either String Bool)
+evaluateQueryResource :: Query -> (Bool -> T.Text -> ResIdentifier -> RResource -> Either String Bool)
 evaluateQueryResource (Query OAnd lst) e n rid rr = fmap and (mapM (\x -> evaluateQueryResource x e n rid rr) lst)
 evaluateQueryResource (Query OOr  lst) e n rid rr = fmap or  (mapM (\x -> evaluateQueryResource x e n rid rr) lst)
 evaluateQueryResource (Query OEqual [Terms ["node","active"],Term bool]) _ _ _ _ = toBool bool
@@ -42,14 +43,14 @@ evaluateQueryResource (Query OEqual [Term "tag",Term tag]) _ _ _ rr    =
 evaluateQueryResource (Query OEqual [Term "title", Term ttl]) _ _ _ rr = Right (rrname rr == ttl)
 evaluateQueryResource q _ _ _ _ = Left ("Not interpreted: " ++ show q)
 
-queryPDB :: MVar ExportedResources -> (String -> Query -> IO (Either String Value)) -> String -> Query -> IO (Either String Value)
+queryPDB :: MVar ExportedResources -> (T.Text -> Query -> IO (Either String Value)) -> T.Text -> Query -> IO (Either String Value)
 queryPDB v _ "resources" query = do
     ex <- readMVar v
     let isSelected = evaluateQueryResource query
-        sortResources :: Either String ([(String,ResIdentifier,RResource)], [(String,ResIdentifier,RResource)])
-                      -> String
+        sortResources :: Either String ([(T.Text,ResIdentifier,RResource)], [(T.Text,ResIdentifier,RResource)])
+                      -> T.Text
                       -> (FinalCatalog, EdgeMap, FinalCatalog)
-                      -> Either String ([(String,ResIdentifier,RResource)], [(String,ResIdentifier,RResource)])
+                      -> Either String ([(T.Text,ResIdentifier,RResource)], [(T.Text,ResIdentifier,RResource)])
         sortResources (Left rr) _ _ = Left rr
         sortResources (Right (curnormal, curexported)) nodename (fnormal, _, fexported) =
             let newnormal   = Map.foldlWithKey' (sortResources' False nodename) (Right curnormal  ) fnormal
@@ -58,13 +59,13 @@ queryPDB v _ "resources" query = do
                    (Left r1, _)       -> Left r1
                    (_, Left r2)       -> Left r2
                    (Right n, Right e) -> Right (n,e)
-        sortResources' :: Bool -> String -> Either String [(String,ResIdentifier,RResource)] -> ResIdentifier -> RResource -> Either String [(String,ResIdentifier,RResource)]
+        sortResources' :: Bool -> T.Text -> Either String [(T.Text,ResIdentifier,RResource)] -> ResIdentifier -> RResource -> Either String [(T.Text,ResIdentifier,RResource)]
         sortResources' _ _ (Left rr) _ _ = Left rr
         sortResources' e nodename (Right curlist) resid rr = case isSelected e nodename resid rr of
                                                                  Right False -> Right curlist
                                                                  Right True  -> Right ((nodename,resid,rr) : curlist)
                                                                  Left  err   -> Left err
-        jsonize :: (String,ResIdentifier,RResource) -> Value
+        jsonize :: (T.Text,ResIdentifier,RResource) -> Value
         jsonize (h,_,r) = rr2json h r
     case Map.foldlWithKey' sortResources (Right ([], [])) ex of
         Right (n,e) -> return $ Right $ toJSON $ map jsonize ( n ++ e )
