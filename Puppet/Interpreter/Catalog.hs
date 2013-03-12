@@ -42,10 +42,10 @@ import Puppet.Utils
 
 import qualified Data.Aeson as JSON
 import System.IO.Unsafe
-import Control.Arrow (first)
+import Control.Arrow (first,(***))
 import Data.List
 import Data.Char (isAlpha, isAlphaNum)
-import Data.Maybe (isJust, fromJust, catMaybes, isNothing)
+import Data.Maybe (isJust, fromJust, catMaybes, isNothing, mapMaybe)
 import Data.Either (lefts, rights, partitionEithers)
 import Data.Ord (comparing)
 import Text.Parsec.Pos
@@ -90,10 +90,10 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
             (\fval -> (Right fval, initialPos "FACTS"))
             facts
     (luastate, userfunctions) <- case modules of
-        Just m  -> fmap (\(a,b) -> (Just a, b)) (initLua m)
+        Just m  -> fmap (first Just) (initLua m)
         Nothing -> return (Nothing, [])
     (!output, !finalstate) <- runStateT ( runErrorT ( computeCatalog getstatements nodename ) )
-                                (ScopeState
+                                ScopeState
                                    { curScope                   = [["::"]]
                                    , curVariables               = convertedfacts
                                    , curClasses                 = Map.empty
@@ -112,7 +112,7 @@ getCatalog getstatements gettemplate puppetdb nodename facts modules ntypes = do
                                    , nativeTypes                = ntypes
                                    , definedResources           = Map.singleton ("node",nodename) (newPos "site.pp" 0 0)
                                    , currentDependencyStack     = [("node",nodename)]
-                                   } )
+                                   }
     case luastate of
         Just l  -> closeLua l
         Nothing -> return ()
@@ -146,7 +146,7 @@ finalizeResource cr = do
         cpos    = rrpos    prefinalresource
         saveAlias :: ResolvedValue -> CatalogMonad ()
         saveAlias (ResolvedString al) | al == rname = return ()
-                                      | otherwise = addDefinedResource (ctype, al) (cpos)
+                                      | otherwise = addDefinedResource (ctype, al) cpos
         saveAlias x = throwPosError ("This alias is not a string:" <> tshow x)
     setPos cpos
     ntypes <- fmap nativeTypes get
@@ -238,7 +238,7 @@ finalizeRelations exported cat = do
             return (dst, src, (ltype, rutype, spos, scp))
         !rels = concatMap extr grels :: [(ResIdentifier, ResIdentifier, LinkInfo)]
         checkRelationExists :: (ResIdentifier, ResIdentifier, LinkInfo) -> CatalogMonad (Maybe (ResIdentifier, ResIdentifier, LinkInfo))
-        checkRelationExists !o@(!src, !dst, (!ltype,!lutype,!lpos,!lscope)) = do
+        checkRelationExists !o@(!src, !dst, (!ltype,!lutype,!lpos,!lscope)) =
             -- if the source of the relation doesn't exist (is exported),
             -- then when drop this relation
             case (Map.member src drs, Map.member dst drs, Map.member src exported, Map.member dst exported) of
@@ -259,9 +259,9 @@ finalizeRelations exported cat = do
         describe :: [ResIdentifier] -> T.Text
         describe [] = "[]"
         describe x = let rx = map (\i -> (i, drs Map.! i)) x
-                     in  T.intercalate "\n\t\t" (showRRef (head x) : map describe' (zip x (tail rx)))
-        describe' :: (ResIdentifier, (ResIdentifier, SourcePos)) -> T.Text
-        describe' (src,(dst,dpos)) = " -> " <> showRRef dst <> " [" <> tshow dpos <> "] link is " <> tshow (Map.lookup (src,dst) edgeMap)
+                     in  T.intercalate "\n\t\t" (showRRef (head x) : zipWith describe' x (tail rx))
+        describe' :: ResIdentifier -> (ResIdentifier, SourcePos) -> T.Text
+        describe' src (dst,dpos) = " -> " <> showRRef dst <> " [" <> tshow dpos <> "] link is " <> tshow (Map.lookup (src,dst) edgeMap)
     if null cycles
         then return (cat, edgeMap)
         else throwError $ "The following cycles have been found:\n\t" <> T.intercalate "\n\t" (map describe cycles)
@@ -275,7 +275,7 @@ finalResolution cat = do
                            fqdn <- case fqdnr of
                                Just (Right (ResolvedString f'), _) -> return f'
                                _ -> throwError "Could not get FQDN during final resolution"
-                           remoteCollects <- fmap (catMaybes . map (\(_,_,x) -> x) . curCollect) get
+                           remoteCollects <- fmap (mapMaybe (\(_,_,x) -> x) . curCollect) get
                            let
                                isNotLocal :: CResource -> Bool
                                isNotLocal cr = case Map.lookup (Right "EXPORTEDSOURCE") (crparams cr) of
@@ -374,9 +374,13 @@ getCurDefaults = do
         Nothing -> return []
         Just  x -> return x
 
+pushDependency :: ResIdentifier -> CatalogMonad ()
 pushDependency = modify . modifyDeps . (:)
+popDependency :: CatalogMonad ()
 popDependency = modify (modifyDeps tail)
+pushScope :: [ScopeName] -> CatalogMonad ()
 pushScope = modify . modifyScope . (:)
+popScope :: CatalogMonad ()
 popScope       = modify (modifyScope tail)
 getScope :: CatalogMonad [T.Text]
 getScope        = do
@@ -384,6 +388,7 @@ getScope        = do
     if null scope
         then throwError "empty scope, shouldn't happen"
         else return $ head scope
+addLoaded :: T.Text -> SourcePos -> CatalogMonad ()
 addLoaded name = modify . modifyClasses . Map.insert name
 getNextId = do
     curscope <- get
@@ -427,14 +432,14 @@ addNestedTopLevel rtype rname rstatement = do
         ntop = Map.insert (rtype, nname) nstatement ctop
         nstate = curstate { nestedtoplevels = ntop }
     put nstate
+addWarning :: T.Text -> CatalogMonad ()
 addWarning = modify . pushWarning
 addCollect ((func, query), overrides) = modify $ pushCollect (func, overrides, query)
 -- this pushes the relations only if they exist
 -- the parameter is of the form
 -- ( [dstrelations], srcresource, type, pos )
 addUnresRel :: ([(LinkType, GeneralValue, GeneralValue)], (T.Text, GeneralString), RelUpdateType, SourcePos, [[ScopeName]]) -> CatalogMonad ()
-addUnresRel ncol@(rels, _, _, _, _)  = do
-    unless (null rels) (modify (pushUnresRel ncol))
+addUnresRel ncol@(rels, _, _, _, _)  = unless (null rels) (modify (pushUnresRel ncol))
 
 -- finds out if a resource name refers to a define
 checkDefine :: T.Text -> CatalogMonad (Maybe Statement)
@@ -474,6 +479,7 @@ partitionParamsRelations rparameters = do
     return (realparams, relations)
 
 -- TODO check whether parameters changed
+checkLoaded :: T.Text -> CatalogMonad Bool
 checkLoaded name = do
     curscope <- get
     case Map.lookup name (curClasses curscope) of
@@ -489,7 +495,7 @@ resolveParams (a,b) = do
 
 -- safely insert parameters, checking they are not already defined
 addParameters :: Map.Map GeneralString GeneralValue -> [(Expression, Expression)] -> CatalogMonad (Map.Map GeneralString GeneralValue)
-addParameters m p = foldM rp m p
+addParameters = foldM rp
     where
         rp :: Map.Map GeneralString GeneralValue -> (Expression, Expression) -> CatalogMonad (Map.Map GeneralString GeneralValue)
         rp curmap prm = do
@@ -503,18 +509,18 @@ applyDefaults :: CResource -> CatalogMonad CResource
 applyDefaults res = getCurDefaults >>= foldM applyDefaults' res
 
 applyDefaults' :: CResource -> ResDefaults -> CatalogMonad CResource
-applyDefaults' r@(CResource i rname rtype rparams rvirtuality scopes rpos) (RDefaults dtype rdefs _) = do
+applyDefaults' r@(CResource i rname rtype rparams rvirtuality scopes rpos) (RDefaults dtype rdefs _) =
     let nparams = mergeParams rparams rdefs False
-    if dtype == rtype
-        then return $ CResource i rname rtype nparams rvirtuality scopes rpos
-        else return r
+    in  return $ if dtype == rtype
+                     then CResource i rname rtype nparams rvirtuality scopes rpos
+                     else r
 applyDefaults' r@(CResource i rname rtype rparams rvirtuality scopes rpos) (ROverride dtype dname rdefs _) = do
     srname <- resolveGeneralString rname
     sdname <- resolveGeneralString dname
     let nparams = mergeParams rparams rdefs True
-    if (dtype == rtype) && (srname == sdname)
-        then return $ CResource i rname rtype nparams rvirtuality scopes rpos
-        else return r
+    return $ if (dtype == rtype) && (srname == sdname)
+                 then CResource i rname rtype nparams rvirtuality scopes rpos
+                 else r
 
 -- merge defaults and actual parameters depending on the override flag
 mergeParams :: Map.Map GeneralString GeneralValue -> Map.Map GeneralString GeneralValue -> Bool -> Map.Map GeneralString GeneralValue
@@ -647,7 +653,7 @@ evaluateStatements (DependenceChain (srctype, srcname) (dsttype, dstname) positi
 -- <<| |>>
 evaluateStatements (ResourceCollection rtype expr overrides position) = do
     setPos position
-    when (not $ null overrides) $ throwPosError $ "Amending attributes with a Collector only works with <| |>, not <<| |>>."
+    unless (null overrides) $ throwPosError "Amending attributes with a Collector only works with <| |>, not <<| |>>."
     func <- collectionFunction Exported rtype expr
     addCollect (func, Map.empty)
     return []
@@ -705,7 +711,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
         addDefinedResource ("class", classname) oldpos
         -- detection of spurious parameters
         let classparamset = Set.fromList $ map fst parameters
-            inputparamset = Set.filter (\x -> getRelationParameterType (Right x) == Nothing) $ Map.keysSet inputparams
+            inputparamset = Set.filter (isNothing . getRelationParameterType . Right) $ Map.keysSet inputparams
             overparams = Set.difference inputparamset (Set.union metaparameters classparamset)
             -- to insert into the final resource
         unless (Set.null overparams) (throwError $ "Spurious parameters " <> T.intercalate ", " (Set.toList overparams) <> " at " <> tshow position)
@@ -753,7 +759,7 @@ evaluateClass (TopContainer topstmts myclass) inputparams actualname = do
 evaluateClass x _ _ = throwError ("Someone managed to run evaluateClass against " <> tshow x)
 
 addClassDependency :: T.Text -> CResource -> CatalogMonad ()
-addClassDependency cname (CResource _ rname rtype _ _ scp position) = do
+addClassDependency cname (CResource _ rname rtype _ _ scp position) =
     addUnresRel (
         [(RRequire, Right $ ResolvedString "class", Right $ ResolvedString cname)]
         , (rtype, rname)
@@ -797,7 +803,7 @@ tryResolveGeneralValue n@(Left (RegexpOperation     a b)) = do
         _            -> return n
 tryResolveGeneralValue n@(Left (OrOperation a b)) = do
     ra <- tryResolveBoolean $ Left a
-    if( ra == Right (ResolvedBool True) )
+    if ra == Right (ResolvedBool True)
         then return $ Right $ ResolvedBool True
         else do
             rb <- tryResolveBoolean $ Left b
@@ -807,7 +813,7 @@ tryResolveGeneralValue n@(Left (OrOperation a b)) = do
                 _ -> return n
 tryResolveGeneralValue n@(Left (AndOperation a b)) = do
     ra <- tryResolveBoolean $ Left a
-    if( ra == Right (ResolvedBool False) )
+    if ra == Right (ResolvedBool False)
         then return $ Right $ ResolvedBool False
         else do
             rb <- tryResolveBoolean $ Left b
@@ -845,16 +851,12 @@ tryResolveGeneralValue o@(Left (IsElementOperation b a)) = do
     ra <- tryResolveExpression a
     rb <- tryResolveExpressionString b
     case (ra, rb) of
-        (Right (ResolvedArray ar), Right idx) -> do
+        (Right (ResolvedArray ar), Right idx) ->
             let filtered = filter (compareRValues (ResolvedString idx)) ar
-            if null filtered
-                then return $ Right $ ResolvedBool False
-                else return $ Right $ ResolvedBool True
-        (Right (ResolvedHash h), Right idx) -> do
+            in  return $! Right $! ResolvedBool $! not $! null filtered
+        (Right (ResolvedHash h), Right idx) ->
             let filtered = filter (\(fa,_) -> fa == idx) h
-            if null filtered
-                then return $ Right $ ResolvedBool False
-                else return $ Right $ ResolvedBool True
+            in  return $! Right $! ResolvedBool $! not $! null filtered
         (Right (ResolvedString _), Right _) -> throwPosError "in operator not yet implemented for substrings"
         (Right ba, Right bb) -> throwPosError $ "Expected a string and a hash, array or string for the in operator, not " <> tshow (ba,bb)
         _ -> return o
@@ -921,9 +923,9 @@ tryResolveValue n@(ResourceReference rtype vals) = do
 -- special variables first
 tryResolveValue   (VariableReference "module_name") = liftM (\x ->
     let headname = T.takeWhile (/= ':') (head x)
-    in  if T.isPrefixOf "#DEFINE#" headname
-            then Right $ ResolvedString $ T.drop 8 headname
-            else Right $ ResolvedString headname
+    in  Right $ ResolvedString $ if T.isPrefixOf "#DEFINE#" headname
+                                     then T.drop 8 headname
+                                     else headname
     ) getScope
 tryResolveValue   (VariableReference vname) = do
     -- TODO check scopes !!!
@@ -955,15 +957,15 @@ tryResolveValue   (Interpolable x) = do
 tryResolveValue n@(PuppetHash (Parameters x)) = do
     resolvedKeys <- mapM (tryResolveExpressionString . fst) x
     resolvedValues <- mapM (tryResolveExpression . snd) x
-    if null (lefts resolvedKeys) && null (lefts resolvedValues)
-        then return $ Right $ ResolvedHash $ zip (rights resolvedKeys) (rights resolvedValues)
-        else return $ Left $ Value n
+    return $ if null (lefts resolvedKeys) && null (lefts resolvedValues)
+                 then Right $ ResolvedHash $ zip (rights resolvedKeys) (rights resolvedValues)
+                 else Left $ Value n
 
 tryResolveValue n@(PuppetArray expressions) = do
     resolvedExpressions <- mapM tryResolveExpression expressions
-    if null $ lefts resolvedExpressions
-        then return $ Right $ ResolvedArray $ rights resolvedExpressions
-        else return $ Left $ Value n
+    return $ if null $ lefts resolvedExpressions
+                 then Right $ ResolvedArray $ rights resolvedExpressions
+                 else Left $ Value n
 
 
 tryResolveValue   (FunctionCall "generate" args) = if null args
@@ -999,7 +1001,7 @@ tryResolveValue n@(FunctionCall "pdbresourcequery" (query:xs)) = do
                     case r of
                         Right (ResolvedString keyname) -> return $ Right $ Just keyname
                         Right x                        -> throwPosError $ "The pdbresourcequery function expects a string as the second argument, not " <> showValue x
-                        Left  y                        -> return $ Left $ y
+                        Left  y                        -> return $ Left y
                 []    -> return $ Right Nothing
                 _     -> throwPosError "Bad number of arguments for function pdbresourcequery"
     rquery <- tryResolveExpression query
@@ -1014,7 +1016,7 @@ tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
     rx <- tryResolveExpressionString x
     case rx of
         Right s -> let
-            goodpart gs = (T.length gs < 64) && (not $ T.null gs) && (isAlpha $ T.head gs) && (T.all (\gx -> (gx=='-') || (isAlphaNum gx)) gs)
+            goodpart gs = T.length gs < 64 && not (T.null gs) && isAlpha (T.head gs) && (T.all (\gx -> gx == '-' || isAlphaNum gx) gs)
             badparts "" = False
             badparts str =
                 let (b,e) = T.break (=='.') str
@@ -1022,7 +1024,7 @@ tryResolveValue n@(FunctionCall "is_domain_name" [x]) = do
                     (True , "") -> False
                     (True ,  y) -> badparts (T.tail y)
                     (False,  _) -> True
-            bad = (T.null s) || (T.length s > 255) || (badparts s)
+            bad = T.null s || T.length s > 255 || badparts s
             -- TODO check the parts are 63 char long
             in return $ Right $ ResolvedBool $ not bad
         _ -> return $ Left $ Value n
@@ -1204,7 +1206,7 @@ executeFunction "create_resources" (mrtype:rdefs:rest) = do
         _              -> throwPosError $ "Resource definition must be a hash, and not " <> tshow rdefs
     position <- getPos
     defaults <- case rest of
-                    [ResolvedHash h] -> return $ RDefaults mrrtype (Map.fromList $ map (\(a,b) -> (Right a, Right b)) h) position
+                    [ResolvedHash h] -> return $ RDefaults mrrtype (Map.fromList $ map (Right *** Right) h) position
                     []  -> return $ RDefaults mrrtype Map.empty position
                     _   -> throwPosError ("Bad many arguments to create_resources: " <> tshow rest)
     let prestatements = map (\(rname, rargs) -> (Value $ Literal rname, resolved2expression rargs)) arghash
@@ -1277,7 +1279,7 @@ compareValues a@(ResolvedString _) b@(ResolvedInt _) = compareValues b a
 compareValues   (ResolvedInt a)      (ResolvedString b) = case readDecimal b of
                                                               Right bi -> compare a bi
                                                               _ -> LT
-compareValues (ResolvedString a) (ResolvedRegexp b) = case (unsafePerformIO $ regmatch a b) of
+compareValues (ResolvedString a) (ResolvedRegexp b) = case unsafePerformIO (regmatch a b) of
     Right True  -> EQ
     _           -> LT
 compareValues (ResolvedString a) (ResolvedString b) = comparing T.toCaseFold a b
@@ -1333,9 +1335,9 @@ collectionFunction virt mrtype exprs = do
                     Nothing -> throwPosError $ "Unknown type " <> mrtype <> " when trying to collect"
                 Just (DefineDeclaration _ params _ _) -> return $ Set.fromList $ map fst params
                 Just x -> throwPosError $ "Expected a DefineDeclaration here instead of " <> tshow x
-            when (Set.notMember paramname paramset && (not $ Set.member paramname metaparameters)) $
+            when (Set.notMember paramname paramset && not (Set.member paramname metaparameters)) $
                 throwPosError $ "Parameter " <> paramname <> " is not a valid parameter. It should be in : " <> tshow (Set.toList paramset)
-            return (\r -> do
+            return (\r ->
                 case Map.lookup (Right paramname) (crparams r) of
                     Nothing -> return False
                     Just prmmatch -> do
@@ -1351,12 +1353,12 @@ collectionFunction virt mrtype exprs = do
                       _                              -> Nothing
                 )
         x -> throwPosError $ "TODO : implement collection function for " <> tshow x
-    return (\res -> do
+    return (\res ->
         -- <| |> matches Normal resources
         if (crtype res == mrtype) && ( ((virt == Virtual) &&  (crvirtuality res == Normal)) || (crvirtuality res == virt))
             then finalfunc res
             else return False
-        , if (virt == Exported)
+        , if virt == Exported
               then pdbquery
               else Nothing
         )
@@ -1367,7 +1369,7 @@ generalValue2Expression (Left x) = x
 generalValue2Expression (Right y) = resolved2expression y
 
 generalValue2Value :: GeneralValue -> CatalogMonad Value
-generalValue2Value x = case (generalValue2Expression x) of
+generalValue2Value x = case generalValue2Expression x of
                            (Value z) -> return z
                            y         -> throwPosError $ "Could not downgrade this to a value: " <> tshow y
 
