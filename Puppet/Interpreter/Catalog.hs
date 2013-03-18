@@ -471,7 +471,9 @@ partitionParamsRelations rparameters = do
         convertrelation (reltype, Right (ResolvedArray rs))         = fmap concat $ mapM (\x -> convertrelation (reltype, Right x)) rs
         convertrelation (reltype, Right (ResolvedRReference rt rv)) = return [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString rt, Right rv)]
         convertrelation (reltype, Right (ResolvedString "undef"))   = return [(fromJust $ getRelationParameterType reltype, Right $ ResolvedString "undef", Right $ ResolvedString "undef")]
-        convertrelation (_,       Right (ResolvedString x))         = throwPosError ("partitionParamsRelations error : " <> tshow x)
+        convertrelation (reltype, Right (ResolvedString x))         = case parseResourceReference x of
+                                                                          Just rr -> convertrelation (reltype, Right rr)
+                                                                          Nothing -> throwPosError ("partitionParamsRelations unknown string error : " <> tshow x)
         convertrelation (_,       Left x)                           = throwPosError ("partitionParamsRelations unresolved : " <> tshow x)
         convertrelation x                                           = throwPosError ("partitionParamsRelations error : " <> tshow x)
         (filteredrelations, filteredparams)                         = Map.partitionWithKey (const . isJust . getRelationParameterType) rparameters -- filters relations with actual parameters
