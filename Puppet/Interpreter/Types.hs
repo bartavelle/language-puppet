@@ -65,8 +65,8 @@ instance ToJSON ResolvedValue where
 
 parseResourceReference :: T.Text -> Maybe ResolvedValue
 parseResourceReference instr = case T.splitOn "[" instr of
-                                               [restype, renamee] -> if (T.head renamee == '[' && T.last renamee == ']')
-                                                                         then Just (ResolvedRReference (T.toLower restype) (ResolvedString (T.tail $ T.init renamee)))
+                                               [restype, renamee] -> if T.last renamee == ']'
+                                                                         then Just (ResolvedRReference (T.toLower restype) (ResolvedString (T.init renamee)))
                                                                          else Nothing
                                                _ -> Nothing
 
