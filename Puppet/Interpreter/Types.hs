@@ -52,6 +52,9 @@ data ResolvedValue
     | ResolvedUndefined
     deriving(Show, Eq, Ord)
 
+instance IsString ResolvedValue where
+    fromString = ResolvedString . fromString
+
 instance ToJSON ResolvedValue where
     toJSON (ResolvedString s)       = String s
     toJSON (ResolvedRegexp r)       = String r
@@ -88,9 +91,11 @@ instance FromJSON ResolvedValue where
 
 -- | This type holds a value that is either from the ASL or fully resolved.
 type GeneralValue = Either Expression ResolvedValue
+
 -- | This type holds a value that is either from the ASL or a fully resolved
 -- String.
 type GeneralString = Either Expression T.Text
+
 
 {-| This describes the resources before the final resolution. This is required
 as they must somehow be collected while the 'Statement's are interpreted, but

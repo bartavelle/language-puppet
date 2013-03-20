@@ -5,6 +5,7 @@ module Puppet.DSL.Types where
 import Text.Parsec.Pos
 import Data.Char (toUpper)
 import qualified Data.Text as T
+import Data.String
 
 data Parameters = Parameters ![(Expression, Expression)] deriving(Show, Ord, Eq)
 
@@ -55,6 +56,9 @@ data Value
     -- |This is special and quite hackish too.
     | Undefined
     deriving(Show, Ord, Eq)
+
+instance IsString Value where
+    fromString = Literal . fromString
 
 data Virtuality = Normal | Virtual | Exported deriving(Show, Ord, Eq)
 
@@ -140,6 +144,9 @@ data Expression
     | BTrue -- ^ True expression, this could have been better to use a 'Value'
     | BFalse -- ^ False expression
     deriving(Show, Ord, Eq)
+
+instance IsString Expression where
+    fromString = Value . fromString
 
 -- function that capitalizes types so that they look good
 capitalizeResType :: T.Text -> T.Text
