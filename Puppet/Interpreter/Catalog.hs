@@ -527,8 +527,8 @@ applyDefaults' r@(CResource i rname rtype rparams rvirtuality scopes rpos) (ROve
 -- merge defaults and actual parameters depending on the override flag
 mergeParams :: Map.Map GeneralString GeneralValue -> Map.Map GeneralString GeneralValue -> Bool -> Map.Map GeneralString GeneralValue
 mergeParams srcprm defs override = if override
-                                       then Map.union defs srcprm
-                                       else Map.union srcprm defs
+                                       then defs   `Map.union` srcprm
+                                       else srcprm `Map.union` defs
 
 -- The actual meat
 
@@ -544,7 +544,7 @@ evaluateDefine r@(CResource _ rname rtype rparams rvirtuality _ rpos) = let
             defineparamset = Set.fromList $ map fst args
             mandatoryparams = Set.fromList $ map fst $ filter (isNothing . snd) args
             resourceparamset = Map.keysSet mparams
-            extraparams = Set.difference resourceparamset (Set.union defineparamset metaparameters)
+            extraparams = Set.difference resourceparamset (defineparamset `Set.union` metaparameters)
             unsetparams = Set.difference mandatoryparams resourceparamset
         unless (Set.null extraparams) $ throwPosError $ "Spurious parameters set for " <> dtype <> ": " <> T.intercalate ", " (Set.toList extraparams)
         unless (Set.null unsetparams) $ throwPosError $ "Unset parameters set for "    <> dtype <> ": " <> T.intercalate ", " (Set.toList unsetparams)
@@ -716,6 +716,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
             inputparamset = Set.filter (isNothing . getRelationParameterType . Right) $ Map.keysSet inputparams
             overparams = Set.difference inputparamset (Set.union metaparameters classparamset)
             -- to insert into the final resource
+
         unless (Set.null overparams) (throwError $ "Spurious parameters " <> T.intercalate ", " (Set.toList overparams) <> " at " <> tshow position)
 
         resid <- getNextId  -- get this resource id, for the dummy class that will be used to handle relations
