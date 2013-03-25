@@ -1,6 +1,7 @@
 module Puppet.Testing
     ( testCatalog
     , Test(..)
+    , TestsState(..)
     , testFileSources
     , TestResult
     , TestMonad
@@ -271,10 +272,10 @@ toByteString (ResolvedString x) = return $ T.encodeUtf8 x
 toByteString x = throwError ("Could not convert " ++ show x ++ " to a bytestring")
 
 -- | Run tests on several hosts at once
-runFullTests :: [(T.Text -> Bool, Test)] -> [(T.Text, FinalCatalog)] -> IO ()
-runFullTests testlist = mapM_ runFullTests'
+runFullTests :: [(T.Text -> Bool, Test)] -> [(T.Text, FinalCatalog)] -> IO [(T.Text, Either String (), TestsState)]
+runFullTests testlist = mapM runFullTests'
     where
-        runFullTests' :: (T.Text, FinalCatalog) -> IO ()
+        runFullTests' :: (T.Text, FinalCatalog) -> IO (T.Text, Either String (), TestsState)
         runFullTests' (hostname, catalog) = do
             let tests = TestGroup hostname $ map snd $ filter (\x -> (fst x) hostname) testlist
             (r,s) <- runStateT (runTests tests catalog) newState
@@ -282,3 +283,4 @@ runFullTests testlist = mapM_ runFullTests'
             case r of
                 Left rr -> putStrLn rr
                 Right () -> return ()
+            return (hostname, r,s)
