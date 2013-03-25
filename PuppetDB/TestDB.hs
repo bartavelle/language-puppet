@@ -13,7 +13,7 @@ type ExportedResources = Map.Map T.Text (FinalCatalog, EdgeMap, FinalCatalog)
 
 initTestDBFunctions :: (T.Text -> Query -> IO (Either String Value)) -> IO (T.Text -> Query -> IO (Either String Value), T.Text -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ())
 initTestDBFunctions defaultquery = do
-    v <- newMVar (Map.empty)
+    v <- newMVar Map.empty
     return (queryPDB v defaultquery, updatePDB v)
 
 updatePDB :: MVar ExportedResources -> T.Text -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ()
@@ -27,10 +27,11 @@ toBool "true"  = Right True
 toBool "false" = Right False
 toBool x       = Left ("Is not a boolean " ++ T.unpack x) 
 
-evaluateQueryResource :: Query -> (Bool -> T.Text -> ResIdentifier -> RResource -> Either String Bool)
+evaluateQueryResource :: Query -> Bool -> T.Text -> ResIdentifier -> RResource -> Either String Bool
 evaluateQueryResource (Query OAnd lst) e n rid rr = fmap and (mapM (\x -> evaluateQueryResource x e n rid rr) lst)
 evaluateQueryResource (Query OOr  lst) e n rid rr = fmap or  (mapM (\x -> evaluateQueryResource x e n rid rr) lst)
-evaluateQueryResource (Query OEqual [Terms ["node","active"],Term bool]) _ _ _ _ = toBool bool
+evaluateQueryResource (Query OEqual [Terms ["node","active"], Term bool]) _ _ _ _ = toBool bool
+evaluateQueryResource (Query OEqual [Terms ["node","name"], Term hname]) _ n _ _ = Right (n == hname)
 evaluateQueryResource (Query OEqual [Term "type",Term ctype]) _ _ _ rr = Right (capitalizeResType (rrtype rr) == ctype)
 evaluateQueryResource (Query OEqual [Term "exported",Term expo]) exported _ _ _ = toBool expo >>= \x -> return (x == exported)
 evaluateQueryResource (Query OEqual [Term "tag",Term tag]) _ _ _ rr    =
@@ -41,6 +42,7 @@ evaluateQueryResource (Query OEqual [Term "tag",Term tag]) _ _ _ rr    =
             ResolvedArray lst -> Right (any (stringEqual tag) lst)
             _ -> Right (stringEqual tag tags)
 evaluateQueryResource (Query OEqual [Term "title", Term ttl]) _ _ _ rr = Right (rrname rr == ttl)
+evaluateQueryResource (Query ONot [q]) e n rid rr = fmap not (evaluateQueryResource q e n rid rr)
 evaluateQueryResource q _ _ _ _ = Left ("Not interpreted: " ++ show q)
 
 queryPDB :: MVar ExportedResources -> (T.Text -> Query -> IO (Either String Value)) -> T.Text -> Query -> IO (Either String Value)
