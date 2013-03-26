@@ -18,6 +18,8 @@ import qualified Data.Text as T
 import Data.Attoparsec.Number
 import qualified Text.Parsec.Pos as TPP
 import qualified Data.Vector as V
+import Control.Arrow ( (***) )
+import Data.Maybe (fromMaybe)
 
 -- | Types for the native type system.
 type PuppetTypeName = T.Text
@@ -63,7 +65,7 @@ instance ToJSON ResolvedValue where
     toJSON (ResolvedBool b)         = Bool b
     toJSON (ResolvedRReference _ _) = Null -- TODO
     toJSON (ResolvedArray rr)       = toJSON rr
-    toJSON (ResolvedHash hh)        = object (map (\(t,v) -> t .= v) hh)
+    toJSON (ResolvedHash hh)        = object (map (uncurry (.=)) hh)
     toJSON (ResolvedUndefined)      = Null
 
 parseResourceReference :: T.Text -> Maybe ResolvedValue
@@ -124,11 +126,9 @@ instance FromJSON CResource where
         certname   <- o .:  "certname"
         scope      <- o .:? "scope"
         let _ = params :: HM.HashMap T.Text ResolvedValue
-            parameters = Map.fromList $ map (\(k,v) -> (Right k, Right v)) $ ("EXPORTEDSOURCE", ResolvedString certname) : HM.toList params :: Map.Map GeneralString GeneralValue
+            parameters = Map.fromList $ map (Right *** Right) $ ("EXPORTEDSOURCE", ResolvedString certname) : HM.toList params :: Map.Map GeneralString GeneralValue
             position   = TPP.newPos (T.unpack sourcefile ++ "(host: " ++ T.unpack certname ++ ")") sourceline 1
-            mscope = case scope of
-                         Just x  -> x
-                         Nothing -> [["json"]]
+            mscope = fromMaybe [["json"]] scope
         CResource <$> pure 0
                   <*> pure (Right utitle)
                   <*> fmap T.toLower (o .: "type")
@@ -268,6 +268,7 @@ generalizeStringS :: T.Text -> GeneralString
 generalizeStringS = Right
 
 -- |This is the set of meta parameters
+metaparameters :: Set.Set T.Text
 metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"] :: Set.Set T.Text
 
 getPos               = liftM curPos get
@@ -284,7 +285,7 @@ addDefinedResource r p = modify (\st -> st { definedResources = Map.insert r p (
 saveVariables vars = modify (\st -> st { curVariables = vars })
 
 showScope :: [[ScopeName]] -> T.Text
-showScope = tshow . reverse . concat . map (take 1)
+showScope = tshow . reverse . concatMap (take 1)
 
 throwPosError :: T.Text -> CatalogMonad a
 throwPosError msg = do
