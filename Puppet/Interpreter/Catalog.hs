@@ -1278,14 +1278,19 @@ compareGeneralValue n a b acceptable = do
         Nothing -> return n
         Just x  -> return $ Right $ ResolvedBool (x `elem` acceptable)
 compareValues :: ResolvedValue -> ResolvedValue -> Ordering
+compareValues (ResolvedString s) (ResolvedBool b)  = case (s,b) of
+                                                         ("true", True)   -> EQ
+                                                         ("false", False) -> EQ
+                                                         _                -> LT
+compareValues a@(ResolvedBool _)   b@(ResolvedString _) = compareValues b a
 compareValues a@(ResolvedString _) b@(ResolvedInt _) = compareValues b a
 compareValues   (ResolvedInt a)      (ResolvedString b) = case readDecimal b of
                                                               Right bi -> compare a bi
                                                               _ -> LT
 compareValues (ResolvedString a) (ResolvedRegexp b) = case unsafePerformIO (regmatch a b) of
-    Right True  -> EQ
-    _           -> LT
-compareValues (ResolvedString a) (ResolvedString b) = comparing T.toCaseFold a b
+                                                          Right True  -> EQ
+                                                          _           -> LT
+compareValues (ResolvedString a)   (ResolvedString b)   = comparing T.toCaseFold a b
 compareValues x y = compare x y
 
 compareRValues :: ResolvedValue -> ResolvedValue -> Bool
