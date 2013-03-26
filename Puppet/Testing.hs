@@ -90,14 +90,15 @@ showResT = showRes' 0
         showRes' dec (SingleTestR desc (Left err)) = T.replicate dec " " <> desc <> " FAIL: " <> T.pack err
 
 -- Converts a source string to a directory on dist
-sourceToPath :: FilePath -> T.Text -> TestMonad FilePath
+sourceToPath :: FilePath -> T.Text -> TestMonad (Maybe FilePath)
 sourceToPath puppetdir src = do
     stringdir <- case T.stripPrefix "puppet:///" src of
                      Just r  -> return r
                      Nothing -> throwError "The source does not start with puppet:///"
     case T.splitOn "/" stringdir of
-        ("modules":modulename:rest) -> return $ puppetdir <> "/modules/" <> T.unpack modulename <> "/files/" <> T.unpack (T.intercalate "/" rest)
-        ("files":rest)              -> return $ puppetdir <> "/files/"   <> T.unpack (T.intercalate "/" rest)
+        ("modules":modulename:rest) -> return $ Just $ puppetdir <> "/modules/" <> T.unpack modulename <> "/files/" <> T.unpack (T.intercalate "/" rest)
+        ("files":rest)              -> return $ Just $ puppetdir <> "/files/"   <> T.unpack (T.intercalate "/" rest)
+        ("private":_)               -> return Nothing
         _                           -> throwError ("Invalid file source " ++ T.unpack src)
 
 testFileSources :: T.Text -> FinalCatalog -> Test
@@ -107,7 +108,9 @@ testFileSources puppetdir cat =
         checkSrcExists :: T.Text -> FinalCatalog -> TestResult
         checkSrcExists src _ = runErrorT $ do
             place <- sourceToPath (T.unpack puppetdir) src
-            liftIO (fileExist place) >>= (`unless` (throwError $ "Searched in " ++ place))
+            case place of
+                Just p  -> liftIO (fileExist p) >>= (`unless` (throwError $ "Searched in " ++ p))
+                Nothing -> return ()
         genFileTest :: ResolvedValue -> Test
         genFileTest (ResolvedString src) = SingleTest (src <> " exists") (checkSrcExists src)
         genFileTest (ResolvedArray  arr) = TestFirstOk "First exists" (map genFileTest arr)
@@ -164,7 +167,9 @@ testingDaemon purl puppetdir allFacts = do
 getSource :: FilePath -> T.Text -> TestMonad BS.ByteString
 getSource puppetdir source = do
     path <- sourceToPath puppetdir source
-    liftIO (BS.readFile path)
+    case path of
+        Just p -> liftIO (BS.readFile p)
+        Nothing -> throwError "Could not test this file !"
 
 getFileContent :: FilePath -> RResource -> TestMonad BS.ByteString
 getFileContent puppetdir r =
