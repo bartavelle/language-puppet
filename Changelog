@@ -12,6 +12,7 @@ v0.4.0 ()
 	GHC-7.6.1.
 	* Aliases should now work as expected ... I wish!
 	* regexp_subs now works in a PCRE manner
+	* Destination dependency can now be a variable resolving in an array.
 
 v0.3.3 (2013/01/21)
   New features

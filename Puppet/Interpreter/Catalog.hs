@@ -202,10 +202,9 @@ processOverride cr prms =
 retrieveRemoteResources :: (PDB.Query -> IO (Either String [CResource])) -> PDB.Query -> CatalogMonad [CResource]
 retrieveRemoteResources f q = do
     res <- liftIO $ f q
-    hashes <- case res of
+    case res of
         Right h     -> return h
         Left err    -> throwError $ "PuppetDB error: " <> T.pack err
-    return hashes
 
 extractRelations :: CResource -> CatalogMonad CResource
 extractRelations cr = do
@@ -220,9 +219,8 @@ resolveRelationship :: ([(LinkType, GeneralValue, GeneralValue)], (T.Text, Gener
 resolveRelationship (udsts, (stype, usname), uptype, spos, scop) = do
     let resolveSrcRel (ltype, udtype, udname) = do
             dtype <- resolveGeneralValue udtype >>= rstring
-            dname <- resolveGeneralValue udname >>= rstring
-            return (ltype, (dtype, dname))
-    dsts  <- mapM resolveSrcRel udsts
+            resolveGeneralValue udname >>= rstrings >>= mapM (\dname -> return (ltype, (dtype, dname)))
+    dsts  <- fmap concat (mapM resolveSrcRel udsts)
     sname <- resolveGeneralString usname
     return (dsts, (stype, sname), uptype, spos, scop)
 
@@ -889,10 +887,14 @@ rstring :: ResolvedValue -> CatalogMonad T.Text
 rstring resolved = case resolved of
         ResolvedString s -> return s
         ResolvedInt i    -> return (tshow i)
-        e                -> do
-            p <- getPos
-            throwError ("'" <> tshow e <> "' will not resolve to a string at " <> tshow p)
+        e                -> throwPosError ("'" <> tshow e <> "' will not resolve to a string")
 
+rstrings :: ResolvedValue -> CatalogMonad [T.Text]
+rstrings resolved = case resolved of
+         ResolvedString s -> return [s]
+         ResolvedInt i    -> return [tshow i]
+         ResolvedArray xs -> mapM rstring xs
+         e                -> throwPosError ("'" <> tshow e <> "' will not resolve to a string")
 
 resolveExpression :: Expression -> CatalogMonad ResolvedValue
 resolveExpression e = do
