@@ -26,6 +26,12 @@ userOrTarget res = case (Map.lookup "user" (rrparams res), Map.lookup "target" (
                        _                  -> Right res
 
 
+keyIfPresent :: PuppetTypeValidate
+keyIfPresent res = case (Map.lookup "key" (rrparams res), Map.lookup "ensure" (rrparams res)) of
+                       (Just _, Just "present") -> Right res
+                       (_, Just "absent") -> Right res
+                       _ -> Left "Parameter key is mandatory when the resource is present"
+
 validateSshSecure :: PuppetTypeValidate
-validateSshSecure = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> userOrTarget
+validateSshSecure = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> userOrTarget >=> keyIfPresent
 
