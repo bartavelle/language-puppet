@@ -7,6 +7,7 @@ v0.4.0 ()
 	* More details stored in the resource types, and in error messages.
 	* User native type
 	* Removal of the MissingH, filepath, monad-loop and directory dependency
+	* Puppet booleans are now handled at parse stage
   Bugs fixed
 	* Now depends on the built-in bytestring library that comes with
 	GHC-7.6.1.

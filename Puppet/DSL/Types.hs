@@ -53,6 +53,7 @@ data Value
     | PuppetArray ![Expression]
     | PuppetHash !Parameters
     | FunctionCall !T.Text ![Expression]
+    | PuppetBool Bool
     -- |This is special and quite hackish too.
     | Undefined
     deriving(Show, Ord, Eq)

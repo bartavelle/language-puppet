@@ -94,10 +94,14 @@ term = parens exprparser
     <|> puppetNumeric
     <|> puppetArray
     <|> puppetHash
+    <|> puppetBool
     <|> try puppetResourceReference
     <|> try puppetFunctionCall
     <|> puppetLiteralValue
     <?> "Expression terminal"
+
+puppetBool = fmap (Value . PuppetBool) ((reserved "true" >> return True) <|> (reserved "false" >> return False))
+
 
 hashRef = do { symbol "["
     ; e <- exprparser

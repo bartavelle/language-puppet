@@ -41,8 +41,8 @@ showValue :: ResolvedValue -> T.Text
 showValue (ResolvedString x) = tshow x
 showValue (ResolvedInt x) = tshow x
 showValue (ResolvedDouble x) = tshow x
-showValue (ResolvedBool True) = "true"
-showValue (ResolvedBool False) = "false"
+showValue (ResolvedBool True) = "True"
+showValue (ResolvedBool False) = "False"
 showValue (ResolvedRReference rt rn) = showRRef (rt, showValue rn)
 showValue (ResolvedArray ar) = "[" <> commasep (map showValue ar) <> "]"
 showValue (ResolvedHash h) = "{" <> commasep (map (\(k,v) -> k <> " => " <> showValue v) h) <> "}"

@@ -919,6 +919,7 @@ tryResolveValue :: Value -> CatalogMonad GeneralValue
 tryResolveValue (Literal x) = return $ Right $ ResolvedString x
 tryResolveValue (Integer x) = return $ Right $ ResolvedInt x
 tryResolveValue (Double  x) = return $ Right $ ResolvedDouble x
+tryResolveValue (PuppetBool x) = return $ Right $ ResolvedBool x
 
 tryResolveValue n@(ResourceReference rtype vals) = do
     rvals <- tryResolveExpression vals
@@ -1165,11 +1166,13 @@ tryResolveValueString :: Value -> CatalogMonad GeneralString
 tryResolveValueString x = do
     r <- tryResolveValue x
     case r of
-        Right (ResolvedString v) -> return $ Right v
-        Right (ResolvedInt    i) -> return $ Right (tshow i)
-        Right (ResolvedDouble i) -> return $ Right (tshow i)
-        Right v                  -> throwPosError ("Can't resolve valuestring for " <> tshow v)
-        Left  v                  -> return $ Left v
+        Right (ResolvedString v)   -> return $ Right v
+        Right (ResolvedInt    i)   -> return $ Right (tshow i)
+        Right (ResolvedDouble i)   -> return $ Right (tshow i)
+        Right (ResolvedBool True)  -> return $ Right "True"
+        Right (ResolvedBool False) -> return $ Right "False"
+        Right v                    -> throwPosError ("Can't resolve valuestring for " <> tshow v)
+        Left  v                    -> return $ Left v
 
 getRelationParameterType :: GeneralString -> Maybe LinkType
 getRelationParameterType (Right "require" )  = Just RRequire
