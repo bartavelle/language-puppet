@@ -1000,6 +1000,8 @@ tryResolveValue n@(FunctionCall "pdbresourcequery" (query:xs)) = do
         rvalue2query' x = fmap PDB.Term (rvalue2string x)
         rvalue2string :: ResolvedValue -> Either String T.Text
         rvalue2string (ResolvedString s) = Right s
+        rvalue2string (ResolvedBool True) = Right "true"
+        rvalue2string (ResolvedBool False) = Right "false"
         rvalue2string x = Left $ "Don't know why we had " ++ T.unpack (showValue x)
     rkey <- case xs of
                 [key] -> do
