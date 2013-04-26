@@ -230,8 +230,8 @@ data ScopeState = ScopeState {
     unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (T.Text, GeneralString), RelUpdateType, SourcePos, [[ScopeName]])],
     -- ^ This stores unresolved relationships, because the original string name
     -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]
-    computeTemplateFunction :: T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text),
-    -- ^ Function that takes a filename, the current scope and a list of
+    computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text),
+    -- ^ Function that takes either a text content or a filename, the current scope and a list of
     -- variables. It returns an error or the computed template.
     puppetDBFunction :: T.Text -> PDB.Query -> IO (Either String Value),
     -- ^ Function that takes a request type (resources, nodes, facts, ..),

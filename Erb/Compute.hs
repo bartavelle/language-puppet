@@ -18,20 +18,23 @@ import qualified Data.Map as Map
 import Debug.Trace
 import qualified System.Log.Logger as LOG
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Text.Lazy.Builder as T
 import qualified Data.Text.Lazy.Builder.Int as T
+import Text.Parsec
+import qualified Data.Foldable as F
 
-type TemplateQuery = (Chan TemplateAnswer, T.Text, T.Text, Map.Map T.Text GeneralValue)
+type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, T.Text, Map.Map T.Text GeneralValue)
 type TemplateAnswer = Either String T.Text
 
-initTemplateDaemon :: Prefs -> MStats -> IO (T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text))
+initTemplateDaemon :: Prefs -> MStats -> IO (Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text))
 initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) mvstats = do
     controlchan <- newChan
     replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan mvstats))
     return (templateQuery controlchan)
 
-templateQuery :: Chan TemplateQuery -> T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text)
+templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text)
 templateQuery qchan filename scope variables = do
     rchan <- newChan
     writeChan qchan (rchan, filename, scope, variables)
@@ -39,36 +42,55 @@ templateQuery qchan filename scope variables = do
 
 templateDaemon :: T.Text -> T.Text -> Chan TemplateQuery -> MStats -> IO ()
 templateDaemon modpath templatepath qchan mvstats = do
-    (respchan, filename, scope, variables) <- readChan qchan
-    let parts = T.splitOn "/" filename
-        searchpathes | length parts > 1 = [modpath <> "/" <> head parts <> "/templates/" <> (T.intercalate "/" (tail parts)), templatepath <> "/" <> filename]
-                     | otherwise        = [templatepath <> "/" <> filename]
-    acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
-    if(null acceptablefiles)
-        then writeChan respchan (Left $ "Can't find template file for " ++ T.unpack filename ++ ", looked in " ++ show searchpathes)
-        else measure mvstats ("total - " <> filename) (computeTemplate (head acceptablefiles) scope variables mvstats) >>= writeChan respchan
+    (respchan, fileinfo, scope, variables) <- readChan qchan
+    case fileinfo of
+        Right filename -> do
+            let parts = T.splitOn "/" filename
+                searchpathes | length parts > 1 = [modpath <> "/" <> head parts <> "/templates/" <> T.intercalate "/" (tail parts), templatepath <> "/" <> filename]
+                             | otherwise        = [templatepath <> "/" <> filename]
+            acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
+            if null acceptablefiles
+                then writeChan respchan (Left $ "Can't find template file for " ++ T.unpack filename ++ ", looked in " ++ show searchpathes)
+                else measure mvstats ("total - " <> filename) (computeTemplate (Right (head acceptablefiles)) scope variables mvstats) >>= writeChan respchan
+        Left _ -> measure mvstats "total - inline" (computeTemplate fileinfo scope variables mvstats) >>= writeChan respchan
     templateDaemon modpath templatepath qchan mvstats
 
-computeTemplate :: T.Text -> T.Text -> Map.Map T.Text GeneralValue -> MStats -> IO TemplateAnswer
-computeTemplate filename curcontext variables mstats = do
-    let ufilename = T.unpack filename
-    parsed <- measure mstats ("parsing - " <> filename) $ parseErbFile ufilename
+computeTemplate :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> MStats -> IO TemplateAnswer
+computeTemplate fileinfo curcontext variables mstats = do
+    let (filename, ufilename) = case fileinfo of
+                                    Left _ -> ("inline", "inline")
+                                    Right x -> (x, T.unpack x)
+    parsed <- case fileinfo of
+                  Right _      -> measure mstats ("parsing - " <> filename) $ parseErbFile ufilename
+                  Left content -> measure mstats ("parsing - " <> filename) (return (runParser erbparser () "inline" (T.unpack content)))
     case parsed of
         Left err -> do
             let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show err
             traceEventIO msg
             LOG.debugM "Erb.Compute" msg
-            measure mstats ("ruby - " <> filename) $ computeTemplateWRuby filename curcontext variables
+            measure mstats ("ruby - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables
         Right ast -> case rubyEvaluate variables curcontext ast of
                 Right ev -> return (Right ev)
                 Left err -> do
                     let !msg = "template " ++ ufilename ++ " evaluation failed " ++ show err
                     traceEventIO msg
                     LOG.debugM "Erb.Compute" msg
-                    measure mstats ("ruby efail - " <> filename) $ computeTemplateWRuby filename curcontext variables
+                    measure mstats ("ruby efail - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables
 
-computeTemplateWRuby :: T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO TemplateAnswer
-computeTemplateWRuby filename curcontext variables = do
+saveTmpContent :: T.Text -> IO FilePath
+saveTmpContent cnt = do
+    (name, h) <- openTempFile "/tmp" "inline_template.erb"
+    T.putStrLn cnt
+    hClose h
+    return name
+
+computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO TemplateAnswer
+computeTemplateWRuby fileinfo curcontext variables = do
+    (temp, filename) <- case fileinfo of
+                            Right x  -> return (Nothing, x)
+                            Left cnt -> do
+                                tmpfile <- saveTmpContent cnt
+                                return (Just tmpfile, "inline")
     let rubyvars = "{\n" <> mconcat (intersperse ",\n" (concatMap toRuby (Map.toList variables))) <> "\n}\n" :: T.Builder
         input = T.fromText curcontext <> "\n" <> T.fromText filename <> "\n" <> rubyvars :: T.Builder
         ufilename = T.unpack filename
@@ -76,18 +98,19 @@ computeTemplateWRuby filename curcontext variables = do
         let rubybin = "calcerb.rb"
         cabalPath <- getDataFileName $ "ruby/" ++ T.unpack rubybin
         exists    <- fileExist cabalPath
-        case exists of
-            True -> return cabalPath
-            False -> do
+        if exists
+            then return cabalPath
+            else do
                 path <- fmap (takeDirectory . T.pack) mGetExecutablePath
                 let fullpath = path <> "/" <> rubybin
                 lexists <- fileExist cabalPath
-                case lexists of
-                    True  -> return $ T.unpack fullpath
-                    False -> return $ T.unpack rubybin
+                return $ T.unpack $ if lexists
+                                        then fullpath
+                                        else rubybin
     traceEventIO ("start running ruby" ++ ufilename)
     !ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] (T.toLazyText input) 1000
     traceEventIO ("finished running ruby" ++ ufilename)
+    F.forM_ temp removeLink
     case ret of
         Just (Right x) -> return $! Right x
         Just (Left er) -> do
@@ -95,8 +118,7 @@ computeTemplateWRuby filename curcontext variables = do
             TL.hPutStr tmphandle (T.toLazyText input)
             hClose tmphandle
             return $ Left $ er ++ " - for template " ++ ufilename ++ " input in " ++ tmpfilename
-        Nothing -> do
-            return $ Left "Process did not terminate"
+        Nothing -> return $ Left "Process did not terminate"
 
 minterc :: T.Builder -> [T.Builder] -> T.Builder
 minterc _ [] = mempty
@@ -106,8 +128,7 @@ minterc !sep !(x:xs) = x <> foldl' minterc' mempty xs
         minterc' !curbuilder !b  = curbuilder <> sep <> b
 
 getTemplateFile :: T.Text -> CatalogMonad T.Text
-getTemplateFile rawpath = do
-    throwError rawpath
+getTemplateFile = throwError
 renderString :: T.Text -> T.Builder
 renderString x = let !y = T.fromString (show x) in y
 

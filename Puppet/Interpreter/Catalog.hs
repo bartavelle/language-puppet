@@ -73,7 +73,7 @@ readint x = case readDecimal x of
 getCatalog :: (TopLevelType -> T.Text -> IO (Either String Statement))
     -- ^ The \"get statements\" function. Given a top level type and its name it
     -- should return the corresponding statement.
-    -> (T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text))
+    -> (Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text))
     -- ^ The \"get template\" function. Given a file name, a scope name and a
     -- list of variables, it should return the computed template.
     -> (T.Text -> PDB.Query -> IO (Either String JSON.Value))
@@ -1059,11 +1059,23 @@ tryResolveValue   (FunctionCall "template" [name]) = do
             saveVariables vars
             scp <- liftM head getScope -- TODO check if that sucks
             templatefunc <- liftM computeTemplateFunction get
-            out <- liftIO (templatefunc filename scp (Map.map fst vars))
+            out <- liftIO (templatefunc (Right filename) scp (Map.map fst vars))
             case out of
                 Right x -> return $ Right $ ResolvedString x
                 Left err -> throwPosError (T.pack err)
-tryResolveValue   (FunctionCall "inline_template" _) = return $ Right $ ResolvedString "TODO"
+tryResolveValue   (FunctionCall "inline_template" [cnt]) = do
+    rcnt <- tryResolveExpressionString cnt
+    case rcnt of
+        Left x -> throwPosError $ "Can't resolve inline_template content " <> tshow x
+        Right content -> do
+            vars <- fmap curVariables get >>= DT.mapM (\(v,p) -> fmap (\x -> (x,p)) (tryResolveGeneralValue v))
+            saveVariables vars
+            scp <- liftM head getScope -- TODO check if that sucks
+            templatefunc <- liftM computeTemplateFunction get
+            out <- liftIO (templatefunc (Left content) scp (Map.map fst vars))
+            case out of
+                Right x -> return $ Right $ ResolvedString x
+                Left err -> throwPosError (T.pack err)
 tryResolveValue   (FunctionCall "defined" [v]) = do
     rv <- tryResolveExpression v
     case rv of

@@ -8,6 +8,7 @@ v0.4.0 ()
 	* User native type
 	* Removal of the MissingH, filepath, monad-loop and directory dependency
 	* Puppet booleans are now handled at parse stage
+	* inline_template function
   Bugs fixed
 	* Now depends on the built-in bytestring library that comes with
 	GHC-7.6.1.

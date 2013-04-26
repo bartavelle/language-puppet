@@ -89,7 +89,7 @@ initDaemon prefs = do
 master :: Prefs
     -> Chan DaemonMessage
     -> (TopLevelType -> T.Text -> IO (Either String Statement))
-    -> (T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text))
+    -> (Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text))
     -> MStats
     -> IO ()
 master prefs chan getstmts gettemplate mstats = do
