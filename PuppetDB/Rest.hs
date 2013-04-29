@@ -15,10 +15,10 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
 runRequest req = do
-    let doRequest = withManager (\manager -> fmap responseBody $ httpLbs req manager) :: IO L.ByteString
+    let doRequest = withManager (fmap responseBody . httpLbs req) :: IO L.ByteString
         eHandler :: X.SomeException -> IO (Either String  L.ByteString)
-        eHandler e = return $ Left $ show e ++ ", with queryString " ++ (BC.unpack $ queryString req)
-    mo <- liftIO ((fmap Right doRequest) `X.catch` eHandler)
+        eHandler e = return $ Left $ show e ++ ", with queryString " ++ BC.unpack (queryString req)
+    mo <- liftIO (fmap Right doRequest `X.catch` eHandler)
     case mo of
         Right o -> do
             let utf8 = IConv.convert "LATIN1" "UTF-8" o
@@ -35,8 +35,8 @@ rawRequest url querytype query = runErrorT $ do
         unless (querytype `elem` ["resources", "nodes", "facts"]) (throwError $ "Invalid query type " ++ T.unpack querytype)
         let q = case querytype of
                     "facts" -> T.cons '/' query
-                    _       -> "?" <> (T.decodeUtf8 $ W.renderSimpleQuery False [("query", T.encodeUtf8 query)])
-            fullurl = T.unpack $ url <> "/" <> querytype <> q
+                    _       -> "?" <> T.decodeUtf8 (W.renderSimpleQuery False [("query", T.encodeUtf8 query)])
+            fullurl = T.unpack $ url <> "/v1/" <> querytype <> q
         initReq <- case (parseUrl fullurl :: Maybe (Request a)) of
             Just x -> return x
             Nothing -> throwError "Something failed when parsing the PuppetDB URL"
