@@ -18,8 +18,9 @@ getstatement stmtlist toplevel name = case (Map.lookup (toplevel, name) stmtlist
     Just x -> return $ Right x
     Nothing -> return $ Left "not found"
 
-gettemplate :: T.Text -> T.Text -> c -> IO (Either String T.Text)
-gettemplate n _ _ = return $ Right n
+gettemplate :: Either T.Text T.Text -> T.Text -> c -> IO (Either String T.Text)
+gettemplate (Right n) _ _ = return $ Right n
+gettemplate (Left n) _ _ = return $ Right n
 
 main :: IO ()
 main = do
