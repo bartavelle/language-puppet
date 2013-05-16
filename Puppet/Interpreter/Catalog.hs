@@ -175,8 +175,8 @@ collectionChecks res =
         else do
             -- Note that amending attributes with a collector does collect virtual
             -- values. Hence no filtering on the collectors is done here.
-            isCollected <- use curCollect >>= fmap or . mapM (\x -> (_colFunction x) res) -- LENS
-            case (isCollected, res ^. crvirtuality) of
+            isCollected <- use curCollect >>= mapM (`_colFunction` res)
+            case (or isCollected, res ^. crvirtuality) of
                 (True, Exported)    -> return [res & crvirtuality .~ Normal, res]
                 (True,  _)          -> return [res & crvirtuality .~ Normal     ]
                 (False, _)          -> return [res                              ]
@@ -186,9 +186,9 @@ processOverride cr prms =
     let applyOverride :: CResource -> Map.Map T.Text ResolvedValue -> CollectionFunction -> CatalogMonad (Map.Map T.Text ResolvedValue)
         -- this checks if the collection function matches
         applyOverride c prm colf = do
-            check <- (_colFunction colf) c -- LENS
+            check <- (colf ^. colFunction) c
             if check
-                then foldM tryReplace prm (Map.toList (_colOverrides colf)) -- LENS
+                then foldM tryReplace prm (Map.toList (colf^.colOverrides))
                 else return prm
         tryReplace :: Map.Map T.Text ResolvedValue -> (GeneralString, GeneralValue) -> CatalogMonad (Map.Map T.Text ResolvedValue)
         -- if it does, this resolves the override and applies it
@@ -198,7 +198,7 @@ processOverride cr prms =
             rv <- resolveGeneralValue gv
             return $ Map.insert rs rv curmap
     -- Collectors are filtered so that only those with overrides are passed to the fold.
-    in gets (filter (not . Map.null . _colOverrides) . _curCollect) >>= foldM (applyOverride cr) prms -- LENS
+    in use curCollect >>= foldlMOf (traversed.filtered (has (colOverrides.each))) (applyOverride cr) prms
 
 retrieveRemoteResources :: (PDB.Query -> IO (Either String [CResource])) -> PDB.Query -> CatalogMonad [CResource]
 retrieveRemoteResources f q = do
