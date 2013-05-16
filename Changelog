@@ -1,4 +1,4 @@
-v0.4.0 ()
+v0.4.0 (2013/05/16)
   New features
 	* Big refactor of the PuppetDB API.
 	* New "fake" PuppetDB used for testing
@@ -10,6 +10,7 @@ v0.4.0 ()
 	* Puppet booleans are now handled at parse stage
 	* inline_template function
   Bugs fixed
+	* fqdn_rand now puppet perfect (at least for 32 bit max values)
 	* Now depends on the built-in bytestring library that comes with
 	GHC-7.6.1.
 	* Aliases should now work as expected ... I wish!

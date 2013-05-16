@@ -1042,7 +1042,14 @@ tryResolveValue   (FunctionCall "fqdn_rand" args) = if null args
     else do
         nargs  <- mapM resolveExpressionString args
         curmax <- readint (head nargs)
-        liftM (Right . ResolvedInt) (fqdn_rand curmax (tail nargs))
+        hostname <- getVariable "::fqdn" >>= \x -> case x of
+                                                       Just (Right (ResolvedString g),_) -> return g
+                                                       _ -> throwPosError "Can't get fqdn in fqdn_rand?"
+        let targs = tail nargs
+            rargs = if null targs
+                        then [hostname, ""]
+                        else hostname : targs
+        liftM (Right . ResolvedInt) (fqdn_rand curmax rargs)
 tryResolveValue   (FunctionCall "mysql_password" args) = if length args /= 1
     then throwPosError "mysql_password takes a single argument"
     else do

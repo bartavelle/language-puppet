@@ -15,6 +15,7 @@ module Puppet.Interpreter.Functions
 import PuppetDB.Query
 import Puppet.Printers
 import Puppet.Interpreter.Types
+import Puppet.Interpreter.RubyRandom
 import Puppet.Utils
 
 import Control.Monad.State
@@ -37,7 +38,9 @@ import Data.Bits
 
 puppetMD5 :: T.Text -> T.Text
 puppetMD5   = T.decodeUtf8 . B16.encode . MD5.hash  . T.encodeUtf8
+puppetSHA1 :: T.Text -> T.Text
 puppetSHA1  = T.decodeUtf8 . B16.encode . SHA1.hash . T.encodeUtf8
+puppetMysql :: T.Text -> T.Text
 puppetMysql = T.decodeUtf8 . B16.encode . SHA1.hash . SHA1.hash . T.encodeUtf8
 
 {-
@@ -45,10 +48,12 @@ TODO : achieve compatibility with puppet
 the first String must be the fqdn
 -}
 fqdn_rand :: Integer -> [T.Text] -> CatalogMonad Integer
-fqdn_rand n args = return (hash `mod` n)
+fqdn_rand n args = return val
     where
         fullstring = T.intercalate ":" args
-        hash = foldl' (\x y -> x*10 + fromIntegral y) 0 $ BS.unpack $ BS.take 8 $ SHA1.hash $ T.encodeUtf8 fullstring
+        toint = BS.foldl' (\c nx -> c*256 + fromIntegral nx) 0
+        myhash = toint (MD5.hash (T.encodeUtf8 fullstring)) :: Integer
+        val = fromIntegral (fst (limitedRand (randInit myhash) (fromIntegral n)))
 
 mysql_password :: T.Text -> CatalogMonad T.Text
 mysql_password pwd = return $ T.cons '*' hash
@@ -90,7 +95,7 @@ puppetSplit str reg = fmap (fmap (map T.decodeUtf8)) (splitCompile (T.encodeUtf8
 
 generate :: T.Text -> [T.Text] -> IO (Maybe T.Text)
 generate command args = do
-    cmdout <- safeReadProcessTimeout (T.unpack command) (map T.unpack args) (TL.empty) 60000
+    cmdout <- safeReadProcessTimeout (T.unpack command) (map T.unpack args) TL.empty 60000
     case cmdout of
         Just (Right x)  -> return $ Just x
         _               -> return Nothing
@@ -100,7 +105,7 @@ pdbresourcequery query key = do
     let
         extractSubHash :: T.Text -> [ResolvedValue] -> Either String ResolvedValue
         extractSubHash k vals = let o = map (extractSubHash' k) vals
-                                  in  if (null $ lefts o)
+                                  in  if null (lefts o)
                                           then Right $ ResolvedArray $ rights o
                                           else Left $ "Something wrong happened while extracting the subhashes for key " ++ T.unpack k ++ ": " ++ Data.List.intercalate ", " (lefts o)
         extractSubHash' :: T.Text -> ResolvedValue -> Either String ResolvedValue
@@ -124,7 +129,7 @@ pdbresourcequery query key = do
         (Just k , ResolvedArray ar) -> case extractSubHash k ar of
                                                Right x -> return x
                                                Left  r -> throwPosError (T.pack r)
-        _            -> throwPosError $ "Can't happen at pdbresourcequery"
+        _            -> throwPosError "Can't happen at pdbresourcequery"
 
 regmatch :: T.Text -> T.Text -> IO (Either String Bool)
 regmatch str reg = do
