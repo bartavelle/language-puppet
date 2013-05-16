@@ -29,12 +29,13 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as B16
 import SafeProcess
 import Data.Either (lefts, rights)
-import Data.List (intercalate,foldl')
+import Data.List (intercalate)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
 import Data.Bits
+import Control.Lens
 
 puppetMD5 :: T.Text -> T.Text
 puppetMD5   = T.decodeUtf8 . B16.encode . MD5.hash  . T.encodeUtf8
@@ -115,7 +116,7 @@ pdbresourcequery query key = do
                                                         []  -> Left "Key not found"
                                                         _   -> Left "More than one result, this is extremely bad."
         extractSubHash' _ x = Left $ "Expected a hash, not " ++ T.unpack (showValue x)
-    qf <- fmap puppetDBFunction get
+    qf <- use puppetDBFunction
     v <- liftIO (qf "resources" query) >>= \r -> case r of
                                                      Left rr -> throwPosError (T.pack rr)
                                                      Right x -> return x
