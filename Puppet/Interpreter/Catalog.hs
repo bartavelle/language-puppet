@@ -45,7 +45,7 @@ import System.IO.Unsafe
 import Control.Arrow (first,(***))
 import Data.List
 import Data.Char (isAlpha, isAlphaNum)
-import Data.Maybe (isJust, fromJust, catMaybes, isNothing, mapMaybe)
+import Data.Maybe (isJust, fromJust, catMaybes, isNothing, mapMaybe, fromMaybe)
 import Data.Either (lefts, rights, partitionEithers)
 import Data.Ord (comparing)
 import Text.Parsec.Pos
@@ -209,10 +209,10 @@ retrieveRemoteResources f q = do
 
 extractRelations :: CResource -> CatalogMonad CResource
 extractRelations cr = do
-    curPos .= (cr ^. pos)
-    (params, relations) <- partitionParamsRelations (_crparams cr) -- LENS
-    addUnresRel (relations, (_crtype cr, _crname cr), UNormal, _pos cr, _crscope cr) -- LENS
-    return cr { _crparams = params } -- LENS
+    curPos .= cr ^. pos
+    (params, relations) <- partitionParamsRelations (cr ^. crparams)
+    addUnresRel (relations, (cr ^. crtype, cr ^. crname), UNormal, cr ^. pos, cr ^. crscope)
+    return (cr & crparams .~ params)
 
 -- resolves a single relationship
 resolveRelationship :: ([(LinkType, GeneralValue, GeneralValue)], (T.Text, GeneralString), RelUpdateType, SourcePos, [[ScopeName]])
@@ -277,7 +277,7 @@ finalResolution cat = do
                            remoteCollects <- gets (mapMaybe _colQuery . _curCollect) -- LENS
                            let
                                isNotLocal :: CResource -> Bool
-                               isNotLocal cr = case Map.lookup (Right "EXPORTEDSOURCE") (_crparams cr) of -- LENS
+                               isNotLocal cr = case cr ^. crparams . at (Right "EXPORTEDSOURCE") of
                                                         Just (Right (ResolvedString x)) -> x /= fqdn
                                                         _ -> True
                                toCR :: Either String JSON.Value -> Either String [CResource]
@@ -288,11 +288,11 @@ finalResolution cat = do
                            fmap concat (mapM (retrieveRemoteResources (fmap toCR . pdbfunction "resources")) remoteCollects)
     let -- this adds the collected remote defines to the index of know resources, so that the dependencies check
         addCollectedDefines cr = do
-            let rtype  = _crtype cr -- LENS
-            rname <- resolveGeneralString (_crname cr) -- LENS
+            let rtype  = cr ^. crtype
+            rname <- resolveGeneralString (cr ^. crname)
             isdef <- checkDefine rtype
             case isdef of
-               Just _  -> addDefinedResource (rtype, rname) (_pos cr) -- LENS
+               Just _  -> addDefinedResource (rtype, rname) (cr ^. pos)
                Nothing -> return ()
     collectedRemote' <- mapM extractRelations collectedRemote
     mapM_ addCollectedDefines collectedRemote'
@@ -308,7 +308,7 @@ finalResolution cat = do
                 Just (Right (ResolvedString s)) -> addDefinedResource (ct, s) cp
                 Just x -> throwPosError ("Alias must be a single string, not " <> tshow x)
                 _ -> return ()
-        addCollectedRemoteResource x = throwPosError $ "finalResolution/addCollectedRemoteResource the remote resource name was not properly defined: " <> tshow (_crname x) -- LENS
+        addCollectedRemoteResource x = throwPosError $ "finalResolution/addCollectedRemoteResource the remote resource name was not properly defined: " <> tshow (x ^. crname)
     mapM_ addCollectedRemoteResource collectedRemoteD
     let collected = collectedLocalD ++ collectedRemoteD
         (real,  allvirtual)  = partition (\x -> _crvirtuality x == Normal) collected -- LENS
@@ -350,40 +350,34 @@ getstatement qtype name = do
 
 pushDefaults :: ResDefaults -> CatalogMonad ()
 pushDefaults d = do
-    curstate <- get
-    let curscope = (head . _curScope) curstate -- LENS
-        curdefaults = _curDefaults curstate -- LENS
-        newdefaults = Map.insertWith (++) curscope [d] curdefaults -- LENS
-    put (curstate { _curDefaults = newdefaults })
+    curscope <- use ( curScope . _head )
+    curDefaults %= Map.insertWith (++) curscope [d]
 
 emptyDefaults :: CatalogMonad ()
 emptyDefaults = do
-    curstate <- get
-    let curscope = (head . _curScope) curstate -- LENS
-        curdefaults = _curDefaults curstate -- LENS
-        newdefaults = Map.delete curscope curdefaults
-    put (curstate { _curDefaults = newdefaults }) -- LENS
+    curscope <- use ( curScope . _head )
+    curDefaults %= Map.delete curscope
 
 getCurDefaults :: CatalogMonad [ResDefaults]
 getCurDefaults = do
-    curstate <- get
-    let curscope = (head . _curScope) curstate -- LENS
-        curdefaults = _curDefaults curstate -- LENS
-    case Map.lookup curscope curdefaults of
-        Nothing -> return []
-        Just  x -> return x
+    curscope <- use ( curScope . _head )
+    use ( curDefaults . at curscope . each )
 
 pushDependency :: ResIdentifier -> CatalogMonad ()
 pushDependency x = currentDependencyStack %= cons x
+
 popDependency :: CatalogMonad ()
 popDependency = currentDependencyStack %= tail
+
 pushScope :: [ScopeName] -> CatalogMonad ()
 pushScope x = curScope %= cons x
+
 popScope :: CatalogMonad ()
 popScope = curScope %= tail
+
 getScope :: CatalogMonad [T.Text]
 getScope = do
-    scope <- gets _curScope -- LENS
+    scope <- use curScope
     if null scope
         then throwError "empty scope, shouldn't happen"
         else return $ head scope
@@ -395,13 +389,20 @@ getNextId = do
     use curResId
 
 -- qualifies a variable k depending on the context cs
+qualify :: T.Text -> T.Text -> T.Text
 qualify k cs | qualified k || (cs == "::") = cs <> k
              | otherwise = cs <> "::" <> k
 
--- This is a bit convoluted and misses a critical feature.
 -- It adds the variable to all the scopes that are currently active.
--- BUG TODO : check that a variable is not already defined.
-putVariable k v = getScope >>= mapM_ (\x -> curVariables.at (qualify k x) ?= v)
+putVariable :: T.Text -> (GeneralValue, SourcePos) -> CatalogMonad ()
+putVariable k v = getScope
+    >>= mapM_ (\x -> do
+              let q = qualify k x
+              defined <- use (curVariables.at q)
+              case defined of
+                  Just nv -> throwPosError ("Variable $" <> k <> " already defined at " <> tshow nv)
+                  Nothing -> curVariables.at (qualify k x) ?= v
+              )
 
 -- Saves the current module name
 setModuleName :: T.Text -> CatalogMonad ()
@@ -411,28 +412,28 @@ setModuleName str = do
                          then "topmodule"
                          else amodulename
     cpos <- use curPos
-    vars <- use curVariables
-    let nvars = Map.insert "::caller_module_name" (Right (ResolvedString modulename), cpos) vars
-    curVariables .= nvars
+    curVariables.at "::caller_module_name" ?= (Right (ResolvedString modulename), cpos)
 
-getVariable vname = gets (Map.lookup vname . _curVariables) -- LENS
+getVariable :: T.Text -> CatalogMonad (Maybe (GeneralValue, SourcePos))
+getVariable vname = use (curVariables . at vname)
 
 -- BUG TODO : top levels are qualified only with the head of the scopes
+addNestedTopLevel :: TopLevelType -> T.Text -> Statement -> CatalogMonad ()
 addNestedTopLevel rtype rname rstatement = do
-    curstate <- get
-    let ctop = _nestedtoplevels curstate -- LENS
-        curscope = head $ head (_curScope curstate) -- LENS
-        nname = qualify rname curscope
+    curscope <- use (curScope . _head . _head)
+    let nname = qualify rname curscope
         nstatement = case rstatement of
             DefineDeclaration _ prms stms cpos      -> DefineDeclaration nname prms stms cpos
             ClassDeclaration  _ inhe prms stms cpos -> ClassDeclaration  nname inhe prms stms cpos
             x -> x
-        ntop = Map.insert (rtype, nname) nstatement ctop
-        nstate = curstate { _nestedtoplevels = ntop }
-    put nstate
+    nestedtoplevels . at (rtype, nname) ?= nstatement
+
 addWarning :: T.Text -> CatalogMonad ()
 addWarning x = getWarnings %= cons x
+
+addCollect :: ((CResource -> CatalogMonad Bool, Maybe PDB.Query), Map.Map GeneralString GeneralValue) -> CatalogMonad ()
 addCollect ((func, query), overrides) = curCollect %= cons (CollectionFunction func overrides query)
+
 -- this pushes the relations only if they exist
 -- the parameter is of the form
 -- ( [dstrelations], srcresource, type, pos )
@@ -444,10 +445,8 @@ checkDefine :: T.Text -> CatalogMonad (Maybe Statement)
 checkDefine dname = use nativeTypes >>= \nt -> if Map.member dname nt -- LENS
   then return Nothing
   else do
-    curstate <- get
-    let ntop = _nestedtoplevels curstate -- LENS
-        getsmts = _getStatementsFunction curstate -- LENS
-        check = Map.lookup (TopDefine, dname) ntop
+    check <- use (nestedtoplevels . at (TopDefine, dname))
+    getsmts <- use getStatementsFunction
     case check of
         Just x -> return $ Just x
         Nothing -> do
@@ -480,11 +479,7 @@ partitionParamsRelations rparameters = do
 
 -- TODO check whether parameters changed
 checkLoaded :: T.Text -> CatalogMonad Bool
-checkLoaded name = do
-    curscope <- get
-    case Map.lookup name (_curClasses curscope) of -- LENS
-        Nothing -> return False
-        Just _  -> return True
+checkLoaded name = fmap isJust (use (curClasses . at name))
 
 -- function that takes a pair of Expressions and try to resolve the first as a string, the second as a generalvalue
 resolveParams :: (Expression, Expression) -> CatalogMonad (GeneralString, GeneralValue)
@@ -701,9 +696,7 @@ loadClassVariable position inputs (paramname, defvalue) = do
 -- nom, heritage, parametres, contenu
 evaluateClass :: Statement -> Map.Map T.Text (GeneralValue, SourcePos) -> Maybe T.Text -> CatalogMonad Catalog
 evaluateClass (ClassDeclaration classname inherits parameters statements position) inputparams actualname = do
-    isloaded <- case actualname of
-        Nothing -> checkLoaded classname
-        Just x  -> checkLoaded x
+    isloaded <- checkLoaded (fromMaybe classname actualname)
     if isloaded
         then return []
         else do
@@ -734,9 +727,7 @@ evaluateClass (ClassDeclaration classname inherits parameters statements positio
                     ClassDeclaration _ ni np ns no -> evaluateClass (ClassDeclaration classname ni np ns no) Map.empty (Just parentclass)
                     _ -> throwError "Should not happen : TopClass return something else than a ClassDeclaration in evaluateClass"
             Nothing -> return []
-        case actualname of
-            Nothing -> addLoaded classname oldpos
-            Just x  -> addLoaded x oldpos
+        addLoaded (fromMaybe classname actualname) oldpos
 
         -- parse statements
         res <- mapM evaluateStatements statements
@@ -1372,7 +1363,7 @@ collectFunction virt mrtype exprs = do
             when (Set.notMember paramname paramset && not (Set.member paramname metaparameters)) $
                 throwPosError $ "Parameter " <> paramname <> " is not a valid parameter. It should be in : " <> tshow (Set.toList paramset)
             return (\r ->
-                case Map.lookup (Right paramname) (_crparams r) of -- LENS
+                case r ^. crparams . at (Right paramname) of
                     Nothing -> return False
                     Just prmmatch -> do
                         cmp <- resolveGeneralValue prmmatch
