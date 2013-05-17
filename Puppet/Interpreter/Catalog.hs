@@ -975,6 +975,21 @@ tryResolveValue   (FunctionCall "generate" args) = if null args
             Just w  -> return $ Right $ ResolvedString w
             Nothing -> throwPosError $ "Function call generate for command " <> cmdname <> " (" <> tshow cmdargs <> ") failed"
 
+tryResolveValue   (FunctionCall "values" [x]) = do
+    rx <- tryResolveExpression x
+    case rx of
+        Right (ResolvedHash h) -> return (Right (ResolvedArray (map snd h)))
+        Right z -> throwPosError ("The values function works on arrays, not " <> tshow z)
+        Left l -> return (Left (Value (FunctionCall "values" [l])))
+tryResolveValue   (FunctionCall "values" args) = throwPosError ("The values function online takes a single argument, not " <> tshow (length args))
+tryResolveValue   (FunctionCall "keys" [x]) = do
+    rx <- tryResolveExpression x
+    case rx of
+        Right (ResolvedHash h) -> return (Right (ResolvedArray (map (ResolvedString . fst) h)))
+        Right z -> throwPosError ("The keys function works on arrays, not " <> tshow z)
+        Left l -> return (Left (Value (FunctionCall "keys" [l])))
+tryResolveValue   (FunctionCall "keys" args) = throwPosError ("The keys function online takes a single argument, not " <> tshow (length args))
+
 tryResolveValue n@(FunctionCall "pdbresourcequery" (query:xs)) = do
     let
         rvalue2query :: ResolvedValue -> Either String PDB.Query

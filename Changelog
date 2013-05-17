@@ -1,3 +1,8 @@
+v0.4.1 ()
+  New features
+	* Functions 'values' and 'keys' from stdlib are now implemented.
+  Bugs fixed
+
 v0.4.0 (2013/05/16)
   New features
 	* Big refactor of the PuppetDB API.
