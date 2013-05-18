@@ -45,7 +45,7 @@ import System.IO.Unsafe
 import Control.Arrow (first,(***))
 import Data.List
 import Data.Char (isAlpha, isAlphaNum)
-import Data.Maybe (isJust, fromJust, catMaybes, isNothing, mapMaybe, fromMaybe)
+import Data.Maybe (isJust, fromJust, catMaybes, isNothing, fromMaybe)
 import Data.Either (lefts, rights, partitionEithers)
 import Data.Ord (comparing)
 import Text.Parsec.Pos
@@ -274,7 +274,7 @@ finalResolution cat = do
                            fqdn <- case fqdnr of
                                Just (Right (ResolvedString f'), _) -> return f'
                                _ -> throwError "Could not get FQDN during final resolution"
-                           remoteCollects <- gets (mapMaybe _colQuery . _curCollect) -- LENS
+                           remoteCollects <- fmap (toListOf (traversed . colQuery . _Just)) (use curCollect)
                            let
                                isNotLocal :: CResource -> Bool
                                isNotLocal cr = case cr ^. crparams . at (Right "EXPORTEDSOURCE") of
@@ -311,8 +311,8 @@ finalResolution cat = do
         addCollectedRemoteResource x = throwPosError $ "finalResolution/addCollectedRemoteResource the remote resource name was not properly defined: " <> tshow (x ^. crname)
     mapM_ addCollectedRemoteResource collectedRemoteD
     let collected = collectedLocalD ++ collectedRemoteD
-        (real,  allvirtual)  = partition (\x -> _crvirtuality x == Normal) collected -- LENS
-        (_,  exported) = partition (\x -> _crvirtuality x == Virtual)  allvirtual -- LENS
+        (real,  allvirtual)  = partition (( == Normal) . _crvirtuality) collected
+        (_,  exported) = partition (( == Virtual) . _crvirtuality)  allvirtual
     rexported <- mapM resolveResource exported
     let !exportMap = Map.fromList rexported
     -- TODO
@@ -339,8 +339,7 @@ createResourceMap = foldM insertres Map.empty
 
 getstatement :: TopLevelType -> T.Text -> CatalogMonad Statement
 getstatement qtype name = do
-    curcontext <- get
-    let stmtsfunc = _getStatementsFunction curcontext -- LENS
+    stmtsfunc <- use getStatementsFunction
     estatement <- liftIO $ stmtsfunc qtype name
     case estatement of
         Left x -> throwPosError (T.pack x)
@@ -442,18 +441,18 @@ addUnresRel ncol@(rels, _, _, _, _)  = unless (null rels) (unresolvedRels %= con
 
 -- finds out if a resource name refers to a define
 checkDefine :: T.Text -> CatalogMonad (Maybe Statement)
-checkDefine dname = use nativeTypes >>= \nt -> if Map.member dname nt -- LENS
+checkDefine dname = use (nativeTypes . contains dname) >>= \nt -> if nt
   then return Nothing
   else do
     check <- use (nestedtoplevels . at (TopDefine, dname))
     getsmts <- use getStatementsFunction
     case check of
-        Just x -> return $ Just x
         Nothing -> do
             def1 <- liftIO $ getsmts TopDefine dname
             case def1 of
                 Left err -> throwPosError ("Could not find the definition of " <> dname <> " err = " <> T.pack err)
                 Right s -> return $ Just s
+        x -> return x
 
 {-
 Partition parameters between those that are actual parameters and those that define relationships.
@@ -1395,7 +1394,7 @@ collectFunction virt mrtype exprs = do
         x -> throwPosError $ "TODO : implement collection function for " <> tshow x
     return (\res ->
         -- <| |> matches Normal resources
-        if (_crtype res == mrtype) && ( ((virt == Virtual) &&  (_crvirtuality res == Normal)) || (_crvirtuality res == virt)) -- LENS
+        if (_crtype res == mrtype) && ( ((virt == Virtual) &&  (_crvirtuality res == Normal)) || (_crvirtuality res == virt))
             then finalfunc res
             else return False
         , if virt == Exported
