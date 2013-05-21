@@ -22,7 +22,6 @@ import Text.Parsec
 import Foreign
 import Foreign.Ruby.Bindings
 import Foreign.Ruby.Helpers
-import qualified Data.Text.IO as T
 
 type RegisteredGetvariable = RValue -> RValue -> RValue -> RValue -> IO RValue
 foreign import ccall "wrapper" mkRegisteredGetvariable :: RegisteredGetvariable -> IO (FunPtr RegisteredGetvariable)
@@ -55,9 +54,9 @@ initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) mvstats = do
         error msg
     rubyResolveFunction <- mkRegisteredGetvariable hrresolveVariable
     rb_define_global_function "varlookup" rubyResolveFunction 3
-    forkIO (templateDaemon modpath templatepath controlchan mvstats (Just rubyResolveFunction))
+    forkIO (templateDaemon modpath templatepath controlchan mvstats)
 #else
-    replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan mvstats Nothing))
+    replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan mvstats))
 #endif
     return (templateQuery controlchan)
 
@@ -67,8 +66,8 @@ templateQuery qchan filename scope variables = do
     writeChan qchan (rchan, filename, scope, variables)
     readChan rchan
 
-templateDaemon :: T.Text -> T.Text -> Chan TemplateQuery -> MStats -> Maybe (FunPtr RegisteredGetvariable) -> IO ()
-templateDaemon modpath templatepath qchan mvstats rubyResolveFunction = do
+templateDaemon :: T.Text -> T.Text -> Chan TemplateQuery -> MStats -> IO ()
+templateDaemon modpath templatepath qchan mvstats = do
     (respchan, fileinfo, scope, variables) <- readChan qchan
     case fileinfo of
         Right filename -> do
@@ -78,12 +77,12 @@ templateDaemon modpath templatepath qchan mvstats rubyResolveFunction = do
             acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
             if null acceptablefiles
                 then writeChan respchan (Left $ "Can't find template file for " ++ T.unpack filename ++ ", looked in " ++ show searchpathes)
-                else measure mvstats ("total - " <> filename) (computeTemplate (Right (head acceptablefiles)) scope variables mvstats rubyResolveFunction) >>= writeChan respchan
-        Left _ -> measure mvstats "total - inline" (computeTemplate fileinfo scope variables mvstats rubyResolveFunction) >>= writeChan respchan
-    templateDaemon modpath templatepath qchan mvstats rubyResolveFunction
+                else measure mvstats ("total - " <> filename) (computeTemplate (Right (head acceptablefiles)) scope variables mvstats) >>= writeChan respchan
+        Left _ -> measure mvstats "total - inline" (computeTemplate fileinfo scope variables mvstats) >>= writeChan respchan
+    templateDaemon modpath templatepath qchan mvstats
 
-computeTemplate :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> MStats -> Maybe (FunPtr RegisteredGetvariable) -> IO TemplateAnswer
-computeTemplate fileinfo curcontext variables mstats rubyResolveFunction = do
+computeTemplate :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> MStats -> IO TemplateAnswer
+computeTemplate fileinfo curcontext variables mstats = do
     let (filename, ufilename) = case fileinfo of
                                     Left _ -> ("inline", "inline")
                                     Right x -> (x, T.unpack x)
@@ -95,14 +94,14 @@ computeTemplate fileinfo curcontext variables mstats rubyResolveFunction = do
             let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show err
             traceEventIO msg
             LOG.debugM "Erb.Compute" msg
-            measure mstats ("ruby - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables rubyResolveFunction
+            measure mstats ("ruby - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables
         Right ast -> case rubyEvaluate variables curcontext ast of
                 Right ev -> return (Right ev)
                 Left err -> do
                     let !msg = "template " ++ ufilename ++ " evaluation failed " ++ show err
                     traceEventIO msg
                     LOG.debugM "Erb.Compute" msg
-                    measure mstats ("ruby efail - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables rubyResolveFunction
+                    measure mstats ("ruby efail - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables
 
 getTemplateFile :: T.Text -> CatalogMonad T.Text
 getTemplateFile = throwError
@@ -132,36 +131,30 @@ hrresolveVariable _ rscope rvariables rtoresolve = do
                      Just t -> getVariable variables scope t
                      _ -> Left "The variable name is not a string"
     case answer of
-        Left rr -> toRuby [T.pack rr]
+        Left _ -> fmap id2sym (rb_intern "undef")
         Right r -> toRuby r
 
-computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> Maybe (FunPtr RegisteredGetvariable) -> IO TemplateAnswer
-computeTemplateWRuby fileinfo curcontext variables (Just rubyResolveFunction) = do
-    T.putStrLn ("computeTemplateWRuby " <> tshow fileinfo)
+computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO TemplateAnswer
+computeTemplateWRuby fileinfo curcontext variables = do
     rscope <- embedHaskellValue curcontext
     rvariables <- embedHaskellValue variables
     o <- case fileinfo of
              Right fname  -> do
                  rfname <- toRuby fname
-                 putStrLn "safeMethodCall"
                  safeMethodCall "Controller" "runFromFile" [rfname,rscope,rvariables]
-             Left content -> putStrLn "content" >> toRuby content >>= safeMethodCall "Controller" "runFromContent" . (:[])
+             Left content -> toRuby content >>= safeMethodCall "Controller" "runFromContent" . (:[])
     freeHaskellValue rvariables
     freeHaskellValue rscope
     case o of
-        Left (rr, retval) -> do
-           print retval
-           (fromRuby retval :: IO (Maybe ResolvedValue)) >>= print
-           return (Left rr)
-        Right r -> putStrLn "right" >> fromRuby r >>= \x -> case x of
-                                                                Just result -> print result >> return (Right result)
-                                                                Nothing -> return (Left "Could not deserialiaze ruby output")
+        Left (rr, _) -> return (Left rr)
+        Right r -> fromRuby r >>= \x -> case x of
+                                            Just result -> return (Right result)
+                                            Nothing -> return (Left "Could not deserialiaze ruby output")
 
 #else
 saveTmpContent :: T.Text -> IO FilePath
 saveTmpContent cnt = do
     (name, h) <- openTempFile "/tmp" "inline_template.erb"
-    T.putStrLn cnt
     hClose h
     return name
 

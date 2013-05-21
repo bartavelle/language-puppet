@@ -8,9 +8,8 @@ class Scope
     end
 
     def lookupvar(name)
-        puts "lookupvar #{name}"
         x = varlookup(@context,@variables,name)
-        if x.class == Array
+        if x.class == :undef
             throw("Unknown variable " + name + " error: " + x.to_s)
         else
             x
@@ -18,7 +17,6 @@ class Scope
     end
 
     def has_variable?(name)
-        puts "has_variable #{name}"
         x = varlookup(@context,@variables,name)
         if x.class == Array
             false
@@ -50,7 +48,6 @@ end
 
 class Controller
     def self.runFromFile(filename,context,variables)
-        puts "runFromFile #{filename}"
         self.runFromContent(IO.read(filename),context,variables)
     end
     def self.runFromContent(content,context,variables)
