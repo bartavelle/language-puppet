@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, CPP #-}
 
 module Puppet.Interpreter.Types where
 
@@ -23,6 +23,10 @@ import qualified Data.Vector as V
 import Control.Arrow ( (***) )
 import Data.Maybe (fromMaybe)
 import Control.Lens hiding ((.=))
+
+#ifdef HRUBY
+import Foreign.Ruby.Helpers
+#endif
 
 type ScopeName = T.Text
 
@@ -95,6 +99,19 @@ instance FromJSON ResolvedValue where
     parseJSON (Bool b) = return $ ResolvedBool b
 
 
+#ifdef HRUBY
+instance ToRuby ResolvedValue where
+        toRuby = toRuby . toJSON
+instance FromRuby ResolvedValue where
+        fromRuby v = do
+            j <- fromRuby v
+            case j of
+                Nothing -> return Nothing
+                Just x  -> case fromJSON x of
+                               Error _ -> return Nothing
+                               Success v -> return (Just v)
+#endif
+
 -- | This type holds a value that is either from the ASL or fully resolved.
 type GeneralValue = Either Expression ResolvedValue
 
@@ -141,7 +158,6 @@ instance FromJSON CResource where
                   <*> pure mscope
                   <*> pure position
     parseJSON _ = mzero
-
 
 -- | Used for puppetDB queries, converting values to CResources
 json2puppet :: (FromJSON a) => Value -> Either String a

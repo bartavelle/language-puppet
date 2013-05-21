@@ -1,4 +1,4 @@
-module Erb.Evaluate (rubyEvaluate) where
+module Erb.Evaluate (rubyEvaluate, getVariable) where
 
 import qualified Data.Map as Map
 import Puppet.Interpreter.Types
