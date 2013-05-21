@@ -56,7 +56,7 @@ source-repository head
   location: git://github.com/bartavelle/language-puppet.git
 
 Library
-    ghc-options:       -Wall -fno-warn-missing-signatures -fno-warn-unused-do-bind -funbox-strict-fields
+    ghc-options:       -Wall -fno-warn-missing-signatures -fno-warn-unused-do-bind -funbox-strict-fields -O2
   -- Modules exported by the library.
   Exposed-modules:     Puppet.DSL.Parser, Puppet.DSL.Printer, Puppet.Daemon, Puppet.Init, Puppet.DSL.Loader, Puppet.Printers, Puppet.NativeTypes, Puppet.DSL.Types,
                        Puppet.Interpreter.Types, Puppet.Interpreter.Catalog, Puppet.NativeTypes.Helpers, PuppetDB.Rest, PuppetDB.Query, Puppet.Plugins, Puppet.Testing,
