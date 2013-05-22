@@ -113,6 +113,6 @@ limitedRand s n = limitedRand' s
         limitedRand' s' =
             let (rval, ns) = rbGenrandInt32 s'
                 val = rval .&. mask
-            in  if n < val
+            in  if val >= n
                     then limitedRand' ns
                     else (val, ns)
