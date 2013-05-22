@@ -9,7 +9,7 @@ class Scope
 
     def lookupvar(name)
         x = varlookup(@context,@variables,name)
-        if x.class == :undef
+        if x == :undef
             throw("Unknown variable " + name + " error: " + x.to_s)
         else
             x
@@ -18,7 +18,7 @@ class Scope
 
     def has_variable?(name)
         x = varlookup(@context,@variables,name)
-        if x.class == Array
+        if x == :undef
             false
         else
             true
