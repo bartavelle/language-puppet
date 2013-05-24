@@ -830,9 +830,11 @@ tryResolveGeneralValue (Left (LookupOperation a b)) = do
         (Right (ResolvedHash ar), Right idx) -> do
             let filterd = filter (\(x,_) -> x == idx) ar
             case filterd of
-                [] -> return $ Right ResolvedUndefined
+                [] -> do
+                    getWarnings <>= ["Cannot find index " <> tshow rb <> " in " <> tshow ra]
+                    return $ Right ResolvedUndefined
                 [(_,x)] -> return $ Right x
-                x  -> throwPosError ("Hum, WTF tryResolveGeneralValue " <> tshow x)
+                x  -> return $ Right $ snd $ last x
         (_, Left y) -> throwPosError ("Could not resolve index " <> tshow y)
         (Left x, _) -> throwPosError ("Could not resolve lookup " <> tshow x)
         (Right x, _) -> throwPosError ("Could not resolve something that is not an array nor a hash, but " <> tshow x)

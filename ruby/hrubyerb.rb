@@ -8,6 +8,9 @@ class Scope
     end
 
     def lookupvar(name)
+        if name.start_with?("::")
+            name = name[2..-1]
+        end
         x = varlookup(@context,@variables,name)
         if x == :undef
             throw("Unknown variable " + name + " error: " + x.to_s)

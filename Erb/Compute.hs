@@ -135,7 +135,7 @@ hrresolveVariable _ rscope rvariables rtoresolve = do
         Right r -> toRuby r
 
 computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO TemplateAnswer
-computeTemplateWRuby fileinfo curcontext variables = do
+computeTemplateWRuby fileinfo curcontext variables = freezeGC $ do
     rscope <- embedHaskellValue curcontext
     rvariables <- embedHaskellValue variables
     o <- case fileinfo of
