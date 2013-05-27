@@ -306,6 +306,7 @@ finalResolution cat = do
             addDefinedResource (ct, cn) cp
             case Map.lookup (Right "alias") prms of
                 Just (Right (ResolvedString s)) -> addDefinedResource (ct, s) cp
+                Just (Right (ResolvedArray [ResolvedString s])) -> addDefinedResource (ct, s) cp
                 Just x -> throwPosError ("Alias must be a single string, not " <> tshow x)
                 _ -> return ()
         addCollectedRemoteResource x = throwPosError $ "finalResolution/addCollectedRemoteResource the remote resource name was not properly defined: " <> tshow (x ^. crname)
