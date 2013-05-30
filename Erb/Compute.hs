@@ -20,8 +20,7 @@ import Text.Parsec
 
 #ifdef HRUBY
 import Foreign
-import Foreign.Ruby.Bindings
-import Foreign.Ruby.Helpers
+import Foreign.Ruby
 
 type RegisteredGetvariable = RValue -> RValue -> RValue -> RValue -> IO RValue
 foreign import ccall "wrapper" mkRegisteredGetvariable :: RegisteredGetvariable -> IO (FunPtr RegisteredGetvariable)
@@ -46,8 +45,7 @@ initTemplateDaemon :: Prefs -> MStats -> IO (Either T.Text T.Text -> T.Text -> M
 initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) mvstats = do
     controlchan <- newChan
 #ifdef HRUBY
-    ruby_init
-    ruby_init_loadpath
+    initialize
     s <- (getRubyScriptPath "hrubyerb.rb" >>= \p -> rb_load_protect p 0)
     unless (s == 0) $ do
         msg <- showErrorStack
@@ -131,7 +129,7 @@ hrresolveVariable _ rscope rvariables rtoresolve = do
                      Just t -> getVariable variables scope t
                      _ -> Left "The variable name is not a string"
     case answer of
-        Left _ -> fmap id2sym (rb_intern "undef")
+        Left _ -> getSymbol "undef"
         Right r -> toRuby r
 
 computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO TemplateAnswer

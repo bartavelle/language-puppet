@@ -1,7 +1,7 @@
 module Erb.Native where
 
 import Puppet.Interpreter.Type
-import Foreign.Ruby.Bindings
+import Foreign.Ruby
 
 instance FromRuby ResolvedValue where
     fromRuby v = do

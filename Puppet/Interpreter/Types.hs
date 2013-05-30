@@ -25,7 +25,7 @@ import Data.Maybe (fromMaybe)
 import Control.Lens hiding ((.=))
 
 #ifdef HRUBY
-import Foreign.Ruby.Helpers
+import Foreign.Ruby
 #endif
 
 type ScopeName = T.Text
