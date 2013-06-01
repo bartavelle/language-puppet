@@ -43,7 +43,7 @@ testinterpreter fp = do
     case parsed of
         Left err -> return (err, False)
         Right p -> do
-            let facts = Map.fromList [("::hostname",ResolvedString "test"), ("::fqdn", ResolvedString "fqdn")]
+            let facts = Map.fromList [("::hostname",ResolvedString "test"), ("::fqdn", ResolvedString "test")]
                 toplevels = map convertTopLevel p
                 oktoplevels = rights toplevels
                 othertoplevels = lefts toplevels
