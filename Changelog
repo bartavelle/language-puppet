@@ -1,6 +1,7 @@
-v0.4.1 ()
+v0.4.2 (2013/06/01)
   New features
 	* Functions 'values' and 'keys' from stdlib are now implemented.
+	* hruby integration
   Bugs fixed
 
 v0.4.0 (2013/05/16)
