@@ -432,6 +432,14 @@ puppetElseCondition = do { reservedOp "else"
     ; return $ concat e
     }
 
+puppetUnlessCondition = do
+    pos <- getPosition
+    reserved "unless"
+    whiteSpace
+    (cond, stmr) <- puppetIfStyleCondition
+    return [ConditionalStatement [(NotOperation cond, stmr)] pos]
+
+
 puppetIfCondition = do { pos <- getPosition
     ; reserved "if"
     ; whiteSpace
@@ -519,12 +527,13 @@ stmtparser = variableAssignment
     <|> puppetImport
     <|> nodeDeclaration
     <|> puppetDefine
+    <|> puppetUnlessCondition
     <|> puppetIfCondition
     <|> puppetCaseCondition
     <|> puppetResourceGroup
-    <|> try (puppetResourceDefaults)
-    <|> try (puppetResourceOverride)
-    <|> try (puppetResourceCollection)
+    <|> try puppetResourceDefaults
+    <|> try puppetResourceOverride
+    <|> try puppetResourceCollection
     <|> puppetClassDefinition
     <|> puppetChains
     <|> puppetMainFunctionCall
