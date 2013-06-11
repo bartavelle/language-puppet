@@ -37,7 +37,7 @@ def = P.LanguageDef
     , P.nestedComments = True
     , P.identStart     = letter
     , P.identLetter    = alphaNum <|> char '_'
-    , P.reservedNames  = ["if", "else", "case", "elsif", "default", "import", "define", "class", "node", "inherits", "true", "false", "undef"]
+    , P.reservedNames  = ["if", "else", "case", "elsif", "default", "import", "define", "class", "node", "inherits", "true", "false", "undef", "unless"]
     , P.reservedOpNames= ["=>","=","+","-","/","*","+>","->","~>","!"]
     , P.caseSensitive  = True
     , P.opStart        = oneOf ":!#$%&*+./<=>?@\\^|-~"
