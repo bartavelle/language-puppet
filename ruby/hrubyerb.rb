@@ -7,11 +7,15 @@ class Scope
         @variables = variables
     end
 
-    def lookupvar(name)
+    def vl(name)
         if name.start_with?("::")
             name = name[2..-1]
         end
-        x = varlookup(@context,@variables,name)
+        varlookup(@context,@variables,name)
+    end
+
+    def lookupvar(name)
+        x = vl(name)
         if x == :undef
             throw("Unknown variable " + name + " error: " + x.to_s)
         else
@@ -20,7 +24,7 @@ class Scope
     end
 
     def has_variable?(name)
-        x = varlookup(@context,@variables,name)
+        x = vl(name)
         if x == :undef
             false
         else
