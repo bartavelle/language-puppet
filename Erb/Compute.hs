@@ -144,7 +144,11 @@ computeTemplateWRuby fileinfo curcontext variables = freezeGC $ do
     freeHaskellValue rvariables
     freeHaskellValue rscope
     case o of
-        Left (rr, _) -> return (Left rr)
+        Left (rr, _) ->
+            let fname = case fileinfo of
+                            Right f -> T.unpack f
+                            Left _  -> "inline_template"
+            in  return (Left ("Error in " <> fname <> ":\n" <> rr))
         Right r -> fromRuby r >>= \x -> case x of
                                             Just result -> return (Right result)
                                             Nothing -> return (Left "Could not deserialiaze ruby output")
