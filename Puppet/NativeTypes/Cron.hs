@@ -26,7 +26,7 @@ parameterfunctions =
     ,("special"             , [string])
     ,("target"              , [string])
     ,("user"                , [defaultvalue "root", string])
-    ,("weekday"             , [vrange 0 7 ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]])
+    ,("weekday"             , [vrange 0 7 ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]])
     ]
 
 validateCron :: PuppetTypeValidate
