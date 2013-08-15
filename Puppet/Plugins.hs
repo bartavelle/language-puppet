@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 {-| This module is used for user plugins. It exports three functions that should
 be easy to use: 'initLua', 'puppetFunc' and 'closeLua'. Right now it is used by
 the "Puppet.Daemon" by initializing and destroying the Lua context for each
@@ -22,50 +24,46 @@ have no access to the manifests data.
 -}
 module Puppet.Plugins (initLua, puppetFunc, closeLua, getFiles) where
 
-import Prelude hiding (catch)
+import Puppet.PP
 import qualified Scripting.Lua as Lua
 import Scripting.LuaUtils()
 import Control.Exception
-import qualified Data.Map as Map
-import Control.Monad.IO.Class
+import qualified Data.HashMap.Strict as HM
 import System.IO
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Vector as V
+import Control.Monad.IO.Class
 
 import Puppet.Interpreter.Types
-import Puppet.Printers
 import Puppet.Utils
 
-instance Lua.StackValue ResolvedValue
+instance Lua.StackValue PValue
     where
-        push l (ResolvedString s)        = Lua.push l s
-        push l (ResolvedRegexp s)        = Lua.push l s
-        push l (ResolvedInt i)           = Lua.push l (fromIntegral i :: Int)
-        push l (ResolvedDouble d)        = Lua.push l d
-        push l (ResolvedBool b)          = Lua.push l b
-        push l (ResolvedRReference rr _) = Lua.push l rr
-        push l (ResolvedArray arr)       = Lua.push l arr
-        push l (ResolvedHash h)          = Lua.push l (Map.fromList h)
-        push l (ResolvedUndefined)       = Lua.push l ("undefined" :: T.Text)
+        push l (PString s)               = Lua.push l s
+        push l (PBoolean b)              = Lua.push l b
+        push l (PResourceReference rr _) = Lua.push l rr
+        push l (PArray arr)              = Lua.push l (V.toList arr)
+        push l (PHash h)                 = Lua.push l (HM.toList h)
+        push l (PUndef)                  = Lua.push l ("undefined" :: T.Text)
 
         peek l n = do
             t <- Lua.ltype l n
             case t of
-                Lua.TBOOLEAN -> fmap (fmap ResolvedBool) (Lua.peek l n)
-                Lua.TSTRING  -> fmap (fmap ResolvedString) (Lua.peek l n)
-                Lua.TNUMBER  -> fmap (fmap ResolvedDouble) (Lua.peek l n)
-                Lua.TNIL     -> return (Just ResolvedUndefined)
-                Lua.TNONE    -> return (Just ResolvedUndefined)
+                Lua.TBOOLEAN -> fmap (fmap PBoolean) (Lua.peek l n)
+                Lua.TSTRING  -> fmap (fmap PString) (Lua.peek l n)
+                Lua.TNUMBER  -> fmap (fmap (PString . tshow)) (Lua.peek l n :: IO (Maybe Double))
+                Lua.TNIL     -> return (Just PUndef)
+                Lua.TNONE    -> return (Just PUndef)
                 Lua.TTABLE   -> do
-                    p <- Lua.peek l n :: IO (Maybe (Map.Map ResolvedValue ResolvedValue))
+                    p <- Lua.peek l n :: IO (Maybe [(T.Text, PValue)])
                     case p of
-                        Just kp -> let ks = Map.keys kp
-                                       cp = map (\(a,b) -> (showValue a, b)) $ Map.toList kp
-                                   in  if (all (\(a,b) -> a == ResolvedDouble b) (zip ks [1.0..]))
-                                       -- horrible trick to check whether we are being returned a list or a hash
-                                       -- this will probably fail somehow
-                                        then return $ Just (ResolvedArray (map snd cp))
-                                        else return $ Just (ResolvedHash cp)
+                        Just pp ->
+                            let ratiokeys = map (readRational . fst) pp
+                                equality = zipWith (\a b -> a == Right b) ratiokeys ([1.0..] :: [Double])
+                            in  return $ Just $ if and equality
+                                                    then PArray (V.fromList $ map snd pp)
+                                                    else PHash (HM.fromList pp)
                         _ -> return Nothing
                 _ -> return Nothing
 
@@ -79,17 +77,15 @@ checkForSubFiles :: T.Text -> T.Text -> IO [T.Text]
 checkForSubFiles extension dir = do
     content <- catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException))
     case content of
-        Right o -> do
-            return ((map (\x -> dir <> "/" <> x) . filter (T.isSuffixOf extension)) o )
+        Right o -> return ((map (\x -> dir <> "/" <> x) . filter (T.isSuffixOf extension)) o )
         Left _ -> return []
 
 -- Find files in the module directory that are in a module subdirectory and
 -- finish with a specific extension
 getFiles :: T.Text -> T.Text -> T.Text -> IO [T.Text]
-getFiles moduledir subdir extension =
+getFiles moduledir subdir extension = fmap concat $
     getDirContents moduledir
-        >>= mapM ( (checkForSubFiles extension) . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
-        >>= return . concat
+        >>= mapM ( checkForSubFiles extension . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
 
 getLuaFiles :: T.Text -> IO [T.Text]
 getLuaFiles moduledir = getFiles moduledir "lib/puppet/parser/luafunctions" ".lua"
@@ -105,12 +101,12 @@ loadLuaFile l file = do
 {-| Runs a puppet function in the 'CatalogMonad' monad. It takes a state,
 function name and list of arguments. It returns a valid Puppet value.
 -}
-puppetFunc :: Lua.LuaState -> T.Text -> [ResolvedValue] -> CatalogMonad ResolvedValue
+puppetFunc :: Lua.LuaState -> T.Text -> [PValue] -> InterpreterMonad PValue
 puppetFunc l fn args = do
-    content <- liftIO $ catch (fmap Right (Lua.callfunc l (T.unpack fn) args)) (\e -> return $ Left $ tshow (e :: SomeException))
+    content <- liftIO $ catch (fmap Right (Lua.callfunc l (T.unpack fn) args)) (\e -> return $ Left $ show (e :: SomeException))
     case content of
         Right x -> return x
-        Left  y -> throwPosError y
+        Left  y -> throwPosError (string y)
 
 -- | Initializes the Lua state. The argument is the modules directory. Each
 -- subdirectory will be traversed for functions.

@@ -1,342 +1,323 @@
-{-# LANGUAGE TemplateHaskell, CPP #-}
-
+{-# LANGUAGE DeriveGeneric, TemplateHaskell, CPP, ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Puppet.Interpreter.Types where
 
-import Puppet.DSL.Types hiding (Value) -- conflicts with aeson
-import Puppet.Utils
+import Puppet.Parser.Types
+import Puppet.Stats
+import Puppet.Parser.PrettyPrinter
 
-import qualified PuppetDB.Query as PDB
-import qualified Scripting.Lua as Lua
-import Text.Parsec.Pos
-import Control.Monad.State
-import Control.Monad.Error
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import GHC.Exts
 import Data.Aeson
+import Text.PrettyPrint.ANSI.Leijen
 import qualified Data.HashMap.Strict as HM
-import Control.Applicative
+import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import Data.Attoparsec.Number
-import qualified Text.Parsec.Pos as TPP
+import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
-import Control.Arrow ( (***) )
-import Data.Maybe (fromMaybe)
-import Control.Lens hiding ((.=))
+import Data.Tuple.Strict
+import Control.Monad.RWS.Strict hiding ((<>))
+import Control.Monad.Error
+import Control.Lens
+import Data.String (IsString(..))
+import qualified Data.Either.Strict as S
+import Data.Hashable
+import GHC.Generics
+import qualified Data.Traversable as TR
+import Control.Exception
+import qualified Data.ByteString as BS
+import System.Log.Logger
+import Data.List (foldl')
 
 #ifdef HRUBY
 import Foreign.Ruby
 #endif
 
-type ScopeName = T.Text
+metaparameters :: HS.HashSet T.Text
+metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
 
--- | Types for the native type system.
-type PuppetTypeName = T.Text
+type Container = HM.HashMap T.Text
 
--- | This is the potentially unsolved list of resources in the catalog.
-type Catalog =[CResource]
-type Facts = Map.Map T.Text ResolvedValue
+data PValue = PBoolean !Bool
+            | PUndef
+            | PString !T.Text -- integers and doubles are internally serialized as strings by puppet
+            | PResourceReference !T.Text !T.Text
+            | PArray !(V.Vector PValue)
+            | PHash !(Container PValue)
+            deriving (Eq, Show)
+
+data RSearchExpression
+    = REqualitySearch !T.Text !PValue
+    | RNonEqualitySearch !T.Text !PValue
+    | RAndSearch !RSearchExpression !RSearchExpression
+    | ROrSearch !RSearchExpression !RSearchExpression
+    | RAlwaysTrue
+    deriving Eq
+
+instance IsString PValue where
+    fromString = PString . T.pack
+
+data ClassIncludeType = IncludeStandard | IncludeResource
+                      deriving (Eq)
+
+type Scope = T.Text
+
+type Facts = Container PValue
+
+-- |This type is used to differenciate the distinct top level types that are
+-- exposed by the DSL.
+data TopLevelType
+    -- |This is for node entries.
+    = TopNode
+    -- |This is for defines.
+    | TopDefine
+    -- |This is for classes.
+    | TopClass
+    -- |This one is special. It represents top level statements that are not
+    -- part of a node, define or class. It is defined as spurious because it is
+    -- not what you are supposed to be. Also the caching system doesn't like
+    -- them too much right now.
+    | TopSpurious
+    deriving (Generic,Eq)
+
+instance Hashable TopLevelType
+
+data ResDefaults = ResDefaults { _defType     :: !T.Text
+                               , _defSrcScope :: !T.Text
+                               , _defValues   :: !(Container PValue)
+                               , _defPos      :: !PPosition
+                               }
+
+data CurContainerDesc = ContRoot | ContClass !T.Text | ContDefine !T.Text !T.Text
+    deriving Eq
+
+data CurContainer = CurContainer { _cctype :: !CurContainerDesc
+                                 , _cctags :: !(HS.HashSet T.Text)
+                                 }
+                                 deriving Eq
+
+data ResRefOverride = ResRefOverride { _rrid     :: !RIdentifier
+                                     , _rrparams :: !(Container PValue)
+                                     , _rrpos    :: !PPosition
+                                     }
+                                     deriving Eq
+
+data ScopeInformation = ScopeInformation { _scopeVariables :: !(Container (Pair PValue PPosition))
+                                         , _scopeDefaults  :: !(Container ResDefaults)
+                                         , _scopeExtraTags :: !(HS.HashSet T.Text)
+                                         , _scopeContainer :: !CurContainer
+                                         , _scopeOverrides :: !(HM.HashMap RIdentifier ResRefOverride)
+                                         }
+
+data InterpreterState = InterpreterState { _scopes             :: !(Container ScopeInformation)
+                                         , _loadedClasses      :: !(Container (Pair ClassIncludeType PPosition))
+                                         , _definedResources   :: !(HM.HashMap RIdentifier PPosition)
+                                         , _curScope           :: ![Scope]
+                                         , _curPos             :: !PPosition
+                                         , _nestedDeclarations :: !(HM.HashMap (TopLevelType, T.Text) Statement)
+                                         , _extraRelations     :: ![LinkInformation]
+                                         , _resMod             :: ![ResourceModifier]
+                                         }
+
+data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Container PuppetTypeMethods)
+                                           , _getStatement            :: TopLevelType -> T.Text -> IO (S.Either Doc Statement)
+                                           , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text)
+                                           , _puppetDBquery           :: T.Text -> Value -> IO (S.Either String Value)
+                                           , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
+                                           }
+
+data Warning = Warning !Doc
+
+data InterpreterWriter = InterpreterWriter { _warnings :: ![Pair Priority Doc] }
+
+warn :: Doc -> InterpreterMonad ()
+warn d = tell (InterpreterWriter [WARNING :!: d])
+
+logWriter :: Priority -> Doc -> InterpreterMonad ()
+logWriter prio d = tell (InterpreterWriter [prio :!: d])
+
+instance Monoid InterpreterWriter where
+    mempty = InterpreterWriter []
+    mappend (InterpreterWriter a) (InterpreterWriter b) = {-# SCC "mappendInterpreterWriter" #-} InterpreterWriter (a ++ b)
+
+type InterpreterMonad = ErrorT Doc (RWST InterpreterReader InterpreterWriter InterpreterState IO)
+
+instance Error Doc where
+    noMsg = empty
+    strMsg = text
+
+data RIdentifier = RIdentifier { _itype :: !T.Text
+                               , _iname :: !T.Text
+                               } deriving(Show, Eq, Generic, Ord)
+
+instance Hashable RIdentifier
 
 -- | Relationship link type.
-data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Ord, Eq)
+data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Eq,Generic)
+instance Hashable LinkType
 
--- | Type of update\/override, so they can be applied in the correct order. This
--- part is probably not behaving like vanilla puppet, as it turns out this are
--- many fairly acceptable behaviours and the correct one is not documented.
-data RelUpdateType = UNormal | UOverride | UDefault | UPlus deriving (Show, Ord, Eq)
+data ModifierType = ModifierCollector -- ^ For collectors, optional resources
+                  | ModifierMustMatch -- ^ For stuff like realize
+                  deriving Eq
 
-type LinkInfo = (LinkType, RelUpdateType, SourcePos, [[ScopeName]])
+data OverrideType = CantOverride -- ^ Overriding forbidden, will throw an error
+                  | Replace -- ^ Can silently replace
+                  | CantReplace
 
--- | The list of resolved values that are used to define everything in a
--- 'FinalCatalog' and in the resolved parts of a 'Catalog'. They are to be
--- compared with the 'Value's.
-data ResolvedValue
-    = ResolvedString     !T.Text
-    | ResolvedRegexp     !T.Text
-    | ResolvedInt        !Integer
-    | ResolvedDouble     !Double
-    | ResolvedBool       !Bool
-    | ResolvedRReference !T.Text !ResolvedValue
-    | ResolvedArray      ![ResolvedValue]
-    | ResolvedHash       ![(T.Text, ResolvedValue)]
-    | ResolvedUndefined
-    deriving(Show, Eq, Ord)
+data ResourceCollectorType = RealizeVirtual
+                           | RealizeCollected
+                           | DontRealize
+                           deriving Eq
 
-instance IsString ResolvedValue where
-    fromString = ResolvedString . fromString
+data ResourceModifier = ResourceModifier { _rmResType      :: !T.Text
+                                         , _rmModifierType :: !ModifierType
+                                         , _rmType         :: !ResourceCollectorType
+                                         , _rmSearch       :: !RSearchExpression
+                                         , _rmMutation     :: !(Resource -> InterpreterMonad Resource)
+                                         , _rmDeclaration  :: !PPosition
+                                         }
 
-instance ToJSON ResolvedValue where
-    toJSON (ResolvedString s)       = String s
-    toJSON (ResolvedRegexp r)       = String r
-    toJSON (ResolvedInt i)          = Number (I i)
-    toJSON (ResolvedDouble d)       = Number (D d)
-    toJSON (ResolvedBool b)         = Bool b
-    toJSON (ResolvedRReference _ _) = Null -- TODO
-    toJSON (ResolvedArray rr)       = toJSON rr
-    toJSON (ResolvedHash hh)        = object (map (uncurry (.=)) hh)
-    toJSON (ResolvedUndefined)      = Null
+data LinkInformation = LinkInformation { _linksrc  :: !RIdentifier
+                                       , _linkdst  :: !RIdentifier
+                                       , _linkType :: !LinkType
+                                       , _linkPos  :: !PPosition
+                                       }
 
-parseResourceReference :: T.Text -> Maybe ResolvedValue
-parseResourceReference instr = case T.splitOn "[" instr of
-                                               [restype, renamee] -> if T.last renamee == ']'
-                                                                         then Just (ResolvedRReference (T.toLower restype) (ResolvedString (T.init renamee)))
-                                                                         else Nothing
-                                               _ -> Nothing
+type EdgeMap = HM.HashMap RIdentifier [LinkInformation]
 
-instance FromJSON ResolvedValue where
-    parseJSON Null = return ResolvedUndefined
-    parseJSON (Number x) = return $ case x of
-                                        (I n) -> ResolvedInt n
-                                        (D d) -> ResolvedDouble d
-    parseJSON (String s) = case parseResourceReference s of
-                               Just x  -> return x
-                               Nothing -> return $ ResolvedString s
-    parseJSON (Array a) = fmap ResolvedArray (mapM parseJSON (V.toList a))
-    parseJSON (Object o) = fmap ResolvedHash (mapM (\(a,b) -> do {
-                                                                 b' <- parseJSON b ;
-                                                                 return (a,b') }
-                                                                 ) (HM.toList o))
-    parseJSON (Bool b) = return $ ResolvedBool b
-
-
-#ifdef HRUBY
-instance ToRuby ResolvedValue where
-        toRuby = toRuby . toJSON
-instance FromRuby ResolvedValue where
-        fromRuby v = do
-            j <- fromRuby v
-            case j of
-                Nothing -> return Nothing
-                Just x  -> case fromJSON x of
-                               Error _ -> return Nothing
-                               Success v -> return (Just v)
-#endif
-
--- | This type holds a value that is either from the ASL or fully resolved.
-type GeneralValue = Either Expression ResolvedValue
-
--- | This type holds a value that is either from the ASL or a fully resolved
--- String.
-type GeneralString = Either Expression T.Text
-
-
-{-| This describes the resources before the final resolution. This is required
-as they must somehow be collected while the 'Statement's are interpreted, but
-the necessary 'Expression's are not yet available. This is because in Puppet the
-'Statement' order should not alter the catalog's content.
-
-The relations are not stored here, as they are pushed into a separate internal
-data structure by the interpreter.
+{-| This is a fully resolved resource that will be used in the
+    'FinalCatalog'.
 -}
-data CResource = CResource {
-    _crid :: !Int, -- ^ Resource ID, used in the Puppet YAML.
-    _crname :: !GeneralString, -- ^ Resource name.
-    _crtype :: !T.Text, -- ^ Resource type.
-    _crparams :: !(Map.Map GeneralString GeneralValue), -- ^ Resource parameters.
-    _crvirtuality :: !Virtuality, -- ^ Resource virtuality.
-    _crscope :: ![[ScopeName]], -- ^ Resource scope when it was defined
-    _pos :: !SourcePos -- ^ Source code position of the resource definition.
-    } deriving(Show)
+data Resource = Resource
+    { _rid         :: !RIdentifier                                    -- ^ Resource name.
+    , _ralias      :: !T.Text                                         -- ^ All the resource aliases
+    , _rattributes :: !(Container PValue)                             -- ^ Resource parameters.
+    , _rrelations  :: !(HM.HashMap RIdentifier (HS.HashSet LinkType)) -- ^ Resource relations.
+    , _rscope      :: !T.Text                                         -- ^ Resource scope when it was defined
+    , _container   :: !CurContainerDesc                               -- ^ The class that contains this resource
+    , _rvirtuality :: !Virtuality
+    , _rtags       :: !(HS.HashSet T.Text)
+    , _rpos        :: !PPosition -- ^ Source code position of the resource definition.
+    }
+    deriving Eq
 
-instance FromJSON CResource where
-    parseJSON (Object o) = do
-        utitle     <- o .:  "title"
-        params     <- o .:  "parameters"
-        sourcefile <- o .:  "sourcefile"
-        sourceline <- o .:  "sourceline"
-        certname   <- o .:  "certname"
-        scope      <- o .:? "scope"
-        let _ = params :: HM.HashMap T.Text ResolvedValue
-            parameters = Map.fromList $ map (Right *** Right) $ ("EXPORTEDSOURCE", ResolvedString certname) : HM.toList params :: Map.Map GeneralString GeneralValue
-            position   = TPP.newPos (T.unpack sourcefile ++ "(host: " ++ T.unpack certname ++ ")") sourceline 1
-            mscope = fromMaybe [["json"]] scope
-        CResource <$> pure 0
-                  <*> pure (Right utitle)
-                  <*> fmap T.toLower (o .: "type")
-                  <*> pure parameters
-                  <*> pure Normal
-                  <*> pure mscope
-                  <*> pure position
-    parseJSON _ = mzero
+-- |This is a function type than can be bound. It is the type of all
+-- subsequent validators.
+type PuppetTypeValidate = Resource -> Either Doc Resource
 
--- | Used for puppetDB queries, converting values to CResources
-json2puppet :: (FromJSON a) => Value -> Either String a
-json2puppet x = case fromJSON x of
-                         Error s   -> Left s
-                         Success a -> Right a
-
--- | Resource identifier, made of a type, name pair.
-type ResIdentifier = (T.Text, T.Text)
-
--- | Resource relation, made of a 'LinkType', 'ResIdentifier' pair.
-type Relation  = (LinkType, ResIdentifier)
-
-{-| This is a fully resolved resource that will be used in the 'FinalCatalog'.
--}
-data RResource = RResource {
-    rrid :: !Int, -- ^ Resource ID.
-    rrname :: !T.Text, -- ^ Resource name.
-    rrtype :: !T.Text, -- ^ Resource type.
-    rrparams :: !(Map.Map T.Text ResolvedValue), -- ^ Resource parameters.
-	rrelations :: ![Relation], -- ^ Resource relations.
-    rrscope :: ![[ScopeName]], -- ^ Resource scope when it was defined
-    rrpos :: !SourcePos -- ^ Source code position of the resource definition.
-    } deriving(Show, Ord, Eq)
-
--- |This is a function type than can be bound. It is the type of all subsequent
--- validators.
-type PuppetTypeValidate = RResource -> Either String RResource
-data PuppetTypeMethods = PuppetTypeMethods {
-    puppetvalidate :: PuppetTypeValidate,
-    puppetfields   :: Set.Set T.Text
+data PuppetTypeMethods = PuppetTypeMethods
+    { _puppetValidate :: PuppetTypeValidate
+    , _puppetFields   :: HS.HashSet T.Text
     }
 
-rr2json :: T.Text -> RResource -> Value
-rr2json hostname rr =
-    let sourcefile = sourceName (rrpos rr)
-        sourceline = sourceLine (rrpos rr)
-    in  object [ "title"      .= rrname rr
-               , "sourcefile" .= sourcefile
-               , "sourceline" .= sourceline
-               , "type"       .= capitalizeResType (rrtype rr)
-               , "certname"   .= hostname
-               , "scope"      .= rrscope rr
-               , "parameters" .= rrparams rr
-               ]
+type FinalCatalog = HM.HashMap RIdentifier Resource
 
-type FinalCatalog = Map.Map ResIdentifier RResource
+data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))
+                                   , _dParserStats   :: MStats
+                                   , _dCatalogStats  :: MStats
+                                   , _dTemplateStats :: MStats
+                                   }
+makeClassy ''RIdentifier
+makeClassy ''ResRefOverride
+makeClassy ''LinkInformation
+makeClassy ''ResDefaults
+makeClassy ''ResourceModifier
+makeClassy ''DaemonMethods
+makeClassy ''PuppetTypeMethods
+makeClassy ''ScopeInformation
+makeClassy ''Resource
+makeClassy ''InterpreterState
+makeClassy ''InterpreterReader
 
-{-| A data type to hold defaults values
- -}
-data ResDefaults = RDefaults T.Text (Map.Map GeneralString GeneralValue) SourcePos
-                 | ROverride T.Text GeneralString (Map.Map GeneralString GeneralValue) SourcePos
-                 deriving (Show, Ord, Eq)
+throwPosError :: Doc -> InterpreterMonad a
+throwPosError s = use (curPos . _1) >>= \p -> throwError (s <+> "at" <+> showPos p)
 
--- | The monad all the interpreter lives in. It is 'ErrorT' with a state.
-type CatalogMonad = ErrorT T.Text (StateT ScopeState IO)
+getScope :: InterpreterMonad Scope
+{-# INLINE getScope #-}
+getScope = use curScope >>= \s -> if null s
+                                      then throwPosError "Internal error: empty scope!"
+                                      else return (head s)
 
--- | The type of collection functions
-data CollectionFunction = CollectionFunction { _colFunction  :: CResource -> CatalogMonad Bool -- ^ the actual collection function, telling you whether something should be collected
-                                             , _colOverrides :: Map.Map GeneralString GeneralValue -- ^ The list of overrides
-                                             , _colQuery     :: Maybe PDB.Query -- ^ The puppetDB query
-                                             }
+-- instance
 
-{-| The most important data structure for the interpreter. It stores its
-internal state.
--}
-data ScopeState = ScopeState {
-    _curScope :: ![[ScopeName]],
-    -- ^ The list of scopes. It works like a stack, and its initial value must
-    -- be @[[\"::\"]]@. It is a stack of lists of strings. These lists can be
-    -- one element wide (usual case), or two elements (inheritance), so that
-    -- variables could be assigned to both scopes.
-    _curVariables :: !(Map.Map T.Text (GeneralValue, SourcePos)),
-    -- ^ The list of known variables. It should be noted that the interpreter
-    -- tries to resolve them as soon as it can, so that it can store their
-    -- current scope.
-    _curClasses :: !(Map.Map T.Text SourcePos),
-    -- ^ The list of classes that have already been included, along with the
-    -- place where this happened.
-    _curDefaults :: !(Map.Map [ScopeName] [ResDefaults]),
-    -- ^ List of defaults to apply. All defaults are applied at the end of the
-    -- interpretation of each top level statement.
-    _curResId :: !Int, -- ^ Stores the value of the current 'crid'.
-    _curPos :: !SourcePos,
-    -- ^ Current position of the evaluated statement. This is mostly used to
-    -- give useful error messages.
-    _nestedtoplevels :: !(Map.Map (TopLevelType, T.Text) Statement),
-    -- ^ List of \"top levels\" that have been parsed inside another top level.
-    -- Their behaviour is curently non canonical as the scoping rules are
-    -- unclear.
-    _getStatementsFunction :: TopLevelType -> T.Text -> IO (Either String Statement),
-    -- ^ This is a function that, given the type of a top level statement and
-    -- its name, should return it.
-    _getWarnings :: ![T.Text], -- ^ List of warnings.
-    _curCollect :: ![CollectionFunction],
-    -- ^ A bit complicated, this stores the collection functions. These are
-    -- functions that determine whether a resource should be collected or not.
-    -- It can optionally store overrides, which will be applied in the end on
-    -- all resources. It can also store a PuppetDB query.
-    _unresolvedRels :: ![([(LinkType, GeneralValue, GeneralValue)], (T.Text, GeneralString), RelUpdateType, SourcePos, [[ScopeName]])],
-    -- ^ This stores unresolved relationships, because the original string name
-    -- can't be resolved. Fieds are [ ( [dstrelations], srcresource, type, pos ) ]
-    _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text),
-    -- ^ Function that takes either a text content or a filename, the current scope and a list of
-    -- variables. It returns an error or the computed template.
-    _puppetDBFunction :: T.Text -> PDB.Query -> IO (Either String Value),
-    -- ^ Function that takes a request type (resources, nodes, facts, ..),
-    -- a query, and returns a resolved value from puppetDB.
-    _luaState :: Maybe Lua.LuaState,
-    -- ^ The Lua state, used for user supplied content.
-    _userFunctions :: !(Set.Set T.Text),
-    -- ^ The list of registered user functions
-    _nativeTypes :: !(Map.Map PuppetTypeName PuppetTypeMethods),
-    -- ^ The list of native types.
-    _definedResources :: !(Map.Map ResIdentifier SourcePos),
-    -- ^ Horrible hack to kind of support the "defined" function
-    _currentDependencyStack :: [ResIdentifier]
-}
+instance FromJSON PValue where
+    parseJSON Null = return PUndef
+    parseJSON (Number n) = return (PString (T.pack (show n)))
+    parseJSON (String s) = return (PString s)
+    parseJSON (Bool b) = return (PBoolean b)
+    parseJSON (Array v) = fmap PArray (V.mapM parseJSON v)
+    parseJSON (Object o) = fmap PHash (TR.mapM parseJSON o)
 
-makeClassy ''ScopeState
-makeClassy ''CollectionFunction
-makeClassy ''RResource
-makeClassy ''CResource
+instance ToJSON PValue where
+    toJSON (PBoolean b) = Bool b
+    toJSON PUndef = Null
+    toJSON (PString s) = String s
+    toJSON (PResourceReference _ _) = Null -- TODO
+    toJSON (PArray r) = Array (V.map toJSON r)
+    toJSON (PHash x) = Object (HM.map toJSON x)
 
-instance Error T.Text where
-    noMsg = ""
-    strMsg = T.pack
+#ifdef HRUBY
+instance ToRuby PValue where
+    toRuby = toRuby . toJSON
+instance FromRuby PValue where
+    fromRuby v = do
+        j <- fromRuby v
+        case j of
+            Nothing -> return Nothing
+            Just x  -> case fromJSON x of
+                           Error _ -> return Nothing
+                           Success suc -> return (Just suc)
+#endif
 
--- | This is the map of all edges associated with the 'FinalCatalog'.
--- The key is (source, target).
-type EdgeMap = Map.Map (ResIdentifier, ResIdentifier) LinkInfo
+interpreterIO :: IO (S.Either Doc a) -> InterpreterMonad a
+{-# INLINE interpreterIO #-}
+interpreterIO f = do
+    r <- liftIO (f `catch` (\e -> return $ S.Left $ dullred $ text $ show (e :: SomeException)))
+    case r of
+        S.Right x -> return x
+        S.Left rr -> throwPosError rr
 
-generalizeValueE :: Expression -> GeneralValue
-generalizeValueE = Left
-generalizeValueR :: ResolvedValue -> GeneralValue
-generalizeValueR = Right
-generalizeStringE :: Expression -> GeneralString
-generalizeStringE = Left
-generalizeStringS :: T.Text -> GeneralString
-generalizeStringS = Right
+safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad T.Text
+{-# INLINE safeDecodeUtf8 #-}
+safeDecodeUtf8 i = return (T.decodeUtf8 i)
 
--- |This is the set of meta parameters
-metaparameters :: Set.Set T.Text
-metaparameters = Set.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"] :: Set.Set T.Text
+interpreterError :: InterpreterMonad (S.Either Doc a) -> InterpreterMonad a
+{-# INLINE interpreterError #-}
+interpreterError f = f >>= \x -> case x of
+                                     S.Right r -> return r
+                                     S.Left rr -> throwPosError rr
 
-{-
-getPos               = liftM curPos get
-modifyScope     f sc = sc { curScope       = f $ curScope sc }
-modifyDeps      f sc = sc { currentDependencyStack = f $ currentDependencyStack sc }
-modifyVariables f sc = sc { curVariables   = f $ curVariables sc }
-modifyClasses   f sc = sc { curClasses     = f $ curClasses sc }
-incrementResId    sc = sc { curResId       = curResId sc + 1 }
-setStatePos  npos sc = sc { curPos         = npos }
-pushWarning     t sc = sc { getWarnings    = getWarnings sc ++ [t] }
-pushCollect   r   sc = sc { curCollect     = r : curCollect sc }
-pushUnresRel  r   sc = sc { unresolvedRels = r : unresolvedRels sc }
-addDefinedResource r p = modify (\st -> st { definedResources = Map.insert r p (definedResources st) } )
-saveVariables vars = modify (\st -> st { curVariables = vars })
--}
+resourceRelations :: Resource -> [(RIdentifier, LinkType)]
+resourceRelations = concatMap expandSet . HM.toList . _rrelations
+    where
+        expandSet (ri, lts) = [(ri, lt) | lt <- HS.toList lts]
 
-addDefinedResource :: ResIdentifier -> SourcePos -> CatalogMonad ()
-addDefinedResource r p = definedResources.at r ?= p
+-- | helper for hashmap, in case we want another kind of map ..
+ifromList :: (Monoid m, At m) => [(Index m, IxValue m)] -> m
+{-# INLINE ifromList #-}
+ifromList = foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
 
-showScope :: [[ScopeName]] -> T.Text
-showScope = tshow . reverse . concatMap (take 1)
+ikeys :: (Eq k, Hashable k) => HM.HashMap k v -> HS.HashSet k
+{-# INLINE ikeys #-}
+ikeys = HS.fromList . HM.keys
 
-throwPosError :: T.Text -> CatalogMonad a
-throwPosError msg = do
-    p <- use curPos
-    st <- fmap (map T.pack) (liftIO currentCallStack)
-    throwError (msg <> " at " <> tshow p <> "\n\t" <> T.intercalate "\n\t" st)
+isingleton :: (Monoid b, At b) => Index b -> IxValue b -> b
+{-# INLINE isingleton #-}
+isingleton k v = mempty & at k ?~ v
 
-addAlias :: T.Text -> RResource -> Either String RResource
-addAlias value res = case Map.lookup "alias" (rrparams res) of
-                          Nothing                   -> Right $! insertparam res "alias" (ResolvedArray [ResolvedString value])
-                          Just a@(ResolvedString _) -> Right $! insertparam res "alias" (ResolvedArray [a,ResolvedString value])
-                          Just (ResolvedArray ar)   -> Right $! insertparam res "alias" (ResolvedArray (ResolvedString value : ar))
-                          Just x                    -> Left ("Aliases should be strings or arrays of strings, not " ++ show x)
+ifromListWith :: (Monoid m, At m) => (IxValue m -> IxValue m -> IxValue m) -> [(Index m, IxValue m)] -> m
+{-# INLINE ifromListWith #-}
+ifromListWith f = foldl' (\curmap (k,v) -> iinsertWith f k v curmap) mempty
 
-insertparam :: RResource -> T.Text -> ResolvedValue -> RResource
-insertparam res param value = res { rrparams = Map.insert param value (rrparams res) }
+iinsertWith :: At m => (IxValue m -> IxValue m -> IxValue m) -> Index m -> IxValue m -> m -> m
+{-# INLINE iinsertWith #-}
+iinsertWith f k v m = m & at k %~ mightreplace
+    where
+        mightreplace Nothing = Just v
+        mightreplace (Just x) = Just (f v x)
 
+iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
+{-# INLINE iunionWith #-}
+iunionWith = HM.unionWith
+
+fnull :: (Eq x, Monoid x) => x -> Bool
+{-# INLINE fnull #-}
+fnull = (== mempty)

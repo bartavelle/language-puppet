@@ -1,3 +1,7 @@
+v0.9.0 (2013/08/15)
+  Huge rewrite !
+	* See http://lpuppet.banquise.net/blog/2013/08/15/version-0-dot-9-0-is-out-for-testing/
+
 v0.4.2 (2013/06/01)
   New features
 	* Functions 'values' and 'keys' from stdlib are now implemented.

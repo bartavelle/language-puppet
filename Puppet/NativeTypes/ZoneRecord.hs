@@ -3,14 +3,18 @@ module Puppet.NativeTypes.ZoneRecord (nativeZoneRecord) where
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import Control.Monad.Error
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.HashSet as HS
+import qualified Data.Text as T
+import Control.Lens
 
 nativeZoneRecord :: (PuppetTypeName, PuppetTypeMethods)
 nativeZoneRecord = ("zone_record", PuppetTypeMethods validateZoneRecord parameterset)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset = Set.fromList $ map fst parameterfunctions
+parameterset :: HS.HashSet T.Text
+parameterset = HS.fromList $ map fst parameterfunctions
+
+parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("name"                , [nameval])
     ,("owner"               , [string])
@@ -33,9 +37,9 @@ validateZoneRecord :: PuppetTypeValidate
 validateZoneRecord = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateMandatories
 
 validateMandatories :: PuppetTypeValidate
-validateMandatories res = case (Map.lookup "rtype" (rrparams res)) of
+validateMandatories res = case res ^. rattributes . at "rtypes" of
     Nothing                     -> Left "The rtype parameter is mandatory."
-    Just (ResolvedString "SOA") -> foldM (\r n -> mandatory n r) res ["nsname", "email", "serial", "slave_refresh", "slave_retry", "slave_expiration", "min_ttl"]
-    Just (ResolvedString "NS")  -> foldM (\r n -> mandatory n r) res ["owner", "rclass", "rtype", "dest"]
-    Just (ResolvedString _)     -> foldM (\r n -> mandatory n r) res ["owner", "rclass", "rtype", "dest", "ttl"]
-    Just x                      -> Left $ "Can't use this for the rtype parameter " ++ show x
+    Just (PString "SOA") -> foldM (flip mandatory) res ["nsname", "email", "serial", "slave_refresh", "slave_retry", "slave_expiration", "min_ttl"]
+    Just (PString "NS")  -> foldM (flip mandatory) res ["owner", "rclass", "rtype", "dest"]
+    Just (PString _)     -> foldM (flip mandatory) res ["owner", "rclass", "rtype", "dest", "ttl"]
+    Just x                      -> Left $ "Can't use this for the rtype parameter" <+> pretty x

@@ -1,25 +1,35 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface #-}
-module Erb.Compute(computeTemplate, getTemplateFile, initTemplateDaemon) where
+{-# LANGUAGE CPP #-}
+#ifdef HRUBY
+{-# LANGUAGE ForeignFunctionInterface #-}
+#endif
+module Erb.Compute(computeTemplate, initTemplateDaemon) where
 
+import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
 import Puppet.Interpreter.Types
-import Puppet.Init
+import Puppet.Preferences
 import Puppet.Stats
+import Puppet.PP
 import Puppet.Utils
 
+import qualified Data.Either.Strict as S
 import Control.Monad.Error
 import Control.Concurrent
 import System.Posix.Files
 import Paths_language_puppet (getDataFileName)
 import Erb.Parser
 import Erb.Evaluate
-import qualified Data.Map as Map
+import Erb.Ruby
 import Debug.Trace
 import qualified System.Log.Logger as LOG
 import qualified Data.Text as T
 import Text.Parsec
+import Text.Parsec.Error
+import Text.Parsec.Pos
+import System.Environment
+import Data.FileCache
 
 #ifdef HRUBY
-import Foreign
+import Foreign hiding (void)
 import Foreign.Ruby
 
 type RegisteredGetvariable = RValue -> RValue -> RValue -> RValue -> IO RValue
@@ -32,60 +42,66 @@ import Data.List
 import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Text.Lazy.Builder as T
-import qualified Data.Text.Lazy.Builder.Int as T
 import qualified Data.Foldable as F
+import qualified Data.Vector as V
 #endif
 
-type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, T.Text, Map.Map T.Text GeneralValue)
-type TemplateAnswer = Either String T.Text
+instance Error ParseError where
+    noMsg = newErrorUnknown (initialPos "dummy")
+    strMsg s = newErrorMessage (Message s) (initialPos "dummy")
 
+type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, T.Text, Container ScopeInformation)
+type TemplateAnswer = S.Either Doc T.Text
 
-
-initTemplateDaemon :: Prefs -> MStats -> IO (Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text))
-initTemplateDaemon (Prefs _ modpath templatepath _ _ ps _ _) mvstats = do
+initTemplateDaemon :: Preferences -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
+initTemplateDaemon (Preferences _ modpath templatepath _ _ _ _ _) mvstats = do
     controlchan <- newChan
+    templatecache <- newFileCache
 #ifdef HRUBY
-    initialize
-    s <- (getRubyScriptPath "hrubyerb.rb" >>= \p -> rb_load_protect p 0)
-    unless (s == 0) $ do
-        msg <- showErrorStack
-        error msg
-    rubyResolveFunction <- mkRegisteredGetvariable hrresolveVariable
-    rb_define_global_function "varlookup" rubyResolveFunction 3
-    forkIO (templateDaemon modpath templatepath controlchan mvstats)
+    -- forkOS is used because ruby doesn't like to change threads
+    -- all initialization is done on the current thread
+    void $ forkOS $ do
+        initialize
+        s <- (getRubyScriptPath "hrubyerb.rb" >>= \p -> rb_load_protect p 0)
+        unless (s == 0) $ do
+            msg <- showErrorStack
+            error ("initTemplateDaemon: " ++ msg)
+        rubyResolveFunction <- mkRegisteredGetvariable hrresolveVariable
+        rb_define_global_function "varlookup" rubyResolveFunction 3
+        templateDaemon (T.pack modpath) (T.pack templatepath) controlchan mvstats templatecache
 #else
-    replicateM_ ps (forkIO (templateDaemon modpath templatepath controlchan mvstats))
+    forkIO (templateDaemon (T.pack modpath) (T.pack templatepath) controlchan mvstats templatecache)
 #endif
     return (templateQuery controlchan)
 
-templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO (Either String T.Text)
+templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text)
 templateQuery qchan filename scope variables = do
     rchan <- newChan
     writeChan qchan (rchan, filename, scope, variables)
     readChan rchan
 
-templateDaemon :: T.Text -> T.Text -> Chan TemplateQuery -> MStats -> IO ()
-templateDaemon modpath templatepath qchan mvstats = do
+templateDaemon :: T.Text -> T.Text -> Chan TemplateQuery -> MStats -> FileCacheR ParseError [RubyStatement] -> IO ()
+templateDaemon modpath templatepath qchan mvstats filecache = do
     (respchan, fileinfo, scope, variables) <- readChan qchan
     case fileinfo of
         Right filename -> do
-            let parts = T.splitOn "/" filename
-                searchpathes | length parts > 1 = [modpath <> "/" <> head parts <> "/templates/" <> T.intercalate "/" (tail parts), templatepath <> "/" <> filename]
+            let prts = T.splitOn "/" filename
+                searchpathes | length prts > 1 = [modpath <> "/" <> head prts <> "/templates/" <> T.intercalate "/" (tail prts), templatepath <> "/" <> filename]
                              | otherwise        = [templatepath <> "/" <> filename]
             acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
             if null acceptablefiles
-                then writeChan respchan (Left $ "Can't find template file for " ++ T.unpack filename ++ ", looked in " ++ show searchpathes)
-                else measure mvstats ("total - " <> filename) (computeTemplate (Right (head acceptablefiles)) scope variables mvstats) >>= writeChan respchan
-        Left _ -> measure mvstats "total - inline" (computeTemplate fileinfo scope variables mvstats) >>= writeChan respchan
-    templateDaemon modpath templatepath qchan mvstats
+                then writeChan respchan (S.Left $ "Can't find template file for" <+> ttext filename <+> ", looked in" <+> list (map ttext searchpathes))
+                else measure mvstats ("total - " <> filename) (computeTemplate (Right (head acceptablefiles)) scope variables mvstats filecache) >>= writeChan respchan
+        Left _ -> measure mvstats "total - inline" (computeTemplate fileinfo scope variables mvstats filecache) >>= writeChan respchan
+    templateDaemon modpath templatepath qchan mvstats filecache
 
-computeTemplate :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> MStats -> IO TemplateAnswer
-computeTemplate fileinfo curcontext variables mstats = do
+computeTemplate :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> MStats -> FileCacheR ParseError [RubyStatement] -> IO TemplateAnswer
+computeTemplate fileinfo curcontext variables mstats filecache = do
     let (filename, ufilename) = case fileinfo of
                                     Left _ -> ("inline", "inline")
                                     Right x -> (x, T.unpack x)
     parsed <- case fileinfo of
-                  Right _      -> measure mstats ("parsing - " <> filename) $ parseErbFile ufilename
+                  Right _      -> measure mstats ("parsing - " <> filename) $ lazyQuery filecache ufilename $ parseErbFile ufilename
                   Left content -> measure mstats ("parsing - " <> filename) (return (runParser erbparser () "inline" (T.unpack content)))
     case parsed of
         Left err -> do
@@ -94,15 +110,12 @@ computeTemplate fileinfo curcontext variables mstats = do
             LOG.debugM "Erb.Compute" msg
             measure mstats ("ruby - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables
         Right ast -> case rubyEvaluate variables curcontext ast of
-                Right ev -> return (Right ev)
+                Right ev -> return (S.Right ev)
                 Left err -> do
                     let !msg = "template " ++ ufilename ++ " evaluation failed " ++ show err
                     traceEventIO msg
                     LOG.debugM "Erb.Compute" msg
                     measure mstats ("ruby efail - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables
-
-getTemplateFile :: T.Text -> CatalogMonad T.Text
-getTemplateFile = throwError
 
 getRubyScriptPath :: String -> IO String
 getRubyScriptPath rubybin = do
@@ -111,7 +124,7 @@ getRubyScriptPath rubybin = do
     if exists
         then return cabalPath
         else do
-            path <- fmap (T.unpack . takeDirectory . T.pack) mGetExecutablePath
+            path <- fmap (T.unpack . takeDirectory . T.pack) getExecutablePath
             let fullpath = path <> "/" <> rubybin
             lexists <- fileExist cabalPath
             return $ if lexists
@@ -120,54 +133,55 @@ getRubyScriptPath rubybin = do
 
 #ifdef HRUBY
 hrresolveVariable :: RValue -> RValue -> RValue -> RValue -> IO RValue
--- T.Text -> Map.Map T.Text GeneralValue -> RValue -> RValue -> IO RValue
-hrresolveVariable _ rscope rvariables rtoresolve = do
-    scope <- extractHaskellValue rscope
+-- T.Text -> Container PValue -> RValue -> RValue -> IO RValue
+hrresolveVariable _ rscp rvariables rtoresolve = do
+    scope <- extractHaskellValue rscp
     variables <- extractHaskellValue rvariables
     toresolve <- fromRuby rtoresolve
     let answer = case toresolve of
                      Just t -> getVariable variables scope t
                      _ -> Left "The variable name is not a string"
     case answer of
-        Left _ -> getSymbol "undef"
+        Left _  -> getSymbol "undef"
         Right r -> toRuby r
 
-computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> IO TemplateAnswer
+computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO TemplateAnswer
 computeTemplateWRuby fileinfo curcontext variables = freezeGC $ do
-    rscope <- embedHaskellValue curcontext
+    rscp <- embedHaskellValue curcontext
     rvariables <- embedHaskellValue variables
     o <- case fileinfo of
              Right fname  -> do
                  rfname <- toRuby fname
-                 safeMethodCall "Controller" "runFromFile" [rfname,rscope,rvariables]
+                 safeMethodCall "Controller" "runFromFile" [rfname,rscp,rvariables]
              Left content -> toRuby content >>= safeMethodCall "Controller" "runFromContent" . (:[])
     freeHaskellValue rvariables
-    freeHaskellValue rscope
+    freeHaskellValue rscp
     case o of
         Left (rr, _) ->
             let fname = case fileinfo of
                             Right f -> T.unpack f
                             Left _  -> "inline_template"
-            in  return (Left ("Error in " <> fname <> ":\n" <> rr))
+            in  return (S.Left (dullred (text rr) <+> "in" <+> dullgreen (text fname)))
         Right r -> fromRuby r >>= \x -> case x of
-                                            Just result -> return (Right result)
-                                            Nothing -> return (Left "Could not deserialiaze ruby output")
+                                            Just result -> return (S.Right result)
+                                            Nothing -> return (S.Left "Could not deserialiaze ruby output")
 
 #else
 saveTmpContent :: T.Text -> IO FilePath
 saveTmpContent cnt = do
     (name, h) <- openTempFile "/tmp" "inline_template.erb"
+    T.hPutStr h cnt
     hClose h
     return name
 
-computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Map.Map T.Text GeneralValue -> Maybe (FunPtr RegisteredGetvariable) -> IO TemplateAnswer
+computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO TemplateAnswer
 computeTemplateWRuby fileinfo curcontext variables = do
     (temp, filename) <- case fileinfo of
                             Right x  -> return (Nothing, x)
                             Left cnt -> do
                                 tmpfile <- saveTmpContent cnt
                                 return (Just tmpfile, "inline")
-    let rubyvars = "{\n" <> mconcat (intersperse ",\n" (concatMap toRuby (Map.toList variables))) <> "\n}\n" :: T.Builder
+    let rubyvars = "{\n" <> mconcat (intersperse ",\n" (concatMap toRubyVars (itoList variables))) <> "\n}\n" :: T.Builder
         input = T.fromText curcontext <> "\n" <> T.fromText filename <> "\n" <> rubyvars :: T.Builder
         ufilename = T.unpack filename
     rubyscriptpath <- getRubyScriptPath "calcerb.rb"
@@ -176,35 +190,37 @@ computeTemplateWRuby fileinfo curcontext variables = do
     traceEventIO ("finished running ruby" ++ ufilename)
     F.forM_ temp removeLink
     case ret of
-        Just (Right x) -> return $! Right x
+        Just (Right x) -> return $! S.Right x
         Just (Left er) -> do
             (tmpfilename, tmphandle) <- openTempFile "/tmp" "templatefail"
             TL.hPutStr tmphandle (T.toLazyText input)
             hClose tmphandle
-            return $ Left $ er ++ " - for template " ++ ufilename ++ " input in " ++ tmpfilename
-        Nothing -> return $ Left "Process did not terminate"
+            return $ S.Left $ dullred (text er) <+> "- for template" <+> text ufilename <+> "input in" <+> text tmpfilename
+        Nothing -> return $ S.Left "Process did not terminate"
 
 minterc :: T.Builder -> [T.Builder] -> T.Builder
 minterc _ [] = mempty
 minterc _ [a] = a
-minterc !sep !(x:xs) = x <> foldl' minterc' mempty xs
+minterc !separator (x:xs) = x <> foldl' minterc' mempty xs
     where
-        minterc' !curbuilder !b  = curbuilder <> sep <> b
+        minterc' !curbuilder !b  = curbuilder <> separator <> b
 
 renderString :: T.Text -> T.Builder
 renderString x = let !y = T.fromString (show x) in y
 
-toRuby :: (T.Text, GeneralValue) -> [T.Builder]
-toRuby (_, Left _) = []
-toRuby (_, Right ResolvedUndefined) = []
-toRuby (varname, Right varval) = ["\t" <> renderString varname <> " => " <> toRuby' varval]
-toRuby' (ResolvedString str) = renderString str
-toRuby' (ResolvedInt i) = "\'" <> T.decimal i <> "\'"
-toRuby' (ResolvedBool True) = "true"
-toRuby' (ResolvedBool False) = "false"
-toRuby' (ResolvedArray rr) = "[" <> minterc ", " (map toRuby' rr) <> "]"
-toRuby' (ResolvedHash hh) = "{ " <> minterc ", " (map (\(varname, varval) -> renderString varname <> " => " <> toRuby' varval) hh) <>  " }"
-toRuby' ResolvedUndefined = ":undef"
-toRuby' (ResolvedRReference rtype (ResolvedString rname)) = renderString ( rtype <> "[" <> rname <> "]" )
-toRuby' x = T.fromString $ show x
+toRubyVars :: (T.Text, ScopeInformation) -> [T.Builder]
+toRubyVars (ctx, scp) = concatMap (\(varname, varval :!: _) -> toRuby (ctx <> "::" <> varname, varval)) (itoList (scp ^. scopeVariables))
+
+toRuby :: (T.Text, PValue) -> [T.Builder]
+toRuby (_, PUndef) = []
+toRuby (varname, varval) = ["\t" <> renderString varname <> " => " <> toRuby' varval]
+
+toRuby' :: PValue -> T.Builder
+toRuby' (PString str) = renderString str
+toRuby' (PBoolean True) = "true"
+toRuby' (PBoolean False) = "false"
+toRuby' (PArray rr) = "[" <> minterc ", " (map toRuby' (rr ^.. traverse)) <> "]"
+toRuby' (PHash hh) = "{ " <> minterc ", " (map (\(varname, varval) -> renderString varname <> " => " <> toRuby' varval) (itolist hh)) <>  " }"
+toRuby' PUndef = ":undef"
+toRuby' (PResourceReference rtype rname) = renderString ( rtype <> "[" <> rname <> "]" )
 #endif

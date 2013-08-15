@@ -1,6 +1,7 @@
 module Erb.Ruby where
 
 import qualified Data.Text as T
+import Text.PrettyPrint.ANSI.Leijen
 
 data Value
     = Literal !T.Text
@@ -36,6 +37,14 @@ data Expression
     | BFalse
     | Error !String
     deriving (Show, Ord, Eq)
+
+instance Pretty Expression where
+    pretty (LookupOperation a b) = pretty a <> brackets (pretty b)
+    pretty (PlusOperation a b) = parens (pretty a <+> text "+" <+> pretty b)
+    pretty (MinusOperation a b) = parens (pretty a <+> text "-" <+> pretty b)
+    pretty (DivOperation a b) = parens (pretty a <+> text "/" <+> pretty b)
+    pretty (MultiplyOperation a b) = parens (pretty a <+> text "*" <+> pretty b)
+    pretty op = text (show op)
 
 data RubyStatement
     = Puts !Expression

@@ -3,12 +3,16 @@ module Puppet.NativeTypes.Mount (nativeMount) where
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import Control.Monad.Error
-import qualified Data.Set as Set
+import qualified Data.HashSet as HS
+import qualified Data.Text as T
 
 nativeMount :: (PuppetTypeName, PuppetTypeMethods)
 nativeMount = ("mount", PuppetTypeMethods validateMount parameterset)
 
-parameterset = Set.fromList $ map fst parameterfunctions
+parameterset :: HS.HashSet T.Text
+parameterset = HS.fromList $ map fst parameterfunctions
+
+parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("atboot"      , [string, values ["true","false"]])
     ,("blockdevice" , [string])

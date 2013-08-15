@@ -1,5 +1,5 @@
 {-| This module holds the /native/ Puppet resource types. -}
-module Puppet.NativeTypes (baseNativeTypes) where
+module Puppet.NativeTypes (baseNativeTypes,validateNativeType) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.NativeTypes.File
@@ -13,15 +13,18 @@ import Puppet.NativeTypes.User
 import Puppet.NativeTypes.ZoneRecord
 import Puppet.NativeTypes.SshSecure
 import Puppet.Interpreter.Types
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HM
+import Control.Lens
 
+fakeTypes :: [(PuppetTypeName, PuppetTypeMethods)]
 fakeTypes = map faketype ["class"]
 
+defaultTypes :: [(PuppetTypeName, PuppetTypeMethods)]
 defaultTypes = map defaulttype ["augeas","computer","filebucket","interface","k5login","macauthorization","mailalias","maillist","mcx","nagios_command","nagios_contact","nagios_contactgroup","nagios_host","nagios_hostdependency","nagios_hostescalation","nagios_hostextinfo","nagios_hostgroup","nagios_service","nagios_servicedependency","nagios_serviceescalation","nagios_serviceextinfo","nagios_servicegroup","nagios_timeperiod","notify","package","resources","router","schedule","scheduledtask","selboolean","selmodule","service","sshauthorizedkey","sshkey","stage","tidy","vlan","yumrepo","zfs","zone","zpool"]
 
 -- | The map of native types. They are described in "Puppet.NativeTypes.Helpers".
-baseNativeTypes :: Map.Map PuppetTypeName PuppetTypeMethods
-baseNativeTypes = Map.fromList
+baseNativeTypes :: Container PuppetTypeMethods
+baseNativeTypes = HM.fromList
     ( nativeHost
     : nativeMount
     : nativeGroup
@@ -33,3 +36,15 @@ baseNativeTypes = Map.fromList
     : nativeUser
     : nativeSshSecure
     : fakeTypes ++ defaultTypes)
+
+-- | Contrary to the previous iteration, this will let non native types
+-- pass
+validateNativeType :: Resource -> InterpreterMonad Resource
+validateNativeType r = do
+    tps <- view nativeTypes
+    case tps ^. at (r ^. rid . itype) of
+        Just x -> case (x ^. puppetValidate) r of
+                      Right nr -> return nr
+                      Left err -> throwPosError ("Invalid resource" <+> pretty r </> err)
+        Nothing -> return r
+

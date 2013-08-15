@@ -1,31 +1,30 @@
 module PuppetDB.TestDB (initTestDBFunctions) where
 
-import PuppetDB.Query
 import Puppet.Interpreter.Types
-import Puppet.DSL.Types hiding (Value)
+import Puppet.Parser.Types
 
 import Data.Aeson
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HS
 import Control.Concurrent.MVar
 import qualified Data.Text as T
 
-type ExportedResources = Map.Map T.Text (FinalCatalog, EdgeMap, FinalCatalog)
+type ExportedResources = Container (FinalCatalog, EdgeMap, FinalCatalog)
 
 initTestDBFunctions :: (T.Text -> Query -> IO (Either String Value)) -> IO (T.Text -> Query -> IO (Either String Value), T.Text -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ())
 initTestDBFunctions defaultquery = do
-    v <- newMVar Map.empty
+    v <- newMVar HM.empty
     return (queryPDB v defaultquery, updatePDB v)
 
 updatePDB :: MVar ExportedResources -> T.Text -> (FinalCatalog, EdgeMap, FinalCatalog) -> IO ()
 updatePDB v node res = do
     ex <- takeMVar v
-    let ex' = Map.insert node res ex
+    let ex' = HM.insert node res ex
     putMVar v ex'
 
 toBool :: T.Text -> Either String Bool
 toBool "true"  = Right True
 toBool "false" = Right False
-toBool x       = Left ("Is not a boolean " ++ T.unpack x) 
+toBool x       = Left ("Is not a boolean " ++ T.unpack x)
 
 evaluateQueryResource :: Query -> Bool -> T.Text -> ResIdentifier -> RResource -> Either String Bool
 evaluateQueryResource (Query OAnd lst) e n rid rr = fmap and (mapM (\x -> evaluateQueryResource x e n rid rr) lst)
@@ -35,7 +34,7 @@ evaluateQueryResource (Query OEqual [Terms ["node","name"], Term hname]) _ n _ _
 evaluateQueryResource (Query OEqual [Term "type",Term ctype]) _ _ _ rr = Right (capitalizeResType (rrtype rr) == ctype)
 evaluateQueryResource (Query OEqual [Term "exported",Term expo]) exported _ _ _ = toBool expo >>= \x -> return (x == exported)
 evaluateQueryResource (Query OEqual [Term "tag",Term tag]) _ _ _ rr    =
-    let tags = Map.findWithDefault (ResolvedArray []) "tag" (rrparams rr)
+    let tags = HM.findWithDefault (ResolvedArray []) "tag" (rrparams rr)
         stringEqual y (ResolvedString x) = (x == y)
         stringEqual _ _ = False
     in  case tags of
@@ -55,8 +54,8 @@ queryPDB v _ "resources" query = do
                       -> Either String ([(T.Text,ResIdentifier,RResource)], [(T.Text,ResIdentifier,RResource)])
         sortResources (Left rr) _ _ = Left rr
         sortResources (Right (curnormal, curexported)) nodename (fnormal, _, fexported) =
-            let newnormal   = Map.foldlWithKey' (sortResources' False nodename) (Right curnormal  ) fnormal
-                newexported = Map.foldlWithKey' (sortResources' True  nodename) (Right curexported) fexported
+            let newnormal   = HM.foldlWithKey' (sortResources' False nodename) (Right curnormal  ) fnormal
+                newexported = HM.foldlWithKey' (sortResources' True  nodename) (Right curexported) fexported
             in case (newnormal, newexported) of
                    (Left r1, _)       -> Left r1
                    (_, Left r2)       -> Left r2
@@ -69,8 +68,8 @@ queryPDB v _ "resources" query = do
                                                                  Left  err   -> Left err
         jsonize :: (T.Text,ResIdentifier,RResource) -> Value
         jsonize (h,_,r) = rr2json h r
-    case Map.foldlWithKey' sortResources (Right ([], [])) ex of
+    case HM.foldlWithKey' sortResources (Right ([], [])) ex of
         Right (n,e) -> return $ Right $ toJSON $ map jsonize ( n ++ e )
         Left rr     -> return (Left rr)
 
-queryPDB _ _ querytype query = error (show (querytype, query))
+queryPDB _ _ querytype query = error ("queryPDB:" ++ show (querytype, query))

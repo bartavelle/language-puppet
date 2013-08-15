@@ -17,7 +17,7 @@ class Scope
     def lookupvar(name)
         x = vl(name)
         if x == :undef
-            throw("Unknown variable " + name + " error: " + x.to_s)
+            throw("Unknown variable " + name)
         else
             x
         end

@@ -52,7 +52,7 @@ safeReadProcess prog args str =
         -- fork a thread to consume output
         output <- T.hGetContents outh
         outMVar <- newEmptyMVar
-        forkIO $ evaluate (T.length output) >> putMVar outMVar ()
+        _ <- forkIO $ evaluate (T.length output) >> putMVar outMVar ()
         -- wait on output
         takeMVar outMVar
         hClose outh

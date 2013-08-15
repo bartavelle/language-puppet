@@ -1,79 +1,50 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface #-}
-
 module Puppet.Utils
-    ( mGetExecutablePath
-    , readFile'
-    , readSymbolicLink
-    , tshow
-    , dq
-    , readDecimal
+    ( readDecimal
+    , readRational
+    , puppet2number
     , textElem
     , module Data.Monoid
     , getDirectoryContents
     , takeBaseName
     , takeDirectory
-    , regexpSplit
-    , regexpMatched
-    , regexpUnmatched
-    , regexpAll
-    , RegexpSplit(..)
+    , strictifyEither
     ) where
 
--- copy pasted from base 4.6.0.0
-import Prelude hiding (catch)
-import Foreign.C
-import Foreign.Marshal.Array
-import System.Posix.Internals
-import System.IO
-import Control.Exception
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Read as T
 import qualified Data.ByteString as BS
 import Data.Monoid
 import System.Posix.Directory.ByteString
-import Text.Regex.PCRE.ByteString
-import Control.Monad.Error
+import qualified Data.Either.Strict as S
 
-foreign import ccall unsafe "readlink" c_readlink :: CString -> CString -> CSize -> IO CInt
+import Puppet.Interpreter.Types
 
-readSymbolicLink :: FilePath -> IO FilePath
-readSymbolicLink file =
-    allocaArray0 4096 $ \buf -> do
-        withFilePath file $ \s -> do
-            len <- throwErrnoPathIfMinus1 "readSymbolicLink" file $
-                   c_readlink s buf 4096
-            peekFilePathLen (buf,fromIntegral len)
-
--- | Returns the absolute pathname of the current executable.
---
--- Note that for scripts and interactive sessions, this is the path to
--- the interpreter (e.g. ghci.)
--- (Stolen from base 4.6.0)
-mGetExecutablePath :: IO FilePath
-mGetExecutablePath = readSymbolicLink $ "/proc/self/exe"
-
--- | Strict readFile
-readFile' f = do
-    h <- openFile f ReadMode
-    s <- hGetContents h
-    evaluate (length s)
-    return s
-
-tshow :: Show a => a -> T.Text
-tshow = T.pack . show
-
-dq :: T.Text -> T.Text
-dq x = T.cons '"' (T.snoc x '"')
+strictifyEither :: Either a b -> S.Either a b
+strictifyEither (Left x) = S.Left x
+strictifyEither (Right x) = S.Right x
 
 readDecimal :: (Integral a) => T.Text -> Either String a
-readDecimal t = case T.decimal t of
+readDecimal t = case T.signed T.decimal t of
                     Right (x, "") -> Right x
                     Right _ -> Left "Trailing characters when reading an integer"
                     Left r -> Left r
 
+readRational :: Fractional a => T.Text -> Either String a
+readRational t = case T.signed T.rational t of
+                    Right (x, "") -> Right x
+                    Right _ -> Left "Trailing characters when reading an integer"
+                    Left r -> Left r
+
+puppet2number :: PValue -> Maybe (Either Double Integer)
+puppet2number (PString s) = case (readDecimal s, readRational s) of
+                                (Right i,_) -> Just (Right i)
+                                (_,Right d) -> Just (Left d)
+                                _ -> Nothing
+puppet2number _ = Nothing
+
 textElem :: Char -> T.Text -> Bool
-textElem c t = T.any (==c) t
+textElem c = T.any (==c)
 
 getDirectoryContents :: T.Text -> IO [T.Text]
 getDirectoryContents fpath = do
@@ -82,7 +53,7 @@ getDirectoryContents fpath = do
         fp <- readDirStream h
         if BS.null fp
             then return []
-            else fmap (\e -> T.decodeUtf8 fp : e) readHandle
+            else fmap (T.decodeUtf8 fp :) readHandle
     out <- readHandle
     closeDirStream h
     return out
@@ -101,7 +72,7 @@ takeDirectory "/" = "/"
 takeDirectory x =
     let res  = T.dropWhileEnd (== '/') file
         file = dropFileName x
-    in  if T.null res && (not (T.null file))
+    in  if T.null res && not (T.null file)
             then file
             else res
 
@@ -133,47 +104,3 @@ splitFileName x = (if T.null dir then "./" else dir, name)
             where
                 (a,b) = T.break (=='/') $ T.reverse y
 
-data RegexpSplit a = Matched a
-                   | Unmatched a
-                   deriving (Show, Eq, Ord)
-
-instance Functor RegexpSplit where
-    fmap f (Matched x)   = Matched (f x)
-    fmap f (Unmatched x) = Unmatched (f x)
-
-regexpAll :: [RegexpSplit a] -> [a]
-regexpAll = map unreg
-    where
-        unreg ( Matched x   ) = x
-        unreg ( Unmatched x ) = x
-
-isMatched :: RegexpSplit a -> Bool
-isMatched (Matched _) = True
-isMatched _ = False
-
-regexpMatched :: [RegexpSplit a] -> [a]
-regexpMatched = regexpAll . filter isMatched
-
-regexpUnmatched :: [RegexpSplit a] -> [a]
-regexpUnmatched = regexpAll . filter (not . isMatched)
-
-regexpSplit :: CompOption -> T.Text -> T.Text -> IO (Either String [RegexpSplit T.Text])
-regexpSplit opt reg src = runErrorT $ do
-    creg <- liftIO $ compile opt execBlank (T.encodeUtf8 reg)
-        >>= \x -> case x of
-                      Right r -> return r
-                      Left rr -> error (show rr)
-    fmap (map (fmap T.decodeUtf8)) $ getMatches opt creg (T.encodeUtf8 src)
-
-getMatches :: CompOption -> Regex -> BS.ByteString -> ErrorT String IO [RegexpSplit BS.ByteString]
-getMatches _ _ ""  = return []
-getMatches opt creg src = do
-    x <- liftIO (regexec creg src)
-    case x of
-        Right Nothing -> return [Unmatched src]
-        Right (Just (before,current,remaining,_)) -> do
-            remain <- getMatches opt creg remaining
-            if BS.null before
-                then return (Matched current : remain)
-                else return (Unmatched before : Matched current : remain)
-        Left (rcode, rerror) -> throwError ("Regexp application error: " ++ rerror ++ "(" ++ show rcode ++ ")")
