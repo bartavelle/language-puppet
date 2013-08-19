@@ -19,7 +19,7 @@ import Data.Attoparsec.Number
 import qualified Data.ByteString.Base16 as B16
 
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
-stdlibFunctions = HM.fromList [ ("abs", puppet_abs)
+stdlibFunctions = HM.fromList [ ("abs", puppetAbs)
                               , ("any2array", any2array)
                               , ("base64", base64)
                               , ("bool2num", bool2num)
@@ -28,19 +28,23 @@ stdlibFunctions = HM.fromList [ ("abs", puppet_abs)
                               , ("chop", stringArrayFunction (safeEmptyString T.init))
                               , ("concat", puppetConcat)
                               , ("count", puppetCount)
+                              , ("defined_with_params", const (throwPosError "defined_with_params can't be implemented with language-puppet"))
+                              , ("delete", delete)
+                              , ("delete_at", deleteAt)
+                              , ("delete_undef_values", deleteUndefValues)
                               , ("downcase", stringArrayFunction T.toLower)
                               , ("getvar", getvar)
-                              , ("is_domain_name", is_domain_name)
-                              , ("is_integer", is_integer)
+                              , ("is_domain_name", isDomainName)
+                              , ("is_integer", isInteger)
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("rstrip", stringArrayFunction T.stripEnd)
                               , ("strip", stringArrayFunction T.strip)
                               , ("upcase", stringArrayFunction T.toUpper)
-                              , ("validate_array", validate_array)
-                              , ("validate_bool", validate_bool)
-                              , ("validate_hash", validate_hash)
-                              , ("validate_re", validate_re)
-                              , ("validate_string", validate_string)
+                              , ("validate_array", validateArray)
+                              , ("validate_bool", validateBool)
+                              , ("validate_hash", validateHash)
+                              , ("validate_re", validateRe)
+                              , ("validate_string", validateString)
                               ]
 
 safeEmptyString :: (T.Text -> T.Text) -> T.Text -> T.Text
@@ -61,12 +65,12 @@ compileRE p = do
         Right r -> return r
         Left ms -> throwPosError ("Can't parse regexp" <+> pretty (URegexp p undefined) <+> ":" <+> text (show ms))
 
-puppet_abs :: [PValue] -> InterpreterMonad PValue
-puppet_abs [y] = case y ^? pvnum of
+puppetAbs :: [PValue] -> InterpreterMonad PValue
+puppetAbs [y] = case y ^? pvnum of
                      Just (I x) -> return $ pvnum # I (abs x)
                      Just (D x) -> return $ pvnum # D (abs x)
                      Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
-puppet_abs _ = throwPosError "abs(): Takes a single argument"
+puppetAbs _ = throwPosError "abs(): Takes a single argument"
 
 any2array :: [PValue] -> InterpreterMonad PValue
 any2array [PArray v] = return (PArray v)
@@ -125,13 +129,44 @@ puppetCount [PArray x, y] = return (pvnum # I (V.foldl' cnt 0 x))
                   | otherwise = cur
 puppetCount _ = throwPosError "count(): expects 1 or 2 arguments"
 
+delete :: [PValue] -> InterpreterMonad PValue
+delete [PString x, y] = do
+    ty <- resolvePValueString y
+    return $ PString $ T.concat $ T.splitOn ty x
+delete [PArray r, z] = return $ PArray $ V.filter (/= z) r
+delete [PHash h, z] = do
+   tz <- resolvePValueString z
+   return $ PHash (h & at tz .~ Nothing)
+delete [a,_] = throwPosError ("delete(): First argument must be an Array, String, or Hash. Given:" <+> pretty a)
+delete _ = throwPosError "delete(): expects 2 arguments"
+
+deleteAt :: [PValue] -> InterpreterMonad PValue
+deleteAt [PArray r, z] = case z ^? pvnum of
+                              Just (I gn) ->
+                                let n = fromInteger gn
+                                    lr = V.length r
+                                    s1 = V.slice 0 n r
+                                    s2 = V.slice (n+1) (lr - n - 1) r
+                                in  if V.length r >= n
+                                       then throwPosError ("delete_at(): Out of bounds access detected, tried to remove index" <+> pretty z <+> "wheras the array only has" <+> string (show lr) <+> "elements")
+                                       else return (PArray (s1 <> s2))
+                              _ -> throwPosError ("delete_at(): The second argument must be an integer, not" <+> pretty z)
+deleteAt [x,_] = throwPosError ("delete_at(): expects its first argument to be an array, not" <+> pretty x)
+deleteAt _ = throwPosError "delete_at(): expects 2 arguments"
+
+deleteUndefValues :: [PValue] -> InterpreterMonad PValue
+deleteUndefValues [PArray r] = return $ PArray $ V.filter (/= PUndef) r
+deleteUndefValues [PHash h] = return $ PHash $ HM.filter (/= PUndef) h
+deleteUndefValues [x] = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
+deleteUndefValues _ = throwPosError "delete_undef_values(): Expects a single argument"
+
 getvar :: [PValue] -> InterpreterMonad PValue
 getvar [x] = resolvePValueString x >>= resolveVariable
 getvar _ = throwPosError "getvar() expects a single argument"
 
 
-is_domain_name :: [PValue] -> InterpreterMonad PValue
-is_domain_name [s] = do
+isDomainName :: [PValue] -> InterpreterMonad PValue
+isDomainName [s] = do
     rs <- resolvePValueString s
     let ndrs = if T.last rs == '.'
                    then T.init rs
@@ -143,37 +178,37 @@ is_domain_name [s] = do
                         && (T.last x /= '-')
                         && T.all (\y -> isAlphaNum y || y == '-') x
     return $ PBoolean $ not (T.null rs) && T.length rs <= 255 && all checkPart prts
-is_domain_name _ = throwPosError "is_domain_name(): Should only take a single argument"
+isDomainName _ = throwPosError "is_domain_name(): Should only take a single argument"
 
-is_integer :: [PValue] -> InterpreterMonad PValue
-is_integer [i] = return (PBoolean (not (isn't pvnum i)))
-is_integer _ = throwPosError "is_integer(): Should only take a single argument"
+isInteger :: [PValue] -> InterpreterMonad PValue
+isInteger [i] = return (PBoolean (not (isn't pvnum i)))
+isInteger _ = throwPosError "is_integer(): Should only take a single argument"
 
-validate_array :: [PValue] -> InterpreterMonad PValue
-validate_array [] = throwPosError "validate_array(): wrong number of arguments, must be > 0"
-validate_array x = mapM_ vb x >> return PUndef
+validateArray :: [PValue] -> InterpreterMonad PValue
+validateArray [] = throwPosError "validate_array(): wrong number of arguments, must be > 0"
+validateArray x = mapM_ vb x >> return PUndef
     where
         vb (PArray _) = return ()
         vb y = throwPosError (pretty y <+> "is not an array.")
 
-validate_bool :: [PValue] -> InterpreterMonad PValue
-validate_bool [] = throwPosError "validate_bool(): wrong number of arguments, must be > 0"
-validate_bool x = mapM_ vb x >> return PUndef
+validateBool :: [PValue] -> InterpreterMonad PValue
+validateBool [] = throwPosError "validate_bool(): wrong number of arguments, must be > 0"
+validateBool x = mapM_ vb x >> return PUndef
     where
         vb (PBoolean _) = return ()
         vb y = throwPosError (pretty y <+> "is not a boolean.")
 
-validate_hash :: [PValue] -> InterpreterMonad PValue
-validate_hash [] = throwPosError "validate_hash(): wrong number of arguments, must be > 0"
-validate_hash x = mapM_ vb x >> return PUndef
+validateHash :: [PValue] -> InterpreterMonad PValue
+validateHash [] = throwPosError "validate_hash(): wrong number of arguments, must be > 0"
+validateHash x = mapM_ vb x >> return PUndef
     where
         vb (PHash _) = return ()
         vb y = throwPosError (pretty y <+> "is not a hash.")
 
-validate_re :: [PValue] -> InterpreterMonad PValue
-validate_re [str, reg] = validate_re [str, reg, PString "Match failed"]
-validate_re [str, PString reg, msg] = validate_re [str, PArray (V.singleton (PString reg)), msg]
-validate_re [str, PArray v, msg] = do
+validateRe :: [PValue] -> InterpreterMonad PValue
+validateRe [str, reg] = validateRe [str, reg, PString "Match failed"]
+validateRe [str, PString reg, msg] = validateRe [str, PArray (V.singleton (PString reg)), msg]
+validateRe [str, PArray v, msg] = do
     rstr <- fmap T.encodeUtf8 (resolvePValueString str)
     let matchRE :: Regex -> InterpreterMonad Bool
         matchRE r = liftIO (execute r rstr) >>= \res -> case res of
@@ -184,9 +219,9 @@ validate_re [str, PArray v, msg] = do
     if or rest
         then return PUndef
         else throwPosError (pretty msg <$> "Source string:" <+> pretty str <> comma <+> "regexps:" <+> pretty (V.toList v))
-validate_re [_, r, _] = throwPosError ("validate_re(): expected a regexp or an array of regexps, but not" <+> pretty r)
-validate_re _ = throwPosError "validate_re(): wrong number of arguments (#{args.length}; must be 2 or 3)"
+validateRe [_, r, _] = throwPosError ("validate_re(): expected a regexp or an array of regexps, but not" <+> pretty r)
+validateRe _ = throwPosError "validate_re(): wrong number of arguments (#{args.length}; must be 2 or 3)"
 
-validate_string :: [PValue] -> InterpreterMonad PValue
-validate_string [] = throwPosError "validate_string(): wrong number of arguments, must be > 0"
-validate_string x = mapM_ resolvePValueString x >> return PUndef
+validateString :: [PValue] -> InterpreterMonad PValue
+validateString [] = throwPosError "validate_string(): wrong number of arguments, must be > 0"
+validateString x = mapM_ resolvePValueString x >> return PUndef
