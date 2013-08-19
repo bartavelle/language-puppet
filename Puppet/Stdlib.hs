@@ -29,6 +29,7 @@ stdlibFunctions = HM.fromList [ ("abs", puppet_abs)
                               , ("concat", puppetConcat)
                               , ("count", puppetCount)
                               , ("downcase", stringArrayFunction T.toLower)
+                              , ("getvar", getvar)
                               , ("is_domain_name", is_domain_name)
                               , ("is_integer", is_integer)
                               , ("lstrip", stringArrayFunction T.stripStart)
@@ -123,6 +124,11 @@ puppetCount [PArray x, y] = return (pvnum # I (V.foldl' cnt 0 x))
         cnt cur z | y == z = cur + 1
                   | otherwise = cur
 puppetCount _ = throwPosError "count(): expects 1 or 2 arguments"
+
+getvar :: [PValue] -> InterpreterMonad PValue
+getvar [x] = resolvePValueString x >>= resolveVariable
+getvar _ = throwPosError "getvar() expects a single argument"
+
 
 is_domain_name :: [PValue] -> InterpreterMonad PValue
 is_domain_name [s] = do
