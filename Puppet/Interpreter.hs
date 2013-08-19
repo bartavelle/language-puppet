@@ -28,13 +28,7 @@ import qualified Data.Graph as G
 import qualified Data.Tree as T
 import Data.Foldable (toList,foldl',Foldable,foldlM)
 import Data.Traversable (mapM)
-
-{-
-
-    Stuff like this works in puppet :
-    Foo['bar'] { arg => 'value' }
-    foo { 'bar': arg => 'invalid' }
--}
+import Debug.Trace
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
@@ -154,7 +148,7 @@ computeCatalog nodename = do
                     Exported -> curr :!: i cure
                     ExportedRealized -> i curr :!: i cure
                     _ -> curr :!: cure
-    verified <- mapM validateNativeType real
+    verified <- fmap (ifromList . map (\r -> (r ^. rid, r))) $ mapM validateNativeType (toList real)
     mp <- makeEdgeMap verified
     return (verified, mp, exported)
 
@@ -166,7 +160,14 @@ makeEdgeMap ct = do
     -- merge the looaded classes and resources
     defs' <- use definedResources
     clss' <- use loadedClasses
-    let defs = mappend defs' $ ifromList $ do
+    let defs = defs' <> classes' <> aliases' <> names'
+        names' = HM.map _rpos ct
+        aliases' = ifromList $ do
+            r <- ct ^.. traversed . filtered (\r -> r ^. rid . iname /= r ^. ralias)
+            let nrid = (r ^. rid) & iname .~ r ^. ralias
+            when (r ^. rid . itype == "file") $ traceShow (pretty r <+> pretty nrid) (return ())
+            return ( nrid, r ^. rpos)
+        classes' = ifromList $ do
             (cn, _ :!: cp) <- itoList clss'
             return (RIdentifier "class" cn, cp)
     -- Preparation step : all relations to a container become relations to

@@ -136,18 +136,11 @@ integer'' param val res = case val of
 -- | Copies the "name" value into the parameter if this is not set. It implies
 -- the `string` validator.
 nameval :: T.Text -> PuppetTypeValidate
-nameval prm res = do
-    nres <- string prm res >>= addAlias' prm
-    case res ^. rattributes . at "title" of
-        Just (PString nm) -> defaultvalue nm prm nres >>= string prm
-        Just x                   -> Left $ "The title should be a string, and not" <+> pretty x
-        Nothing                  -> Left "The title is not set. Not sure how that could ever happen."
-
-addAlias' :: T.Text -> PuppetTypeValidate
-addAlias' prm res = case res ^. rattributes . at prm of
-                       Just (PString nm) -> Right (res & ralias .~ nm)
-                       Just _  -> Left "Can't happen, the nameval should have been a string"
-                       Nothing -> return res
+nameval prm res = string prm res
+                    >>= \r -> case r ^. rattributes . at prm of
+                                  Just (PString al) -> Right (res & rid . iname .~ al)
+                                  Just x -> Left ("The alias must be a string, not" <+> pretty x)
+                                  Nothing -> Right (r & rattributes . at prm ?~ PString (r ^. rid . iname))
 
 -- | Checks that a given parameter is set.
 mandatory :: T.Text -> PuppetTypeValidate
