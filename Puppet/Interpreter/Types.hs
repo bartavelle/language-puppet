@@ -19,6 +19,7 @@ import Control.Monad.Error
 import Control.Lens
 import Data.String (IsString(..))
 import qualified Data.Either.Strict as S
+import qualified Data.Maybe.Strict as S
 import Data.Hashable
 import GHC.Generics
 import qualified Data.Traversable as TR
@@ -105,6 +106,7 @@ data ScopeInformation = ScopeInformation { _scopeVariables :: !(Container (Pair 
                                          , _scopeExtraTags :: !(HS.HashSet T.Text)
                                          , _scopeContainer :: !CurContainer
                                          , _scopeOverrides :: !(HM.HashMap RIdentifier ResRefOverride)
+                                         , _scopeParent    :: !(S.Maybe T.Text)
                                          }
 
 data InterpreterState = InterpreterState { _scopes             :: !(Container ScopeInformation)
@@ -192,7 +194,7 @@ data Resource = Resource
     , _rattributes :: !(Container PValue)                             -- ^ Resource parameters.
     , _rrelations  :: !(HM.HashMap RIdentifier (HS.HashSet LinkType)) -- ^ Resource relations.
     , _rscope      :: !T.Text                                         -- ^ Resource scope when it was defined
-    , _container   :: !CurContainerDesc                               -- ^ The class that contains this resource
+    , _rcontainer  :: !CurContainerDesc                               -- ^ The class that contains this resource
     , _rvirtuality :: !Virtuality
     , _rtags       :: !(HS.HashSet T.Text)
     , _rpos        :: !PPosition -- ^ Source code position of the resource definition.

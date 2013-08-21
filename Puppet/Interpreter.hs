@@ -28,7 +28,6 @@ import qualified Data.Graph as G
 import qualified Data.Tree as T
 import Data.Foldable (toList,foldl',Foldable,foldlM)
 import Data.Traversable (mapM)
-import Debug.Trace
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
@@ -49,9 +48,21 @@ getCatalog gtStatement gtTemplate pdbQuery nodename facts nTypes extfuncs = do
         stt  = InterpreterState baseVars initialclass mempty ["::"] dummypos mempty [] []
         factvars = facts & each %~ (\x -> x :!: initialPPos "facts")
         callervars = ifromList [("caller_module_name", PString "::" :!: dummypos), ("module_name", PString "::" :!: dummypos)]
-        baseVars = isingleton "::" (ScopeInformation (factvars <> callervars) mempty mempty (CurContainer ContRoot mempty) mempty)
+        baseVars = isingleton "::" (ScopeInformation (factvars <> callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
     (output, _, warnings) <- runRWST (runErrorT (computeCatalog nodename)) rdr stt
     return (strictifyEither output :!: _warnings warnings)
+
+isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
+isParent _ ContRoot = return False
+isParent _ (ContDefine _ _) = return False
+isParent cur (ContClass possibleparent) = do
+    mcurscpp <- preuse (scopes . ix cur . scopeParent)
+    case mcurscpp of
+        Nothing -> throwPosError ("Internal error: could not find scope" <+> ttext cur <+> "possible parent" <+> ttext possibleparent)
+        Just S.Nothing -> return False
+        Just (S.Just p) -> if p == possibleparent
+                               then return True
+                               else isParent p (ContClass possibleparent)
 
 finalize :: [Resource] -> InterpreterMonad [Resource]
 finalize rlist = do
@@ -71,7 +82,10 @@ finalize rlist = do
                 Nothing -> return r
         addOverrides' r (ResRefOverride _ prms p) = do
             let inter = (r ^. rattributes) `HM.intersection` prms
-            unless (fnull inter) (throwPosError ("You are not allowed to override the following parameters " <+> containerComma inter <+> "already defined at" <+> showPPos p))
+            unless (fnull inter) $ do
+                s <- getScope
+                i <- isParent s (r ^. rcontainer)
+                unless i $ throwPosError ("You are not allowed to override the following parameters " <+> containerComma inter <+> "already defined at" <+> showPPos p)
             return (r & rattributes %~ (<>) prms)
     withDefaults <- mapM (addOverrides >=> addDefaults) rlist
     -- There might be some overrides that could not be applied. The only
@@ -165,7 +179,6 @@ makeEdgeMap ct = do
         aliases' = ifromList $ do
             r <- ct ^.. traversed . filtered (\r -> r ^. rid . iname /= r ^. ralias)
             let nrid = (r ^. rid) & iname .~ r ^. ralias
-            when (r ^. rid . itype == "file") $ traceShow (pretty r <+> pretty nrid) (return ())
             return ( nrid, r ^. rpos)
         classes' = ifromList $ do
             (cn, _ :!: cp) <- itoList clss'
@@ -179,7 +192,7 @@ makeEdgeMap ct = do
             let toResource ContRoot = RIdentifier "class" "::"
                 toResource (ContClass cn) = RIdentifier "class" cn
                 toResource (ContDefine t n) = RIdentifier t n
-            return (toResource (r ^. container), [r ^. rid])
+            return (toResource (r ^. rcontainer), [r ^. rid])
         -- This function uses the previous map in order to resolve to non
         -- container resources.
         resolveDestinations :: RIdentifier -> [RIdentifier]
@@ -406,8 +419,8 @@ loadParameters params classParams defaultPos = do
 --
 -- Inheriting the defaults is necessary for non native types, because they
 -- will be expanded in "finalize"
-enterScope :: CurContainerDesc -> InterpreterMonad T.Text
-enterScope cont = do
+enterScope :: S.Maybe T.Text -> CurContainerDesc -> InterpreterMonad T.Text
+enterScope parent cont = do
     let scopename = case cont of
                         ContRoot -> "::"
                         ContClass x -> x
@@ -415,9 +428,17 @@ enterScope cont = do
     scopeAlreadyDefined <- use (scopes . contains scopename)
     when scopeAlreadyDefined (throwPosError ("Internal error: scope already defined when loading scope for" <+> pretty cont))
     scp <- getScope
-    curdefs <- use (scopes . ix scp . scopeDefaults)
     -- TODO fill tags
-    scopes . at scopename ?= ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty
+    basescope <- case parent of
+        S.Nothing -> do
+            curdefs <- use (scopes . ix scp . scopeDefaults)
+            return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty parent
+        S.Just p -> do
+            parentscope <- use (scopes . at p)
+            when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ttext p))
+            let Just psc = parentscope
+            return (psc & scopeParent .~ parent)
+    scopes . at scopename ?= basescope
     return scopename
 
 expandDefine :: Resource -> InterpreterMonad [Resource]
@@ -428,7 +449,7 @@ expandDefine r = do
                          [] -> deftype
                          (x:_) -> x
     curcaller <- resolveVariable "module_name"
-    scopename <- enterScope (ContDefine deftype defname)
+    scopename <- enterScope S.Nothing (ContDefine deftype defname)
     (spurious, dls) <- getstt TopDefine deftype
     case dls of
         (DefineDeclaration _ defineParams stmts cp) -> do
@@ -465,19 +486,22 @@ loadClass classname params cincludetype = do
         -- already loaded, go on
         Nothing -> do
             loadedClasses . at classname ?= (cincludetype :!: p)
-            scopename <- enterScope (ContClass classname)
-            -- check if we need to define a resource representing the class
-            -- This will be the case for the first standard include
-            classresource <- if isNothing lc && (cincludetype == IncludeStandard)
-                                 then do
-                                     scp <- getScope
-                                     return [Resource (RIdentifier "class" classname) classname mempty mempty scp ContRoot Normal mempty p]
-                                 else return []
             -- load the actual class, note we are not changing the current position
             -- right now
             (spurious, cls) <- getstt TopClass classname
             case cls of
                 (ClassDeclaration _ classParams inh stmts cp) -> do
+                    -- check if we need to define a resource representing the class
+                    -- This will be the case for the first standard include
+                    inhstmts <- case inh of
+                                    S.Nothing -> return []
+                                    S.Just ihname -> loadClass ihname mempty IncludeResource
+                    scopename <- enterScope inh (ContClass classname)
+                    classresource <- if isNothing lc && (cincludetype == IncludeStandard)
+                                         then do
+                                             scp <- getScope
+                                             return [Resource (RIdentifier "class" classname) classname mempty mempty scp ContRoot Normal mempty p]
+                                         else return []
                     pushScope scopename
                     let modulename = case T.splitOn "::" classname of
                                          [] -> classname
@@ -487,13 +511,11 @@ loadClass classname params cincludetype = do
                     scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p)
                     loadParameters params classParams cp
                     curPos .= cp
-                    unless (S.isNothing inh) (throwPosError "Class inheritance not yet handled")
                     res <- evaluateStatementsVector stmts
-                    out <- finalize (classresource ++ spurious ++ res)
+                    out <- finalize (classresource ++ spurious ++ inhstmts ++ res)
                     popScope
                     return out
                 _ -> throwPosError ("Internal error: we did not retrieve a ClassDeclaration, but had" <+> pretty cls)
-
 -----------------------------------------------------------
 -- Resource stuff
 -----------------------------------------------------------
@@ -526,7 +548,14 @@ addAttribute b r (t,v) = case (r ^. rattributes . at t, b) of
                              (_, Replace)     -> return (r & rattributes . at t ?~ v)
                              (Nothing, _)     -> return (r & rattributes . at t ?~ v)
                              (_, CantReplace) -> return r
-                             _                -> throwPosError ("Attribute" <+> ttext t <+> "defined multiple times for" <+> pretty (r ^. rid) <+> showPPos (r ^. rpos))
+                             _                -> do
+                                 -- we must check if the resource scope is
+                                 -- a parent of the current scope
+                                 curscope <- getScope
+                                 i <- isParent curscope (r ^. rcontainer)
+                                 if i
+                                     then return (r & rattributes . at t ?~ v)
+                                     else throwPosError ("Attribute" <+> ttext t <+> "defined multiple times for" <+> pretty (r ^. rid) <+> showPPos (r ^. rpos))
 
 registerResource :: T.Text -> T.Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"
