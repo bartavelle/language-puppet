@@ -101,6 +101,7 @@ And then run the following command every time you need to verify your changes ar
 -}
 module Main where
 
+import System.IO
 import System.Environment
 import Data.List
 import qualified Data.HashMap.Strict as HM
@@ -203,6 +204,10 @@ main = do
                 Nothing    -> printContent resname cat
 
     queryfunc <- initializedaemonWithPuppet (fmap T.pack puppeturl) puppetdir
+    printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
+        if isterm
+            then putDoc x >> putStrLn ""
+            else displayIO stdout (renderCompact x) >> putStrLn ""
     (x,m,e) <- queryfunc (T.pack nodename)
     if length rargs == 3
         then if (rargs !! 2) == "JSON"
@@ -213,8 +218,8 @@ main = do
         else do
             (restest, coverage) <- testCatalog puppetdir x basicTest
             case failedTests restest of
-                Just x -> putDoc (pretty x) >> putStrLn ""
+                Just x -> printFunc (pretty x)
                 Nothing -> do
-                    putDoc (pretty (HM.elems x)) >> putStrLn ""
-                    putDoc (mempty <+> dullyellow "Exported:" <+> mempty)
-                    putDoc (pretty (HM.elems e)) >> putStrLn ""
+                    printFunc (pretty (HM.elems x))
+                    printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
+                    printFunc (pretty (HM.elems e))
