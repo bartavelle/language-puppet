@@ -120,7 +120,7 @@ Test-Suite test-expr
 executable puppetresources
   hs-source-dirs:      progs
   extensions:          BangPatterns, OverloadedStrings
-  ghc-options:         -Wall -rtsopts -threaded -prof
+  ghc-options:         -Wall -rtsopts -threaded
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types
   main-is:             PuppetResources.hs
