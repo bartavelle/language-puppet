@@ -94,36 +94,48 @@ genericModuleName isReference = do
 parameterName :: Parser T.Text
 parameterName = moduleName
 
-{-
-tagName :: Parser T.Text
-tagName = fmap T.pack (some (satisfy acceptable))
-    where
-        acceptable x = isAsciiLower x || isDigit x || x `elem` "_:.-"
--}
+-- this is not a token !
+inBraces :: Parser T.Text
+inBraces =  between (char '{') (char '}') (fmap T.pack (some (satisfy (/= '}'))))
 
 variableReference :: Parser T.Text
 variableReference = do
     void (char '$')
     c <- lookAhead anyChar
     v <- case c of
-             '{' -> between (char '{') (char '}') (fmap T.pack (some (satisfy (/= '}')))) -- not braces, because of the lexeme behavior
+             '{' -> inBraces
              _   -> variableName
     when (v == "string") (fail "The special variable $string must not be used")
     return v
 
 interpolableString :: Parser (V.Vector UValue)
 interpolableString = fmap V.fromList $ between (char '"') (symbolic '"') $
-    many (fmap UVariableReference variableReference <|> doubleQuotedStringContent <|> fmap (UString . T.singleton) (char '$'))
-    where doubleQuotedStringContent = fmap (UString . T.pack . concat) $
+    many (fmap UVariableReference interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (UString . T.singleton) (char '$'))
+    where
+        doubleQuotedStringContent = fmap (UString . T.pack . concat) $
             some ((char '\\' *> anyChar >>= stringEscape) <|> some (noneOf "\"\\$"))
-          stringEscape :: Char -> Parser String
-          stringEscape 'n' = return "\n"
-          stringEscape 't' = return "\t"
-          stringEscape 'r' = return "\r"
-          stringEscape '"' = return "\""
-          stringEscape '\\' = return "\\"
-          stringEscape '$' = return "$"
-          stringEscape x = fail $ "unknown escape pattern \\" ++ [x]
+        stringEscape :: Char -> Parser String
+        stringEscape 'n' = return "\n"
+        stringEscape 't' = return "\t"
+        stringEscape 'r' = return "\r"
+        stringEscape '"' = return "\""
+        stringEscape '\\' = return "\\"
+        stringEscape '$' = return "$"
+        stringEscape x = fail $ "unknown escape pattern \\" ++ [x]
+        -- this is specialized because we can't be "tokenized" here
+        variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
+        interpolableVariableReference = do
+            void (char '$')
+            c <- lookAhead anyChar
+            v <- case c of
+                     '{' -> inBraces
+                     -- This is not as robust as the "qualif"
+                     -- implementation, but considerably shorter.
+                     --
+                     -- This needs refactoring.
+                     _   -> fmap (T.pack . concat) (some (string "::" <|> some (satisfy variableAccept)))
+            when (v == "string") (fail "The special variable $string must not be used")
+            return v
 
 regexp :: Parser T.Text
 regexp = do
