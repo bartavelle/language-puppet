@@ -6,6 +6,9 @@ import Puppet.Parser.Types
 import Puppet.Interpreter.PrettyPrinter()
 import Puppet.Parser.PrettyPrinter()
 
+import Data.Version (parseVersion)
+import Text.ParserCombinators.ReadP (readP_to_S)
+
 import Data.Aeson hiding ((.=))
 import Data.CaseInsensitive  ( mk )
 import qualified Data.Vector as V
@@ -336,12 +339,15 @@ resolveFunction' "template" _ = throwPosError "template(): Expects a single argu
 resolveFunction' "versioncmp" [pa,pb] = do
     a <- resolvePValueString pa
     b <- resolvePValueString pb
-    -- TODO compare version properly
-    warn (dullyellow "versioncmp is not properly implemented yet")
-    let r | a > b = "1"
-          | a < b = "-1"
-          | otherwise = "0"
-    return (PString r)
+    let parser x = case filter (null . Prelude.snd) (readP_to_S parseVersion (T.unpack x)) of
+                       ( (v, _) : _ ) -> return v
+                       _ -> throwPosError ("Could not parse this string as a version:" <+> ttext x)
+    va <- parser a
+    vb <- parser b
+    return $ PString $ case compare va vb of
+                           EQ -> "0"
+                           LT -> "-1"
+                           GT -> "1"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q] = pdbresourcequery q Nothing
