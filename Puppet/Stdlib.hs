@@ -36,6 +36,7 @@ stdlibFunctions = HM.fromList [ ("abs", puppetAbs)
                               , ("getvar", getvar)
                               , ("is_domain_name", isDomainName)
                               , ("is_integer", isInteger)
+                              , ("keys", keys)
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("rstrip", stringArrayFunction T.stripEnd)
                               , ("strip", stringArrayFunction T.strip)
@@ -183,6 +184,11 @@ isDomainName _ = throwPosError "is_domain_name(): Should only take a single argu
 isInteger :: [PValue] -> InterpreterMonad PValue
 isInteger [i] = return (PBoolean (not (isn't pvnum i)))
 isInteger _ = throwPosError "is_integer(): Should only take a single argument"
+
+keys :: [PValue] -> InterpreterMonad PValue
+keys [PHash h] = return (PArray $ V.fromList $ map PString $ HM.keys h)
+keys [x] = throwPosError ("keys(): Expects a Hash, not" <+> pretty x)
+keys _ = throwPosError "keys(): expects a single argument"
 
 validateArray :: [PValue] -> InterpreterMonad PValue
 validateArray [] = throwPosError "validate_array(): wrong number of arguments, must be > 0"
