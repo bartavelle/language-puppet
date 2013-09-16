@@ -17,10 +17,11 @@ Here are the things that must be kept in mind:
 
 * All Lua associative arrays that are returned must have a "simple" type for all
 the keys, as it will be converted to a string. Numbers will be directly
-converted and other types will produce strange results.
+converted and other types will produce strange results. (currently this doesn't work at all, all associative arrays will be turned into lists, ignoring the keys)
 
 * This currently only works for functions that must return a value. They will
 have no access to the manifests data.
+
 -}
 module Puppet.Plugins (initLua, puppetFunc, closeLua, getFiles) where
 
@@ -29,6 +30,7 @@ import qualified Scripting.Lua as Lua
 import Scripting.LuaUtils()
 import Control.Exception
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as Map
 import System.IO
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -44,7 +46,7 @@ instance Lua.StackValue PValue
         push l (PBoolean b)              = Lua.push l b
         push l (PResourceReference rr _) = Lua.push l rr
         push l (PArray arr)              = Lua.push l (V.toList arr)
-        push l (PHash h)                 = Lua.push l (HM.toList h)
+        push l (PHash m)                 = Lua.push l (Map.fromList $ HM.toList m)
         push l (PUndef)                  = Lua.push l ("undefined" :: T.Text)
 
         peek l n = do
@@ -55,16 +57,7 @@ instance Lua.StackValue PValue
                 Lua.TNUMBER  -> fmap (fmap (PString . tshow)) (Lua.peek l n :: IO (Maybe Double))
                 Lua.TNIL     -> return (Just PUndef)
                 Lua.TNONE    -> return (Just PUndef)
-                Lua.TTABLE   -> do
-                    p <- Lua.peek l n :: IO (Maybe [(T.Text, PValue)])
-                    case p of
-                        Just pp ->
-                            let ratiokeys = map (readRational . fst) pp
-                                equality = zipWith (\a b -> a == Right b) ratiokeys ([1.0..] :: [Double])
-                            in  return $ Just $ if and equality
-                                                    then PArray (V.fromList $ map snd pp)
-                                                    else PHash (HM.fromList pp)
-                        _ -> return Nothing
+                Lua.TTABLE   -> fmap (fmap (PArray . V.fromList)) (Lua.peek l n)
                 _ -> return Nothing
 
         valuetype _ = Lua.TUSERDATA
