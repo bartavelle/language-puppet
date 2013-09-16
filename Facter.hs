@@ -1,19 +1,17 @@
 module Facter where
 
 import Data.Char
-import Data.List
 import Text.Printf
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Puppet.Interpreter.Types
-import Puppet.Preferences
 import PuppetDB.Rest
 import System.Info
 import qualified Data.Text as T
 import Control.Arrow
-import Data.Monoid
 import qualified Data.Either.Strict as S
 
+storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
 
 getPrefix :: Int -> String
@@ -41,16 +39,18 @@ storagedesc (ssize, unit) = let
     (osize, oorder) = normalizeUnit (size, uorder) 1024
     in printf "%.2f %sB" osize (getPrefix oorder)
 
+factRAM :: IO [(String, String)]
 factRAM = do
     meminfo <- fmap (map words . lines) (readFile "/proc/meminfo")
     let memtotal  = ginfo "MemTotal:"
         memfree   = ginfo "MemFree:"
         swapfree  = ginfo "SwapFree:"
         swaptotal = ginfo "SwapTotal:"
-        ginfo st  = sdesc $ head $ filter (\(x:xs) -> x == st) meminfo
+        ginfo st  = sdesc $ head $ filter ((== st) . head) meminfo
         sdesc [_, size, unit] = storagedesc (size, unit)
     return [("memorysize", memtotal), ("memoryfree", memfree), ("swapfree", swapfree), ("swapsize", swaptotal)]
 
+factNET :: IO [(String, String)]
 factNET = return [("ipaddress", "192.168.0.1")]
 
 factOS :: IO [(String, String)]
@@ -96,6 +96,7 @@ factMountPoints = do
         goodfs = map (!! 1) goodlines
     return [("mountpoints", unwords goodfs)]
 
+version :: IO [(String, String)]
 version = return [("facterversion", "0.1"),("environment","test")]
 
 allFacts :: T.Text -> IO (Container PValue)

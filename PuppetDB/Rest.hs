@@ -14,6 +14,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Either.Strict as S
 
+import Debug.Trace
+
 runRequest req = do
     let doRequest = withManager (fmap responseBody . httpLbs req) :: IO L.ByteString
         eHandler :: X.SomeException -> IO (Either String  L.ByteString)
@@ -31,10 +33,12 @@ pdbRequest :: (FromJSON a, ToJSON b) => T.Text -> T.Text -> b -> IO (S.Either St
 pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
     unless (querytype `elem` ["resources", "nodes", "facts"]) (throwError $ "Invalid query type " ++ T.unpack querytype)
     let jsonquery = L.toStrict (encode query)
-        q = T.decodeUtf8 $ case querytype of
-                "facts" -> BC.cons '/' jsonquery
-                _       -> "?" <> W.renderSimpleQuery False [("query", jsonquery)]
-        fullurl = url <> "/v1/" <> querytype <> q
+    q <- case querytype of
+             "facts" -> case decode (encode [query]) of -- :(
+                                         Just [t] -> return (T.cons '/' t)
+                                         x -> traceShow (encode query) $ throwError $ "Invalid query for facts, need a string: " ++ show x
+             _       -> return $ T.decodeUtf8 $ "?" <> W.renderSimpleQuery False [("query", jsonquery)]
+    let fullurl = url <> "/v1/" <> querytype <> q
     initReq <- case (parseUrl (T.unpack fullurl) :: Maybe (Request a)) of
         Just x -> return x
         Nothing -> throwError "Something failed when parsing the PuppetDB URL"
