@@ -107,8 +107,7 @@ singleQuoted = fmap (Value . Literal . T.pack) $ between (char '\'') (char '\'')
 objectterm :: Parser Expression
 objectterm = do
     methodname <- fmap (Value . Literal . T.pack) identifier
-    nc <- lookAhead anyChar
-    case nc of
+    lookAhead anyChar >>= \case
         '{' -> fmap (MethodCall methodname . BlockOperation . T.pack) (braces blockinfo)
         '(' -> fmap (MethodCall methodname . Value . Array) (parens (rubyexpression `sepBy` symbol ","))
         _ -> return $ Object methodname
@@ -126,13 +125,11 @@ textblockW c = do
             Just x  -> x:s
             Nothing -> s
         returned = Puts $ Value $ Literal $ T.pack ns
-    isend <- optionMaybe eof
-    case isend of
+    optionMaybe eof >>= \case
         Just _  -> return [returned]
         Nothing -> do
             void $ char '<'
-            isrub <- optionMaybe (char '%')
-            n <- case isrub of
+            n <- optionMaybe (char '%') >>= \case
                 Just _  -> rubyblock
                 Nothing -> textblockW (Just '<')
             return (returned : n)
@@ -142,8 +139,7 @@ textblock = textblockW Nothing
 
 rubyblock :: Parser [RubyStatement]
 rubyblock = do
-    isequal <- optionMaybe (char '=')
-    parsed <- case isequal of
+    parsed <- optionMaybe (char '=') >>= \case
         Just _  -> spaces >> fmap Puts rubyexpression
         Nothing -> spaces >> rubystatement
     spaces

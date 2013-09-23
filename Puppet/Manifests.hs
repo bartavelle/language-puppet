@@ -29,8 +29,7 @@ filterStatements TopNode nodename stmts =
         checkRegexp :: [Pair Regex Statement] -> ErrorT Doc IO (Maybe Statement)
         checkRegexp [] = return Nothing
         checkRegexp ((regexp :!: s):xs) = do
-            r <- liftIO (execute regexp bsnodename)
-            case r of
+            liftIO (execute regexp bsnodename) >>= \case
                 Left rr -> throwError ("Regexp match error:" <+> text (show rr))
                 Right Nothing -> checkRegexp xs
                 Right (Just _) -> return (Just s)

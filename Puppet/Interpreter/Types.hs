@@ -260,9 +260,7 @@ instance ToJSON PValue where
 instance ToRuby PValue where
     toRuby = toRuby . toJSON
 instance FromRuby PValue where
-    fromRuby v = do
-        j <- fromRuby v
-        case j of
+    fromRuby v = fromRuby v >>= \case
             Nothing -> return Nothing
             Just x  -> case fromJSON x of
                            Error _ -> return Nothing
@@ -272,8 +270,7 @@ instance FromRuby PValue where
 interpreterIO :: IO (S.Either Doc a) -> InterpreterMonad a
 {-# INLINE interpreterIO #-}
 interpreterIO f = do
-    r <- liftIO (f `catch` (\e -> return $ S.Left $ dullred $ text $ show (e :: SomeException)))
-    case r of
+    liftIO (f `catch` (\e -> return $ S.Left $ dullred $ text $ show (e :: SomeException))) >>= \case
         S.Right x -> return x
         S.Left rr -> throwPosError rr
 
@@ -283,9 +280,9 @@ safeDecodeUtf8 i = return (T.decodeUtf8 i)
 
 interpreterError :: InterpreterMonad (S.Either Doc a) -> InterpreterMonad a
 {-# INLINE interpreterError #-}
-interpreterError f = f >>= \x -> case x of
-                                     S.Right r -> return r
-                                     S.Left rr -> throwPosError rr
+interpreterError f = f >>= \case
+                             S.Right r -> return r
+                             S.Left rr -> throwPosError rr
 
 resourceRelations :: Resource -> [(RIdentifier, LinkType)]
 resourceRelations = concatMap expandSet . HM.toList . _rrelations

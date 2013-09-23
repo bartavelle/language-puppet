@@ -162,9 +162,9 @@ computeTemplateWRuby fileinfo curcontext variables = freezeGC $ do
                             Right f -> T.unpack f
                             Left _  -> "inline_template"
             in  return (S.Left (dullred (text rr) <+> "in" <+> dullgreen (text fname)))
-        Right r -> fromRuby r >>= \x -> case x of
-                                            Just result -> return (S.Right result)
-                                            Nothing -> return (S.Left "Could not deserialiaze ruby output")
+        Right r -> fromRuby r >>= \case
+                                    Just result -> return (S.Right result)
+                                    Nothing -> return (S.Left "Could not deserialiaze ruby output")
 
 #else
 saveTmpContent :: T.Text -> IO FilePath

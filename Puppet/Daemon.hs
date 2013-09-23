@@ -154,9 +154,8 @@ compileFileList prefs _ name = moduleInfo
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
-    cnt <- T.readFile fname :: IO T.Text
-    res <- runParserT puppetParser () fname cnt
-    case res of
+    cnt <- T.readFile fname
+    runParserT puppetParser () fname cnt >>= \case
         Right r -> return (S.Right r)
         Left rr -> return (S.Left (show rr))
 
@@ -171,7 +170,6 @@ pmaster prefs controlqueue filecache stats = forever $ do
                 handleFailure e = return (S.Left (show e))
                 colorError (S.Right x) = S.Right x
                 colorError (S.Left rr) = S.Left (red (text rr))
-            res <- fmap colorError $ measure stats fname (query filecache sfname (parseFile sfname `catch` handleFailure))
-            case res of
+            fmap colorError ( measure stats fname (query filecache sfname (parseFile sfname `catch` handleFailure)) ) >>= \case
                 S.Left rr     -> putMVar responseQ (S.Left rr)
                 S.Right stmts -> filterStatements topleveltype toplevelname stmts >>= putMVar responseQ

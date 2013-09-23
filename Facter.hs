@@ -103,31 +103,30 @@ allFacts :: T.Text -> IO (Container PValue)
 allFacts nodename = puppetDBFacts (T.unpack nodename) "http://localhost:8080"
 
 puppetDBFacts :: String -> String -> IO (Container PValue)
-puppetDBFacts nodename url = do
-        puppetDBFacts <- pdbRequest (T.pack url) "facts" (T.pack nodename)
-        case puppetDBFacts of
-            S.Right (PHash xs) ->
-                let myhash = case HM.lookup "facts" xs of
-                                 Just (PHash pfacts) -> pfacts
-                                 _ -> error $ "Bad facts format: " ++ show xs
-                in  return myhash
-            _ -> do
-                rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, version, factMountPoints, factOS])
-                let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
-                    (hostname, ddomainname) = break (== '.') nodename
-                    domainname = if null ddomainname
-                                     then []
-                                     else tail ddomainname
-                    nfacts = genFacts $ map (second T.pack) [ ("fqdn", nodename)
-                                                            , ("hostname", hostname)
-                                                            , ("domain", domainname)
-                                                            , ("rootrsa", "xxx")
-                                                            , ("operatingsystem", "Ubuntu")
-                                                            , ("puppetversion", "language-puppet")
-                                                            , ("virtual", "xenu")
-                                                            , ("clientcert", nodename)
-                                                            ]
-                    allfacts = nfacts `HM.union` ofacts
-                    genFacts = HM.fromList . map (second PString)
-                return allfacts
+puppetDBFacts nodename url =
+    pdbRequest (T.pack url) "facts" (T.pack nodename) >>= \case
+        S.Right (PHash xs) ->
+            let myhash = case HM.lookup "facts" xs of
+                             Just (PHash pfacts) -> pfacts
+                             _ -> error $ "Bad facts format: " ++ show xs
+            in  return myhash
+        _ -> do
+            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, version, factMountPoints, factOS])
+            let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
+                (hostname, ddomainname) = break (== '.') nodename
+                domainname = if null ddomainname
+                                 then []
+                                 else tail ddomainname
+                nfacts = genFacts $ map (second T.pack) [ ("fqdn", nodename)
+                                                        , ("hostname", hostname)
+                                                        , ("domain", domainname)
+                                                        , ("rootrsa", "xxx")
+                                                        , ("operatingsystem", "Ubuntu")
+                                                        , ("puppetversion", "language-puppet")
+                                                        , ("virtual", "xenu")
+                                                        , ("clientcert", nodename)
+                                                        ]
+                allfacts = nfacts `HM.union` ofacts
+                genFacts = HM.fromList . map (second PString)
+            return allfacts
 

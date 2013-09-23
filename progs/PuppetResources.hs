@@ -152,11 +152,12 @@ initializedaemonWithPuppet purl puppetdir = do
                      Nothing -> prefs
                      Just ur -> prefs { _pDBquery = pdbRequest ur }
     q <- initDaemon nprefs
-    return $ \nodename -> do
-        r <- allFacts nodename >>= _dGetCatalog q nodename
-        case r of
-            S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
-            S.Right x -> return x
+    return $ \nodename ->
+        allFacts nodename
+            >>= _dGetCatalog q nodename
+            >>= \case
+                    S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
+                    S.Right x -> return x
 
 {-| A helper for when you don't want to use PuppetDB -}
 initializedaemon :: FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
@@ -182,8 +183,7 @@ main = do
                              ("-r":pu:xs) -> (xs,   Just pu)
                              _            -> (args, Nothing)
     when (length rargs == 1) $ do
-        p <- parseFile (head rargs)
-        case p of
+        parseFile (head rargs) >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
         error "tmp"

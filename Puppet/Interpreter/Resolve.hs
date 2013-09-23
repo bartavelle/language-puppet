@@ -149,8 +149,7 @@ resolveExpression (LessEqualThan a b) = numberCompare a b (<=) (<=)
 resolveExpression (MoreEqualThan a b) = numberCompare a b (>=) (>=)
 resolveExpression (RegexMatch a (PValue ur@(URegexp _ rv))) = do
     ra <- fmap T.encodeUtf8 (resolveExpressionString a)
-    mtch <- liftIO (execute rv ra)
-    case mtch of
+    liftIO (execute rv ra) >>= \case
         Left rr -> throwPosError ("Regexp matching critical failure" <+> text (show rr) <+> parens ("Regexp was" <+> pretty ur))
         Right Nothing -> return (PBoolean False)
         Right _ -> return (PBoolean True)
@@ -161,9 +160,8 @@ resolveExpression (Equal a b) = do
     rb <- resolveExpression b
     return $ PBoolean $ puppetEquality ra rb
 resolveExpression (Different a b) = resolveExpression (Not (Equal a b))
-resolveExpression (Contains idx a) = do
-    src <- resolveExpression a
-    case src of
+resolveExpression (Contains idx a) =
+    resolveExpression a >>= \case
         PHash h -> do
             ridx <- resolveExpressionString idx
             case h ^. at ridx of
@@ -175,15 +173,14 @@ resolveExpression (Contains idx a) = do
         PString st -> do
             ridx <- resolveExpressionString idx
             return (PBoolean (ridx `T.isInfixOf` st))
-        _ -> throwPosError ("Can't use the 'in' operator with" <+> pretty src)
-resolveExpression (Lookup a idx) = do
-    src <- resolveExpression a
-    case src of
+        src -> throwPosError ("Can't use the 'in' operator with" <+> pretty src)
+resolveExpression (Lookup a idx) =
+    resolveExpression a >>= \case
         PHash h -> do
             ridx <- resolveExpressionString idx
             case h ^. at ridx of
                 Just v -> return v
-                Nothing -> throwPosError ("Can't find index '" <> ttext ridx <> "' in" <+> pretty src)
+                Nothing -> throwPosError ("Can't find index '" <> ttext ridx <> "' in" <+> pretty (PHash h))
         PArray ar -> do
             ridx <- resolveExpression idx
             i <- case ridx ^? pvnum of
@@ -193,15 +190,14 @@ resolveExpression (Lookup a idx) = do
             if arl <= i
                 then throwPosError ("Out of bound indexing, array size is" <+> int arl <+> "index is" <+> int i)
                 else return (ar V.! i)
-        _ -> throwPosError ("This data can't be indexed:" <+> pretty src)
+        src -> throwPosError ("This data can't be indexed:" <+> pretty src)
 resolveExpression (ConditionalValue e conds) = do
     rese <- resolveExpression e
     let checkCond [] = throwPosError ("The selector didn't match anything for input" <+> pretty rese)
         checkCond ((SelectorDefault :!: ce) : _) = resolveExpression ce
         checkCond ((SelectorValue ur@(URegexp _ rg) :!: ce) : xs) = do
             rs <- fmap T.encodeUtf8 (resolvePValueString rese)
-            mtch <- liftIO (execute rg rs)
-            case mtch of
+            liftIO (execute rg rs) >>= \case
                 Left rr -> throwPosError ("Regexp matching critical failure" <+> text (show rr) <+> parens ("Regexp was" <+> pretty ur))
                 Right Nothing -> checkCond xs
                 Right _ -> resolveExpression ce
@@ -247,9 +243,8 @@ resolveExpressionString :: Expression -> InterpreterMonad T.Text
 resolveExpressionString = resolveExpression >=> resolvePValueString
 
 resolveExpressionStrings :: Expression -> InterpreterMonad [T.Text]
-resolveExpressionStrings x = do
-    rx <- resolveExpression x
-    case rx of
+resolveExpressionStrings x =
+    resolveExpression x >>= \case
         PArray a -> mapM resolvePValueString (V.toList a)
         y -> fmap return (resolvePValueString y)
 
@@ -308,16 +303,14 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
     target      <- fmap T.encodeUtf8 (resolvePValueString ptarget)
     regexp      <- fmap T.encodeUtf8 (resolvePValueString pregexp)
     replacement <- fmap T.encodeUtf8 (resolvePValueString preplacement)
-    r <- liftIO (substituteCompile regexp target replacement)
-    case r of
+    liftIO (substituteCompile regexp target replacement) >>= \case
         Left rr -> throwPosError ("regsubst():" <+> text rr)
         Right x -> fmap PString (safeDecodeUtf8 x)
 resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 arguments"
 resolveFunction' "split" [psrc, psplt] = do
     src  <- fmap T.encodeUtf8 (resolvePValueString psrc)
     splt <- fmap T.encodeUtf8 (resolvePValueString psplt)
-    r <- liftIO (splitCompile splt src)
-    case r of
+    liftIO (splitCompile splt src) >>= \case
         Left rr -> throwPosError ("regsubst():" <+> text rr)
         Right x -> fmap (PArray . V.fromList) $ mapM (fmap PString . safeDecodeUtf8) x
 resolveFunction' "sha1" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . SHA1.hash  . T.encodeUtf8) (resolvePValueString pstr)
@@ -385,17 +378,17 @@ calcTemplate templatetype templatename = do
     scps        <- use scopes
     scp         <- getScope
     computeFunc <- view computeTemplateFunction
-    res         <- liftIO (computeFunc (templatetype fname) scp scps)
-    case res of
-        S.Left rr -> throwPosError ("template error for" <+> ttext fname <+> ":" <$> rr)
-        S.Right r -> return (PString r)
+    liftIO (computeFunc (templatetype fname) scp scps)
+        >>= \case
+            S.Left rr -> throwPosError ("template error for" <+> ttext fname <+> ":" <$> rr)
+            S.Right r -> return (PString r)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
-resolveExpressionSE e = resolveExpression e >>= \resolved ->
-    case resolved of
+resolveExpressionSE e = resolveExpression e >>=
+    \case
         PArray _ -> throwPosError "The use of an array in a search expression is undefined"
-        PHash _ -> throwPosError "The use of an array in a search expression is undefined"
-        _ -> return resolved
+        PHash _  -> throwPosError "The use of an array in a search expression is undefined"
+        resolved -> return resolved
 
 resolveSearchExpression :: SearchExpression -> InterpreterMonad RSearchExpression
 resolveSearchExpression AlwaysTrue = return RAlwaysTrue

@@ -20,8 +20,7 @@ runRequest req = do
     let doRequest = withManager (fmap responseBody . httpLbs req) :: IO L.ByteString
         eHandler :: X.SomeException -> IO (Either String  L.ByteString)
         eHandler e = return $ Left $ show e ++ ", with queryString " ++ BC.unpack (queryString req)
-    mo <- liftIO (fmap Right doRequest `X.catch` eHandler)
-    case mo of
+    liftIO (fmap Right doRequest `X.catch` eHandler) >>= \case
         Right o -> do
             let utf8 = IConv.convert "LATIN1" "UTF-8" o
             case decode' utf8 of

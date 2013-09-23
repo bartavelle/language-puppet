@@ -24,18 +24,17 @@ evalExpression :: Container ScopeInformation -> T.Text -> Expression -> Either D
 evalExpression mp ctx (LookupOperation varname varindex) = do
     rvname <- evalExpression mp ctx varname
     rvindx <- evalExpression mp ctx varindex
-    varvalue <- getVariable mp ctx rvname
-    case varvalue of
+    getVariable mp ctx rvname >>= \case
         PArray arr ->
             case a2i rvindx of
                 Nothing -> Left $ "Can't convert index to integer when resolving" <+> ttext rvname P.<> brackets (ttext rvindx)
                 Just  i -> if V.length arr <= i
                     then Left $ "Array out of bound" <+> ttext rvname P.<> brackets (ttext rvindx)
                     else evalValue (arr V.! i)
-        PHash hs   -> case hs ^. at rvindx of
-                          Just x -> evalValue x
-                          _ -> Left $ "Can't index variable" <+> ttext rvname <+> ", it is " <+> pretty varvalue
-        _ -> Left $ "Can't index variable" <+> ttext rvname <+> ", it is " <+> pretty varvalue
+        PHash hs -> case hs ^. at rvindx of
+                        Just x -> evalValue x
+                        _ -> Left $ "Can't index variable" <+> ttext rvname <+> ", it is " <+> pretty (PHash hs)
+        varvalue -> Left $ "Can't index variable" <+> ttext rvname <+> ", it is " <+> pretty varvalue
 evalExpression _  _   (Value (Literal x))          = Right x
 evalExpression mp ctx (Object (Value (Literal x))) = getVariable mp ctx x >>= evalValue
 evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x

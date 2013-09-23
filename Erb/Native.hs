@@ -4,9 +4,7 @@ import Puppet.Interpreter.Type
 import Foreign.Ruby
 
 instance FromRuby ResolvedValue where
-    fromRuby v = do
-        json <- fromRuby v
-        case json of
+    fromRuby v = fromRuby v >>= \case
             Just h -> return (fromJSON h)
             Nothing -> return Nothing
 

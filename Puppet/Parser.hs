@@ -101,10 +101,9 @@ inBraces =  between (char '{') (char '}') (fmap T.pack (some (satisfy (/= '}')))
 variableReference :: Parser T.Text
 variableReference = do
     void (char '$')
-    c <- lookAhead anyChar
-    v <- case c of
-             '{' -> inBraces
-             _   -> variableName
+    v <- lookAhead anyChar >>= \case
+         '{' -> inBraces
+         _   -> variableName
     when (v == "string") (fail "The special variable $string must not be used")
     return v
 
@@ -126,8 +125,7 @@ interpolableString = fmap V.fromList $ between (char '"') (symbolic '"') $
         variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
         interpolableVariableReference = do
             void (char '$')
-            c <- lookAhead anyChar
-            v <- case c of
+            v <- lookAhead anyChar >>= \case
                      '{' -> inBraces
                      -- This is not as robust as the "qualif"
                      -- implementation, but considerably shorter.
@@ -205,11 +203,9 @@ functionCall = do
 literalValue :: Parser T.Text
 literalValue = token (stringLiteral' <|> bareword <|> numericalvalue <?> "Literal Value")
     where
-        numericalvalue = do
-            n <- integerOrDouble
-            case n of
-                Left x -> return (T.pack $ show x)
-                Right y -> return (T.pack $ show y)
+        numericalvalue = integerOrDouble >>= \case
+            Left x -> return (T.pack $ show x)
+            Right y -> return (T.pack $ show y)
 
 -- this is a hack for functions :(
 terminalG :: Parser Expression -> Parser Expression
@@ -226,17 +222,14 @@ terminalG g = parens expression
          <|> fmap (PValue . UString) literalValue
 
 compileRegexp :: T.Text -> Parser Regex
-compileRegexp p = do
-    er <- liftIO . compile compBlank execBlank . T.unpack $ p
-    case er of
-        Right r -> return r
-        Left ms -> fail ("Can't parse regexp /" ++ T.unpack p ++ "/ : " ++ show ms)
+compileRegexp p = (liftIO . compile compBlank execBlank . T.unpack) p >>= \case
+    Right r -> return r
+    Left ms -> fail ("Can't parse regexp /" ++ T.unpack p ++ "/ : " ++ show ms)
 
 termRegexp :: Parser UValue
 termRegexp = do
     r <- regexp
-    c <- compileRegexp r
-    return (URegexp r c)
+    URegexp <$> pure r <*> compileRegexp r
 
 terminal :: Parser Expression
 terminal = terminalG (fmap PValue (try functionCall))
@@ -414,10 +407,10 @@ resourceGroup' = do
     x <- resourceDeclaration `sepEndBy` (symbolic ';' <|> comma)
     void $ symbolic '}'
     virtuality <- case virts of
-                      "" -> return Normal
-                      "@" -> return Virtual
+                      ""   -> return Normal
+                      "@"  -> return Virtual
                       "@@" -> return Exported
-                      _ -> fail "Invalid virtuality"
+                      _    -> fail "Invalid virtuality"
     return [ ResourceDeclaration rtype rname conts virtuality pos | (rname, conts, pos) <- concat x ]
 
 assignment :: Parser (Pair T.Text Expression)
@@ -506,8 +499,7 @@ rrGroup :: Parser [Statement]
 rrGroup = do
     p <- getPosition
     restype  <- resourceNameRef
-    n <- lookAhead anyChar
-    case n of
+    lookAhead anyChar >>= \case
         '[' -> rrGroupRef p restype <?> "What comes after a resource reference"
         _   -> resourceDefaults p restype <|> resourceCollection p restype <?> "What comes after a resource type"
 

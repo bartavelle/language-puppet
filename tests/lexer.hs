@@ -25,8 +25,7 @@ allchecks = do
 -- returns errors
 testparser :: FilePath -> IO (String, Bool)
 testparser fp = do
-    cnt <- T.readFile fp >>= runParserT puppetParser () fp
-    case cnt of
+    T.readFile fp >>= runParserT puppetParser () fp >>= \case
         Right _ -> return ("PASS", True)
         Left rr -> return (show rr, False)
 

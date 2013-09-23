@@ -56,8 +56,7 @@ safeReadProcess prog args str =
         -- wait on output
         takeMVar outMVar
         hClose outh
-        ex <- waitForProcess ph
-        case ex of
+        waitForProcess ph >>= \case
             ExitSuccess     -> return $ Right output
             ExitFailure r   -> return $ Left $ prog ++ " " ++ show args ++ " failed, errorcode = " ++ show r
       )
@@ -65,8 +64,7 @@ safeReadProcess prog args str =
 terminateProcessGroup :: ProcessHandle -> IO ()
 terminateProcessGroup ph = do
     let (ProcessHandle pmvar) = ph
-    ph_ <- readMVar pmvar
-    case ph_ of
+    readMVar pmvar >>= \case
         OpenHandle pid -> do  -- pid is a POSIX pid
             signalProcessGroup 15 pid
         _ -> return ()

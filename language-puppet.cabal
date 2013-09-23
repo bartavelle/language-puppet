@@ -63,7 +63,7 @@ library
                        , Puppet.NativeTypes.SshSecure
                        , Puppet.Plugins
                        , Puppet.Interpreter.RubyRandom
-  extensions:          OverloadedStrings, BangPatterns
+  extensions:          OverloadedStrings, BangPatterns, LambdaCase
   if flag(hruby)
     Build-depends: hruby
     CPP-Options:   -DHRUBY
@@ -119,7 +119,7 @@ Test-Suite test-expr
 
 executable puppetresources
   hs-source-dirs:      progs
-  extensions:          BangPatterns, OverloadedStrings
+  extensions:          BangPatterns, OverloadedStrings, LambdaCase
   ghc-options:         -Wall -rtsopts -threaded
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types

@@ -50,8 +50,7 @@ instance Lua.StackValue PValue
         push l (PUndef)                  = Lua.push l ("undefined" :: T.Text)
 
         peek l n = do
-            t <- Lua.ltype l n
-            case t of
+            Lua.ltype l n >>= \case
                 Lua.TBOOLEAN -> fmap (fmap PBoolean) (Lua.peek l n)
                 Lua.TSTRING  -> fmap (fmap PString) (Lua.peek l n)
                 Lua.TNUMBER  -> fmap (fmap (PString . tshow)) (Lua.peek l n :: IO (Maybe Double))
@@ -67,9 +66,8 @@ getDirContents x = fmap (filter (not . T.all (=='.'))) (getDirectoryContents x)
 
 -- find files in subdirectories
 checkForSubFiles :: T.Text -> T.Text -> IO [T.Text]
-checkForSubFiles extension dir = do
-    content <- catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException))
-    case content of
+checkForSubFiles extension dir =
+    catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException)) >>= \case
         Right o -> return ((map (\x -> dir <> "/" <> x) . filter (T.isSuffixOf extension)) o )
         Left _ -> return []
 
@@ -84,9 +82,8 @@ getLuaFiles :: T.Text -> IO [T.Text]
 getLuaFiles moduledir = getFiles moduledir "lib/puppet/parser/luafunctions" ".lua"
 
 loadLuaFile :: Lua.LuaState -> T.Text -> IO [T.Text]
-loadLuaFile l file = do
-    r <- Lua.loadfile l (T.unpack file)
-    case r of
+loadLuaFile l file =
+    Lua.loadfile l (T.unpack file) >>= \case
         0 -> Lua.call l 0 0 >> return [takeBaseName file]
         _ -> do
             T.hPutStrLn stderr ("Could not load file " <> file)
@@ -95,9 +92,8 @@ loadLuaFile l file = do
 function name and list of arguments. It returns a valid Puppet value.
 -}
 puppetFunc :: Lua.LuaState -> T.Text -> [PValue] -> InterpreterMonad PValue
-puppetFunc l fn args = do
-    content <- liftIO $ catch (fmap Right (Lua.callfunc l (T.unpack fn) args)) (\e -> return $ Left $ show (e :: SomeException))
-    case content of
+puppetFunc l fn args =
+    liftIO ( catch (fmap Right (Lua.callfunc l (T.unpack fn) args)) (\e -> return $ Left $ show (e :: SomeException)) ) >>= \case
         Right x -> return x
         Left  y -> throwPosError (string y)
 

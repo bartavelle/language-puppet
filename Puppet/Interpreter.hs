@@ -56,8 +56,7 @@ isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
 isParent _ ContRoot = return False
 isParent _ (ContDefine _ _) = return False
 isParent cur (ContClass possibleparent) = do
-    mcurscpp <- preuse (scopes . ix cur . scopeParent)
-    case mcurscpp of
+    preuse (scopes . ix cur . scopeParent) >>= \case
         Nothing -> throwPosError ("Internal error: could not find scope" <+> ttext cur <+> "possible parent" <+> ttext possibleparent)
         Just S.Nothing -> return False
         Just (S.Just p) -> if p == possibleparent
@@ -129,14 +128,12 @@ evalTopLevel x = return ([], x)
 getstt :: TopLevelType -> T.Text -> InterpreterMonad ([Resource], Statement)
 getstt topleveltype toplevelname = do
     -- check if this is a known class (spurious or inner class)
-    nested <- use (nestedDeclarations . at (topleveltype, toplevelname))
-    case nested of
+    use (nestedDeclarations . at (topleveltype, toplevelname)) >>= \case
         Just x -> return ([], x) -- it is known !
         Nothing -> do
             -- load the file
             getStmtfunc <- view getStatement
-            r <- liftIO (getStmtfunc topleveltype toplevelname)
-            case r of
+            liftIO (getStmtfunc topleveltype toplevelname) >>= \case
                 S.Right x -> evalTopLevel x
                 S.Left y  -> throwPosError y
 
@@ -353,12 +350,11 @@ evaluateStatement (DefaultDeclaration resType decls p) = do
     scp <- getScope
     -- invariant that must be respected : the current scope must me create
     -- in "scopes", or nothing gets saved
-    knowndefault <- preuse (scopes . ix scp . scopeDefaults . ix resType) :: InterpreterMonad (Maybe ResDefaults)
     let newDefaults = ResDefaults resType scp rdecls p
         addDefaults x = scopes . ix scp . scopeDefaults . at resType ?= x
         -- default merging with parent
         mergedDefaults curdef = newDefaults & defValues .~ (rdecls <> (curdef ^. defValues))
-    case knowndefault of
+    preuse (scopes . ix scp . scopeDefaults . ix resType) >>= \case
         Nothing -> addDefaults newDefaults
         Just de -> if de ^. defSrcScope == scp
                        then throwPosError ("Defaults for resource" <+> ttext resType <+> "already declared at" <+> showPPos (de ^. defPos))
@@ -478,8 +474,7 @@ loadClass classname params cincludetype = do
     p <- use curPos
     -- check if the class has already been loaded
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
-    lc <- use (loadedClasses . at classname)
-    case lc of
+    use (loadedClasses . at classname) >>= \case
         Just (_ :!: pp) -> do
             when (cincludetype == IncludeResource) (throwPosError ("Can't include class" <+> ttext classname <+> "twice when using the resource-like syntax (first occurance at" <+> showPPos pp <> ")"))
             return []
@@ -497,7 +492,7 @@ loadClass classname params cincludetype = do
                                     S.Nothing -> return []
                                     S.Just ihname -> loadClass ihname mempty IncludeResource
                     scopename <- enterScope inh (ContClass classname)
-                    classresource <- if isNothing lc && (cincludetype == IncludeStandard)
+                    classresource <- if cincludetype == IncludeStandard
                                          then do
                                              scp <- getScope
                                              return [Resource (RIdentifier "class" classname) classname mempty mempty scp ContRoot Normal mempty p]
@@ -563,9 +558,8 @@ registerResource "class" _ _ Exported p = curPos .= p >> throwPosError "Cannot d
 registerResource rt rn arg vrt p = do
     curPos .= p
     scp <- getScope
-    CurContainer cnt tgs <- {-# SCC "rrGetContainer" #-} do
-        r <- preuse (scopes . ix scp . scopeContainer)
-        case r of
+    CurContainer cnt tgs <- {-# SCC "rrGetContainer" #-}
+        preuse (scopes . ix scp . scopeContainer) >>= \case
             Just x -> return x
             Nothing -> throwPosError "Internal error: can't find the current container at registerResource"
     -- default tags
@@ -584,9 +578,8 @@ registerResource rt rn arg vrt p = do
         "class" -> {-# SCC "rrClass" #-} do
             definedResources . at resid ?= p
             fmap (r:) $ loadClass rn (r ^. rattributes) IncludeResource
-        _ -> {-# SCC "rrGeneralCase" #-} do
-            known <- use (definedResources . at resid)
-            case known of
+        _ -> {-# SCC "rrGeneralCase" #-}
+            use (definedResources . at resid) >>= \case
                 Just apos -> throwPosError ("Resource" <+> pretty resid <+> "already defined at" <+> showPPos apos)
                 Nothing -> do
                     definedResources . at resid ?= p

@@ -60,9 +60,8 @@ stringArrayFunction _ _ = throwPosError "function expects a single argument"
 
 
 compileRE :: T.Text -> InterpreterMonad Regex
-compileRE p = do
-    er <- liftIO . compile compBlank execBlank . T.encodeUtf8 $ p
-    case er of
+compileRE p =
+    (liftIO . compile compBlank execBlank . T.encodeUtf8) p >>= \case
         Right r -> return r
         Left ms -> throwPosError ("Can't parse regexp" <+> pretty (URegexp p undefined) <+> ":" <+> text (show ms))
 
@@ -83,14 +82,13 @@ any2array x = return (PArray (V.fromList x))
 
 base64 :: [PValue] -> InterpreterMonad PValue
 base64 [pa,pb] = do
-    a <- resolvePValueString pa
     b <- fmap T.encodeUtf8 (resolvePValueString pb)
-    r <- case a of
+    r <- resolvePValueString pa >>= \case
         "encode" -> return (B16.encode b)
         "decode" -> case B16.decode b of
                         (x, "") -> return x
                         _       -> throwPosError ("base64(): could not decode" <+> pretty pb)
-        _        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ttext a)
+        a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ttext a)
     fmap PString (safeDecodeUtf8 r)
 
 base64 _ = throwPosError "base64(): Expects 2 arguments"
@@ -217,7 +215,7 @@ validateRe [str, PString reg, msg] = validateRe [str, PArray (V.singleton (PStri
 validateRe [str, PArray v, msg] = do
     rstr <- fmap T.encodeUtf8 (resolvePValueString str)
     let matchRE :: Regex -> InterpreterMonad Bool
-        matchRE r = liftIO (execute r rstr) >>= \res -> case res of
+        matchRE r = liftIO (execute r rstr) >>= \case
                         Left rr -> throwPosError ("Regexp matching critical failure" <+> text (show rr))
                         Right Nothing -> return False
                         _ -> return True
