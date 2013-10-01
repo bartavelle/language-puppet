@@ -38,6 +38,7 @@ stdlibFunctions = HM.fromList [ ("abs", puppetAbs)
                               , ("is_integer", isInteger)
                               , ("keys", keys)
                               , ("lstrip", stringArrayFunction T.stripStart)
+                              , ("merge", merge)
                               , ("rstrip", stringArrayFunction T.stripEnd)
                               , ("strip", stringArrayFunction T.strip)
                               , ("upcase", stringArrayFunction T.toUpper)
@@ -187,6 +188,11 @@ keys :: [PValue] -> InterpreterMonad PValue
 keys [PHash h] = return (PArray $ V.fromList $ map PString $ HM.keys h)
 keys [x] = throwPosError ("keys(): Expects a Hash, not" <+> pretty x)
 keys _ = throwPosError "keys(): expects a single argument"
+
+merge :: [PValue] -> InterpreterMonad PValue
+merge [PHash a, PHash b] = return (PHash (b `HM.union` a))
+merge [a,b] = throwPosError ("merge(): Expects two hashes, not" <+> pretty a <+> pretty b)
+merge _ = throwPosError "merge(): Expects two hashes"
 
 validateArray :: [PValue] -> InterpreterMonad PValue
 validateArray [] = throwPosError "validate_array(): wrong number of arguments, must be > 0"
