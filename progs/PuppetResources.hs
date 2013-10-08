@@ -102,42 +102,34 @@ And then run the following command every time you need to verify your changes ar
 module Main where
 
 import System.IO
-import System.Environment
-import Data.List
 import qualified Data.HashMap.Strict as HM
-import Data.Algorithm.Diff
 import qualified System.Log.Logger as LOG
-import System.Exit
-import Control.Monad
-import Control.Monad.Error (runErrorT)
-import Data.Char (toLower)
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Monoid hiding (First)
-import Data.Maybe (isNothing)
-import Text.Parsec
+import qualified Text.Parsec as P
 import qualified Data.Vector as V
 import qualified Data.Either.Strict as S
+import Options.Applicative as O
+import Control.Monad
 
 import Facter
 
-import Puppet.PP
+import Puppet.PP hiding ((<$>))
 import Puppet.Preferences
 import Puppet.Daemon
 import Puppet.Interpreter.Types
 import Puppet.Parser.Types
 import Puppet.Parser
-import Puppet.Parser.PrettyPrinter
-import Puppet.Interpreter.PrettyPrinter
+import Puppet.Parser.PrettyPrinter()
+import Puppet.Interpreter.PrettyPrinter()
 import Puppet.JsonCatalog
 import PuppetDB.Rest
-import Puppet.Testing
+import Puppet.Testing hiding ((<$>))
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
-
-usage = error "Usage: puppetresource puppetdir nodename [filename]"
 
 {-| Does all the work of initializing a daemon for querying.
 Returns the final catalog when given a node name. Note that this is pretty
@@ -147,10 +139,10 @@ hackish as it will generate facts from the local computer !
 initializedaemonWithPuppet :: Maybe T.Text -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
 initializedaemonWithPuppet purl puppetdir = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.DEBUG)
-    prefs <- genPreferences puppetdir
+    prfs <- genPreferences puppetdir
     let nprefs = case purl of
-                     Nothing -> prefs
-                     Just ur -> prefs { _pDBquery = pdbRequest ur }
+                     Nothing -> prfs
+                     Just ur -> prfs { _pDBquery = pdbRequest ur }
     q <- initDaemon nprefs
     return $ \nodename ->
         allFacts nodename
@@ -163,8 +155,8 @@ initializedaemonWithPuppet purl puppetdir = do
 initializedaemon :: FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
 initializedaemon = initializedaemonWithPuppet Nothing
 
-parseFile :: FilePath -> IO (Either ParseError (V.Vector Statement))
-parseFile fp = T.readFile fp >>= runParserT puppetParser () fp
+parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
+parseFile fp = T.readFile fp >>= P.runParserT puppetParser () fp
 
 printContent :: T.Text -> FinalCatalog -> IO ()
 printContent filename catalog =
@@ -175,51 +167,71 @@ printContent filename catalog =
                            Just (PString c)  -> T.putStrLn c
                            Just x -> print x
 
+data CommandLine = CommandLine { _pdb          :: Maybe String
+                               , _showjson     :: Bool
+                               , _showContent  :: Bool
+                               , _resourceType :: Maybe T.Text
+                               , _resourceName :: Maybe T.Text
+                               , _puppetdir    :: FilePath
+                               , _nodename     :: Maybe String
+                               } deriving Show
 
-main :: IO ()
-main = do
-    args <- getArgs
-    let (rargs, puppeturl) = case args of
-                             ("-r":pu:xs) -> (xs,   Just pu)
-                             _            -> (args, Nothing)
-    when (length rargs == 1) $ do
-        parseFile (head rargs) >>= \case
+cmdlineParser :: Parser CommandLine
+cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn
+    where
+        sc = switch (  long "showcontent"
+                    <> short 'c'
+                    <> help "When specifying a file resource, only output its content (useful for testing templates)")
+        sj = switch (  long "JSON"
+                    <> short 'j'
+                    <> help "Shows the output as a JSON document (useful for full catalog views)")
+        pdb = strOption (  long "pdburl"
+                        <> short 'r'
+                        <> help "URL of the puppetdb (ie. http://localhost:8080/)")
+        rt = strOption (  long "type"
+                       <> short 't'
+                       <> help "Filter the output by resource type (accepts a regular expression)")
+        rn = strOption (  long "name"
+                       <> short 'n'
+                       <> help "Filter the output by resource name (accepts a regular expression)")
+        pdir = strOption (  long "puppetdir"
+                         <> short 'p'
+                         <> help "Puppet directory")
+        nn   = strOption (  long "node"
+                         <> short 'o'
+                         <> help "Node name")
+
+run :: CommandLine -> IO ()
+run (CommandLine _ _ True _ _ f _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-        error "tmp"
-    let (puppetdir, nodename) | (length rargs /= 2) && (length rargs /= 3) = usage
-                              | otherwise = (rargs !! 0, rargs !! 1)
-        getresname :: T.Text -> Maybe (T.Text, T.Text)
-        getresname r =
-            let isresname = T.last r == ']' && T.isInfixOf "[" r
-                (rtype, rname) = T.break (== '[') r
-            in if isresname
-                then Just (T.map toLower rtype, T.tail $ T.init rname)
-                else Nothing
-        handlePrintResource resname cat
-            = case getresname resname of
-                Just (t,n) -> case HM.lookup (RIdentifier t n) cat of
-                                  Just x -> putDoc (pretty x)
-                                  Nothing -> error "Resource not found"
-                Nothing    -> printContent resname cat
-
+run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename)) = do
     queryfunc <- initializedaemonWithPuppet (fmap T.pack puppeturl) puppetdir
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
-    (x,m,e) <- queryfunc (T.pack nodename)
-    if length rargs == 3
-        then if (rargs !! 2) == "JSON"
-                 then do
-                     let json = catalog2JSon (T.pack nodename) 1 x e m
-                     BSL.putStrLn json
-                 else handlePrintResource (T.pack (rargs !! 2)) x
-        else do
-            (restest, coverage) <- testCatalog puppetdir x basicTest
+    (rawcatalog,m,exported) <- queryfunc (T.pack nodename)
+    let catalog = rawcatalog
+    case (showcontent, showjson)  of
+        (_, True) -> BSL.putStrLn (catalog2JSon (T.pack nodename) 1 catalog exported m)
+        (True, _) -> do
+            unless (mrt == Just "file" || mrt == Nothing) (error $ "Show content only works for file, not for " ++ show mrt)
+            case mrn of
+                Just f -> printContent f catalog
+                Nothing -> error "You should supply a resource name when using showcontent"
+        _ -> do
+            (restest, _) <- testCatalog puppetdir catalog basicTest
             case failedTests restest of
                 Just x -> printFunc (pretty x)
                 Nothing -> do
-                    printFunc (pretty (HM.elems x))
+                    printFunc (pretty (HM.elems catalog))
                     printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
-                    printFunc (pretty (HM.elems e))
+                    printFunc (pretty (HM.elems exported))
+run _ = error "Unsupported options combination"
+
+main :: IO ()
+main = execParser pinfo >>= run
+    where
+        pinfo :: ParserInfo CommandLine
+        pinfo = ParserInfo (helper <*> cmdlineParser) True "A useful program for parsing puppet files, generating and inspecting catalogs" "puppetresources - a useful utility for dealing with Puppet" "" 3
