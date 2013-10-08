@@ -113,6 +113,8 @@ import qualified Data.Vector as V
 import qualified Data.Either.Strict as S
 import Options.Applicative as O
 import Control.Monad
+import Text.Regex.PCRE.String
+import Data.Text.Strict.Lens
 
 import Facter
 
@@ -190,7 +192,7 @@ cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack 
                         <> help "URL of the puppetdb (ie. http://localhost:8080/)")
         rt = strOption (  long "type"
                        <> short 't'
-                       <> help "Filter the output by resource type (accepts a regular expression)")
+                       <> help "Filter the output by resource type (accepts a regular expression, ie '^file$')")
         rn = strOption (  long "name"
                        <> short 'n'
                        <> help "Filter the output by resource name (accepts a regular expression)")
@@ -211,8 +213,18 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename
         if isterm
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
-    (rawcatalog,m,exported) <- queryfunc (T.pack nodename)
-    let catalog = rawcatalog
+    (rawcatalog,m,rawexported) <- queryfunc (T.pack nodename)
+    let cmpMatch Nothing _ curcat = return curcat
+        cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
+            Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
+            Right rec -> fmap HM.fromList $ filterM (filterResource lns rec) (HM.toList curcat)
+        filterResource lns rec v = execute rec (v ^. lns) >>= \case
+                                        Left rr -> error ("Error when applying regexp: " ++ show rr)
+                                        Right Nothing -> return False
+                                        _ -> return True
+        filterCatalog = cmpMatch mrt (_1 . itype . unpacked) >=> cmpMatch mrn (_1 . iname . unpacked)
+    catalog  <- filterCatalog rawcatalog
+    exported <- filterCatalog rawexported
     case (showcontent, showjson)  of
         (_, True) -> BSL.putStrLn (catalog2JSon (T.pack nodename) 1 catalog exported m)
         (True, _) -> do
@@ -226,8 +238,9 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename
                 Just x -> printFunc (pretty x)
                 Nothing -> do
                     printFunc (pretty (HM.elems catalog))
-                    printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
-                    printFunc (pretty (HM.elems exported))
+                    unless (HM.null exported) $ do
+                        printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
+                        printFunc (pretty (HM.elems exported))
 run _ = error "Unsupported options combination"
 
 main :: IO ()

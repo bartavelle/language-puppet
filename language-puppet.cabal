@@ -122,6 +122,6 @@ executable puppetresources
   extensions:          BangPatterns, OverloadedStrings, LambdaCase
   ghc-options:         -Wall -rtsopts -threaded
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative
+  build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative,regex-pcre-builtin,lens
   main-is:             PuppetResources.hs
 
