@@ -12,7 +12,7 @@ then
     BUILDNUMBER="0"
 fi
 
-cp equivs dist/build/puppetresources/ && \
+cp build/equivs dist/build/puppetresources/ && \
     cp ruby/*.rb dist/build/puppetresources/ && \
     cd dist/build/puppetresources && \
     sed -i -e "s/Version: .*/Version: $VERSION-$BUILDNUMBER/" equivs && \
