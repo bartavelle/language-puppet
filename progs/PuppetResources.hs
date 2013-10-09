@@ -204,7 +204,7 @@ cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack 
                          <> help "Node name")
 
 run :: CommandLine -> IO ()
-run (CommandLine _ _ True _ _ f _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
 run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename)) = do
