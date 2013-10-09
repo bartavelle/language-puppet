@@ -141,7 +141,7 @@ hackish as it will generate facts from the local computer !
 initializedaemonWithPuppet :: Maybe T.Text -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
 initializedaemonWithPuppet purl puppetdir = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.DEBUG)
-    prfs <- genPreferences puppetdir
+    prfs <- genPreferences True puppetdir
     let nprefs = case purl of
                      Nothing -> prfs
                      Just ur -> prfs { _pDBquery = pdbRequest ur }

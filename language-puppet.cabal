@@ -41,6 +41,7 @@ library
                        , SafeProcess
                        , Puppet.Stdlib
                        , Puppet.Testing
+                       , PuppetDB.TestDB
   other-modules:       Text.Parser.Parsec
                        , Puppet.Utils
                        , Puppet.NativeTypes.File
@@ -102,6 +103,7 @@ library
                         , cryptohash
                         , base16-bytestring
                         , containers
+                        , stm
 Test-Suite test-lexer
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0

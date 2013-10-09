@@ -7,6 +7,7 @@ import Puppet.Plugins
 import Puppet.NativeTypes
 import Puppet.NativeTypes.Helpers
 import Puppet.Stdlib
+import PuppetDB.TestDB
 
 import qualified Data.Either.Strict as S
 import qualified Data.Text as T
@@ -28,8 +29,10 @@ data Preferences = Preferences
 
 makeClassy ''Preferences
 
-genPreferences :: FilePath -> IO Preferences
-genPreferences basedir = do
+genPreferences :: Bool              -- ^ will initialize the dummy puppetdb when True
+               -> FilePath
+               -> IO Preferences
+genPreferences testpdb basedir = do
     let manifestdir = basedir <> "/manifests"
         modulesdir  = basedir <> "/modules"
         templatedir = basedir <> "/templates"
@@ -37,4 +40,7 @@ genPreferences basedir = do
     let loadedTypes = HM.fromList (map defaulttype typenames)
         cstpdb :: T.Text -> Value -> IO (S.Either String Value)
         cstpdb _ _ = return (S.Right (Array V.empty))
-    return $ Preferences manifestdir modulesdir templatedir 4 4 cstpdb (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions)
+    selectedpdb <- if testpdb
+                       then initPuppetDB
+                       else return cstpdb
+    return $ Preferences manifestdir modulesdir templatedir 4 4 selectedpdb (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions)
