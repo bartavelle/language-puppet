@@ -42,6 +42,7 @@ library
                        , Puppet.Stdlib
                        , Puppet.Testing
                        , PuppetDB.TestDB
+                       , PuppetDB.Query
   other-modules:       Text.Parser.Parsec
                        , Puppet.Utils
                        , Puppet.NativeTypes.File

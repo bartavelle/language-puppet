@@ -5,6 +5,7 @@ module Puppet.Interpreter.Types where
 import Puppet.Parser.Types
 import Puppet.Stats
 import Puppet.Parser.PrettyPrinter
+import Text.Parsec.Pos
 
 import Data.Aeson
 import Text.PrettyPrint.ANSI.Leijen
@@ -21,7 +22,7 @@ import Data.String (IsString(..))
 import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
 import Data.Hashable
-import GHC.Generics
+import GHC.Generics hiding (to)
 import qualified Data.Traversable as TR
 import Control.Exception
 import qualified Data.ByteString as BS
@@ -320,3 +321,17 @@ iunionWith = HM.unionWith
 fnull :: (Eq x, Monoid x) => x -> Bool
 {-# INLINE fnull #-}
 fnull = (== mempty)
+
+instance ToJSON Resource where
+    toJSON r = object [ ("type", String $ r ^. rid . itype)
+                      , ("title", String $ r ^. rid . iname)
+                      , ("exported", Bool $ r ^. rvirtuality == Exported)
+                      , ("tags", toJSON $ r ^. rtags)
+                      , ("parameters", Object (HM.map toJSON $ r ^. rattributes))
+                      , ("line", r ^. rpos . _1 . to sourceLine . to toJSON)
+                      , ("file", r ^. rpos . _1 . to sourceName . to toJSON)
+                      ]
+
+instance FromJSON Resource where
+    parseJSON (Object v) = mempty
+    parseJSON _ = mempty
