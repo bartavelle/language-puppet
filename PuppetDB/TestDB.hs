@@ -64,4 +64,7 @@ queryDB tv "dumpdb" _   = fmap (S.Right . toJSON) (atomically (readTVar tv))
 queryDB tv "replacedb" v = case fromJSON v of
                                Success x -> atomically (writeTVar tv x) >> return (S.Right (String "success"))
                                Error s -> return (S.Left s)
+queryDB tv "updatenode" v = case fromJSON v of
+                                Success (nodename, pdb) -> atomically (modifyTVar tv (at nodename ?~ pdb)) >> return (S.Right (String "success"))
+                                Error rr -> return (S.Left rr)
 queryDB _ r _           = return (S.Left ("Unknown endpoint: " ++ show r))
