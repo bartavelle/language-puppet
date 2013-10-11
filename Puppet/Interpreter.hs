@@ -494,7 +494,7 @@ loadClass classname params cincludetype = do
                     scopename <- enterScope inh (ContClass classname)
                     classresource <- if cincludetype == IncludeStandard
                                          then do
-                                             scp <- getScope
+                                             scp <- use curScope
                                              return [Resource (RIdentifier "class" classname) classname mempty mempty scp ContRoot Normal mempty p]
                                          else return []
                     pushScope scopename
@@ -571,7 +571,8 @@ registerResource rt rn arg vrt p = do
                         ContRoot        -> []
                         ContClass cn    -> allsegs cn
                         ContDefine dt _ -> allsegs dt
-    let baseresource = Resource (RIdentifier rt rn) rn mempty mempty scp cnt vrt defaulttags p
+    allScope <- use curScope
+    let baseresource = Resource (RIdentifier rt rn) rn mempty mempty allScope cnt vrt defaulttags p
     r <- foldM (addAttribute CantOverride) baseresource (itoList arg)
     let resid = RIdentifier rt rn
     case rt of

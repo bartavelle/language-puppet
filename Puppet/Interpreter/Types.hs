@@ -194,7 +194,7 @@ data Resource = Resource
     , _ralias      :: !T.Text                                         -- ^ All the resource aliases
     , _rattributes :: !(Container PValue)                             -- ^ Resource parameters.
     , _rrelations  :: !(HM.HashMap RIdentifier (HS.HashSet LinkType)) -- ^ Resource relations.
-    , _rscope      :: !T.Text                                         -- ^ Resource scope when it was defined
+    , _rscope      :: ![T.Text]                                       -- ^ Resource scope when it was defined
     , _rcontainer  :: !CurContainerDesc                               -- ^ The class that contains this resource
     , _rvirtuality :: !Virtuality
     , _rtags       :: !(HS.HashSet T.Text)

@@ -19,7 +19,7 @@ mkJsonCatalog :: T.Text -> Integer -> FinalCatalog -> FinalCatalog -> EdgeMap ->
 mkJsonCatalog = error "mkJsonCatalog"
 
 fakeResource :: (RIdentifier, PPosition) -> Resource
-fakeResource (r,p) = Resource r (_iname r) HM.empty HM.empty "fake" ContRoot Normal (HS.singleton "fake") p
+fakeResource (r,p) = Resource r (_iname r) HM.empty HM.empty ["fake"] ContRoot Normal (HS.singleton "fake") p
 
 -- stuff that is done
 -- * the EXPORTEDSOURCE is added for resources coming from PuppetDB

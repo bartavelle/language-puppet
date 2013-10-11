@@ -55,7 +55,7 @@ meta r = showPPos (r ^. rpos) <+> green (brackets cont <+> brackets scp)
                    ContRoot -> magenta "top level"
                    ContClass cname -> magenta "class" <+> ttext cname
                    ContDefine t n -> pretty (PResourceReference t n)
-        scp = "Scope" <+> ttext (r ^. rscope)
+        scp = "Scope" <+> pretty (r ^.. rscope . folded . filtered (/="::") . to (white . ttext))
 
 resourceBody :: Resource -> Doc
 resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r <$> containerComma'' insde <> ";"
