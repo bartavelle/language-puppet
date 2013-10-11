@@ -45,6 +45,25 @@ instance Pretty Expression where
     pretty (Negate a)             = text "-" <+> parens (pretty a)
     pretty (Not a)                = text "!" <+> parens (pretty a)
     pretty (PValue a)             = pretty a
+    pretty (FunctionApplication e1 e2) = parens (pretty e1) <> text "." <> pretty e2
+
+instance Pretty HigherFuncType where
+    pretty HFEach   = bold $ red $ text "each"
+    pretty HFMap    = bold $ red $ text "map"
+    pretty HFReduce = bold $ red $ text "reduce"
+    pretty HFFilter = bold $ red $ text "filter"
+    pretty HFSlice  = bold $ red $ text "slice"
+
+instance Pretty BlockParameters where
+    pretty b = magenta (char '|') <+> vars <+> magenta (char '|')
+        where
+            vars = case b of
+                       BPSingle v -> pretty (UVariableReference v)
+                       BPPair v1 v2 -> pretty (UVariableReference v1) <> comma <+> pretty (UVariableReference v2)
+
+instance Pretty BlockStatement where
+    pretty (BSS x) = pretty x
+    pretty (BSE x) = pretty x
 
 instance Pretty SearchExpression where
     pretty (EqualitySearch t e) = text (T.unpack t) <+> text "==" <+> pretty e
@@ -69,6 +88,7 @@ instance Pretty UValue where
     pretty (URegexp r _) = char '/' <> text (T.unpack r) <> char '/'
     pretty (UVariableReference v) = dullblue (char '$' <> text (T.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
+    pretty (UHFunctionCall hf bp s) = pretty hf <+> pretty bp <+> braceBlockStatements s
 
 instance Pretty SelectorCase where
     pretty SelectorDefault = dullmagenta (text "default")
@@ -103,6 +123,8 @@ showFunc :: T.Text -> V.Vector Expression -> Doc
 showFunc funcname args = bold (red (text (T.unpack funcname))) <> parensList args
 braceStatements :: V.Vector Statement -> Doc
 braceStatements stts = nest 2 (char '{' <$> ppStatements stts) <$> char '}'
+braceBlockStatements :: V.Vector BlockStatement -> Doc
+braceBlockStatements stts = nest 2 (char '{' <$> (vcat . map pretty . V.toList) stts) <$> char '}'
 
 instance Pretty NodeDesc where
     pretty NodeDefault     = dullmagenta (text "default")

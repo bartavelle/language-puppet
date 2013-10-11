@@ -28,6 +28,21 @@ initialPPos x =
     let i = initialPos (T.unpack x)
     in (i :!: i)
 
+data HigherFuncType = HFEach
+                    | HFMap
+                    | HFReduce
+                    | HFFilter
+                    | HFSlice
+                    deriving Eq
+
+data BlockParameters = BPSingle !T.Text
+                     | BPPair   !T.Text !T.Text
+                     deriving Eq
+
+data BlockStatement = BSS !Statement
+                    | BSE !Expression
+                    deriving Eq
+
 data UValue
     = UBoolean !Bool
     | UString !T.Text
@@ -39,6 +54,7 @@ data UValue
     | URegexp !T.Text !Regex
     | UVariableReference !T.Text
     | UFunctionCall !T.Text !(V.Vector Expression)
+    | UHFunctionCall !HigherFuncType !BlockParameters !(V.Vector BlockStatement)
 
 -- manual instance because of the Regex problem
 instance Eq UValue where
@@ -84,6 +100,7 @@ data Expression
     | Lookup !Expression !Expression
     | Negate !Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression))
+    | FunctionApplication !Expression !Expression
     | PValue !UValue
     deriving (Eq)
 
@@ -93,6 +110,7 @@ data SearchExpression
     | AndSearch !SearchExpression !SearchExpression
     | OrSearch !SearchExpression !SearchExpression
     | AlwaysTrue
+    deriving Eq
 
 data CollectorType = Collector | ExportedCollector
     deriving (Eq)
@@ -127,6 +145,8 @@ data Statement
     | Node !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition
     | VariableAssignment !T.Text !Expression !PPosition
     | MainFunctionCall !T.Text !(V.Vector Expression) !PPosition
+    | MHigherFunction !HigherFuncType !BlockParameters !(V.Vector Statement) !Expression
     | ResourceCollection !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition
     | Dependency !(Pair T.Text Expression) !(Pair T.Text Expression) !PPosition
     | TopContainer !(V.Vector Statement) !Statement
+    deriving Eq

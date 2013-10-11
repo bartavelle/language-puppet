@@ -232,10 +232,12 @@ termRegexp = do
     URegexp <$> pure r <*> compileRegexp r
 
 terminal :: Parser Expression
-terminal = terminalG (fmap PValue (try functionCall))
+terminal = terminalG (fmap PValue (try hfunctionCall <|> try functionCall))
 
 expression :: Parser Expression
-expression = condExpression <|> buildExpressionParser expressionTable (token terminal) <?> "expression"
+expression = condExpression
+             <|> buildExpressionParser expressionTable (token terminal)
+             <?> "expression"
     where
         condExpression = do
             selectedExpression <- try (token terminal <* symbolic '?')
@@ -255,6 +257,7 @@ expressionTable :: [[Operator T.Text () IO Expression]]
 expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) AssocLeft ]
                     [ Prefix ( operator "-"   >> return Negate           ) ]
                   , [ Prefix ( operator "!"   >> return Not              ) ]
+                  , [ Infix  ( operator "."   >> return FunctionApplication ) AssocLeft ]
                   , [ Infix  ( reserved "in"  >> return Contains         ) AssocLeft ]
                   , [ Infix  ( operator "/"   >> return Division         ) AssocLeft
                     , Infix  ( operator "*"   >> return Multiplication   ) AssocLeft
@@ -522,4 +525,37 @@ statementList = fmap (V.fromList . concat) (many statement)
 
 puppetParser :: Parser (V.Vector Statement)
 puppetParser = someSpace >> statementList
+
+{-
+- Stuff related to the new functions with "lambdas"
+-}
+
+parseHFunction :: Parser HigherFuncType
+parseHFunction =   (reserved "each"   *> pure HFEach)
+               <|> (reserved "map"    *> pure HFMap )
+               <|> (reserved "reduce" *> pure HFReduce)
+               <|> (reserved "filter" *> pure HFFilter)
+               <|> (reserved "slice"  *> pure HFSlice)
+
+parseHParams :: Parser BlockParameters
+parseHParams = between (symbolic '|') (symbolic '|') hp
+    where
+        hp = do
+            vars <- variableReference `sepBy1` comma
+            case vars of
+                [a] -> return (BPSingle a)
+                [a,b] -> return (BPPair a b)
+                _ -> fail "Invalid number of variables between the pipes"
+
+parseBlockStatement :: Parser [BlockStatement]
+parseBlockStatement = fmap (\x -> [BSE x]) expression <|> fmap (map BSS) statement
+
+hfunctionCall :: Parser UValue
+hfunctionCall = do
+    s <- UHFunctionCall <$> parseHFunction <*> parseHParams
+    stmts <- concat <$> braces (many parseBlockStatement)
+    when (null stmts) (fail "Empty block")
+    case last stmts of
+        BSE _ -> return (s (V.fromList stmts))
+        _     -> fail "Block must end with an expression"
 
