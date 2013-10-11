@@ -115,6 +115,7 @@ import Options.Applicative as O
 import Control.Monad
 import Text.Regex.PCRE.String
 import Data.Text.Strict.Lens
+import Data.Aeson
 
 import Facter
 
@@ -138,7 +139,7 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: Maybe T.Text -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+initializedaemonWithPuppet :: Maybe T.Text -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog), T.Text -> Value -> IO (S.Either String Value))
 initializedaemonWithPuppet purl puppetdir = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.DEBUG)
     prfs <- genPreferences True puppetdir
@@ -146,15 +147,15 @@ initializedaemonWithPuppet purl puppetdir = do
                      Nothing -> prfs
                      Just ur -> prfs { _pDBquery = pdbRequest ur }
     q <- initDaemon nprefs
-    return $ \nodename ->
-        allFacts nodename
+    let f nodename = allFacts nodename
             >>= _dGetCatalog q nodename
             >>= \case
                     S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
                     S.Right x -> return x
+    return (f, nprefs ^. pDBquery)
 
 {-| A helper for when you don't want to use PuppetDB -}
-initializedaemon :: FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+initializedaemon :: FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog), T.Text -> Value -> IO (S.Either String Value))
 initializedaemon = initializedaemonWithPuppet Nothing
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
@@ -176,10 +177,11 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _resourceName :: Maybe T.Text
                                , _puppetdir    :: FilePath
                                , _nodename     :: Maybe String
+                               , _pdbfile      :: Maybe FilePath
                                } deriving Show
 
 cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn
+cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile
     where
         sc = switch (  long "showcontent"
                     <> short 'c'
@@ -202,18 +204,26 @@ cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack 
         nn   = strOption (  long "node"
                          <> short 'o'
                          <> help "Node name")
-
+        pdbfile = strOption (  long "pdbfile"
+                            <> short 'f'
+                            <> help "Path to the testing PuppetDB file")
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename)) = do
-    queryfunc <- initializedaemonWithPuppet (fmap T.pack puppeturl) puppetdir
+run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename) mpdbf) = do
+    (queryfunc, pdbfunc) <- initializedaemonWithPuppet (fmap T.pack puppeturl) puppetdir
+    case mpdbf of
+        Nothing -> return ()
+        Just fp -> loadDatabase fp pdbfunc
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
     (rawcatalog,m,rawexported) <- queryfunc (T.pack nodename)
+    case mpdbf of
+        Nothing -> return ()
+        Just fp -> updateAndSaveDatabase fp pdbfunc (PDBEntry mempty rawcatalog rawexported)
     let cmpMatch Nothing _ curcat = return curcat
         cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
             Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
