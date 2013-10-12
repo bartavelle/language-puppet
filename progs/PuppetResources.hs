@@ -139,20 +139,22 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: Maybe T.Text -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog), T.Text -> Value -> IO (S.Either String Value))
+initializedaemonWithPuppet :: Maybe T.Text -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog), PuppetDBAPI)
 initializedaemonWithPuppet purl puppetdir = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.DEBUG)
     prfs <- genPreferences True puppetdir
-    let nprefs = case purl of
-                     Nothing -> prfs
-                     Just ur -> prfs { _pDBquery = pdbRequest ur }
+    nprefs <- case purl of
+                  Nothing -> prfs
+                  Just ur -> pdbConnect ur >>= \case
+                    S.Right connect -> return (prfs { pdbAPI = connect })
+                    S.Left  rr -> error (show rr)
     q <- initDaemon nprefs
     let f nodename = allFacts nodename
             >>= _dGetCatalog q nodename
             >>= \case
                     S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
                     S.Right x -> return x
-    return (f, nprefs ^. pDBquery)
+    return (f, nprefs ^. pdbAPI)
 
 {-| A helper for when you don't want to use PuppetDB -}
 initializedaemon :: FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog), T.Text -> Value -> IO (S.Either String Value))
@@ -213,17 +215,11 @@ run (CommandLine _ _ _ _ _ f Nothing _) = parseFile f >>= \case
             Right s -> putDoc (vcat (map pretty (V.toList s)))
 run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename) mpdbf) = do
     (queryfunc, pdbfunc) <- initializedaemonWithPuppet (fmap T.pack puppeturl) puppetdir
-    case mpdbf of
-        Nothing -> return ()
-        Just fp -> loadDatabase fp pdbfunc
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
     (rawcatalog,m,rawexported) <- queryfunc (T.pack nodename)
-    case mpdbf of
-        Nothing -> return ()
-        Just fp -> updateAndSaveDatabase fp pdbfunc (PDBEntry mempty rawcatalog rawexported)
     let cmpMatch Nothing _ curcat = return curcat
         cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
             Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
