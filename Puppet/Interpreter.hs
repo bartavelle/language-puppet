@@ -7,6 +7,7 @@ import Puppet.Parser.Types
 import Puppet.Parser.PrettyPrinter
 import Puppet.PP
 import Puppet.NativeTypes
+import PuppetDB.Types
 
 import Prelude hiding (mapM)
 import Puppet.Utils
@@ -35,7 +36,7 @@ vmapM f = mapM f . toList
 
 getCatalog :: ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) ) -- ^ get statements function
            -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text)) -- ^ compute template function
-           -> (T.Text -> Value -> IO (S.Either String Value)) -- ^ puppetDB query function
+           -> PuppetDBAPI
            -> T.Text -- ^ Node name
            -> Facts -- ^ Facts ...
            -> Container PuppetTypeMethods -- ^ List of native types

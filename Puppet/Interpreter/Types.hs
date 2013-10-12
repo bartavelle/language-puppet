@@ -8,7 +8,7 @@ import Puppet.Parser.PrettyPrinter
 import Text.Parsec.Pos
 
 import Data.Aeson
-import Text.PrettyPrint.ANSI.Leijen
+import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
@@ -28,6 +28,7 @@ import Control.Exception
 import qualified Data.ByteString as BS
 import System.Log.Logger
 import Data.List (foldl')
+import Control.Applicative hiding (empty)
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -35,6 +36,8 @@ import Foreign.Ruby
 
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
+
+type Nodename = T.Text
 
 type Container = HM.HashMap T.Text
 
@@ -123,7 +126,7 @@ data InterpreterState = InterpreterState { _scopes             :: !(Container Sc
 data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Container PuppetTypeMethods)
                                            , _getStatement            :: TopLevelType -> T.Text -> IO (S.Either Doc Statement)
                                            , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text)
-                                           , _puppetDBquery           :: T.Text -> Value -> IO (S.Either String Value)
+                                           , _pdbAPI                  :: PuppetDBAPI
                                            , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
                                            }
 
@@ -218,6 +221,37 @@ data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S
                                    , _dCatalogStats  :: MStats
                                    , _dTemplateStats :: MStats
                                    }
+
+data PuppetDBAPI = PuppetDBAPI { replaceCatalog  :: (FinalCatalog)      -> IO (S.Either Doc ())
+                               , replaceFacts    :: [(Nodename, Facts)] -> IO (S.Either Doc ())
+                               , deactivateNode  :: Nodename            -> IO (S.Either Doc ())
+                               , getFacts        :: Query FactField     -> IO (S.Either Doc [(Nodename, T.Text, PValue)])
+                               , getResources    :: Query ResourceField -> IO (S.Either Doc [(Nodename, Resource)])
+                               , getSerializedDB ::                        IO (S.Either Doc BS.ByteString)
+                               }
+
+data Query a = QEqual a T.Text
+             | QG a Integer
+             | QL a Integer
+             | QGE a Integer
+             | QLE a Integer
+             | QMatch T.Text T.Text
+             | QAnd [a]
+             | QOr [a]
+             | QNot a
+
+data FactField = FName | FValue | FCertname
+
+data ResourceField = RTag
+                   | RCertname
+                   | RParameter T.Text
+                   | RType
+                   | RTitle
+                   | RExported
+                   | RFile
+                   | RLine
+
+
 makeClassy ''RIdentifier
 makeClassy ''ResRefOverride
 makeClassy ''LinkInformation
@@ -242,20 +276,20 @@ getScope = use curScope >>= \s -> if null s
 -- instance
 
 instance FromJSON PValue where
-    parseJSON Null = return PUndef
+    parseJSON Null       = return PUndef
     parseJSON (Number n) = return (PString (T.pack (show n)))
     parseJSON (String s) = return (PString s)
-    parseJSON (Bool b) = return (PBoolean b)
-    parseJSON (Array v) = fmap PArray (V.mapM parseJSON v)
+    parseJSON (Bool b)   = return (PBoolean b)
+    parseJSON (Array v)  = fmap PArray (V.mapM parseJSON v)
     parseJSON (Object o) = fmap PHash (TR.mapM parseJSON o)
 
 instance ToJSON PValue where
-    toJSON (PBoolean b) = Bool b
-    toJSON PUndef = Null
-    toJSON (PString s) = String s
+    toJSON (PBoolean b)             = Bool b
+    toJSON PUndef                   = Null
+    toJSON (PString s)              = String s
     toJSON (PResourceReference _ _) = Null -- TODO
-    toJSON (PArray r) = Array (V.map toJSON r)
-    toJSON (PHash x) = Object (HM.map toJSON x)
+    toJSON (PArray r)               = Array (V.map toJSON r)
+    toJSON (PHash x)                = Object (HM.map toJSON x)
 
 #ifdef HRUBY
 instance ToRuby PValue where
@@ -335,3 +369,63 @@ instance ToJSON Resource where
 instance FromJSON Resource where
     parseJSON (Object v) = mempty
     parseJSON _ = mempty
+
+instance ToJSON a => ToJSON (Query a) where
+    toJSON (QOr qs)          = toJSON ("or" : map toJSON qs)
+    toJSON (QAnd qs)         = toJSON ("and" : map toJSON qs)
+    toJSON (QNot q)          = toJSON [ "not" , toJSON q ]
+    toJSON (QEqual flds val) = toJSON [ "=",  toJSON flds, toJSON val ]
+    toJSON (QMatch flds val) = toJSON [ "~",  toJSON flds, toJSON val ]
+    toJSON (QL     flds val) = toJSON [ "<",  toJSON flds, toJSON val ]
+    toJSON (QG     flds val) = toJSON [ ">",  toJSON flds, toJSON val ]
+    toJSON (QLE    flds val) = toJSON [ "<=", toJSON flds, toJSON val ]
+    toJSON (QGE    flds val) = toJSON [ ">=", toJSON flds, toJSON val ]
+
+instance FromJSON a => FromJSON (Query a) where
+    parseJSON (Array elems) = case V.toList elems of
+      ("or":xs)          -> QOr    <$> mapM parseJSON xs
+      ("and":xs)         -> QAnd   <$> mapM parseJSON xs
+      ["not",x]          -> QNot   <$> parseJSON x
+      [ "=", flds, val ] -> QEqual <$> parseJSON flds    <*> parseJSON val
+      [ "~", flds, val ] -> QEqual <$> parseJSON flds    <*> parseJSON val
+      [ ">", flds, val ] -> QG     <$> parseJSON flds    <*> parseJSON val
+      [ "<", flds, val ] -> QL     <$> parseJSON flds    <*> parseJSON val
+      [">=", flds, val ] -> QGE    <$> parseJSON flds    <*> parseJSON val
+      ["<=", flds, val ] -> QLE    <$> parseJSON flds    <*> parseJSON val
+      x -> fail ("unknown query" ++ show x)
+    parseJSON _ = fail "Expected an array"
+
+instance ToJSON FactField where
+    toJSON FName     = "name"
+    toJSON FValue    = "value"
+    toJSON FCertname = "certname"
+
+instance FromJSON FactField where
+    parseJSON "name"     = pure FName
+    parseJSON "value"    = pure FValue
+    parseJSON "certname" = pure FCertname
+    parseJSON _          = fail "Can't parse fact field"
+
+instance ToJSON ResourceField where
+    toJSON RTag           = "tag"
+    toJSON RCertname      = "certname"
+    toJSON (RParameter t) = toJSON ["parameter", t]
+    toJSON RType          = "type"
+    toJSON RTitle         = "title"
+    toJSON RExported      = "exported"
+    toJSON RFile          = "file"
+    toJSON RLine          = "line"
+
+instance FromJSON ResourceField where
+    parseJSON "tag"      = pure RTag
+    parseJSON "certname" = pure RCertname
+    parseJSON "type"     = pure RType
+    parseJSON "title"    = pure RTitle
+    parseJSON "exported" = pure RExported
+    parseJSON "file"     = pure RFile
+    parseJSON "line"     = pure RLine
+    parseJSON (Array xs) = case V.toList xs of
+                               ["parameter", x] -> RParameter <$> parseJSON x
+                               _ -> fail "Invalid field syntax"
+    parseJSON _ = fail "invalid field"
+

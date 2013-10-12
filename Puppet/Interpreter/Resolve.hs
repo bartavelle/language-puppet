@@ -355,14 +355,14 @@ resolveFunction' fname args = do
 
 pdbresourcequery :: PValue -> Maybe T.Text -> InterpreterMonad PValue
 pdbresourcequery q key = do
-    qf <- view puppetDBquery
-    let toDoc (S.Left x) = S.Left (text x)
-        toDoc (S.Right x) = S.Right x
-    r  <- interpreterIO (fmap toDoc (qf "resources" (toJSON q)))
-    rv <- case fromJSON r of
-        Error rr -> throwPosError ("Could not parse the PuppetDB response:" <+> text rr)
-        Success (PArray a) -> return a
-        Success x -> throwPosError ("Expected an array from the PuppetDB, but received" <+> pretty x)
+    pdb <- view pdbAPI
+    rrv <- case fromJSON (toJSON q) of
+               Success rq -> interpreterIO (getResources pdb rq)
+               Error rr   -> throwPosError ("Invalid resource query:" <+> Puppet.PP.string rr)
+    let reslist = map Prelude.snd rrv
+    rv <- case fromJSON (toJSON reslist) of
+              Success x -> return x
+              Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> Puppet.PP.string rr <+> pretty reslist)
     let extractSubHash :: T.Text -> PValue -> InterpreterMonad PValue
         extractSubHash ky (PHash h) = case h ^. at ky of
                                          Just val -> return val

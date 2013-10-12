@@ -122,7 +122,7 @@ testingDaemon :: Maybe T.Text -- ^ Might contain the URL of the actual PuppetDB,
               -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog)))
 testingDaemon purl puppetdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
-    prefs <- genPreferences True puppetdir
+    prefs <- genPreferences puppetdir
     q <- initDaemon (prefs { _compilePoolSize = 8, _parsePoolSize = 2 })
     return (\nodename -> allFacts nodename >>= _dGetCatalog q nodename)
 

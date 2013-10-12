@@ -121,7 +121,7 @@ master prefs controlQ getStatements getTemplate stats = forever $ do
     (DaemonQuery nodename facts q) <- readChan controlQ
     logDebug ("Received query for node " <> nodename)
     traceEventIO ("Received query for node " <> T.unpack nodename)
-    (stmts :!: warnings) <- measure stats nodename $ getCatalog getStatements getTemplate (prefs ^. pDBquery) nodename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs)
+    (stmts :!: warnings) <- measure stats nodename $ getCatalog getStatements getTemplate (prefs ^. prefPDB) nodename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs)
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact m) "")) warnings
     traceEventIO ("getCatalog finished for " <> T.unpack nodename)
     putMVar q stmts

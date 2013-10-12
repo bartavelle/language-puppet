@@ -30,7 +30,6 @@ library
                        , Puppet.Interpreter.PrettyPrinter
                        , Puppet.Preferences
                        , Puppet.Daemon
-                       , PuppetDB.Rest
                        , Puppet.JsonCatalog
                        , Facter
                        , Puppet.PP
@@ -41,8 +40,8 @@ library
                        , SafeProcess
                        , Puppet.Stdlib
                        , Puppet.Testing
+                       , PuppetDB.Rest
                        , PuppetDB.TestDB
-                       , PuppetDB.Query
   other-modules:       Text.Parser.Parsec
                        , Puppet.Utils
                        , Puppet.NativeTypes.File
