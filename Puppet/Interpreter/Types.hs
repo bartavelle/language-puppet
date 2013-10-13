@@ -222,14 +222,15 @@ data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S
                                    , _dTemplateStats :: MStats
                                    }
 
-data PuppetDBAPI = PuppetDBAPI { replaceCatalog  :: (FinalCatalog)      -> IO (S.Either Doc ())
-                               , replaceFacts    :: [(Nodename, Facts)] -> IO (S.Either Doc ())
-                               , deactivateNode  :: Nodename            -> IO (S.Either Doc ())
-                               , getFacts        :: Query FactField     -> IO (S.Either Doc [(Nodename, T.Text, PValue)])
-                               , getResources    :: Query ResourceField -> IO (S.Either Doc [(Nodename, Resource)])
-                               , commitDB        ::                        IO (S.Either Doc ())
+data PuppetDBAPI = PuppetDBAPI { replaceCatalog  :: (FinalCatalog)      -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+                               , replaceFacts    :: [(Nodename, Facts)] -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+                               , deactivateNode  :: Nodename            -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+                               , getFacts        :: Query FactField     -> IO (S.Either Doc [(Nodename, T.Text, PValue)]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+                               , getResources    :: Query ResourceField -> IO (S.Either Doc [(Nodename, Resource)]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+                               , commitDB        ::                        IO (S.Either Doc ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
                                }
 
+-- | Pretty straightforward way to define the various PuppetDB queries
 data Query a = QEqual a T.Text
              | QG a Integer
              | QL a Integer
@@ -240,8 +241,10 @@ data Query a = QEqual a T.Text
              | QOr [a]
              | QNot a
 
+-- | Fields for the fact endpoint
 data FactField = FName | FValue | FCertname
 
+-- | Fields for the resource endpoint
 data ResourceField = RTag
                    | RCertname
                    | RParameter T.Text
