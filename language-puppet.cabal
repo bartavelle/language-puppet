@@ -40,8 +40,9 @@ library
                        , SafeProcess
                        , Puppet.Stdlib
                        , Puppet.Testing
-                       , PuppetDB.Rest
+                       , PuppetDB.Remote
                        , PuppetDB.TestDB
+                       , PuppetDB.Dummy
   other-modules:       Text.Parser.Parsec
                        , Puppet.Utils
                        , Puppet.NativeTypes.File

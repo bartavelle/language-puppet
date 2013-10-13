@@ -7,7 +7,6 @@ import Puppet.Parser.Types
 import Puppet.Parser.PrettyPrinter
 import Puppet.PP
 import Puppet.NativeTypes
-import PuppetDB.Types
 
 import Prelude hiding (mapM)
 import Puppet.Utils

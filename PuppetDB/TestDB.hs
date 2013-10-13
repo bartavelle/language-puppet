@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module PuppetDB.TestDB (initPuppetDB) where
+module PuppetDB.TestDB (loadTestDB,initTestDB) where
 
 import Data.Aeson
 import qualified Data.Text as T
@@ -11,7 +11,10 @@ import Data.Monoid
 import Control.Applicative
 
 import Puppet.Interpreter.Types
-import PuppetDB.Types
+import Puppet.PP
 
-initPuppetDB :: IO PuppetDBAPI
-initPuppetDB = undefined
+loadTestDB :: FilePath -> IO (S.Either Doc PuppetDBAPI)
+loadTestDB _ = undefined
+
+initTestDB :: IO PuppetDBAPI
+initTestDB = undefined

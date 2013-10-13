@@ -227,7 +227,7 @@ data PuppetDBAPI = PuppetDBAPI { replaceCatalog  :: (FinalCatalog)      -> IO (S
                                , deactivateNode  :: Nodename            -> IO (S.Either Doc ())
                                , getFacts        :: Query FactField     -> IO (S.Either Doc [(Nodename, T.Text, PValue)])
                                , getResources    :: Query ResourceField -> IO (S.Either Doc [(Nodename, Resource)])
-                               , getSerializedDB ::                        IO (S.Either Doc BS.ByteString)
+                               , commitDB        ::                        IO (S.Either Doc ())
                                }
 
 data Query a = QEqual a T.Text

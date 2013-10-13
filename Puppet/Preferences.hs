@@ -7,8 +7,7 @@ import Puppet.Plugins
 import Puppet.NativeTypes
 import Puppet.NativeTypes.Helpers
 import Puppet.Stdlib
-import PuppetDB.TestDB
-import PuppetDB.Types
+import PuppetDB.Dummy
 
 import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HM
@@ -35,5 +34,4 @@ genPreferences basedir = do
         templatedir = basedir <> "/templates"
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    selectedpdb <- initPuppetDB
-    return $ Preferences manifestdir modulesdir templatedir 4 4 selectedpdb (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions)
+    return $ Preferences manifestdir modulesdir templatedir 4 4 dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions)

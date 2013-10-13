@@ -1,4 +1,4 @@
-module PuppetDB.Rest where
+module PuppetDB.Remote where
 
 import Puppet.Utils
 import Puppet.PP
@@ -47,8 +47,8 @@ pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
     let req = initReq { requestHeaders = [("Accept", "application/json")] }
     runRequest req
 
-pdbConnect :: T.Text -> IO (Either String PuppetDBAPI)
-pdbConnect url = return $ Right $ PuppetDBAPI
+pdbConnect :: T.Text -> IO (S.Either Doc PuppetDBAPI)
+pdbConnect url = return $ S.Right $ PuppetDBAPI
     (const (return (S.Left "operation not supported")))
     (const (return (S.Left "operation not supported")))
     (const (return (S.Left "operation not supported")))
