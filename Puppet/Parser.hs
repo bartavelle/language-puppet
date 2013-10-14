@@ -232,7 +232,7 @@ termRegexp = do
     URegexp <$> pure r <*> compileRegexp r
 
 terminal :: Parser Expression
-terminal = terminalG (fmap PValue (try hfunctionCall <|> try functionCall))
+terminal = terminalG (fmap PValue (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
 
 expression :: Parser Expression
 expression = condExpression
@@ -506,6 +506,13 @@ rrGroup = do
         '[' -> rrGroupRef p restype <?> "What comes after a resource reference"
         _   -> resourceDefaults p restype <|> resourceCollection p restype <?> "What comes after a resource type"
 
+mainHFunctionCall :: Parser [Statement]
+mainHFunctionCall = do
+    p <- getPosition
+    fc <- try hfunctionCall
+    pe <- getPosition
+    return [SHFunctionCall fc (p :!: pe)]
+
 statement :: Parser [Statement]
 statement =
     variableAssignment
@@ -517,8 +524,10 @@ statement =
     <|> resourceGroup
     <|> rrGroup
     <|> classDefinition
+    <|> mainHFunctionCall
     <|> mainFunctionCall
     <?> "Statement"
+
 
 statementList :: Parser (V.Vector Statement)
 statementList = fmap (V.fromList . concat) (many statement)
@@ -547,15 +556,13 @@ parseHParams = between (symbolic '|') (symbolic '|') hp
                 [a,b] -> return (BPPair a b)
                 _ -> fail "Invalid number of variables between the pipes"
 
-parseBlockStatement :: Parser [BlockStatement]
-parseBlockStatement = fmap (\x -> [BSE x]) expression <|> fmap (map BSS) statement
-
-hfunctionCall :: Parser UValue
+hfunctionCall :: Parser HFunctionCall
 hfunctionCall = do
-    s <- UHFunctionCall <$> parseHFunction <*> parseHParams
-    stmts <- concat <$> braces (many parseBlockStatement)
-    when (null stmts) (fail "Empty block")
-    case last stmts of
-        BSE _ -> return (s (V.fromList stmts))
-        _     -> fail "Block must end with an expression"
+    let toStrict (Just x) = S.Just x
+        toStrict Nothing  = S.Nothing
+    HFunctionCall <$> parseHFunction
+                  <*> fmap toStrict (optional (parens expression))
+                  <*> parseHParams
+                  <*> (symbolic '{' *> fmap (V.fromList . concat) (many statement))
+                  <*> fmap toStrict (optional expression) <* symbolic '}'
 

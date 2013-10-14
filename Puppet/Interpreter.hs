@@ -375,6 +375,9 @@ evaluateStatement (ResourceOverride rt urn eargs p) = do
                             Nothing -> return raassignements
     scopes . ix scp . scopeOverrides . at rident ?= ResRefOverride rident withAssignements p
     return []
+evaluateStatement (SHFunctionCall c) = do
+    S.Right resources <- evaluateHFC StatementMode c
+    return resources
 evaluateStatement r = throwError ("Do not know how to evaluate this statement:" <$> pretty r)
 
 -----------------------------------------------------------
