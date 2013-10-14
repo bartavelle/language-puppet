@@ -128,6 +128,7 @@ data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Conta
                                            , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text)
                                            , _pdbAPI                  :: PuppetDBAPI
                                            , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
+                                           , _thisNodename            :: T.Text
                                            }
 
 data Warning = Warning !Doc
@@ -202,6 +203,7 @@ data Resource = Resource
     , _rvirtuality :: !Virtuality
     , _rtags       :: !(HS.HashSet T.Text)
     , _rpos        :: !PPosition -- ^ Source code position of the resource definition.
+    , _rnode       :: !(Maybe T.Text) -- ^ The node were this resource was created, if remote
     }
     deriving Eq
 
@@ -226,7 +228,7 @@ data PuppetDBAPI = PuppetDBAPI { replaceCatalog  :: (FinalCatalog)      -> IO (S
                                , replaceFacts    :: [(Nodename, Facts)] -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
                                , deactivateNode  :: Nodename            -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
                                , getFacts        :: Query FactField     -> IO (S.Either Doc [(Nodename, T.Text, PValue)]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
-                               , getResources    :: Query ResourceField -> IO (S.Either Doc [(Nodename, Resource)]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+                               , getResources    :: Query ResourceField -> IO (S.Either Doc [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
                                , commitDB        ::                        IO (S.Either Doc ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
                                }
 
@@ -237,9 +239,9 @@ data Query a = QEqual a T.Text
              | QGE a Integer
              | QLE a Integer
              | QMatch T.Text T.Text
-             | QAnd [a]
-             | QOr [a]
-             | QNot a
+             | QAnd [Query a]
+             | QOr [Query a]
+             | QNot (Query a)
 
 -- | Fields for the fact endpoint
 data FactField = FName | FValue | FCertname

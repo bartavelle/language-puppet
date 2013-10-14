@@ -62,13 +62,13 @@ replCat = undefined
 replFacts :: DB -> [(Nodename, Facts)] -> IO (S.Either Doc ())
 replFacts = undefined
 
-deactivate :: DB -> Nodename            -> IO (S.Either Doc ())
+deactivate :: DB -> Nodename -> IO (S.Either Doc ())
 deactivate = undefined
 
-getFcts :: DB -> Query FactField     -> IO (S.Either Doc [(Nodename, T.Text, PValue)])
+getFcts :: DB -> Query FactField -> IO (S.Either Doc [(Nodename, T.Text, PValue)])
 getFcts = undefined
 
-getRes :: DB -> Query ResourceField -> IO (S.Either Doc [(Nodename, Resource)])
+getRes :: DB -> Query ResourceField -> IO (S.Either Doc [Resource])
 getRes = undefined
 
 commit :: DB -> IO (S.Either Doc ())

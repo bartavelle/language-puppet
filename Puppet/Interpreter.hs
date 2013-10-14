@@ -13,7 +13,6 @@ import Puppet.Utils
 import System.Log.Logger
 import Data.Maybe
 import Data.List (nubBy)
-import Data.Aeson hiding ((.=))
 import qualified Data.Text as T
 import Data.Tuple.Strict (Pair(..))
 import qualified Data.Tuple.Strict as S
@@ -42,7 +41,7 @@ getCatalog :: ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) ) -- ^ get
            -> Container ( [PValue] -> InterpreterMonad PValue )
            -> IO (Pair (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))  [Pair Priority Doc])
 getCatalog gtStatement gtTemplate pdbQuery nodename facts nTypes extfuncs = do
-    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs
+    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs nodename
         dummypos = initialPPos "dummy"
         initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
         stt  = InterpreterState baseVars initialclass mempty ["::"] dummypos mempty [] []
@@ -313,7 +312,13 @@ evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
                  Collector -> RealizeVirtual
                  ExportedCollector -> RealizeCollected
     resMod %= (ResourceModifier resType ModifierCollector et rsearch return p : )
-    return []
+    -- Now collectd from the PuppetDB !
+    if et == RealizeCollected
+        then do
+            let q = searchExpressionToPuppetDB resType rsearch
+            pdb <- view pdbAPI
+            interpreterIO (getResources pdb q)
+        else return []
 evaluateStatement (Dependency (t1 :!: n1) (t2 :!: n2) p) = do
     curPos .= p
     rn1 <- resolveExpressionStrings n1
@@ -495,7 +500,7 @@ loadClass classname params cincludetype = do
                     classresource <- if cincludetype == IncludeStandard
                                          then do
                                              scp <- use curScope
-                                             return [Resource (RIdentifier "class" classname) classname mempty mempty scp ContRoot Normal mempty p]
+                                             return [Resource (RIdentifier "class" classname) classname mempty mempty scp ContRoot Normal mempty p Nothing]
                                          else return []
                     pushScope scopename
                     let modulename = case T.splitOn "::" classname of
@@ -572,7 +577,7 @@ registerResource rt rn arg vrt p = do
                         ContClass cn    -> allsegs cn
                         ContDefine dt _ -> allsegs dt
     allScope <- use curScope
-    let baseresource = Resource (RIdentifier rt rn) rn mempty mempty allScope cnt vrt defaulttags p
+    let baseresource = Resource (RIdentifier rt rn) rn mempty mempty allScope cnt vrt defaulttags p Nothing
     r <- foldM (addAttribute CantOverride) baseresource (itoList arg)
     let resid = RIdentifier rt rn
     case rt of
