@@ -61,10 +61,6 @@ instance Pretty BlockParameters where
                        BPSingle v -> pretty (UVariableReference v)
                        BPPair v1 v2 -> pretty (UVariableReference v1) <> comma <+> pretty (UVariableReference v2)
 
-instance Pretty BlockStatement where
-    pretty (BSS x) = pretty x
-    pretty (BSE x) = pretty x
-
 instance Pretty SearchExpression where
     pretty (EqualitySearch t e) = text (T.unpack t) <+> text "==" <+> pretty e
     pretty (NonEqualitySearch t e) = text (T.unpack t) <+> text "!=" <+> pretty e
@@ -88,8 +84,17 @@ instance Pretty UValue where
     pretty (URegexp r _) = char '/' <> text (T.unpack r) <> char '/'
     pretty (UVariableReference v) = dullblue (char '$' <> text (T.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
-    pretty (UHFunctionCall hf bp s) = pretty hf <+> pretty bp <+> braceBlockStatements s
+    pretty (UHFunctionCall c) = pretty c
 
+instance Pretty HFunctionCall where
+    pretty (HFunctionCall hf me bp stts mee) = pretty hf <> mme <+> pretty bp <+> nest 2 (char '{' <$> ppStatements stts <> mmee) <$> char '}'
+        where
+            mme = case me of
+                      S.Just x -> mempty <+> pretty x
+                      S.Nothing -> mempty
+            mmee = case mee of
+                       S.Just x -> mempty </> pretty x
+                       S.Nothing -> mempty
 instance Pretty SelectorCase where
     pretty SelectorDefault = dullmagenta (text "default")
     pretty (SelectorValue v) = pretty v
@@ -123,8 +128,6 @@ showFunc :: T.Text -> V.Vector Expression -> Doc
 showFunc funcname args = bold (red (text (T.unpack funcname))) <> parensList args
 braceStatements :: V.Vector Statement -> Doc
 braceStatements stts = nest 2 (char '{' <$> ppStatements stts) <$> char '}'
-braceBlockStatements :: V.Vector BlockStatement -> Doc
-braceBlockStatements stts = nest 2 (char '{' <$> (vcat . map pretty . V.toList) stts) <$> char '}'
 
 instance Pretty NodeDesc where
     pretty NodeDefault     = dullmagenta (text "default")
@@ -132,6 +135,7 @@ instance Pretty NodeDesc where
     pretty (NodeMatch m r) = pretty (URegexp m r)
 
 instance Pretty Statement where
+    pretty (SHFunctionCall c p) = pretty c <+> showPPos p
     pretty (ConditionalStatement conds p)
         | V.null conds = empty
         | otherwise = text "if" <+> pretty firstcond <+> showPPos p <+> braceStatements firststts <$> vcat (map rendernexts xs)
