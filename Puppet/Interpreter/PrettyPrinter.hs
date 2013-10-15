@@ -49,8 +49,9 @@ instance Pretty RIdentifier where
     pretty (RIdentifier t n) = pretty (PResourceReference t n)
 
 meta :: Resource -> Doc
-meta r = showPPos (r ^. rpos) <+> green (brackets cont <+> brackets scp)
+meta r = showPPos (r ^. rpos) <+> (green (node <> brackets cont <+> brackets scp) )
     where
+        node = maybe mempty ((<+> mempty) . red . ttext) (r ^. rnode)
         cont = case r ^. rcontainer of
                    ContRoot -> magenta "top level"
                    ContClass cname -> magenta "class" <+> ttext cname

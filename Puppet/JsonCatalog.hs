@@ -18,8 +18,8 @@ prref = error "prref"
 mkJsonCatalog :: T.Text -> Integer -> FinalCatalog -> FinalCatalog -> EdgeMap -> Value
 mkJsonCatalog = error "mkJsonCatalog"
 
-fakeResource :: (RIdentifier, PPosition) -> Resource
-fakeResource (r,p) = Resource r (_iname r) HM.empty HM.empty ["fake"] ContRoot Normal (HS.singleton "fake") p
+fakeResource :: T.Text -> (RIdentifier, PPosition) -> Resource
+fakeResource nodename (r,p) = Resource r (_iname r) HM.empty HM.empty ["fake"] ContRoot Normal (HS.singleton "fake") p (Just nodename)
 
 -- stuff that is done
 -- * the EXPORTEDSOURCE is added for resources coming from PuppetDB

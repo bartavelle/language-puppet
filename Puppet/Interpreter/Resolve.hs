@@ -360,14 +360,13 @@ resolveFunction' fname args = do
 
 pdbresourcequery :: PValue -> Maybe T.Text -> InterpreterMonad PValue
 pdbresourcequery q key = do
-    qf <- view puppetDBquery
-    let toDoc (S.Left x) = S.Left (text x)
-        toDoc (S.Right x) = S.Right x
-    r  <- interpreterIO (fmap toDoc (qf "resources" (toJSON q)))
-    rv <- case fromJSON r of
-        Error rr -> throwPosError ("Could not parse the PuppetDB response:" <+> text rr)
-        Success (PArray a) -> return a
-        Success x -> throwPosError ("Expected an array from the PuppetDB, but received" <+> pretty x)
+    pdb <- view pdbAPI
+    rrv <- case fromJSON (toJSON q) of
+               Success rq -> interpreterIO (getResources pdb rq)
+               Error rr   -> throwPosError ("Invalid resource query:" <+> Puppet.PP.string rr)
+    rv <- case fromJSON (toJSON rrv) of
+              Success x -> return x
+              Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> Puppet.PP.string rr <+> pretty rrv)
     let extractSubHash :: T.Text -> PValue -> InterpreterMonad PValue
         extractSubHash ky (PHash h) = case h ^. at ky of
                                          Just val -> return val
@@ -401,6 +400,18 @@ resolveSearchExpression (EqualitySearch a e) = REqualitySearch `fmap` pure a <*>
 resolveSearchExpression (NonEqualitySearch a e) = RNonEqualitySearch `fmap` pure a <*> resolveExpressionSE e
 resolveSearchExpression (AndSearch e1 e2) = RAndSearch `fmap` resolveSearchExpression e1 <*> resolveSearchExpression e2
 resolveSearchExpression (OrSearch e1 e2) = ROrSearch `fmap` resolveSearchExpression e1 <*> resolveSearchExpression e2
+
+searchExpressionToPuppetDB :: T.Text -> RSearchExpression -> Query ResourceField
+searchExpressionToPuppetDB rtype res = QAnd ( QEqual RType rtype : mkSE res )
+    where
+        mkSE (RAndSearch a b) = [QAnd (mkSE a ++ mkSE b)]
+        mkSE (ROrSearch a b) = [QOr (mkSE a ++ mkSE b)]
+        mkSE (RNonEqualitySearch a b) = fmap QNot (mkSE (REqualitySearch a b))
+        mkSE (REqualitySearch a (PString b)) = [QEqual (mkFld a) b]
+        mkSE _ = []
+        mkFld "tag" = RTag
+        mkFld "title" = RTitle
+        mkFld z = RParameter z
 
 checkSearchExpression :: RSearchExpression -> Resource -> Bool
 checkSearchExpression RAlwaysTrue _ = True

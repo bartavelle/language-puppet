@@ -115,6 +115,7 @@ import Options.Applicative as O
 import Control.Monad
 import Text.Regex.PCRE.String
 import Data.Text.Strict.Lens
+-- import Data.Aeson
 
 import Facter
 
@@ -127,7 +128,9 @@ import Puppet.Parser
 import Puppet.Parser.PrettyPrinter()
 import Puppet.Interpreter.PrettyPrinter()
 import Puppet.JsonCatalog
-import PuppetDB.Rest
+import PuppetDB.Remote
+import PuppetDB.Dummy
+import PuppetDB.TestDB
 import Puppet.Testing hiding ((<$>))
 
 tshow :: Show a => a -> T.Text
@@ -138,24 +141,16 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: Maybe T.Text -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
-initializedaemonWithPuppet purl puppetdir = do
+initializedaemonWithPuppet :: PuppetDBAPI -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+initializedaemonWithPuppet pdbapi puppetdir = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.DEBUG)
-    prfs <- genPreferences True puppetdir
-    let nprefs = case purl of
-                     Nothing -> prfs
-                     Just ur -> prfs { _pDBquery = pdbRequest ur }
-    q <- initDaemon nprefs
-    return $ \nodename ->
-        allFacts nodename
+    q <- fmap (prefPDB .~ pdbapi) (genPreferences puppetdir) >>= initDaemon
+    let f nodename = puppetDBFacts nodename pdbapi
             >>= _dGetCatalog q nodename
             >>= \case
                     S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
                     S.Right x -> return x
-
-{-| A helper for when you don't want to use PuppetDB -}
-initializedaemon :: FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
-initializedaemon = initializedaemonWithPuppet Nothing
+    return f
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
 parseFile fp = T.readFile fp >>= P.runParserT puppetParser () fp
@@ -176,10 +171,11 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _resourceName :: Maybe T.Text
                                , _puppetdir    :: FilePath
                                , _nodename     :: Maybe String
+                               , _pdbfile      :: Maybe FilePath
                                } deriving Show
 
 cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn
+cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile
     where
         sc = switch (  long "showcontent"
                     <> short 'c'
@@ -187,9 +183,8 @@ cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack 
         sj = switch (  long "JSON"
                     <> short 'j'
                     <> help "Shows the output as a JSON document (useful for full catalog views)")
-        pdb = strOption (  long "pdburl"
-                        <> short 'r'
-                        <> help "URL of the puppetdb (ie. http://localhost:8080/)")
+        remotepdb = strOption (  long "pdburl"
+                              <> help "URL of the puppetdb (ie. http://localhost:8080/).")
         rt = strOption (  long "type"
                        <> short 't'
                        <> help "Filter the output by resource type (accepts a regular expression, ie '^file$')")
@@ -202,18 +197,28 @@ cmdlineParser = CommandLine <$> optional pdb <*> sj <*> sc <*> optional (T.pack 
         nn   = strOption (  long "node"
                          <> short 'o'
                          <> help "Node name")
-
+        pdbfile = strOption (  long "pdbfile"
+                            <> help "Path to the testing PuppetDB file.")
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename)) = do
-    queryfunc <- initializedaemonWithPuppet (fmap T.pack puppeturl) puppetdir
+run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename) mpdbf) = do
+    let checkError r (S.Left rr) = error (show (red r <> ":" <+> rr))
+        checkError _ (S.Right x) = return x
+    pdbapi <- case (puppeturl, mpdbf) of
+                  (Nothing, Nothing) -> return dummyPuppetDB
+                  (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
+                  (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
+                  (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
+    queryfunc <- initializedaemonWithPuppet pdbapi puppetdir
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
     (rawcatalog,m,rawexported) <- queryfunc (T.pack nodename)
+    void $ replaceCatalog pdbapi (rawcatalog <> rawexported)
+    void $ commitDB pdbapi
     let cmpMatch Nothing _ curcat = return curcat
         cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
             Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
@@ -241,7 +246,6 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename
                     unless (HM.null exported) $ do
                         printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
                         printFunc (pretty (HM.elems exported))
-run _ = error "Unsupported options combination"
 
 main :: IO ()
 main = execParser pinfo >>= run
