@@ -11,6 +11,7 @@ import Data.Char
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Applicative
+import Control.Lens
 
 import Puppet.Parser.Types
 
@@ -232,10 +233,12 @@ termRegexp = do
     URegexp <$> pure r <*> compileRegexp r
 
 terminal :: Parser Expression
-terminal = terminalG (fmap PValue (try functionCall))
+terminal = terminalG (fmap PValue (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
 
 expression :: Parser Expression
-expression = condExpression <|> buildExpressionParser expressionTable (token terminal) <?> "expression"
+expression = condExpression
+             <|> buildExpressionParser expressionTable (token terminal)
+             <?> "expression"
     where
         condExpression = do
             selectedExpression <- try (token terminal <* symbolic '?')
@@ -255,6 +258,7 @@ expressionTable :: [[Operator T.Text () IO Expression]]
 expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) AssocLeft ]
                     [ Prefix ( operator "-"   >> return Negate           ) ]
                   , [ Prefix ( operator "!"   >> return Not              ) ]
+                  , [ Infix  ( operator "."   >> return FunctionApplication ) AssocLeft ]
                   , [ Infix  ( reserved "in"  >> return Contains         ) AssocLeft ]
                   , [ Infix  ( operator "/"   >> return Division         ) AssocLeft
                     , Infix  ( operator "*"   >> return Multiplication   ) AssocLeft
@@ -438,14 +442,14 @@ searchExpression = parens searchExpression <|> check <|> combine
     where
         combine = do
             e1 <- parens searchExpression <|> check
-            op <- (operator "and" *> return AndSearch) <|> (operator "or" *> return OrSearch)
+            opr <- (operator "and" *> return AndSearch) <|> (operator "or" *> return OrSearch)
             e2 <- searchExpression
-            return (op e1 e2)
+            return (opr e1 e2)
         check = do
             attrib <- parameterName
-            op <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
+            opr <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
             term <- stringExpression
-            return (op attrib term)
+            return (opr attrib term)
 
 resourceCollection :: Position -> T.Text -> Parser [Statement]
 resourceCollection p restype = do
@@ -503,9 +507,33 @@ rrGroup = do
         '[' -> rrGroupRef p restype <?> "What comes after a resource reference"
         _   -> resourceDefaults p restype <|> resourceCollection p restype <?> "What comes after a resource type"
 
+mainHFunctionCall :: Parser [Statement]
+mainHFunctionCall = do
+    p <- getPosition
+    fc <- try hfunctionCall
+    pe <- getPosition
+    return [SHFunctionCall fc (p :!: pe)]
+
+dotCall :: Parser [Statement]
+dotCall = do
+    p <- getPosition
+    ex <- expression
+    pe <- getPosition
+    hf <- case ex of
+              FunctionApplication e (PValue (UHFunctionCall hf)) -> do
+                  unless (S.isNothing (hf ^. hfexpr)) (fail "Can't call a function with . and ()")
+                  return (hf & hfexpr .~ S.Just e)
+              PValue (UHFunctionCall hf) -> do
+                  when (S.isNothing (hf ^. hfexpr)) (fail "This function needs data to operate on")
+                  return hf
+              _ -> fail "A method chained by dots."
+    unless (hf ^. hftype == HFEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
+    return [SHFunctionCall hf (p :!: pe)]
+
 statement :: Parser [Statement]
 statement =
-    variableAssignment
+        try dotCall
+    <|> variableAssignment
     <|> nodeStmt
     <|> defineStmt
     <|> unlessCondition
@@ -514,12 +542,46 @@ statement =
     <|> resourceGroup
     <|> rrGroup
     <|> classDefinition
+    <|> mainHFunctionCall
     <|> mainFunctionCall
     <?> "Statement"
+
 
 statementList :: Parser (V.Vector Statement)
 statementList = fmap (V.fromList . concat) (many statement)
 
 puppetParser :: Parser (V.Vector Statement)
 puppetParser = someSpace >> statementList
+
+{-
+- Stuff related to the new functions with "lambdas"
+-}
+
+parseHFunction :: Parser HigherFuncType
+parseHFunction =   (reserved "each"   *> pure HFEach)
+               <|> (reserved "map"    *> pure HFMap )
+               <|> (reserved "reduce" *> pure HFReduce)
+               <|> (reserved "filter" *> pure HFFilter)
+               <|> (reserved "slice"  *> pure HFSlice)
+
+parseHParams :: Parser BlockParameters
+parseHParams = between (symbolic '|') (symbolic '|') hp
+    where
+        acceptablePart = fmap T.pack (ident identifierStyle)
+        hp = do
+            vars <- (char '$' *> acceptablePart) `sepBy1` comma
+            case vars of
+                [a] -> return (BPSingle a)
+                [a,b] -> return (BPPair a b)
+                _ -> fail "Invalid number of variables between the pipes"
+
+hfunctionCall :: Parser HFunctionCall
+hfunctionCall = do
+    let toStrict (Just x) = S.Just x
+        toStrict Nothing  = S.Nothing
+    HFunctionCall <$> parseHFunction
+                  <*> fmap (toStrict . join) (optional (parens (optional expression)))
+                  <*> parseHParams
+                  <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
+                  <*> fmap toStrict (optional expression) <* symbolic '}'
 

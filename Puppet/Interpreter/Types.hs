@@ -8,7 +8,7 @@ import Puppet.Parser.PrettyPrinter
 import Text.Parsec.Pos
 
 import Data.Aeson
-import Text.PrettyPrint.ANSI.Leijen
+import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
@@ -28,6 +28,7 @@ import Control.Exception
 import qualified Data.ByteString as BS
 import System.Log.Logger
 import Data.List (foldl')
+import Control.Applicative hiding (empty)
 
 #ifdef HRUBY
 import Foreign.Ruby

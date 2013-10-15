@@ -45,6 +45,21 @@ instance Pretty Expression where
     pretty (Negate a)             = text "-" <+> parens (pretty a)
     pretty (Not a)                = text "!" <+> parens (pretty a)
     pretty (PValue a)             = pretty a
+    pretty (FunctionApplication e1 e2) = parens (pretty e1) <> text "." <> pretty e2
+
+instance Pretty HigherFuncType where
+    pretty HFEach   = bold $ red $ text "each"
+    pretty HFMap    = bold $ red $ text "map"
+    pretty HFReduce = bold $ red $ text "reduce"
+    pretty HFFilter = bold $ red $ text "filter"
+    pretty HFSlice  = bold $ red $ text "slice"
+
+instance Pretty BlockParameters where
+    pretty b = magenta (char '|') <+> vars <+> magenta (char '|')
+        where
+            vars = case b of
+                       BPSingle v -> pretty (UVariableReference v)
+                       BPPair v1 v2 -> pretty (UVariableReference v1) <> comma <+> pretty (UVariableReference v2)
 
 instance Pretty SearchExpression where
     pretty (EqualitySearch t e) = text (T.unpack t) <+> text "==" <+> pretty e
@@ -69,7 +84,17 @@ instance Pretty UValue where
     pretty (URegexp r _) = char '/' <> text (T.unpack r) <> char '/'
     pretty (UVariableReference v) = dullblue (char '$' <> text (T.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
+    pretty (UHFunctionCall c) = pretty c
 
+instance Pretty HFunctionCall where
+    pretty (HFunctionCall hf me bp stts mee) = pretty hf <> mme <+> pretty bp <+> nest 2 (char '{' <$> ppStatements stts <> mmee) <$> char '}'
+        where
+            mme = case me of
+                      S.Just x -> mempty <+> pretty x
+                      S.Nothing -> mempty
+            mmee = case mee of
+                       S.Just x -> mempty </> pretty x
+                       S.Nothing -> mempty
 instance Pretty SelectorCase where
     pretty SelectorDefault = dullmagenta (text "default")
     pretty (SelectorValue v) = pretty v
@@ -110,6 +135,7 @@ instance Pretty NodeDesc where
     pretty (NodeMatch m r) = pretty (URegexp m r)
 
 instance Pretty Statement where
+    pretty (SHFunctionCall c p) = pretty c <+> showPPos p
     pretty (ConditionalStatement conds p)
         | V.null conds = empty
         | otherwise = text "if" <+> pretty firstcond <+> showPPos p <+> braceStatements firststts <$> vcat (map rendernexts xs)

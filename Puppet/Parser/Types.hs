@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, TemplateHaskell #-}
 module Puppet.Parser.Types where
 
 import qualified Data.Text as T
@@ -8,6 +8,7 @@ import qualified Data.Maybe.Strict as S
 import GHC.Generics
 import Data.Char (toUpper)
 import Text.Regex.PCRE.String
+import Control.Lens
 
 import Text.Parsec.Pos
 
@@ -28,6 +29,26 @@ initialPPos x =
     let i = initialPos (T.unpack x)
     in (i :!: i)
 
+data HigherFuncType = HFEach
+                    | HFMap
+                    | HFReduce
+                    | HFFilter
+                    | HFSlice
+                    deriving Eq
+
+data BlockParameters = BPSingle !T.Text
+                     | BPPair   !T.Text !T.Text
+                     deriving Eq
+
+-- used for the each/filter/etc. "higher level functions"
+data HFunctionCall = HFunctionCall { _hftype       :: !HigherFuncType
+                                   , _hfexpr       :: !(S.Maybe Expression)
+                                   , _hfparams     :: !BlockParameters
+                                   , _hfstatements :: !(V.Vector Statement)
+                                   , _hfexpression :: !(S.Maybe Expression)
+                                   }
+                   deriving Eq
+
 data UValue
     = UBoolean !Bool
     | UString !T.Text
@@ -39,6 +60,7 @@ data UValue
     | URegexp !T.Text !Regex
     | UVariableReference !T.Text
     | UFunctionCall !T.Text !(V.Vector Expression)
+    | UHFunctionCall !HFunctionCall
 
 -- manual instance because of the Regex problem
 instance Eq UValue where
@@ -84,6 +106,7 @@ data Expression
     | Lookup !Expression !Expression
     | Negate !Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression))
+    | FunctionApplication !Expression !Expression
     | PValue !UValue
     deriving (Eq)
 
@@ -93,6 +116,7 @@ data SearchExpression
     | AndSearch !SearchExpression !SearchExpression
     | OrSearch !SearchExpression !SearchExpression
     | AlwaysTrue
+    deriving Eq
 
 data CollectorType = Collector | ExportedCollector
     deriving (Eq)
@@ -127,6 +151,11 @@ data Statement
     | Node !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition
     | VariableAssignment !T.Text !Expression !PPosition
     | MainFunctionCall !T.Text !(V.Vector Expression) !PPosition
+    | SHFunctionCall !HFunctionCall !PPosition
     | ResourceCollection !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition
     | Dependency !(Pair T.Text Expression) !(Pair T.Text Expression) !PPosition
     | TopContainer !(V.Vector Statement) !Statement
+    deriving Eq
+
+makeClassy ''HFunctionCall
+

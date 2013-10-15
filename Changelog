@@ -1,3 +1,7 @@
+v0.10.0 (2013/10/15)
+  New features
+	* Map/each/filter functions with lambdas.
+
 v0.9.0 (2013/08/15)
   Huge rewrite !
 	* See http://lpuppet.banquise.net/blog/2013/08/15/version-0-dot-9-0-is-out-for-testing/

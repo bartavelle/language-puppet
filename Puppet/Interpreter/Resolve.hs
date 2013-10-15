@@ -214,6 +214,10 @@ resolveExpression (Multiplication a b) = binaryOperation a b (*) (*)
 resolveExpression (Modulo a b)         = integerOperation a b mod
 resolveExpression (RightShift a b)     = integerOperation a b (\x -> shiftR x . fromIntegral)
 resolveExpression (LeftShift a b)      = integerOperation a b (\x -> shiftL x . fromIntegral)
+resolveExpression a@(FunctionApplication e (PValue (UHFunctionCall hf))) = do
+    unless (S.isNothing (hf ^. hfexpr)) (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
+    resolveValue (UHFunctionCall (hf & hfexpr .~ S.Just e))
+resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
 resolveExpression x = throwPosError ("Don't know how to resolve this expression:" <$> pretty x)
 
 resolveValue :: UValue -> InterpreterMonad PValue
@@ -229,6 +233,7 @@ resolveValue (UHash a) = fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
         resPair (k :!: v) = (,) `fmap` resolveExpressionString k <*> resolveExpression v
 resolveValue (UVariableReference v) = resolveVariable v
 resolveValue (UFunctionCall fname args) = resolveFunction fname args
+resolveValue (UHFunctionCall hf) = evaluateHFCPure hf
 
 resolveValueString :: UValue -> InterpreterMonad T.Text
 resolveValueString = resolveValue >=> resolvePValueString
@@ -413,3 +418,81 @@ checkSearchExpression (REqualitySearch "title" v) r =
 checkSearchExpression (REqualitySearch attributename v) r = case r ^. rattributes . at attributename of
                                                                 Nothing -> False
                                                                 Just x -> puppetEquality x v
+
+{---------------------------------------
+- Higher order functions part
+----------------------------------------}
+
+-- | Generates associations for evaluation of blocks
+hfGenerateAssociations :: HFunctionCall -> InterpreterMonad [[(T.Text, PValue)]]
+hfGenerateAssociations hf = do
+    sourceexpression <- case hf ^. hfexpr of
+                            S.Just x -> return x
+                            S.Nothing -> throwPosError ("No expression to run the function on" <+> pretty hf)
+    sourcevalue <- resolveExpression sourceexpression
+    case (sourcevalue, hf ^. hfparams) of
+         (PArray pr, BPSingle varname) -> return (map (\x -> [(varname, x)]) (V.toList pr))
+         (PArray pr, BPPair idx var) -> return $ do
+             (i,v) <- Prelude.zip ([0..] :: [Int]) (V.toList pr)
+             return [(idx,PString (T.pack (show i))),(var,v)]
+         (PHash hh, BPSingle varname) -> return $ do
+             (k,v) <- HM.toList hh
+             return [(varname, PArray (V.fromList [PString k,v]))]
+         (PHash hh, BPPair idx var) -> return $ do
+             (k,v) <- HM.toList hh
+             return [(idx,PString k),(var,v)]
+         (invalid, _) -> throwPosError ("Can't iterate on this data type:" <+> pretty invalid)
+
+-- | Sets the proper variables, and returns the scope variables the way
+-- they were before being modified.
+hfSetvars :: [(T.Text, PValue)] -> InterpreterMonad (Container (Pair PValue PPosition))
+hfSetvars vals =
+    do
+        scp <- getScope
+        p <- use curPos
+        save <- use (scopes . ix scp . scopeVariables)
+        let hfSetvar (varname, varval) = scopes . ix scp . scopeVariables . at varname ?= (varval :!: p)
+        mapM_ hfSetvar vals
+        return save
+
+-- | Restores what needs restoring. This will erase all allocation.
+hfRestorevars :: Container (Pair PValue PPosition) -> InterpreterMonad ()
+hfRestorevars save =
+    do
+        scp <- getScope
+        scopes . ix scp . scopeVariables .= save
+
+-- | Evaluates a statement in "pure" mode.
+evalPureStatement :: Statement -> InterpreterMonad ()
+evalPureStatement = undefined
+
+-- | All the "higher order function" stuff, for "value" mode. In this case
+-- we are in "pure" mode, and only a few statements are allowed.
+evaluateHFCPure :: HFunctionCall -> InterpreterMonad PValue
+evaluateHFCPure hf = do
+    varassocs <- hfGenerateAssociations hf
+    finalexpression <- case hf ^. hfexpression of
+                           S.Just x -> return x
+                           S.Nothing -> throwPosError ("The statement block must end with an expression" <+> pretty hf)
+    let runblock :: [(T.Text, PValue)] -> InterpreterMonad PValue
+        runblock assocs = do
+            saved <- hfSetvars assocs
+            V.mapM_ evalPureStatement (hf ^. hfstatements)
+            r <- resolveExpression finalexpression
+            hfRestorevars  saved
+            return r
+    case hf ^. hftype of
+        HFEach -> throwPosError "The 'each' function can't be used at the value level in language-puppet. Please use map."
+        HFMap -> fmap (PArray . V.fromList) (mapM runblock varassocs)
+        HFFilter -> do
+            res <- mapM (fmap pValue2Bool . runblock) varassocs
+            sourcevalue <- case hf ^. hfexpr of
+                               S.Just x -> resolveExpression x
+                               S.Nothing -> throwPosError "Internal error evaluateHFCPure 1"
+            case sourcevalue of
+                PArray ar -> return $ PArray             $ V.map Prelude.fst $ V.filter Prelude.snd       $ V.zip ar             (V.fromList res)
+                PHash  hh -> return $ PHash  $ HM.fromList $ map Prelude.fst   $ filter Prelude.snd $ Prelude.zip (HM.toList hh) res
+                x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
+        x -> throwPosError ("This type of function is not supported yet by language-puppet!" <+> pretty x)
+
+
