@@ -433,8 +433,8 @@ hfGenerateAssociations hf = do
     case (sourcevalue, hf ^. hfparams) of
          (PArray pr, BPSingle varname) -> return (map (\x -> [(varname, x)]) (V.toList pr))
          (PArray pr, BPPair idx var) -> return $ do
-             (i,v) <- Prelude.zip [0..] (V.toList pr)
-             return [(idx,i),(var,v)]
+             (i,v) <- Prelude.zip ([0..] :: [Int]) (V.toList pr)
+             return [(idx,PString (T.pack (show i))),(var,v)]
          (PHash hh, BPSingle varname) -> return $ do
              (k,v) <- HM.toList hh
              return [(varname, PArray (V.fromList [PString k,v]))]
@@ -448,20 +448,19 @@ hfGenerateAssociations hf = do
 hfSetvars :: [(T.Text, PValue)] -> InterpreterMonad (Container (Pair PValue PPosition))
 hfSetvars vals =
     do
-        scps <- use scopes
         scp <- getScope
-        let save = scp ^. ix scp . scopeVariables
-            hfSetvar (varname, varval) = scp . ix scp . scopeVariables . at varname ?= varval
-        mapM hfSetvar vals
+        p <- use curPos
+        save <- use (scopes . ix scp . scopeVariables)
+        let hfSetvar (varname, varval) = scopes . ix scp . scopeVariables . at varname ?= (varval :!: p)
+        mapM_ hfSetvar vals
         return save
 
 -- | Restores what needs restoring. This will erase all allocation.
 hfRestorevars :: Container (Pair PValue PPosition) -> InterpreterMonad ()
 hfRestorevars save =
     do
-        scps <- use scopes
         scp <- getScope
-        scp . ix scp . scopeVariables .= save
+        scopes . ix scp . scopeVariables .= save
 
 -- | Evaluates a statement in "pure" mode.
 evalPureStatement :: Statement -> InterpreterMonad ()
@@ -483,6 +482,6 @@ evaluateHFCPure hf = do
             hfRestorevars  saved
             return r
     results <- mapM runblock varassocs
-    return results
+    return (PArray (V.fromList results))
 
 

@@ -375,9 +375,7 @@ evaluateStatement (ResourceOverride rt urn eargs p) = do
                             Nothing -> return raassignements
     scopes . ix scp . scopeOverrides . at rident ?= ResRefOverride rident withAssignements p
     return []
-evaluateStatement (SHFunctionCall c) = do
-    S.Right resources <- evaluateHFC StatementMode c
-    return resources
+evaluateStatement (SHFunctionCall c p) = curPos .= p >> evaluateHFC c
 evaluateStatement r = throwError ("Do not know how to evaluate this statement:" <$> pretty r)
 
 -----------------------------------------------------------
@@ -644,3 +642,16 @@ mainFunctionCall fname args = do
     unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs <$> pretty representation)
     return []
 
+-- Method stuff
+
+evaluateHFC :: HFunctionCall -> InterpreterMonad [Resource]
+evaluateHFC hf = do
+    varassocs <- hfGenerateAssociations hf
+    let runblock :: [(T.Text, PValue)] -> InterpreterMonad [Resource]
+        runblock assocs = do
+            saved <- hfSetvars assocs
+            res <- evaluateStatementsVector (hf ^. hfstatements)
+            hfRestorevars  saved
+            return res
+    results <- mapM runblock varassocs
+    return (concat results)

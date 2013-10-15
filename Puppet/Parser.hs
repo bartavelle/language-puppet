@@ -11,6 +11,7 @@ import Data.Char
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Applicative
+import Control.Lens
 
 import Puppet.Parser.Types
 
@@ -441,14 +442,14 @@ searchExpression = parens searchExpression <|> check <|> combine
     where
         combine = do
             e1 <- parens searchExpression <|> check
-            op <- (operator "and" *> return AndSearch) <|> (operator "or" *> return OrSearch)
+            opr <- (operator "and" *> return AndSearch) <|> (operator "or" *> return OrSearch)
             e2 <- searchExpression
-            return (op e1 e2)
+            return (opr e1 e2)
         check = do
             attrib <- parameterName
-            op <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
+            opr <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
             term <- stringExpression
-            return (op attrib term)
+            return (opr attrib term)
 
 resourceCollection :: Position -> T.Text -> Parser [Statement]
 resourceCollection p restype = do
@@ -513,6 +514,16 @@ mainHFunctionCall = do
     pe <- getPosition
     return [SHFunctionCall fc (p :!: pe)]
 
+dotCall :: Parser [Statement]
+dotCall = do
+    p <- getPosition
+    e <- terminal
+    void (symbolic '.')
+    fc <- hfunctionCall
+    pe <- getPosition
+    unless (S.isNothing (fc ^. hfexpr)) (fail "Can't call a function with . and ()")
+    return [SHFunctionCall (fc & hfexpr .~ S.Just e) (p :!: pe)]
+
 statement :: Parser [Statement]
 statement =
     variableAssignment
@@ -525,6 +536,7 @@ statement =
     <|> rrGroup
     <|> classDefinition
     <|> mainHFunctionCall
+    <|> try dotCall
     <|> mainFunctionCall
     <?> "Statement"
 
@@ -561,7 +573,7 @@ hfunctionCall = do
     let toStrict (Just x) = S.Just x
         toStrict Nothing  = S.Nothing
     HFunctionCall <$> parseHFunction
-                  <*> fmap toStrict (optional (parens expression))
+                  <*> fmap (toStrict . join) (optional (parens (optional expression)))
                   <*> parseHParams
                   <*> (symbolic '{' *> fmap (V.fromList . concat) (many statement))
                   <*> fmap toStrict (optional expression) <* symbolic '}'
