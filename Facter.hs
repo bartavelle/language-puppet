@@ -9,6 +9,7 @@ import System.Info
 import qualified Data.Text as T
 import Control.Arrow
 import qualified Data.Either.Strict as S
+import Control.Lens
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -101,7 +102,7 @@ version = return [("facterversion", "0.1"),("environment","test")]
 puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container PValue)
 puppetDBFacts nodename pdbapi =
     getFacts pdbapi (QEqual FCertname nodename) >>= \case
-        S.Right facts@(_:_) -> return (HM.fromList (map (\(_,a,b) -> (a,b)) facts))
+        S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, PString (f ^. factval))) facts))
         _ -> do
             rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, version, factMountPoints, factOS])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts

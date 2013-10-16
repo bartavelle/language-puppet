@@ -10,5 +10,7 @@ dummyPuppetDB = PuppetDBAPI
                     (const (return (S.Right () )))
                     (const (return (S.Left "not implemented")))
                     (const (return (S.Right [] )))
+                    (const (return (S.Right [] )))
                     (return (S.Left "not implemented"))
+                    (\_ _ -> return (S.Right [] ))
 

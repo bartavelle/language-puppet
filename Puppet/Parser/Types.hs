@@ -29,6 +29,11 @@ initialPPos x =
     let i = initialPos (T.unpack x)
     in (i :!: i)
 
+toPPos :: T.Text -> Int -> PPosition
+toPPos fl ln =
+    let p = newPos (T.unpack fl) ln (-1)
+    in  (p :!: p)
+
 data HigherFuncType = HFEach
                     | HFMap
                     | HFReduce

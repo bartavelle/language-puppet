@@ -71,7 +71,7 @@ integerOperation a b opr = do
         S.Just (S.Left (na :!: nb))  -> return (pvnum # I (opr na nb))
 
 -- | Converting PValue to and from Number with a prism!
-pvnum :: Prism PValue PValue Number Number
+pvnum :: Prism' PValue Number
 pvnum = prism num2PValue toNumber
     where
         num2PValue :: Number -> PValue
@@ -82,6 +82,16 @@ pvnum = prism num2PValue toNumber
                                      Right y -> Right y
                                      _ -> Left p
         toNumber p = Left p
+
+_PString :: Prism' PValue T.Text
+_PString = prism PString $ \x -> case x of
+                                     PString s -> Right s
+                                     n -> Left n
+
+_PInteger :: Prism' PValue Integer
+_PInteger = prism (PString . T.pack . show) $ \x -> case x ^? pvnum of
+                                                        Just (I z) -> Right z
+                                                        _ -> Left x
 
 resolveVariable :: T.Text -> InterpreterMonad PValue
 resolveVariable fullvar = do

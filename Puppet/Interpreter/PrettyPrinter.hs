@@ -10,6 +10,7 @@ import Data.Monoid
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
 import Control.Arrow (first,second)
 import Control.Lens
 import Data.List
@@ -56,6 +57,7 @@ meta r = showPPos (r ^. rpos) <+> (green (node <> brackets cont <+> brackets scp
                    ContRoot -> magenta "top level"
                    ContClass cname -> magenta "class" <+> ttext cname
                    ContDefine t n -> pretty (PResourceReference t n)
+                   ContImported -> magenta "imported"
         scp = "Scope" <+> pretty (r ^.. rscope . folded . filtered (/="::") . to (white . ttext))
 
 resourceBody :: Resource -> Doc
@@ -69,14 +71,12 @@ resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r
            insde = alignlst dullblue attriblist1 ++ alignlst dullmagenta attriblist2
            alignlst col = map (first (fill maxalign . col . ttext))
            attriblist1 = sortWith fst $ HM.toList (r ^. rattributes) ++ aliasdiff
-           aliasdiff | r ^. ralias /= r ^. rid . iname = [("alias", PString (r ^. ralias))]
+           aliasWithoutTitle = r ^. ralias & contains (r ^. rid . iname) .~ False
+           aliasPValue = aliasWithoutTitle & PArray . V.fromList . map PString . HS.toList
+           aliasdiff | HS.null aliasWithoutTitle = [("alias", aliasPValue)]
                      | otherwise = []
            attriblist2 = map totext (resourceRelations r)
            totext (RIdentifier t n, lt) = (rel2text lt , PResourceReference t n)
-           rel2text RNotify = "notify"
-           rel2text RRequire = "require"
-           rel2text RSubscribe = "subscribe"
-           rel2text RBefore = "before"
            maxalign = max (maxalign' attriblist1) (maxalign' attriblist2)
            maxalign' [] = 0
            maxalign' x = maximum . map (T.length . fst) $ x
@@ -91,6 +91,7 @@ instance Pretty Resource where
     pretty r = dullyellow (ttext (r ^. rid . itype)) <+> lbrace <$> indent 2 (resourceBody r) <$> rbrace
 
 instance Pretty CurContainerDesc where
+    pretty ContImported = magenta "imported"
     pretty ContRoot = dullyellow (text "::")
     pretty (ContClass cname) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname))
     pretty (ContDefine dtype dname) = pretty (PResourceReference dtype dname)

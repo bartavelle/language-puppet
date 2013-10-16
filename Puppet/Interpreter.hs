@@ -53,6 +53,7 @@ getCatalog gtStatement gtTemplate pdbQuery nodename facts nTypes extfuncs = do
 
 isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
 isParent _ ContRoot = return False
+isParent _ ContImported = return False
 isParent _ (ContDefine _ _) = return False
 isParent cur (ContClass possibleparent) = do
     preuse (scopes . ix cur . scopeParent) >>= \case
@@ -172,10 +173,11 @@ makeEdgeMap ct = do
     clss' <- use loadedClasses
     let defs = defs' <> classes' <> aliases' <> names'
         names' = HM.map _rpos ct
+        -- generate fake resources for all extra aliases
         aliases' = ifromList $ do
-            r <- ct ^.. traversed . filtered (\r -> r ^. rid . iname /= r ^. ralias)
-            let nrid = (r ^. rid) & iname .~ r ^. ralias
-            return ( nrid, r ^. rpos)
+            r <- ct ^.. traversed :: [Resource]
+            extraAliases <- r ^.. ralias . folded . filtered (/= r ^. rid . iname) :: [T.Text]
+            return (r ^. rid & iname .~ extraAliases, r ^. rpos)
         classes' = ifromList $ do
             (cn, _ :!: cp) <- itoList clss'
             return (RIdentifier "class" cn, cp)
@@ -188,6 +190,7 @@ makeEdgeMap ct = do
             let toResource ContRoot = RIdentifier "class" "::"
                 toResource (ContClass cn) = RIdentifier "class" cn
                 toResource (ContDefine t n) = RIdentifier t n
+                toResource ContImported = RIdentifier "class" "::"
             return (toResource (r ^. rcontainer), [r ^. rid])
         -- This function uses the previous map in order to resolve to non
         -- container resources.
@@ -424,8 +427,9 @@ loadParameters params classParams defaultPos = do
 enterScope :: S.Maybe T.Text -> CurContainerDesc -> InterpreterMonad T.Text
 enterScope parent cont = do
     let scopename = case cont of
-                        ContRoot -> "::"
-                        ContClass x -> x
+                        ContRoot         -> "::"
+                        ContImported     -> "::"
+                        ContClass x      -> x
                         ContDefine dt dn -> "#define/" <> dt <> "/" <> dn
     scopeAlreadyDefined <- use (scopes . contains scopename)
     when scopeAlreadyDefined (throwPosError ("Internal error: scope already defined when loading scope for" <+> pretty cont))
@@ -501,7 +505,7 @@ loadClass classname params cincludetype = do
                     classresource <- if cincludetype == IncludeStandard
                                          then do
                                              scp <- use curScope
-                                             return [Resource (RIdentifier "class" classname) classname mempty mempty scp ContRoot Normal mempty p Nothing]
+                                             return [Resource (RIdentifier "class" classname) (HS.singleton classname) mempty mempty scp ContRoot Normal mempty p Nothing]
                                          else return []
                     pushScope scopename
                     let modulename = case T.splitOn "::" classname of
@@ -533,7 +537,7 @@ addTagResource :: Resource -> T.Text -> Resource
 addTagResource r rv = r & rtags . contains rv .~ True
 
 addAttribute :: OverrideType -> Resource -> (T.Text, PValue) -> InterpreterMonad Resource
-addAttribute _ r ("alias", v) = fmap (\rv -> r & ralias .~ rv) (resolvePValueString v)
+addAttribute _ r ("alias", v) = fmap (\rv -> r & ralias . contains rv .~ True) (resolvePValueString v)
 addAttribute _ r ("audit", _) = use curPos >>= \p -> warn ("Metaparameter audit ignored at" <+> showPPos p) >> return r
 addAttribute _ r ("noop", _) = use curPos >>= \p -> warn ("Metaparameter noop ignored at" <+> showPPos p) >> return r
 addAttribute _ r ("loglevel", _) = use curPos >>= \p -> warn ("Metaparameter loglevel ignored at" <+> showPPos p) >> return r
@@ -575,10 +579,11 @@ registerResource rt rn arg vrt p = do
         allsegs x = x : T.splitOn "::" x
         !classtags = case cnt of
                         ContRoot        -> []
+                        ContImported    -> []
                         ContClass cn    -> allsegs cn
                         ContDefine dt _ -> allsegs dt
     allScope <- use curScope
-    let baseresource = Resource (RIdentifier rt rn) rn mempty mempty allScope cnt vrt defaulttags p Nothing
+    let baseresource = Resource (RIdentifier rt rn) (HS.singleton rn) mempty mempty allScope cnt vrt defaulttags p Nothing
     r <- foldM (addAttribute CantOverride) baseresource (itoList arg)
     let resid = RIdentifier rt rn
     case rt of

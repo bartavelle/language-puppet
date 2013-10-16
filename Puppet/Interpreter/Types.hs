@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, TemplateHaskell, CPP, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric, TemplateHaskell, CPP, ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Puppet.Interpreter.Types where
 
@@ -7,7 +7,7 @@ import Puppet.Stats
 import Puppet.Parser.PrettyPrinter
 import Text.Parsec.Pos
 
-import Data.Aeson
+import Data.Aeson as A
 import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
@@ -29,6 +29,7 @@ import qualified Data.ByteString as BS
 import System.Log.Logger
 import Data.List (foldl')
 import Control.Applicative hiding (empty)
+import Data.Time.Clock
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -91,7 +92,7 @@ data ResDefaults = ResDefaults { _defType     :: !T.Text
                                , _defPos      :: !PPosition
                                }
 
-data CurContainerDesc = ContRoot | ContClass !T.Text | ContDefine !T.Text !T.Text
+data CurContainerDesc = ContRoot | ContClass !T.Text | ContDefine !T.Text !T.Text | ContImported
     deriving Eq
 
 data CurContainer = CurContainer { _cctype :: !CurContainerDesc
@@ -195,7 +196,7 @@ type EdgeMap = HM.HashMap RIdentifier [LinkInformation]
 -}
 data Resource = Resource
     { _rid         :: !RIdentifier                                    -- ^ Resource name.
-    , _ralias      :: !T.Text                                         -- ^ All the resource aliases
+    , _ralias      :: !(HS.HashSet T.Text)                            -- ^ All the resource aliases
     , _rattributes :: !(Container PValue)                             -- ^ Resource parameters.
     , _rrelations  :: !(HM.HashMap RIdentifier (HS.HashSet LinkType)) -- ^ Resource relations.
     , _rscope      :: ![T.Text]                                       -- ^ Resource scope when it was defined
@@ -224,12 +225,36 @@ data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S
                                    , _dTemplateStats :: MStats
                                    }
 
-data PuppetDBAPI = PuppetDBAPI { replaceCatalog  :: (FinalCatalog)      -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
-                               , replaceFacts    :: [(Nodename, Facts)] -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
-                               , deactivateNode  :: Nodename            -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-                               , getFacts        :: Query FactField     -> IO (S.Either Doc [(Nodename, T.Text, PValue)]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
-                               , getResources    :: Query ResourceField -> IO (S.Either Doc [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
-                               , commitDB        ::                        IO (S.Either Doc ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
+data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType
+
+-- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
+data WireCatalog = WireCatalog { _wirecatalogNodename        :: !Nodename
+                               , _wirecatalogWVersion        :: !T.Text
+                               , _wirecatalogWEdges          :: !(V.Vector PuppetEdge)
+                               , _wirecatalogWResources      :: !(V.Vector Resource)
+                               , _wirecatalogTransactionUUID :: !T.Text
+                               }
+
+data PFactInfo = PFactInfo { _pfactinfoNodename :: !T.Text
+                           , _pfactinfoFactname :: !T.Text
+                           , _pfactinfoFactval  :: !T.Text
+                           }
+
+data PNodeInfo = PNodeInfo { _pnodeinfoNodename    :: !Nodename
+                           , _pnodeinfoDeactivated :: !Bool
+                           , _pnodeinfoCatalogT    :: !(S.Maybe UTCTime)
+                           , _pnodeinfoFactsT      :: !(S.Maybe UTCTime)
+                           , _pnodeinfoReportT     :: !(S.Maybe UTCTime)
+                           }
+
+data PuppetDBAPI = PuppetDBAPI { replaceCatalog   :: WireCatalog         -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+                               , replaceFacts     :: [(Nodename, Facts)] -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+                               , deactivateNode   :: Nodename            -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+                               , getFacts         :: Query FactField     -> IO (S.Either Doc [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+                               , getResources     :: Query ResourceField -> IO (S.Either Doc [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+                               , getNodes         :: Query NodeField     -> IO (S.Either Doc [PNodeInfo])
+                               , commitDB         ::                        IO (S.Either Doc ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
+                               , getResourcesOfNode :: Nodename -> Query ResourceField -> IO (S.Either Doc [Resource])
                                }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
@@ -242,9 +267,13 @@ data Query a = QEqual a T.Text
              | QAnd [Query a]
              | QOr [Query a]
              | QNot (Query a)
+             | QEmpty
 
 -- | Fields for the fact endpoint
 data FactField = FName | FValue | FCertname
+
+-- | Fields for the node endpoint
+data NodeField = NName | NFact T.Text
 
 -- | Fields for the resource endpoint
 data ResourceField = RTag
@@ -255,7 +284,6 @@ data ResourceField = RTag
                    | RExported
                    | RFile
                    | RLine
-
 
 makeClassy ''RIdentifier
 makeClassy ''ResRefOverride
@@ -268,6 +296,9 @@ makeClassy ''ScopeInformation
 makeClassy ''Resource
 makeClassy ''InterpreterState
 makeClassy ''InterpreterReader
+makeFields ''WireCatalog
+makeFields ''PFactInfo
+makeFields ''PNodeInfo
 
 throwPosError :: Doc -> InterpreterMonad a
 throwPosError s = use (curPos . _1) >>= \p -> throwError (s <+> "at" <+> showPos p)
@@ -361,18 +392,56 @@ fnull :: (Eq x, Monoid x) => x -> Bool
 {-# INLINE fnull #-}
 fnull = (== mempty)
 
+rel2text :: LinkType -> T.Text
+rel2text RNotify = "notify"
+rel2text RRequire = "require"
+rel2text RBefore = "before"
+rel2text RSubscribe = "subscribe"
+
+rid2text :: RIdentifier -> T.Text
+rid2text (RIdentifier t n) = t `T.append` "[" `T.append` n `T.append` "]"
+
 instance ToJSON Resource where
     toJSON r = object [ ("type", String $ r ^. rid . itype)
                       , ("title", String $ r ^. rid . iname)
+                      , ("aliases", toJSON $ r ^. ralias)
                       , ("exported", Bool $ r ^. rvirtuality == Exported)
                       , ("tags", toJSON $ r ^. rtags)
-                      , ("parameters", Object (HM.map toJSON $ r ^. rattributes))
-                      , ("line", r ^. rpos . _1 . to sourceLine . to toJSON)
-                      , ("file", r ^. rpos . _1 . to sourceName . to toJSON)
+                      , ("parameters", Object ( (HM.map toJSON $ r ^. rattributes) `HM.union` relations ))
+                      , ("sourceline", r ^. rpos . _1 . to sourceLine . to toJSON)
+                      , ("sourcefile", r ^. rpos . _1 . to sourceName . to toJSON)
                       ]
+        where
+            relations = r ^. rrelations & HM.fromListWith (V.++) . concatMap changeRelations . HM.toList & HM.map toValue
+            toValue v | V.length v == 1 = V.head v
+                      | otherwise = Array v
+            changeRelations :: (RIdentifier, HS.HashSet LinkType) -> [(T.Text, V.Vector Value)]
+            changeRelations (k,v) = do
+                c <- HS.toList v
+                return (rel2text c,V.singleton (String (rid2text k)))
 
 instance FromJSON Resource where
-    parseJSON (Object v) = mempty
+    parseJSON (Object v) = do
+        isExported <- v .: "exported"
+        let virtuality = if isExported
+                             then Exported
+                             else Normal
+            -- TODO : properly handle metaparameters
+            separate :: (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType)) -> T.Text -> PValue -> (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType))
+            separate (curAttribs, curRelations) k val = (curAttribs & at k ?~ val, curRelations)
+        (attribs,relations) <- HM.foldlWithKey' separate (mempty,mempty) <$> v .: "parameters"
+        Resource
+                <$> (RIdentifier <$> v .: "type" <*> v .: "title")
+                <*> v .:? "aliases" .!= mempty
+                <*> pure attribs
+                <*> pure relations
+                <*> pure ["JSON"]
+                <*> pure ContImported
+                <*> pure virtuality
+                <*> v .: "tags"
+                <*> (toPPos <$> v .:? "sourcefile" .!= "dummy" <*> v .:? "sourceline" .!= 0)
+                <*> pure Nothing
+
     parseJSON _ = mempty
 
 instance ToJSON a => ToJSON (Query a) where
@@ -385,8 +454,10 @@ instance ToJSON a => ToJSON (Query a) where
     toJSON (QG     flds val) = toJSON [ ">",  toJSON flds, toJSON val ]
     toJSON (QLE    flds val) = toJSON [ "<=", toJSON flds, toJSON val ]
     toJSON (QGE    flds val) = toJSON [ ">=", toJSON flds, toJSON val ]
+    toJSON (QEmpty)          = Null
 
 instance FromJSON a => FromJSON (Query a) where
+    parseJSON Null = pure QEmpty
     parseJSON (Array elems) = case V.toList elems of
       ("or":xs)          -> QOr    <$> mapM parseJSON xs
       ("and":xs)         -> QAnd   <$> mapM parseJSON xs
@@ -411,6 +482,17 @@ instance FromJSON FactField where
     parseJSON "certname" = pure FCertname
     parseJSON _          = fail "Can't parse fact field"
 
+instance ToJSON NodeField where
+    toJSON NName = "name"
+    toJSON (NFact t) = toJSON [ "fact", t ]
+
+instance FromJSON NodeField where
+    parseJSON (Array xs) = case V.toList xs of
+                               ["fact", x] -> NFact <$> parseJSON x
+                               _ -> fail "Invalid field syntax"
+    parseJSON (String "name") = pure NName
+    parseJSON _ = fail "invalid field"
+
 instance ToJSON ResourceField where
     toJSON RTag           = "tag"
     toJSON RCertname      = "certname"
@@ -422,15 +504,81 @@ instance ToJSON ResourceField where
     toJSON RLine          = "line"
 
 instance FromJSON ResourceField where
-    parseJSON "tag"      = pure RTag
-    parseJSON "certname" = pure RCertname
-    parseJSON "type"     = pure RType
-    parseJSON "title"    = pure RTitle
-    parseJSON "exported" = pure RExported
-    parseJSON "file"     = pure RFile
-    parseJSON "line"     = pure RLine
     parseJSON (Array xs) = case V.toList xs of
                                ["parameter", x] -> RParameter <$> parseJSON x
                                _ -> fail "Invalid field syntax"
+    parseJSON (String "tag"     ) = pure RTag
+    parseJSON (String "certname") = pure RCertname
+    parseJSON (String "type"    ) = pure RType
+    parseJSON (String "title"   ) = pure RTitle
+    parseJSON (String "exported") = pure RExported
+    parseJSON (String "file"    ) = pure RFile
+    parseJSON (String "line"    ) = pure RLine
     parseJSON _ = fail "invalid field"
 
+instance FromJSON LinkType where
+    parseJSON (String "require")   = pure RRequire
+    parseJSON (String "notify")    = pure RNotify
+    parseJSON (String "subscribe") = pure RSubscribe
+    parseJSON (String "before")    = pure RBefore
+    parseJSON _ = fail "invalid linktype"
+
+instance ToJSON LinkType where
+    toJSON = String . rel2text
+
+instance FromJSON RIdentifier where
+    parseJSON (Object v) = RIdentifier <$> v .: "type" <*> v .: "title"
+    parseJSON _ = fail "invalid resource"
+
+instance ToJSON RIdentifier where
+    toJSON (RIdentifier t n) = object [("type", String t), ("title", String n)]
+
+instance FromJSON PuppetEdge where
+    parseJSON (Object v) = PuppetEdge <$> v .: "source" <*> v .: "target" <*> v .: "relationship"
+    parseJSON _ = fail "invalid puppet edge"
+
+instance ToJSON PuppetEdge where
+    toJSON (PuppetEdge s t r) = object [("source", toJSON s), ("target", toJSON t), ("relationship", toJSON r)]
+
+instance FromJSON WireCatalog where
+    parseJSON (Object d) = d .: "data" >>= \case
+        (Object v) -> WireCatalog
+                <$> v .: "name"
+                <*> v .: "version"
+                <*> v .: "edges"
+                <*> v .: "resources"
+                <*> v .: "transaction-uuid"
+        _ -> fail "Data is not an object"
+    parseJSON _ = fail "invalid wire catalog"
+
+instance ToJSON WireCatalog where
+    toJSON (WireCatalog n v e r t) = object [("metadata", object [("api_version", Number 1)]), ("data", object d)]
+        where d = [ ("name", String n)
+                  , ("version", String v)
+                  , ("edges", toJSON e)
+                  , ("resources", toJSON r)
+                  , ("transaction-uuid", String t)
+                  ]
+
+instance ToJSON PFactInfo where
+    toJSON (PFactInfo n f v) = object [("certname", String n), ("name", String f), ("value", String v)]
+
+instance FromJSON PFactInfo where
+    parseJSON (Object v) = PFactInfo <$> v .: "certname" <*> v .: "name" <*> v .: "value"
+    parseJSON _ = fail "invalid fact info"
+
+instance ToJSON PNodeInfo where
+    toJSON p = object [ ("name"             , toJSON (p ^. nodename))
+                      , ("deactivated"      , toJSON (p ^. deactivated))
+                      , ("catalog_timestamp", toJSON (p ^. catalogT))
+                      , ("facts_timestamp"  , toJSON (p ^. factsT))
+                      , ("report_timestamp" , toJSON (p ^. reportT))
+                      ]
+
+instance FromJSON PNodeInfo where
+    parseJSON (Object v) = PNodeInfo <$> v .:  "name"
+                                     <*> v .:? "deactivated" .!= False
+                                     <*> v .:  "catalog_timestamp"
+                                     <*> v .:  "facts_timestamp"
+                                     <*> v .:  "report_timestamp"
+    parseJSON _ = fail "invalide node info"

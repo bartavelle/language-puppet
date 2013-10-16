@@ -127,10 +127,10 @@ import Puppet.Parser.Types
 import Puppet.Parser
 import Puppet.Parser.PrettyPrinter()
 import Puppet.Interpreter.PrettyPrinter()
-import Puppet.JsonCatalog
 import PuppetDB.Remote
 import PuppetDB.Dummy
 import PuppetDB.TestDB
+import PuppetDB.Common
 import Puppet.Testing hiding ((<$>))
 
 tshow :: Show a => a -> T.Text
@@ -217,7 +217,7 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
     (rawcatalog,m,rawexported) <- queryfunc (T.pack nodename)
-    void $ replaceCatalog pdbapi (rawcatalog <> rawexported)
+    void $ replaceCatalog pdbapi (generateWireCatalog (rawcatalog <> rawexported) m)
     void $ commitDB pdbapi
     let cmpMatch Nothing _ curcat = return curcat
         cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
@@ -231,7 +231,7 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename
     catalog  <- filterCatalog rawcatalog
     exported <- filterCatalog rawexported
     case (showcontent, showjson)  of
-        (_, True) -> BSL.putStrLn (catalog2JSon (T.pack nodename) 1 catalog exported m)
+        (_, True) -> BSL.putStrLn ("TODO JSON MODE")
         (True, _) -> do
             unless (mrt == Just "file" || mrt == Nothing) (error $ "Show content only works for file, not for " ++ show mrt)
             case mrn of

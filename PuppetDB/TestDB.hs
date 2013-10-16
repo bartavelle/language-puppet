@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
 module PuppetDB.TestDB (loadTestDB,initTestDB) where
 
 import Data.Aeson
@@ -8,26 +8,36 @@ import qualified Data.Vector as V
 import Control.Lens
 import Control.Exception
 import Control.Exception.Lens
-import System.IO.Error.Lens
+-- import System.IO.Error.Lens
 import Control.Concurrent.STM
 import Data.Monoid
 import Control.Applicative
 import qualified Data.ByteString.Lazy as BS
+import Data.List (foldl')
+import Text.Parsec.Pos
 
+import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
+
+import Puppet.Parser.Types
 import Puppet.Interpreter.Types
+import Puppet.Interpreter.Resolve
 import Puppet.PP hiding ((<$>))
 
-data DBContent = DBContent { _resources   :: Container [Resource]
-                           , _facts       :: Container Facts
-                           , _backingFile :: Maybe FilePath
+data DBContent = DBContent { _dbcontentResources   :: Container WireCatalog
+                           , _dbcontentFacts       :: Container Facts
+                           , _dbcontentBackingFile :: Maybe FilePath
                            }
-makeClassy ''DBContent
+makeFields ''DBContent
 
 type DB = TVar DBContent
 
 instance FromJSON DBContent where
     parseJSON (Object v) = DBContent <$> v .: "resources" <*> v .: "facts" <*> pure Nothing
     parseJSON _ = mempty
+
+instance ToJSON DBContent where
+    toJSON (DBContent r f _) = object [("resources", toJSON r), ("facts", toJSON f)]
 
 -- | Initializes the test DB using a file to back its content
 loadTestDB :: FilePath -> IO (S.Either Doc PuppetDBAPI)
@@ -54,22 +64,103 @@ genDBAPI db = do
                         (deactivate d)
                         (getFcts d)
                         (getRes d)
-                        (commit d))
+                        (getNds d)
+                        (commit d)
+                        (getResNode d)
+                        )
 
-replCat :: DB -> FinalCatalog -> IO (S.Either Doc ())
-replCat = undefined
+data Extracted = EText T.Text
+               | ESet (HS.HashSet T.Text)
+               | ENil
+
+resolveQuery :: (a -> b -> Extracted) -> Query a -> (b -> Bool)
+resolveQuery _ QEmpty = const True
+resolveQuery f (QEqual a t) = \v -> case f a v of
+                                        EText tt -> tt == t
+                                        ESet ss -> ss ^. contains t
+                                        _ -> False
+resolveQuery f (QNot q)  = not . resolveQuery f q
+resolveQuery f (QG a i)  = ncompare (>) f a i
+resolveQuery f (QL a i)  = ncompare (<) f a i
+resolveQuery f (QGE a i) = ncompare (>=) f a i
+resolveQuery f (QLE a i) = ncompare (<=) f a i
+resolveQuery _ (QMatch _ _) = const False
+resolveQuery f (QAnd qs) = \v -> all (\q -> resolveQuery f q v) qs
+resolveQuery f (QOr qs)  = \v -> any (\q -> resolveQuery f q v) qs
+
+ncompare :: (Integer -> Integer -> Bool) ->  (a -> b -> Extracted) -> a -> Integer -> (b -> Bool)
+ncompare operation f a i v = case f a v of
+                                 EText tt -> case PString tt ^? _PInteger of
+                                                 Just ii -> operation i ii
+                                                 _ -> False
+                                 _ -> False
+
+mustWork :: IO () -> IO (S.Either Doc ())
+mustWork a = a >> return (S.Right ())
+
+replCat :: DB -> WireCatalog -> IO (S.Either Doc ())
+replCat db wc = mustWork $ atomically $ modifyTVar db (resources . at (wc ^. nodename) ?~ wc)
 
 replFacts :: DB -> [(Nodename, Facts)] -> IO (S.Either Doc ())
-replFacts = undefined
+replFacts db lst = mustWork $ atomically $ modifyTVar db $
+                    facts %~ (\r -> foldl' (\curr (n,f) -> curr & at n ?~ f) r lst)
 
 deactivate :: DB -> Nodename -> IO (S.Either Doc ())
-deactivate = undefined
+deactivate db n = mustWork $ atomically $ modifyTVar db $
+                    (resources . at n .~ Nothing) . (facts . at n .~ Nothing)
 
-getFcts :: DB -> Query FactField -> IO (S.Either Doc [(Nodename, T.Text, PValue)])
-getFcts = undefined
+getFcts :: DB -> Query FactField -> IO (S.Either Doc [PFactInfo])
+getFcts db f = fmap (S.Right . filter (resolveQuery factQuery f) . toFactInfo) (readTVarIO db)
+    where
+        toFactInfo :: DBContent -> [PFactInfo]
+        toFactInfo = concatMap gf .  HM.toList . _dbcontentFacts
+            where
+                gf (k,n) = do
+                    (fn,fv) <- HM.toList n
+                    return $ PFactInfo k fn fv
+        factQuery :: FactField -> PFactInfo -> Extracted
+        factQuery t = EText . view l
+            where
+                l = case t of
+                        FName     -> factname
+                        FValue    -> factval
+                        FCertname -> nodename
+
+resourceQuery :: ResourceField -> Resource -> Extracted
+resourceQuery RTag r = r ^. rtags . to ESet
+resourceQuery RCertname r = case r ^. rnode of
+                                Just t -> EText t
+                                Nothing -> ENil
+resourceQuery (RParameter p) r = case r ^? rattributes . ix p . _PString of
+                                     Just s -> EText s
+                                     Nothing -> ENil
+resourceQuery RType r = r ^. rid . itype . to EText
+resourceQuery RTitle r = r ^. rid . iname . to EText
+resourceQuery RExported r = if r ^. rvirtuality == Exported
+                                then EText "true"
+                                else EText "false"
+resourceQuery RFile r = r ^. rpos . _1 . to sourceName . to T.pack . to EText
+resourceQuery RLine r = r ^. rpos . _1 . to sourceLine . to show . to T.pack . to EText
 
 getRes :: DB -> Query ResourceField -> IO (S.Either Doc [Resource])
-getRes = undefined
+getRes db f = fmap (S.Right . filter (resolveQuery resourceQuery f) . toResources) (readTVarIO db)
+    where
+        toResources :: DBContent -> [Resource]
+        toResources = concatMap (V.toList . view wResources) .  HM.elems . view resources
+
+getResNode :: DB -> Nodename -> Query ResourceField -> IO (S.Either Doc [Resource])
+getResNode db nn f = do
+    c <- readTVarIO db
+    return $ case c ^. resources . at nn of
+                 Just cnt -> S.Right $ filter (resolveQuery resourceQuery f) $ V.toList $ cnt ^. wResources
+                 Nothing -> S.Left "Unknown node"
 
 commit :: DB -> IO (S.Either Doc ())
-commit = undefined
+commit db = do
+    dbc <- atomically $ readTVar db
+    case dbc ^. backingFile of
+        Nothing -> return (S.Left "No backing file defined")
+        Just bf -> fmap S.Right (BS.writeFile bf (encode dbc)) `catches` [ ]
+
+getNds :: DB -> Query NodeField -> IO (S.Either Doc [PNodeInfo])
+getNds _ _ = return (S.Left "getNds not implemented")

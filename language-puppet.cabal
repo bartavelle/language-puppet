@@ -4,7 +4,7 @@
 name:                language-puppet
 version:             0.9.0
 synopsis:            Tools to parse and evaluate the Puppet DSL.
--- description:         
+description:         This is a set of tools that is supposed to fill all your Puppet needs : syntax checks, catalog compilation, PuppetDB queries, simulationg of complex interactions between nodes, Puppet master replacement, and more !
 homepage:            http://lpuppet.banquise.net/
 license:             BSD3
 license-file:        LICENSE
@@ -19,6 +19,11 @@ Data-Files:
   ruby/calcerb.rb
   ruby/hrubyerb.rb
 
+source-repository head
+  type: git
+  location: git://github.com/bartavelle/language-puppet.git
+
+
 Flag Hruby
   Description: Using the hruby library to speed things up (if it is installed)
 
@@ -30,7 +35,6 @@ library
                        , Puppet.Interpreter.PrettyPrinter
                        , Puppet.Preferences
                        , Puppet.Daemon
-                       , Puppet.JsonCatalog
                        , Facter
                        , Puppet.PP
                        , Puppet.Stats
@@ -43,6 +47,7 @@ library
                        , PuppetDB.Remote
                        , PuppetDB.TestDB
                        , PuppetDB.Dummy
+                       , PuppetDB.Common
   other-modules:       Text.Parser.Parsec
                        , Puppet.Utils
                        , Puppet.NativeTypes.File
@@ -127,4 +132,12 @@ executable puppetresources
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative,regex-pcre-builtin,lens,aeson
   main-is:             PuppetResources.hs
+
+executable pdbquery
+  hs-source-dirs:      progs
+  extensions:          BangPatterns, OverloadedStrings, LambdaCase
+  ghc-options:         -Wall -rtsopts -threaded
+  ghc-prof-options:    -auto-all -caf-all -fprof-auto
+  build-depends:       language-puppet,base,optparse-applicative,text,yaml,bytestring,strict-base-types,lens,unordered-containers,vector
+  main-is:             pdbQuery.hs
 
