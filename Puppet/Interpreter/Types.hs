@@ -66,7 +66,7 @@ data ClassIncludeType = IncludeStandard | IncludeResource
 
 type Scope = T.Text
 
-type Facts = Container PValue
+type Facts = Container T.Text
 
 -- |This type is used to differenciate the distinct top level types that are
 -- exposed by the DSL.

@@ -45,7 +45,7 @@ getCatalog gtStatement gtTemplate pdbQuery nodename facts nTypes extfuncs = do
         dummypos = initialPPos "dummy"
         initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
         stt  = InterpreterState baseVars initialclass mempty ["::"] dummypos mempty [] []
-        factvars = facts & each %~ (\x -> x :!: initialPPos "facts")
+        factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts")
         callervars = ifromList [("caller_module_name", PString "::" :!: dummypos), ("module_name", PString "::" :!: dummypos)]
         baseVars = isingleton "::" (ScopeInformation (factvars <> callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
     (output, _, warnings) <- runRWST (runErrorT (computeCatalog nodename)) rdr stt

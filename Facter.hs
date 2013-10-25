@@ -99,10 +99,10 @@ factMountPoints = do
 version :: IO [(String, String)]
 version = return [("facterversion", "0.1"),("environment","test")]
 
-puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container PValue)
+puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container T.Text)
 puppetDBFacts nodename pdbapi =
     getFacts pdbapi (QEqual FCertname nodename) >>= \case
-        S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, PString (f ^. factval))) facts))
+        S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
         _ -> do
             rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, version, factMountPoints, factOS])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
@@ -120,6 +120,6 @@ puppetDBFacts nodename pdbapi =
                                   , ("clientcert", nodename)
                                   ]
                 allfacts = nfacts `HM.union` ofacts
-                genFacts = HM.fromList . map (second PString)
+                genFacts = HM.fromList
             return allfacts
 

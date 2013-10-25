@@ -118,7 +118,7 @@ failedTests t@(TestResult d o) = case o of
 -- puppetDB
 testingDaemon :: Maybe T.Text -- ^ Might contain the URL of the actual PuppetDB, used for getting facts.
               -> FilePath -- ^ Path to the manifests
-              -> (T.Text -> IO (Container PValue)) -- ^ The facter function
+              -> (T.Text -> IO (Container T.Text)) -- ^ The facter function
               -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog)))
 testingDaemon purl puppetdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)

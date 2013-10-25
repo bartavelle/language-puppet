@@ -82,7 +82,7 @@ run cmdl = do
             ndb <- loadTestDB destfile >>= getOrError "puppetdb load"
             allnodes <- getNodes pdbapi QEmpty >>= getOrError "get nodes"
             allfacts <- getFacts pdbapi QEmpty >>= getOrError "get facts"
-            let factsGrouped = HM.toList $ HM.fromListWith (<>) $ map (\x -> (x ^. nodename, HM.singleton (x ^. factname) (PString (x ^. factval)))) allfacts
+            let factsGrouped = HM.toList $ HM.fromListWith (<>) $ map (\x -> (x ^. nodename, HM.singleton (x ^. factname) (x ^. factval))) allfacts
             replaceFacts ndb factsGrouped >>= getOrError "replace facts"
             forM_ allnodes $ \pnodename -> do
                 let ndename = pnodename ^. nodename
