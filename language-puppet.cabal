@@ -110,6 +110,7 @@ library
                         , base16-bytestring
                         , containers
                         , stm
+                        , hspec >=1.7.0 && <1.8.0
 Test-Suite test-lexer
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0

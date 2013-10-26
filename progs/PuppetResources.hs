@@ -238,14 +238,11 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename
                 Just f -> printContent f catalog
                 Nothing -> error "You should supply a resource name when using showcontent"
         _ -> do
-            (restest, _) <- testCatalog puppetdir catalog basicTest
-            case failedTests restest of
-                Just x -> printFunc (pretty x)
-                Nothing -> do
-                    printFunc (pretty (HM.elems catalog))
-                    unless (HM.null exported) $ do
-                        printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
-                        printFunc (pretty (HM.elems exported))
+            testCatalog (T.pack nodename) puppetdir rawcatalog basicTest
+            printFunc (pretty (HM.elems catalog))
+            unless (HM.null exported) $ do
+                printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
+                printFunc (pretty (HM.elems exported))
 
 main :: IO ()
 main = execParser pinfo >>= run
