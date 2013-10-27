@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Erb.Evaluate (rubyEvaluate, getVariable) where
 
 import Puppet.PP

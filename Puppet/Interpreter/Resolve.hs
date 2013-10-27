@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Puppet.Interpreter.Resolve where
 
 import Puppet.PP

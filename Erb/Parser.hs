@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Erb.Parser where
 
 import Text.Parsec.String

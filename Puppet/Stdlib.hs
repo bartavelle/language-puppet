@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
 import Puppet.PP

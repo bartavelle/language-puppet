@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Facter where
 
 import Data.Char

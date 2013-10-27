@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Puppet.Parser (puppetParser,expression) where
 
 import qualified Data.Text as T

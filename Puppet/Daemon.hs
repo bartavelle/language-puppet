@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Puppet.Daemon (initDaemon, DaemonQuery(..), logDebug, logInfo, logWarning, logError) where
 
 import Puppet.Parser

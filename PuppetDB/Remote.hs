@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module PuppetDB.Remote where
 
 import Puppet.Utils

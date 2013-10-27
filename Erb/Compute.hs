@@ -2,6 +2,7 @@
 #ifdef HRUBY
 {-# LANGUAGE ForeignFunctionInterface #-}
 #endif
+{-# LANGUAGE LambdaCase #-}
 module Erb.Compute(computeTemplate, initTemplateDaemon) where
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>))

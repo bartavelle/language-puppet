@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Puppet.Manifests (filterStatements) where
 
 import Puppet.PP

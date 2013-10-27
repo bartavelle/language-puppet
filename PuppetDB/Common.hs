@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module PuppetDB.Common where
 
 import Puppet.PP

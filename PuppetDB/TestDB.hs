@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase #-}
 module PuppetDB.TestDB (loadTestDB,initTestDB) where
 
 -- import Data.Aeson

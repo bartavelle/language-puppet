@@ -1,5 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
 -- from http://stackoverflow.com/questions/8820903/haskell-how-to-timeout-a-function-that-runs-an-external-command
-
 module SafeProcess where
 
 import Control.Concurrent

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-|
 
 Horrible and hackish ... but damn useful. This can be used as a standalone
