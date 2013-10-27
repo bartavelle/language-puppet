@@ -110,7 +110,7 @@ getVariable scps scp fullvar = do
                                [] -> throwError "This doesn't make any sense in resolveVariable"
                                [vn] -> return (scp, vn) -- Non qualified variables
                                rst -> return (T.intercalate "::" (filter (not . T.null) (init rst)), last rst) -- qualified variables
-    let extractVariable (varval :!: _) = return varval
+    let extractVariable (varval :!: _ :!: _) = return varval
     case scps ^? ix varscope . scopeVariables . ix varname of
         Just pp -> extractVariable pp
         Nothing -> -- check top level scope
@@ -133,11 +133,11 @@ puppetEquality ra rb =
         (S.Just (S.Right (na :!: nb))) -> na == nb
         (S.Just (S.Left (na :!: nb))) -> na == nb
         _ -> case (ra, rb) of
-                 (PString "true", PBoolean x) -> x
+                 (PString "true", PBoolean x)  -> x
                  (PString "false", PBoolean x) -> not x
-                 (PBoolean x, PString "true") -> x
+                 (PBoolean x, PString "true")  -> x
                  (PBoolean x, PString "false") -> not x
-                 (PString sa, PString sb) -> mk sa == mk sb
+                 (PString sa, PString sb)      -> mk sa == mk sb
                  -- TODO, check if array / hash equality should be recursed
                  -- for case insensitive matching
                  _ -> ra == rb
@@ -466,18 +466,19 @@ hfGenerateAssociations hf = do
 
 -- | Sets the proper variables, and returns the scope variables the way
 -- they were before being modified.
-hfSetvars :: [(T.Text, PValue)] -> InterpreterMonad (Container (Pair PValue PPosition))
+hfSetvars :: [(T.Text, PValue)] -> InterpreterMonad (Container (Pair (Pair PValue PPosition) CurContainerDesc))
 hfSetvars vals =
     do
         scp <- getScope
         p <- use curPos
+        container <- getCurContainer
         save <- use (scopes . ix scp . scopeVariables)
-        let hfSetvar (varname, varval) = scopes . ix scp . scopeVariables . at varname ?= (varval :!: p)
+        let hfSetvar (varname, varval) = scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: (container ^. cctype))
         mapM_ hfSetvar vals
         return save
 
 -- | Restores what needs restoring. This will erase all allocation.
-hfRestorevars :: Container (Pair PValue PPosition) -> InterpreterMonad ()
+hfRestorevars :: Container (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
 hfRestorevars save =
     do
         scp <- getScope

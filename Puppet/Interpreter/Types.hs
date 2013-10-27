@@ -30,6 +30,7 @@ import System.Log.Logger
 import Data.List (foldl')
 import Control.Applicative hiding (empty)
 import Data.Time.Clock
+import GHC.Stack
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -106,7 +107,7 @@ data ResRefOverride = ResRefOverride { _rrid     :: !RIdentifier
                                      }
                                      deriving Eq
 
-data ScopeInformation = ScopeInformation { _scopeVariables :: !(Container (Pair PValue PPosition))
+data ScopeInformation = ScopeInformation { _scopeVariables :: !(Container (Pair (Pair PValue PPosition) CurContainerDesc))
                                          , _scopeDefaults  :: !(Container ResDefaults)
                                          , _scopeExtraTags :: !(HS.HashSet T.Text)
                                          , _scopeContainer :: !CurContainer
@@ -296,12 +297,27 @@ makeClassy ''ScopeInformation
 makeClassy ''Resource
 makeClassy ''InterpreterState
 makeClassy ''InterpreterReader
+makeClassy ''CurContainer
 makeFields ''WireCatalog
 makeFields ''PFactInfo
 makeFields ''PNodeInfo
 
 throwPosError :: Doc -> InterpreterMonad a
-throwPosError s = use (curPos . _1) >>= \p -> throwError (s <+> "at" <+> showPos p)
+throwPosError s = do
+    p <- use (curPos . _1)
+    stack <- liftIO currentCallStack
+    let dstack = if null stack
+                     then mempty
+                     else mempty </> string (renderStack stack)
+    throwError (s <+> "at" <+> showPos p <> dstack)
+
+getCurContainer :: InterpreterMonad CurContainer
+{-# INLINE getCurContainer #-}
+getCurContainer = do
+    scp <- getScope
+    preuse (scopes . ix scp . scopeContainer) >>= \case
+        Just x -> return x
+        Nothing -> throwPosError ("Internal error: can't find the current container for" <+> string (show scp))
 
 getScope :: InterpreterMonad Scope
 {-# INLINE getScope #-}

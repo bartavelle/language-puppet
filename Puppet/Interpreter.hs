@@ -40,15 +40,15 @@ getCatalog :: ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) ) -- ^ get
            -> Container PuppetTypeMethods -- ^ List of native types
            -> Container ( [PValue] -> InterpreterMonad PValue )
            -> IO (Pair (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))  [Pair Priority Doc])
-getCatalog gtStatement gtTemplate pdbQuery nodename facts nTypes extfuncs = do
-    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs nodename
+getCatalog gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs = do
+    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename
         dummypos = initialPPos "dummy"
         initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
         stt  = InterpreterState baseVars initialclass mempty ["::"] dummypos mempty [] []
-        factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts")
-        callervars = ifromList [("caller_module_name", PString "::" :!: dummypos), ("module_name", PString "::" :!: dummypos)]
+        factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts" :!: ContRoot)
+        callervars = ifromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
         baseVars = isingleton "::" (ScopeInformation (factvars <> callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
-    (output, _, warnings) <- runRWST (runErrorT (computeCatalog nodename)) rdr stt
+    (output, _, warnings) <- runRWST (runErrorT (computeCatalog ndename)) rdr stt
     return (strictifyEither output :!: _warnings warnings)
 
 isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
@@ -138,8 +138,8 @@ getstt topleveltype toplevelname = do
                 S.Left y  -> throwPosError y
 
 computeCatalog :: T.Text -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog)
-computeCatalog nodename = do
-    (restop, node) <- getstt TopNode nodename
+computeCatalog ndename = do
+    (restop, node) <- getstt TopNode ndename
     let finalStep [] = return []
         finalStep allres = do
             -- collect stuff and apply thingies
@@ -390,16 +390,30 @@ evaluateStatement r = throwError ("Do not know how to evaluate this statement:" 
 -- Class evaluation
 -----------------------------------------------------------
 
-loadVariable :: T.Text -> PValue -> InterpreterMonad ()
+loadVariable ::  T.Text -> PValue -> InterpreterMonad ()
 loadVariable varname varval = do
+    curcont <- getCurContainer
     scp <- getScope
     p <- use curPos
     scopeDefined <- use (scopes . contains scp)
     variableDefined <- preuse (scopes . ix scp . scopeVariables . ix varname)
     case (scopeDefined, variableDefined) of
         (False, _) -> throwPosError ("Internal error: trying to save a variable in unknown scope" <+> ttext scp)
-        (_, Just (_ :!: pp)) -> throwPosError ("Variable" <+> pretty (UVariableReference varname) <+> "already defined at" <+> showPPos pp)
-        _ -> scopes . ix scp . scopeVariables . at varname ?= (varval :!: p)
+        (_, Just (_ :!: pp :!: ctx)) -> do
+            isParent scp (curcont ^. cctype) >>= \case
+                True -> do
+                    warn ("The variable"
+                         <+> pretty (UVariableReference varname)
+                         <+> "had been overriden because of some arbitrary inheritance rule that was set up to emulate puppet behaviour. It was defined at"
+                         <+> showPPos pp
+                         )
+                    scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
+                False -> throwPosError ("Variable" <+> pretty (UVariableReference varname) <+> "already defined at" <+> showPPos pp
+                                </> "Context:" <+> pretty ctx
+                                </> "Value:" <+> pretty varval
+                                </> "Current scope:" <+> ttext scp
+                                )
+        _ -> scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
 
 loadParameters :: Foldable f => Container PValue -> f (Pair T.Text (S.Maybe Expression)) -> PPosition -> InterpreterMonad ()
 loadParameters params classParams defaultPos = do
@@ -419,11 +433,12 @@ loadParameters params classParams defaultPos = do
                   S.Just e -> resolveExpression e
         loadVariable k rv
 
--- | Enters a new scope, checks it is not already defined, and inherits de
+-- | Enters a new scope, checks it is not already defined, and inherits the
 -- defaults from the current scope
 --
 -- Inheriting the defaults is necessary for non native types, because they
--- will be expanded in "finalize"
+-- will be expanded in "finalize", so if this was not done, we would be
+-- expanding the defines without the defaults applied
 enterScope :: S.Maybe T.Text -> CurContainerDesc -> InterpreterMonad T.Text
 enterScope parent cont = do
     let scopename = case cont of
@@ -455,7 +470,8 @@ expandDefine r = do
                          [] -> deftype
                          (x:_) -> x
     curcaller <- resolveVariable "module_name"
-    scopename <- enterScope S.Nothing (ContDefine deftype defname)
+    let curContType = ContDefine deftype defname
+    scopename <- enterScope S.Nothing curContType
     (spurious, dls) <- getstt TopDefine deftype
     case dls of
         (DefineDeclaration _ defineParams stmts cp) -> do
@@ -466,8 +482,8 @@ expandDefine r = do
             loadVariable "name" (PString defname)
             -- not done through loadvariable because of override
             -- errors
-            scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p)
-            scopes . ix scopename . scopeVariables . at "callermodule_name" ?= (curcaller :!: p)
+            scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p :!: curContType)
+            scopes . ix scopename . scopeVariables . at "callermodule_name" ?= (curcaller :!: p :!: curContType)
             loadParameters (r ^. rattributes) defineParams cp
             curPos .= cp
             res <- evaluateStatementsVector stmts
@@ -513,7 +529,7 @@ loadClass classname params cincludetype = do
                                          (x:_) -> x
                     -- not done through loadvariable because of override
                     -- errors
-                    scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p)
+                    scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p :!: ContClass classname)
                     loadParameters params classParams cp
                     curPos .= cp
                     res <- evaluateStatementsVector stmts
@@ -567,11 +583,7 @@ registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot d
 registerResource "class" _ _ Exported p = curPos .= p >> throwPosError "Cannot declare an exported class (or perhaps you can, but I do not know what this means)"
 registerResource rt rn arg vrt p = do
     curPos .= p
-    scp <- getScope
-    CurContainer cnt tgs <- {-# SCC "rrGetContainer" #-}
-        preuse (scopes . ix scp . scopeContainer) >>= \case
-            Just x -> return x
-            Nothing -> throwPosError "Internal error: can't find the current container at registerResource"
+    CurContainer cnt tgs <- getCurContainer
     -- default tags
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_tags.html#automatic-tagging
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_tags.html#containment
