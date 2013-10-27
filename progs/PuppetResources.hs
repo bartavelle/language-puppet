@@ -141,12 +141,12 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: PuppetDBAPI -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
-initializedaemonWithPuppet pdbapi puppetdir = do
-    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.DEBUG)
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+initializedaemonWithPuppet prio pdbapi puppetdir = do
+    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel prio)
     q <- fmap (prefPDB .~ pdbapi) (genPreferences puppetdir) >>= initDaemon
-    let f nodename = puppetDBFacts nodename pdbapi
-            >>= _dGetCatalog q nodename
+    let f ndename = puppetDBFacts ndename pdbapi
+            >>= _dGetCatalog q ndename
             >>= \case
                     S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
                     S.Right x -> return x
@@ -172,10 +172,11 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _puppetdir    :: FilePath
                                , _nodename     :: Maybe String
                                , _pdbfile      :: Maybe FilePath
+                               , _loglevel     :: LOG.Priority
                                } deriving Show
 
 cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile
+cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority
     where
         sc = switch (  long "showcontent"
                     <> short 'c'
@@ -199,25 +200,31 @@ cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T
                          <> help "Node name")
         pdbfile = strOption (  long "pdbfile"
                             <> help "Path to the testing PuppetDB file.")
+        priority = option (  long "loglevel"
+                          <> short 'v'
+                          <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
+                          <> value LOG.WARNING
+                          )
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename) mpdbf) = do
+run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename) mpdbf prio) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> rr))
         checkError _ (S.Right x) = return x
+        tnodename = T.pack ndename
     pdbapi <- case (puppeturl, mpdbf) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
                   (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    queryfunc <- initializedaemonWithPuppet pdbapi puppetdir
+    queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
-    (rawcatalog,m,rawexported) <- queryfunc (T.pack nodename)
-    void $ replaceCatalog pdbapi (generateWireCatalog (rawcatalog <> rawexported) m)
+    (rawcatalog,m,rawexported) <- queryfunc tnodename
+    void $ replaceCatalog pdbapi (generateWireCatalog tnodename (rawcatalog <> rawexported) m)
     void $ commitDB pdbapi
     let cmpMatch Nothing _ curcat = return curcat
         cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
@@ -238,7 +245,7 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just nodename
                 Just f -> printContent f catalog
                 Nothing -> error "You should supply a resource name when using showcontent"
         _ -> do
-            testCatalog (T.pack nodename) puppetdir rawcatalog basicTest
+            void $ testCatalog tnodename puppetdir rawcatalog basicTest
             printFunc (pretty (HM.elems catalog))
             unless (HM.null exported) $ do
                 printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
