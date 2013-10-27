@@ -133,6 +133,7 @@ puppetEquality ra rb =
         (S.Just (S.Right (na :!: nb))) -> na == nb
         (S.Just (S.Left (na :!: nb))) -> na == nb
         _ -> case (ra, rb) of
+                 (PUndef , PBoolean x)         -> not x
                  (PString "true", PBoolean x)  -> x
                  (PString "false", PBoolean x) -> not x
                  (PBoolean x, PString "true")  -> x
@@ -201,9 +202,9 @@ resolveExpression (Lookup a idx) =
                 then throwPosError ("Out of bound indexing, array size is" <+> int arl <+> "index is" <+> int i)
                 else return (ar V.! i)
         src -> throwPosError ("This data can't be indexed:" <+> pretty src)
-resolveExpression (ConditionalValue e conds) = do
+resolveExpression stmt@(ConditionalValue e conds) = do
     rese <- resolveExpression e
-    let checkCond [] = throwPosError ("The selector didn't match anything for input" <+> pretty rese)
+    let checkCond [] = throwPosError ("The selector didn't match anything for input" <+> pretty rese </> pretty stmt)
         checkCond ((SelectorDefault :!: ce) : _) = resolveExpression ce
         checkCond ((SelectorValue ur@(URegexp _ rg) :!: ce) : xs) = do
             rs <- fmap T.encodeUtf8 (resolvePValueString rese)

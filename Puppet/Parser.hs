@@ -245,6 +245,7 @@ expression = condExpression
             let cas = do
                 c <- (symbol "default" *> return SelectorDefault) -- default case
                         <|> fmap SelectorValue (fmap UVariableReference variableReference
+                                                 <|> fmap UBoolean puppetBool
                                                  <|> fmap UString literalValue
                                                  <|> fmap UInterpolable interpolableString
                                                  <|> termRegexp)
