@@ -43,7 +43,7 @@ loadTestDB :: FilePath -> IO (S.Either Doc PuppetDBAPI)
 loadTestDB fp =
     decodeFileEither fp >>= \case
         Left (OtherParseException rr) -> return (S.Left (string (show rr)))
-        Left rr -> trace ("Warning: could not decode " ++ fp ++ " :" ++ show rr) (S.Right <$> initTestDB)
+        Left rr -> trace ("Warning: could not decode " ++ fp ++ " :" ++ show rr) (S.Right <$> genDBAPI (newDB & backingFile ?~ fp ))
         Right x -> fmap S.Right (genDBAPI (x & backingFile ?~ fp ))
 
 

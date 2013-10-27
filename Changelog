@@ -1,4 +1,8 @@
-v0.10.0 (2013/10/15)
+v0.10.1 (2013/10/27)
+  Bugs fixed
+	* The TestDB file was never created.
+
+v0.10.0 (2013/10/27)
   New features
 	* Map/each/filter functions with lambdas (not really tested)
 	* Rewrite of the PuppetDB API
