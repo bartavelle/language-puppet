@@ -248,7 +248,8 @@ data PNodeInfo = PNodeInfo { _pnodeinfoNodename    :: !Nodename
                            , _pnodeinfoReportT     :: !(S.Maybe UTCTime)
                            }
 
-data PuppetDBAPI = PuppetDBAPI { replaceCatalog   :: WireCatalog         -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+data PuppetDBAPI = PuppetDBAPI { pdbInformation   :: IO Doc
+                               , replaceCatalog   :: WireCatalog         -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
                                , replaceFacts     :: [(Nodename, Facts)] -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
                                , deactivateNode   :: Nodename            -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
                                , getFacts         :: Query FactField     -> IO (S.Either Doc [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>

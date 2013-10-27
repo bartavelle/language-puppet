@@ -44,6 +44,7 @@ pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
 
 pdbConnect :: T.Text -> IO (S.Either Doc PuppetDBAPI)
 pdbConnect url = return $ S.Right $ PuppetDBAPI
+    (return (ttext url))
     (const (return (S.Left "operation not supported")))
     (const (return (S.Left "operation not supported")))
     (const (return (S.Left "operation not supported")))

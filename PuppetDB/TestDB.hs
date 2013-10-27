@@ -1,21 +1,20 @@
 {-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
 module PuppetDB.TestDB (loadTestDB,initTestDB) where
 
-import Data.Aeson
+-- import Data.Aeson
+import Data.Yaml
 import qualified Data.Text as T
 import qualified Data.Either.Strict as S
 import qualified Data.Vector as V
 import Control.Lens
 import Control.Exception
-import Control.Exception.Lens
--- import System.IO.Error.Lens
 import Control.Concurrent.STM
 import Data.Monoid
 import Control.Applicative
-import qualified Data.ByteString.Lazy as BS
 import Data.List (foldl')
 import Text.Parsec.Pos
-
+import Data.CaseInsensitive
+import Debug.Trace
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
@@ -41,12 +40,10 @@ instance ToJSON DBContent where
 
 -- | Initializes the test DB using a file to back its content
 loadTestDB :: FilePath -> IO (S.Either Doc PuppetDBAPI)
-loadTestDB fp = do
-    fcontent <- fmap eitherDecode' (BS.readFile fp) `catches` [ handler_ id (return (Right newDB))
-                                                              , handler id (return . Left . show)
-                                                              ]
-    case fcontent of
-        Left rr -> return (S.Left (string rr))
+loadTestDB fp =
+    decodeFileEither fp >>= \case
+        Left (OtherParseException rr) -> return (S.Left (string (show rr)))
+        Left rr -> trace ("Warning: could not decode " ++ fp ++ " :" ++ show rr) (S.Right <$> initTestDB)
         Right x -> fmap S.Right (genDBAPI (x & backingFile ?~ fp ))
 
 
@@ -59,7 +56,8 @@ newDB = DBContent mempty mempty Nothing
 genDBAPI :: DBContent -> IO PuppetDBAPI
 genDBAPI db = do
     d <- newTVarIO db
-    return (PuppetDBAPI (replCat d)
+    return (PuppetDBAPI (dbapiInfo d)
+                        (replCat d)
                         (replFacts d)
                         (deactivate d)
                         (getFcts d)
@@ -76,7 +74,7 @@ data Extracted = EText T.Text
 resolveQuery :: (a -> b -> Extracted) -> Query a -> (b -> Bool)
 resolveQuery _ QEmpty = const True
 resolveQuery f (QEqual a t) = \v -> case f a v of
-                                        EText tt -> tt == t
+                                        EText tt -> mk tt == mk t
                                         ESet ss -> ss ^. contains t
                                         _ -> False
 resolveQuery f (QNot q)  = not . resolveQuery f q
@@ -87,6 +85,13 @@ resolveQuery f (QLE a i) = ncompare (<=) f a i
 resolveQuery _ (QMatch _ _) = const False
 resolveQuery f (QAnd qs) = \v -> all (\q -> resolveQuery f q v) qs
 resolveQuery f (QOr qs)  = \v -> any (\q -> resolveQuery f q v) qs
+
+dbapiInfo :: DB -> IO Doc
+dbapiInfo db = do
+    c <- readTVarIO db
+    case c ^. backingFile of
+        Nothing -> return "TestDB"
+        Just v -> return ("TestDB" <+> string v)
 
 ncompare :: (Integer -> Integer -> Bool) ->  (a -> b -> Extracted) -> a -> Integer -> (b -> Bool)
 ncompare operation f a i v = case f a v of
@@ -160,7 +165,7 @@ commit db = do
     dbc <- atomically $ readTVar db
     case dbc ^. backingFile of
         Nothing -> return (S.Left "No backing file defined")
-        Just bf -> fmap S.Right (BS.writeFile bf (encode dbc)) `catches` [ ]
+        Just bf -> fmap S.Right (encodeFile bf dbc) `catches` [ ]
 
 getNds :: DB -> Query NodeField -> IO (S.Either Doc [PNodeInfo])
 getNds _ _ = return (S.Left "getNds not implemented")

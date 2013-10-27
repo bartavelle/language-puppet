@@ -5,11 +5,13 @@ import Puppet.Interpreter.Types
 import PuppetDB.Remote
 import PuppetDB.Dummy
 import PuppetDB.TestDB
+
 import Data.Maybe
 import Data.List (stripPrefix)
-
+import Control.Lens
 import System.Environment
 import qualified Data.Either.Strict as S
+import Data.Vector.Lens
 
 data PDBType = PDBRemote | PDBDummy | PDBTest
 
@@ -36,5 +38,8 @@ getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
                                 Just h -> loadTestDB (h ++ "/.testdb")
                                 Nothing -> fmap S.Right initTestDB
 
-generateWireCatalog :: FinalCatalog -> EdgeMap -> WireCatalog
-generateWireCatalog = undefined
+generateWireCatalog :: Nodename -> FinalCatalog -> EdgeMap -> WireCatalog
+generateWireCatalog ndename finalcat edgemap = WireCatalog ndename "version" edges resources "uiid"
+    where
+        edges     = toVectorOf (folded . to (\li -> PuppetEdge (li ^. linksrc) (li ^. linkdst) (li ^. linkType))) (concatOf folded edgemap)
+        resources = toVectorOf folded finalcat

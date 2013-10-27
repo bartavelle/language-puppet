@@ -5,6 +5,7 @@ import qualified Data.Either.Strict as S
 
 dummyPuppetDB :: PuppetDBAPI
 dummyPuppetDB = PuppetDBAPI
+                    (return "dummy")
                     (const (return (S.Right () )))
                     (const (return (S.Right () )))
                     (const (return (S.Right () )))
