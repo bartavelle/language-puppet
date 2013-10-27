@@ -190,10 +190,10 @@ genFunctionCall = do
     -- this is a hack. Contrary to what the documentation says,
     -- a "bareword" can perfectly be a qualified name :
     -- include foo::bar
-    let argsc e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument") `sepEndBy1` comma
+    let argsc sep e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument") `sep` comma
         terminalF = terminalG (fail "function hack")
         expressionF = buildExpressionParser expressionTable (token terminalF) <?> "function expression"
-    args  <- parens (argsc expression) <|> argsc expressionF <?> "Function arguments"
+    args  <- parens (argsc sepEndBy expression) <|> argsc sepEndBy1 expressionF <?> "Function arguments"
     return (fname, V.fromList args)
 
 functionCall :: Parser UValue
