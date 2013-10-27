@@ -1,7 +1,15 @@
 v0.10.0 (2013/10/15)
   New features
-	* Map/each/filter functions with lambdas.
+	* Map/each/filter functions with lambdas (not really tested)
 	* Rewrite of the PuppetDB API
+	* The whole scope stack is kept with each Resource, for easier debugging
+	* Inclusion of three PuppetDB backends : dummy (no effect), TestDB (stored
+	in a YAML file) and Remote (standard PuppetDB API)
+  Bugs fixed
+	* This is a hack : variables declared in a parent (inheritance) can now be
+	overriden. This is because inheritance is not handled like in Vanilla. As
+	I do not really use inheritance, I am not sure if this is much of a
+	breakage.
 
 v0.9.0 (2013/08/15)
   Huge rewrite !
