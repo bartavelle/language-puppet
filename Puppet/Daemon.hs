@@ -151,7 +151,7 @@ compileFileList prefs _ name = moduleInfo
                    | null nameparts = S.Left "no name parts, error in compilefilelist"
                    | otherwise = S.Right (mpath <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp")
         mpath = T.pack (prefs ^. modulesPath)
-        nameparts = dropWhile T.null (T.splitOn "::" name)
+        nameparts = T.splitOn "::" name
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
