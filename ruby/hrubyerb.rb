@@ -34,6 +34,7 @@ class Scope
 end
 
 class ErbBinding
+    @options = {}
     def initialize(context,variables)
         @scope = Scope.new(context,variables)
     end
@@ -54,13 +55,13 @@ class ErbBinding
 end
 
 class Controller
-    def self.runFromFile(filename,context,variables)
-        self.runFromContent(IO.read(filename),context,variables)
+    def self.runFromFile(filename,binding)
+        self.runFromContent(IO.read(filename),binding)
     end
-    def self.runFromContent(content,context,variables)
+    def self.runFromContent(content,binding)
         nerb = ERB.new(content, nil, "-")
-        binding = ErbBinding.new(context,variables).get_binding
-        nerb.result(binding)
+        # binding = ErbBinding.new(context,variables).get_binding
+        nerb.result(binding.get_binding)
     end
 end
 

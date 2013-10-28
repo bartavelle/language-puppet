@@ -33,6 +33,8 @@ import Data.FileCache
 import Foreign hiding (void)
 import Foreign.Ruby
 
+import Control.Lens
+import Data.Tuple.Strict
 type RegisteredGetvariable = RValue -> RValue -> RValue -> RValue -> IO RValue
 foreign import ccall "wrapper" mkRegisteredGetvariable :: RegisteredGetvariable -> IO (FunPtr RegisteredGetvariable)
 
@@ -150,10 +152,16 @@ computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInforma
 computeTemplateWRuby fileinfo curcontext variables = freezeGC $ do
     rscp <- embedHaskellValue curcontext
     rvariables <- embedHaskellValue variables
+    let varlist = variables ^. ix curcontext . scopeVariables
     o <- case fileinfo of
              Right fname  -> do
                  rfname <- toRuby fname
-                 safeMethodCall "Controller" "runFromFile" [rfname,rscp,rvariables]
+                 erbBinding <- safeMethodCall "ErbBinding" "new" [rscp,rvariables]
+                 forM_ (itoList varlist) $ \(varname, (varval :!: _)) -> do
+                     print varname
+                 case erbBinding of
+                     Left x -> return (Left x)
+                     Right v -> safeMethodCall "Controller" "runFromFile" [rfname,v]
              Left content -> toRuby content >>= safeMethodCall "Controller" "runFromContent" . (:[])
     freeHaskellValue rvariables
     freeHaskellValue rscp
