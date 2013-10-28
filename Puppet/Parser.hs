@@ -314,7 +314,7 @@ nodeStmt = do
     return [Node n st inheritance (p :!: pe) | n <- ns]
 
 puppetClassParameters :: Parser (V.Vector (Pair T.Text (S.Maybe Expression)))
-puppetClassParameters = fmap V.fromList $ parens (var `sepBy` comma)
+puppetClassParameters = fmap V.fromList $ parens (var `sepEndBy` comma)
     where
         toStrictMaybe (Just x) = S.Just x
         toStrictMaybe Nothing  = S.Nothing
