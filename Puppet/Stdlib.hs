@@ -20,10 +20,10 @@ import Data.Attoparsec.Number
 import qualified Data.ByteString.Base16 as B16
 
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
-stdlibFunctions = HM.fromList [ ("abs", puppetAbs)
+stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("any2array", any2array)
                               , ("base64", base64)
-                              , ("bool2num", bool2num)
+                              , singleArgument "bool2num" bool2num
                               , ("capitalize", stringArrayFunction (safeEmptyString (\t -> T.cons (toUpper (T.head t)) (T.tail t))))
                               , ("chomp", stringArrayFunction (T.dropWhileEnd (\c -> c == '\n' || c == '\r')))
                               , ("chop", stringArrayFunction (safeEmptyString T.init))
@@ -32,12 +32,14 @@ stdlibFunctions = HM.fromList [ ("abs", puppetAbs)
                               , ("defined_with_params", const (throwPosError "defined_with_params can't be implemented with language-puppet"))
                               , ("delete", delete)
                               , ("delete_at", deleteAt)
-                              , ("delete_undef_values", deleteUndefValues)
+                              , singleArgument "delete_undef_values" deleteUndefValues
                               , ("downcase", stringArrayFunction T.toLower)
-                              , ("getvar", getvar)
-                              , ("is_domain_name", isDomainName)
-                              , ("is_integer", isInteger)
-                              , ("keys", keys)
+                              , singleArgument "getvar"  getvar
+                              , ("getparam", const $ throwPosError "The getparam function is uncool and shall not be implemented in language-puppet")
+                              , singleArgument "is_array" isArray
+                              , singleArgument "is_domain_name" isDomainName
+                              , singleArgument "is_integer" isInteger
+                              , singleArgument "keys" keys
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("merge", merge)
                               , ("rstrip", stringArrayFunction T.stripEnd)
@@ -49,6 +51,12 @@ stdlibFunctions = HM.fromList [ ("abs", puppetAbs)
                               , ("validate_re", validateRe)
                               , ("validate_string", validateString)
                               ]
+
+singleArgument :: T.Text -> (PValue -> InterpreterMonad PValue) -> (T.Text, [PValue] -> InterpreterMonad PValue )
+singleArgument fname ifunc = (fname, ofunc)
+    where
+        ofunc [x] = ifunc x
+        ofunc _ = throwPosError (ttext fname <> "(): Expects a single argument.")
 
 safeEmptyString :: (T.Text -> T.Text) -> T.Text -> T.Text
 safeEmptyString _ "" = ""
@@ -67,12 +75,11 @@ compileRE p =
         Right r -> return r
         Left ms -> throwPosError ("Can't parse regexp" <+> pretty (URegexp p undefined) <+> ":" <+> text (show ms))
 
-puppetAbs :: [PValue] -> InterpreterMonad PValue
-puppetAbs [y] = case y ^? pvnum of
-                     Just (I x) -> return $ pvnum # I (abs x)
-                     Just (D x) -> return $ pvnum # D (abs x)
-                     Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
-puppetAbs _ = throwPosError "abs(): Takes a single argument"
+puppetAbs :: PValue -> InterpreterMonad PValue
+puppetAbs y = case y ^? pvnum of
+                  Just (I x) -> return $ pvnum # I (abs x)
+                  Just (D x) -> return $ pvnum # D (abs x)
+                  Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
 
 any2array :: [PValue] -> InterpreterMonad PValue
 any2array [PArray v] = return (PArray v)
@@ -92,26 +99,24 @@ base64 [pa,pb] = do
                         _       -> throwPosError ("base64(): could not decode" <+> pretty pb)
         a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ttext a)
     fmap PString (safeDecodeUtf8 r)
-
 base64 _ = throwPosError "base64(): Expects 2 arguments"
 
-bool2num :: [PValue] -> InterpreterMonad PValue
-bool2num [PString ""] = return (PBoolean False)
-bool2num [PString "1"] = return (PBoolean True)
-bool2num [PString "t"] = return (PBoolean True)
-bool2num [PString "y"] = return (PBoolean True)
-bool2num [PString "true"] = return (PBoolean True)
-bool2num [PString "yes"] = return (PBoolean True)
-bool2num [PString "0"] = return (PBoolean False)
-bool2num [PString "f"] = return (PBoolean False)
-bool2num [PString "n"] = return (PBoolean False)
-bool2num [PString "false"] = return (PBoolean False)
-bool2num [PString "no"] = return (PBoolean False)
-bool2num [PString "undef"] = return (PBoolean False)
-bool2num [PString "undefined"] = return (PBoolean False)
-bool2num [x@(PBoolean _)] = return x
-bool2num [x] = throwPosError ("bool2num(): Can't convert" <+> pretty x <+> "to boolean")
-bool2num _ = throwPosError "bool2num() expects a single argument"
+bool2num :: PValue -> InterpreterMonad PValue
+bool2num (PString "") = return (PBoolean False)
+bool2num (PString "1") = return (PBoolean True)
+bool2num (PString "t") = return (PBoolean True)
+bool2num (PString "y") = return (PBoolean True)
+bool2num (PString "true") = return (PBoolean True)
+bool2num (PString "yes") = return (PBoolean True)
+bool2num (PString "0") = return (PBoolean False)
+bool2num (PString "f") = return (PBoolean False)
+bool2num (PString "n") = return (PBoolean False)
+bool2num (PString "false") = return (PBoolean False)
+bool2num (PString "no") = return (PBoolean False)
+bool2num (PString "undef") = return (PBoolean False)
+bool2num (PString "undefined") = return (PBoolean False)
+bool2num x@(PBoolean _) = return x
+bool2num x = throwPosError ("bool2num(): Can't convert" <+> pretty x <+> "to boolean")
 
 puppetConcat :: [PValue] -> InterpreterMonad PValue
 puppetConcat [PArray a, PArray b] = return (PArray (a <> b))
@@ -155,19 +160,20 @@ deleteAt [PArray r, z] = case z ^? pvnum of
 deleteAt [x,_] = throwPosError ("delete_at(): expects its first argument to be an array, not" <+> pretty x)
 deleteAt _ = throwPosError "delete_at(): expects 2 arguments"
 
-deleteUndefValues :: [PValue] -> InterpreterMonad PValue
-deleteUndefValues [PArray r] = return $ PArray $ V.filter (/= PUndef) r
-deleteUndefValues [PHash h] = return $ PHash $ HM.filter (/= PUndef) h
-deleteUndefValues [x] = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
-deleteUndefValues _ = throwPosError "delete_undef_values(): Expects a single argument"
+deleteUndefValues :: PValue -> InterpreterMonad PValue
+deleteUndefValues (PArray r) = return $ PArray $ V.filter (/= PUndef) r
+deleteUndefValues (PHash h) = return $ PHash $ HM.filter (/= PUndef) h
+deleteUndefValues x = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
 
-getvar :: [PValue] -> InterpreterMonad PValue
-getvar [x] = resolvePValueString x >>= resolveVariable
-getvar _ = throwPosError "getvar() expects a single argument"
+getvar :: PValue -> InterpreterMonad PValue
+getvar = resolvePValueString >=> resolveVariable
 
+isArray :: PValue -> InterpreterMonad PValue
+isArray (PArray _) = return (PBoolean True)
+isArray _ = return (PBoolean False)
 
-isDomainName :: [PValue] -> InterpreterMonad PValue
-isDomainName [s] = do
+isDomainName :: PValue -> InterpreterMonad PValue
+isDomainName s = do
     rs <- resolvePValueString s
     let ndrs = if T.last rs == '.'
                    then T.init rs
@@ -179,16 +185,13 @@ isDomainName [s] = do
                         && (T.last x /= '-')
                         && T.all (\y -> isAlphaNum y || y == '-') x
     return $ PBoolean $ not (T.null rs) && T.length rs <= 255 && all checkPart prts
-isDomainName _ = throwPosError "is_domain_name(): Should only take a single argument"
 
-isInteger :: [PValue] -> InterpreterMonad PValue
-isInteger [i] = return (PBoolean (not (isn't pvnum i)))
-isInteger _ = throwPosError "is_integer(): Should only take a single argument"
+isInteger :: PValue -> InterpreterMonad PValue
+isInteger = return . PBoolean . not . isn't pvnum
 
-keys :: [PValue] -> InterpreterMonad PValue
-keys [PHash h] = return (PArray $ V.fromList $ map PString $ HM.keys h)
-keys [x] = throwPosError ("keys(): Expects a Hash, not" <+> pretty x)
-keys _ = throwPosError "keys(): expects a single argument"
+keys :: PValue -> InterpreterMonad PValue
+keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)
+keys x = throwPosError ("keys(): Expects a Hash, not" <+> pretty x)
 
 merge :: [PValue] -> InterpreterMonad PValue
 merge [PHash a, PHash b] = return (PHash (b `HM.union` a))
