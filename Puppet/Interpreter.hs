@@ -127,7 +127,8 @@ evalTopLevel (TopContainer tops s) = do
 evalTopLevel x = return ([], x)
 
 getstt :: TopLevelType -> T.Text -> InterpreterMonad ([Resource], Statement)
-getstt topleveltype toplevelname = do
+getstt topleveltype rtoplevelname = do
+    let toplevelname = fromMaybe rtoplevelname (T.stripPrefix "::" rtoplevelname)
     -- check if this is a known class (spurious or inner class)
     use (nestedDeclarations . at (topleveltype, toplevelname)) >>= \case
         Just x -> return ([], x) -- it is known !
