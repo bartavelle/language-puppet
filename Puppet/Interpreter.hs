@@ -463,9 +463,12 @@ enterScope parent cont = do
     scopes . at scopename ?= basescope
     return scopename
 
+dropInitialColons :: T.Text -> T.Text
+dropInitialColons t = fromMaybe t (T.stripPrefix "::" t)
+
 expandDefine :: Resource -> InterpreterMonad [Resource]
 expandDefine r = do
-    let deftype = r ^. rid . itype
+    let deftype = dropInitialColons (r ^. rid . itype)
         defname = r ^. rid . iname
         modulename = case T.splitOn "::" deftype of
                          [] -> deftype
@@ -497,7 +500,8 @@ loadClass :: T.Text
           -> Container PValue
           -> ClassIncludeType
           -> InterpreterMonad [Resource]
-loadClass classname params cincludetype = do
+loadClass rclassname params cincludetype = do
+    let classname = dropInitialColons rclassname
     p <- use curPos
     -- check if the class has already been loaded
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
