@@ -274,9 +274,9 @@ expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) As
                   , [ Infix  ( operator "=="  >> return Equal     ) AssocLeft
                     , Infix  ( operator "!="  >> return Different ) AssocLeft
                     ]
-                  , [ Infix  ( operator ">"   >> return MoreThan      ) AssocLeft
-                    , Infix  ( operator ">="  >> return MoreEqualThan ) AssocLeft
+                  , [ Infix  ( operator ">="  >> return MoreEqualThan ) AssocLeft
                     , Infix  ( operator "<="  >> return LessEqualThan ) AssocLeft
+                    , Infix  ( operator ">"   >> return MoreThan      ) AssocLeft
                     , Infix  ( operator "<"   >> return LessThan      ) AssocLeft
                     ]
                   , [ Infix  ( reserved "and" >> return And ) AssocLeft
