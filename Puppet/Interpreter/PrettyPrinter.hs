@@ -50,15 +50,10 @@ instance Pretty RIdentifier where
     pretty (RIdentifier t n) = pretty (PResourceReference t n)
 
 meta :: Resource -> Doc
-meta r = showPPos (r ^. rpos) <+> (green (node <> brackets cont <+> brackets scp) )
+meta r = showPPos (r ^. rpos) <+> (green (node <+> brackets scp) )
     where
         node = maybe mempty ((<+> mempty) . red . ttext) (r ^. rnode)
-        cont = case r ^. rcontainer of
-                   ContRoot -> magenta "top level"
-                   ContClass cname -> magenta "class" <+> ttext cname
-                   ContDefine t n -> pretty (PResourceReference t n)
-                   ContImported -> magenta "imported"
-        scp = "Scope" <+> pretty (r ^.. rscope . folded . filtered (/="::") . to (white . ttext))
+        scp = "Scope" <+> pretty (r ^.. rscope . folded . filtered (/=ContRoot) . to pretty)
 
 resourceBody :: Resource -> Doc
 resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r <$> containerComma'' insde <> ";"
@@ -91,7 +86,8 @@ instance Pretty Resource where
     pretty r = dullyellow (ttext (r ^. rid . itype)) <+> lbrace <$> indent 2 (resourceBody r) <$> rbrace
 
 instance Pretty CurContainerDesc where
-    pretty ContImported = magenta "imported"
+    pretty (ContImport  p x) = magenta "import" <> braces (ttext p) <> braces (pretty x)
+    pretty (ContImported x) = magenta "imported" <> braces (pretty x)
     pretty ContRoot = dullyellow (text "::")
     pretty (ContClass cname) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname))
     pretty (ContDefine dtype dname) = pretty (PResourceReference dtype dname)

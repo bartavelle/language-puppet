@@ -97,7 +97,7 @@ _PInteger = prism (PString . T.pack . show) $ \x -> case x ^? pvnum of
 resolveVariable :: T.Text -> InterpreterMonad PValue
 resolveVariable fullvar = do
     scps <- use scopes
-    scp <- getScope
+    scp <- getScopeName
     case getVariable scps scp fullvar of
         Left rr -> throwPosError rr
         Right x -> return x
@@ -341,7 +341,7 @@ resolveFunction' "file" args = mapM resolvePValueString args >>= fmap PString . 
         file (x:xs) = fmap S.Right (T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
 resolveFunction' "tagged" ptags = do
     tags <- fmap HS.fromList (mapM resolvePValueString ptags)
-    scp <- getScope
+    scp <- getScopeName
     scpset <- use (scopes . ix scp . scopeExtraTags)
     return (PBoolean (scpset `HS.intersection` tags == tags))
 resolveFunction' "template" [templatename] = calcTemplate Right templatename
@@ -392,7 +392,7 @@ calcTemplate :: (T.Text -> Either T.Text T.Text) -> PValue -> InterpreterMonad P
 calcTemplate templatetype templatename = do
     fname       <- resolvePValueString templatename
     scps        <- use scopes
-    scp         <- getScope
+    scp         <- getScopeName
     computeFunc <- view computeTemplateFunction
     liftIO (computeFunc (templatetype fname) scp scps)
         >>= \case
@@ -414,7 +414,7 @@ resolveSearchExpression (AndSearch e1 e2) = RAndSearch `fmap` resolveSearchExpre
 resolveSearchExpression (OrSearch e1 e2) = ROrSearch `fmap` resolveSearchExpression e1 <*> resolveSearchExpression e2
 
 searchExpressionToPuppetDB :: T.Text -> RSearchExpression -> Query ResourceField
-searchExpressionToPuppetDB rtype res = QAnd ( QEqual RType rtype : mkSE res )
+searchExpressionToPuppetDB rtype res = QAnd ( QEqual RType (capitalizeRT rtype) : mkSE res )
     where
         mkSE (RAndSearch a b) = [QAnd (mkSE a ++ mkSE b)]
         mkSE (ROrSearch a b) = [QOr (mkSE a ++ mkSE b)]
@@ -471,7 +471,7 @@ hfGenerateAssociations hf = do
 hfSetvars :: [(T.Text, PValue)] -> InterpreterMonad (Container (Pair (Pair PValue PPosition) CurContainerDesc))
 hfSetvars vals =
     do
-        scp <- getScope
+        scp <- getScopeName
         p <- use curPos
         container <- getCurContainer
         save <- use (scopes . ix scp . scopeVariables)
@@ -483,7 +483,7 @@ hfSetvars vals =
 hfRestorevars :: Container (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
 hfRestorevars save =
     do
-        scp <- getScope
+        scp <- getScopeName
         scopes . ix scp . scopeVariables .= save
 
 -- | Evaluates a statement in "pure" mode.

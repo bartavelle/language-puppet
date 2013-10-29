@@ -31,6 +31,7 @@ import Data.List (foldl')
 import Control.Applicative hiding (empty)
 import Data.Time.Clock
 import GHC.Stack
+import Data.Maybe (fromMaybe)
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -93,8 +94,12 @@ data ResDefaults = ResDefaults { _defType     :: !T.Text
                                , _defPos      :: !PPosition
                                }
 
-data CurContainerDesc = ContRoot | ContClass !T.Text | ContDefine !T.Text !T.Text | ContImported
-    deriving Eq
+data CurContainerDesc = ContRoot -- ^ Contained at node or root level
+                      | ContClass !T.Text -- ^ Contained in a class
+                      | ContDefine !T.Text !T.Text -- ^ Contained in a define
+                      | ContImported !CurContainerDesc -- ^ Dummy container for imported resources, so that we know we must update the nodename
+                      | ContImport !Nodename !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
+    deriving (Eq, Generic, Ord)
 
 data CurContainer = CurContainer { _cctype :: !CurContainerDesc
                                  , _cctags :: !(HS.HashSet T.Text)
@@ -117,8 +122,8 @@ data ScopeInformation = ScopeInformation { _scopeVariables :: !(Container (Pair 
 
 data InterpreterState = InterpreterState { _scopes             :: !(Container ScopeInformation)
                                          , _loadedClasses      :: !(Container (Pair ClassIncludeType PPosition))
-                                         , _definedResources   :: !(HM.HashMap RIdentifier PPosition)
-                                         , _curScope           :: ![Scope]
+                                         , _definedResources   :: !(HM.HashMap RIdentifier Resource)
+                                         , _curScope           :: ![CurContainerDesc]
                                          , _curPos             :: !PPosition
                                          , _nestedDeclarations :: !(HM.HashMap (TopLevelType, T.Text) Statement)
                                          , _extraRelations     :: ![LinkInformation]
@@ -200,8 +205,7 @@ data Resource = Resource
     , _ralias      :: !(HS.HashSet T.Text)                            -- ^ All the resource aliases
     , _rattributes :: !(Container PValue)                             -- ^ Resource parameters.
     , _rrelations  :: !(HM.HashMap RIdentifier (HS.HashSet LinkType)) -- ^ Resource relations.
-    , _rscope      :: ![T.Text]                                       -- ^ Resource scope when it was defined
-    , _rcontainer  :: !CurContainerDesc                               -- ^ The class that contains this resource
+    , _rscope      :: ![CurContainerDesc]                             -- ^ Resource scope when it was defined, the real container will be the first item
     , _rvirtuality :: !Virtuality
     , _rtags       :: !(HS.HashSet T.Text)
     , _rpos        :: !PPosition -- ^ Source code position of the resource definition.
@@ -303,6 +307,9 @@ makeFields ''WireCatalog
 makeFields ''PFactInfo
 makeFields ''PNodeInfo
 
+rcurcontainer :: Resource -> CurContainerDesc
+rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
+
 throwPosError :: Doc -> InterpreterMonad a
 throwPosError s = do
     p <- use (curPos . _1)
@@ -315,12 +322,22 @@ throwPosError s = do
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINE getCurContainer #-}
 getCurContainer = do
-    scp <- getScope
+    scp <- getScopeName
     preuse (scopes . ix scp . scopeContainer) >>= \case
         Just x -> return x
-        Nothing -> throwPosError ("Internal error: can't find the current container for" <+> string (show scp))
+        Nothing -> throwPosError ("Internal error: can't find the current container for" <+> green (string (T.unpack scp)))
 
-getScope :: InterpreterMonad Scope
+scopeName :: CurContainerDesc -> T.Text
+scopeName (ContRoot        ) = "::"
+scopeName (ContImported x  ) = "::imported::" `T.append` scopeName x
+scopeName (ContClass x     ) = x
+scopeName (ContDefine dt dn) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
+scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
+
+getScopeName :: InterpreterMonad T.Text
+getScopeName = fmap scopeName getScope
+
+getScope :: InterpreterMonad CurContainerDesc
 {-# INLINE getScope #-}
 getScope = use curScope >>= \s -> if null s
                                       then throwPosError "Internal error: empty scope!"
@@ -443,21 +460,33 @@ instance FromJSON Resource where
         let virtuality = if isExported
                              then Exported
                              else Normal
+            getResourceIdentifier :: PValue -> Maybe RIdentifier
+            getResourceIdentifier (PString x) =
+                let (restype, brckts) = T.breakOn "[" x
+                    rna | T.null brckts        = Nothing
+                        | T.null restype       = Nothing
+                        | T.last brckts == ']' = Just (T.tail (T.init brckts))
+                        | otherwise            = Nothing
+                in case rna of
+                       Just resname -> Just (RIdentifier (T.toLower restype) (T.toLower resname))
+                       _ -> Nothing
+            getResourceIdentifier _ = Nothing
             -- TODO : properly handle metaparameters
             separate :: (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType)) -> T.Text -> PValue -> (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType))
-            separate (curAttribs, curRelations) k val = (curAttribs & at k ?~ val, curRelations)
+            separate (curAttribs, curRelations) k val = case (fromJSON (String k), getResourceIdentifier val) of
+                                                           (Success rel, Just ri) -> (curAttribs, curRelations & at ri . non mempty . contains rel .~ True)
+                                                           _                 -> (curAttribs & at k ?~ val, curRelations)
         (attribs,relations) <- HM.foldlWithKey' separate (mempty,mempty) <$> v .: "parameters"
         Resource
-                <$> (RIdentifier <$> v .: "type" <*> v .: "title")
+                <$> (RIdentifier <$> fmap T.toLower (v .: "type") <*> v .: "title")
                 <*> v .:? "aliases" .!= mempty
                 <*> pure attribs
                 <*> pure relations
-                <*> pure ["JSON"]
-                <*> pure ContImported
+                <*> pure [ContImported ContRoot]
                 <*> pure virtuality
                 <*> v .: "tags"
-                <*> (toPPos <$> v .:? "sourcefile" .!= "dummy" <*> v .:? "sourceline" .!= 0)
-                <*> pure Nothing
+                <*> (toPPos <$> v .:? "sourcefile" .!= "null" <*> v .:? "sourceline" .!= 0)
+                <*> v .:? "certname"
 
     parseJSON _ = mempty
 

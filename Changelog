@@ -1,4 +1,15 @@
-v0.10.2 ()
+v0.10.3 (2013/10/27)
+  New features
+    * The scope tracking system has been improved. It is now possible to know
+	the original host of an imported resource, which helps a lot in case of
+	resource clashes
+  Bugs fixed
+	* Deserialization problems with puppetDBs
+	* Fixed several bugs with imported resources
+
+v0.10.2 (2013/10/27)
+  Bugs fixed
+	* PVP support
   New features
 	* Support for properly setting instance variables before computing
 	templates with native Ruby.
