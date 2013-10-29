@@ -1,3 +1,8 @@
+v0.10.2 ()
+  New features
+	* Support for properly setting instance variables before computing
+	templates with native Ruby.
+
 v0.10.1 (2013/10/27)
   Bugs fixed
 	* The TestDB file was never created.

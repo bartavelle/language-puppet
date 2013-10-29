@@ -157,11 +157,11 @@ computeTemplateWRuby fileinfo curcontext variables = freezeGC $ do
              Right fname  -> do
                  rfname <- toRuby fname
                  erbBinding <- safeMethodCall "ErbBinding" "new" [rscp,rvariables]
-                 forM_ (itoList varlist) $ \(varname, (varval :!: _)) -> do
-                     print varname
                  case erbBinding of
                      Left x -> return (Left x)
-                     Right v -> safeMethodCall "Controller" "runFromFile" [rfname,v]
+                     Right v -> do
+                         forM_ (itoList varlist) $ \(varname, (varval :!: _ :!: _)) -> toRuby varval >>= rb_iv_set v (T.unpack varname)
+                         safeMethodCall "Controller" "runFromFile" [rfname,v]
              Left content -> toRuby content >>= safeMethodCall "Controller" "runFromContent" . (:[])
     freeHaskellValue rvariables
     freeHaskellValue rscp
