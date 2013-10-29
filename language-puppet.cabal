@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                language-puppet
-version:             0.10.1
+version:             0.10.2
 synopsis:            Tools to parse and evaluate the Puppet DSL.
 description:         This is a set of tools that is supposed to fill all your Puppet needs : syntax checks, catalog compilation, PuppetDB queries, simulationg of complex interactions between nodes, Puppet master replacement, and more !
 homepage:            http://lpuppet.banquise.net/
@@ -72,46 +72,46 @@ library
                        , Puppet.Interpreter.RubyRandom
   extensions:          OverloadedStrings, BangPatterns
   if flag(hruby)
-    Build-depends: hruby
+    Build-depends: hruby >= 0.1.1 && <0.2
     CPP-Options:   -DHRUBY
 
   ghc-options:         -Wall -funbox-strict-fields
   ghc-prof-options:    -auto-all -caf-all
   -- other-modules:       
   build-depends:       base ==4.6.*
-                        , strict-base-types >= 0.2
-                        , hashable
-                        , unordered-containers
-                        , text
                         , bytestring
-                        , vector
-                        , parsec
-                        , mtl
-                        , lens
-                        , parsers
-                        , ansi-wl-pprint
-                        , unix
-                        , aeson
-                        , luautils >= 0.1.1.0
-                        , hslua
-                        , transformers
-                        , hslogger
-                        , time
-                        , filecache
-                        , regex-pcre-builtin
-                        , pcre-utils
-                        , process
-                        , iconv
-                        , http-types
-                        , http-conduit
-                        , attoparsec
-                        , case-insensitive
-                        , cryptohash
-                        , base16-bytestring
-                        , containers
-                        , stm
-                        , hspec >=1.7.0 && <1.8.0
-                        , yaml  >=0.8.0 && <0.9
+                        , strict-base-types    >= 0.2
+                        , hashable             == 1.2.*
+                        , unordered-containers == 0.2.*
+                        , text                 == 0.11.*
+                        , vector               == 0.10.*
+                        , parsec               == 3.1.*
+                        , mtl                  == 2.1.*
+                        , lens                 >= 3.9    && < 4
+                        , parsers              >= 0.9    && < 0.10
+                        , ansi-wl-pprint       == 0.6.*
+                        , unix                 == 2.6.*
+                        , aeson                == 0.6.*
+                        , luautils             >= 0.1.1
+                        , hslua                == 0.3.*
+                        , transformers         == 0.3.*
+                        , hslogger             == 1.2.*
+                        , time                 == 1.4.*
+                        , filecache            >= 0.2.2  && < 0.3
+                        , regex-pcre-builtin   >= 0.94.4
+                        , pcre-utils           == 0.1.*
+                        , process              == 1.1.*
+                        , iconv                == 0.4.*
+                        , http-types           == 0.8.*
+                        , http-conduit         >= 1.9    && <1.10
+                        , attoparsec           == 0.10.*
+                        , case-insensitive     == 1.1.*
+                        , cryptohash           >= 0.10   && < 0.12
+                        , base16-bytestring    == 0.1.*
+                        , containers           == 0.5.*
+                        , stm                  == 2.4.*
+                        , hspec                >= 1.7.0  && <1.8.0
+                        , yaml                 >= 0.8.0  && <0.9
 Test-Suite test-lexer
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
