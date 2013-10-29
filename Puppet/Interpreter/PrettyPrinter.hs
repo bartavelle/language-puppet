@@ -52,7 +52,7 @@ instance Pretty RIdentifier where
 meta :: Resource -> Doc
 meta r = showPPos (r ^. rpos) <+> (green (node <+> brackets scp) )
     where
-        node = maybe mempty ((<+> mempty) . red . ttext) (r ^. rnode)
+        node = red (ttext (r ^. rnode))
         scp = "Scope" <+> pretty (r ^.. rscope . folded . filtered (/=ContRoot) . to pretty)
 
 resourceBody :: Resource -> Doc

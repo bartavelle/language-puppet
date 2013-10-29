@@ -209,7 +209,7 @@ data Resource = Resource
     , _rvirtuality :: !Virtuality
     , _rtags       :: !(HS.HashSet T.Text)
     , _rpos        :: !PPosition -- ^ Source code position of the resource definition.
-    , _rnode       :: !(Maybe T.Text) -- ^ The node were this resource was created, if remote
+    , _rnode       :: !Nodename -- ^ The node were this resource was created, if remote
     }
     deriving Eq
 
@@ -477,16 +477,17 @@ instance FromJSON Resource where
                                                            (Success rel, Just ri) -> (curAttribs, curRelations & at ri . non mempty . contains rel .~ True)
                                                            _                 -> (curAttribs & at k ?~ val, curRelations)
         (attribs,relations) <- HM.foldlWithKey' separate (mempty,mempty) <$> v .: "parameters"
+        contimport <- v .:? "certname" .!= "unknown"
         Resource
                 <$> (RIdentifier <$> fmap T.toLower (v .: "type") <*> v .: "title")
                 <*> v .:? "aliases" .!= mempty
                 <*> pure attribs
                 <*> pure relations
-                <*> pure [ContImported ContRoot]
+                <*> pure [ContImport contimport ContRoot]
                 <*> pure virtuality
                 <*> v .: "tags"
                 <*> (toPPos <$> v .:? "sourcefile" .!= "null" <*> v .:? "sourceline" .!= 0)
-                <*> v .:? "certname"
+                <*> pure contimport
 
     parseJSON _ = mempty
 

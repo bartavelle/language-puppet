@@ -330,7 +330,7 @@ evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
             -- we must filter the resources that originated from this host
             -- here ! They are also turned into "normal" resources
             res <- ( map (rvirtuality .~ Normal)
-                   . filter ((/= Just fqdn) . _rnode)
+                   . filter ((/= fqdn) . _rnode)
                    ) `fmap` interpreterIO (getResources pdb q)
             scpdesc <- ContImported `fmap` getScope
             void $ enterScope S.Nothing scpdesc
@@ -498,7 +498,7 @@ expandDefine r = do
             p <- use curPos
             curPos .= r ^. rpos
             curscp <- getScope
-            when isImportedDefine (pushScope (ContImport (fromMaybe "unknown" (r ^. rnode)) curscp ))
+            when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
             pushScope curContType
             loadVariable "title" (PString defname)
             loadVariable "name" (PString defname)
@@ -546,7 +546,8 @@ loadClass rclassname params cincludetype = do
                     classresource <- if cincludetype == IncludeStandard
                                          then do
                                              scp <- use curScope
-                                             return [Resource (RIdentifier "class" classname) (HS.singleton classname) mempty mempty scp Normal mempty p Nothing]
+                                             fqdn <- view thisNodename
+                                             return [Resource (RIdentifier "class" classname) (HS.singleton classname) mempty mempty scp Normal mempty p fqdn]
                                          else return []
                     pushScope scopedesc
                     let modulename = case T.splitOn "::" classname of
@@ -621,7 +622,8 @@ registerResource rt rn arg vrt p = do
         getClassTags (ContImported _ ) = []
         getClassTags (ContImport _ _ ) = []
     allScope <- use curScope
-    let baseresource = Resource (RIdentifier rt rn) (HS.singleton rn) mempty mempty allScope vrt defaulttags p Nothing
+    fqdn <- view thisNodename
+    let baseresource = Resource (RIdentifier rt rn) (HS.singleton rn) mempty mempty allScope vrt defaulttags p fqdn
     r <- foldM (addAttribute CantOverride) baseresource (itoList arg)
     let resid = RIdentifier rt rn
     case rt of

@@ -133,9 +133,7 @@ getFcts db f = fmap (S.Right . filter (resolveQuery factQuery f) . toFactInfo) (
 
 resourceQuery :: ResourceField -> Resource -> Extracted
 resourceQuery RTag r = r ^. rtags . to ESet
-resourceQuery RCertname r = case r ^. rnode of
-                                Just t -> EText t
-                                Nothing -> ENil
+resourceQuery RCertname r = r ^. rnode . to EText
 resourceQuery (RParameter p) r = case r ^? rattributes . ix p . _PString of
                                      Just s -> EText s
                                      Nothing -> ENil
