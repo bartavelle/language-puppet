@@ -119,6 +119,7 @@ puppetDBFacts nodename pdbapi =
                                   , ("puppetversion", "language-puppet")
                                   , ("virtual", "xenu")
                                   , ("clientcert", nodename)
+                                  , ("is_virtual", "true")
                                   ]
                 allfacts = nfacts `HM.union` ofacts
                 genFacts = HM.fromList

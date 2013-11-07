@@ -420,11 +420,11 @@ loadVariable varname varval = do
         (_, Just (_ :!: pp :!: ctx)) -> do
             isParent scp (curcont ^. cctype) >>= \case
                 True -> do
-                    warn ("The variable"
-                         <+> pretty (UVariableReference varname)
-                         <+> "had been overriden because of some arbitrary inheritance rule that was set up to emulate puppet behaviour. It was defined at"
-                         <+> showPPos pp
-                         )
+                    debug ("The variable"
+                          <+> pretty (UVariableReference varname)
+                          <+> "had been overriden because of some arbitrary inheritance rule that was set up to emulate puppet behaviour. It was defined at"
+                          <+> showPPos pp
+                          )
                     scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
                 False -> throwPosError ("Variable" <+> pretty (UVariableReference varname) <+> "already defined at" <+> showPPos pp
                                 </> "Context:" <+> pretty ctx
@@ -526,7 +526,7 @@ loadClass rclassname params cincludetype = do
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
     use (loadedClasses . at classname) >>= \case
         Just (_ :!: pp) -> do
-            when (cincludetype == IncludeResource) (throwPosError ("Can't include class" <+> ttext classname <+> "twice when using the resource-like syntax (first occurance at" <+> showPPos pp <> ")"))
+            when (cincludetype == IncludeResource) (throwPosError ("Can't include class" <+> ttext classname <+> "twice when using the resource-like syntax (first occurence at" <+> showPPos pp <> ")"))
             return []
         -- already loaded, go on
         Nothing -> do

@@ -1,8 +1,10 @@
-v0.10.3 (2013/10/27)
+v0.10.3 ()
   New features
     * The scope tracking system has been improved. It is now possible to know
 	the original host of an imported resource, which helps a lot in case of
 	resource clashes
+	* is_virtual fact
+	* new stdlib functions: flatten, str2bool, validate_absolute_path
   Bugs fixed
 	* Deserialization problems with puppetDBs
 	* Fixed several bugs with imported resources

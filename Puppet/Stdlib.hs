@@ -34,6 +34,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("delete_at", deleteAt)
                               , singleArgument "delete_undef_values" deleteUndefValues
                               , ("downcase", stringArrayFunction T.toLower)
+                              , singleArgument "flatten" flatten
                               , singleArgument "getvar"  getvar
                               , ("getparam", const $ throwPosError "The getparam function is uncool and shall not be implemented in language-puppet")
                               , singleArgument "is_array" isArray
@@ -43,8 +44,10 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("merge", merge)
                               , ("rstrip", stringArrayFunction T.stripEnd)
+                              , singleArgument "str2bool" str2Bool
                               , ("strip", stringArrayFunction T.strip)
                               , ("upcase", stringArrayFunction T.toUpper)
+                              , ("validate_absolute_path", validateAbsolutePath)
                               , ("validate_array", validateArray)
                               , ("validate_bool", validateBool)
                               , ("validate_hash", validateHash)
@@ -165,6 +168,14 @@ deleteUndefValues (PArray r) = return $ PArray $ V.filter (/= PUndef) r
 deleteUndefValues (PHash h) = return $ PHash $ HM.filter (/= PUndef) h
 deleteUndefValues x = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
 
+flatten :: PValue -> InterpreterMonad PValue
+flatten r@(PArray _) = return $ PArray (flatten' r)
+    where
+        flatten' :: PValue -> V.Vector PValue
+        flatten' (PArray x) = V.concatMap flatten' x
+        flatten' x = V.singleton x
+flatten x = throwPosError ("flatten(): Expects an Array, not" <+> pretty x)
+
 getvar :: PValue -> InterpreterMonad PValue
 getvar = resolvePValueString >=> resolveVariable
 
@@ -197,6 +208,25 @@ merge :: [PValue] -> InterpreterMonad PValue
 merge [PHash a, PHash b] = return (PHash (b `HM.union` a))
 merge [a,b] = throwPosError ("merge(): Expects two hashes, not" <+> pretty a <+> pretty b)
 merge _ = throwPosError "merge(): Expects two hashes"
+
+str2Bool :: PValue -> InterpreterMonad PValue
+str2Bool PUndef = return (PBoolean False)
+str2Bool a@(PBoolean _) = return a
+str2Bool a = do
+    s <- resolvePValueString a
+    let b | s `elem` ["", "1", "t", "y", "true", "yes"] = Just True
+          | s `elem` [    "0", "f", "n", "false", "no"] = Just False
+          | otherwise = Nothing
+    case b of
+        Just x -> return (PBoolean x)
+        Nothing -> throwPosError "str2bool(): Unknown type of boolean given"
+
+validateAbsolutePath :: [PValue] -> InterpreterMonad PValue
+validateAbsolutePath [] = throwPosError "validateAbsolutePath(): wrong number of arguments, must be > 0"
+validateAbsolutePath a = mapM_ (resolvePValueString >=> validate) a >> return PUndef
+    where
+        validate x | T.head x == '/' = return ()
+                   | otherwise = throwPosError (ttext x <+> "is not an absolute path")
 
 validateArray :: [PValue] -> InterpreterMonad PValue
 validateArray [] = throwPosError "validate_array(): wrong number of arguments, must be > 0"

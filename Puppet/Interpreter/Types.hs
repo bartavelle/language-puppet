@@ -145,6 +145,9 @@ data InterpreterWriter = InterpreterWriter { _warnings :: ![Pair Priority Doc] }
 warn :: Doc -> InterpreterMonad ()
 warn d = tell (InterpreterWriter [WARNING :!: d])
 
+debug :: Doc -> InterpreterMonad ()
+debug d = tell (InterpreterWriter [DEBUG :!: d])
+
 logWriter :: Priority -> Doc -> InterpreterMonad ()
 logWriter prio d = tell (InterpreterWriter [prio :!: d])
 
