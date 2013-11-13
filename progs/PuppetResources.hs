@@ -142,10 +142,10 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
-initializedaemonWithPuppet prio pdbapi puppetdir = do
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> Maybe FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+initializedaemonWithPuppet prio pdbapi puppetdir hierapath = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel prio)
-    q <- fmap (prefPDB .~ pdbapi) (genPreferences puppetdir) >>= initDaemon
+    q <- fmap ((prefPDB .~ pdbapi) . (hieraPath .~ hierapath)) (genPreferences puppetdir) >>= initDaemon
     let f ndename = puppetDBFacts ndename pdbapi
             >>= _dGetCatalog q ndename
             >>= \case
@@ -174,10 +174,11 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _nodename     :: Maybe String
                                , _pdbfile      :: Maybe FilePath
                                , _loglevel     :: LOG.Priority
+                               , _hieraFile    :: Maybe FilePath
                                } deriving Show
 
 cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority
+cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority <*> optional hiera
     where
         sc = switch (  long "showcontent"
                     <> short 'c'
@@ -201,16 +202,20 @@ cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T
                          <> help "Node name")
         pdbfile = strOption (  long "pdbfile"
                             <> help "Path to the testing PuppetDB file.")
+        hiera = strOption (  long "hiera"
+                          <> help "Path to the Hiera configuration file (default hiera.yaml)"
+                          <> value "hiera.yaml"
+                          )
         priority = option (  long "loglevel"
                           <> short 'v'
                           <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
                           <> value LOG.WARNING
                           )
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing _ _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename) mpdbf prio) = do
+run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename) mpdbf prio hpath) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> rr))
         checkError _ (S.Right x) = return x
         tnodename = T.pack ndename
@@ -219,7 +224,7 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename)
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
                   (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir
+    queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir hpath
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
