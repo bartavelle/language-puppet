@@ -57,7 +57,7 @@ type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, T.Text, Contain
 type TemplateAnswer = S.Either Doc T.Text
 
 initTemplateDaemon :: Preferences -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
-initTemplateDaemon (Preferences _ modpath templatepath _ _ _ _ _) mvstats = do
+initTemplateDaemon (Preferences _ modpath templatepath _ _ _ _ _ _) mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
 #ifdef HRUBY

@@ -136,6 +136,7 @@ data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Conta
                                            , _pdbAPI                  :: PuppetDBAPI
                                            , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
                                            , _thisNodename            :: T.Text
+                                           , _hieraQuery              :: Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))
                                            }
 
 data Warning = Warning !Doc

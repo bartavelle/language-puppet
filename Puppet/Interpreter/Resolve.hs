@@ -40,6 +40,13 @@ import Data.Bits
 
 type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
 
+-- | A hiera helper function
+runHiera :: T.Text -> InterpreterMonad (S.Maybe PValue)
+runHiera q = do
+    hquery <- view hieraQuery
+    scps <- use scopes
+    interpreterIO (hquery scps q)
+
 -- | Tries to convert a pair of PValues into numbers, as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
 -- that they are of the same type
@@ -363,6 +370,14 @@ resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two argum
 resolveFunction' "pdbresourcequery" [q] = pdbresourcequery q Nothing
 resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
 resolveFunction' "pdbresourcequery" _ = throwPosError "pdbresourcequery(): Expects one or two arguments"
+resolveFunction' "hiera" [q] = do
+    qs <- resolvePValueString q
+    o <- runHiera qs
+    case o of
+        S.Just p  -> return p
+        S.Nothing -> return PUndef
+resolveFunction' "hiera" _ = throwPosError "hiera(): Expects a single argument"
+
 -- user functions
 resolveFunction' fname args = do
     external <- view externalFunctions

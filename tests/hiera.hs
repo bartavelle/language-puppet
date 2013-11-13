@@ -34,7 +34,7 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
             it "can get hashes" $ q mempty "users" >>= checkOutput (S.Just (PHash users))
         describe "lookup data with a scope" $ do
             let newscope = HM.singleton "::" (ScopeInformation vars mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
-                vars = HM.singleton "::environment" ("production" :!: initialPPos "dummy" :!: ContRoot)
+                vars = HM.singleton "environment" ("production" :!: initialPPos "dummy" :!: ContRoot)
             it "overrides some values" $ q newscope "http_port" >>= checkOutput (S.Just "9090")
             it "doesn't fail on others" $ q newscope "users" >>= checkOutput (S.Just (PHash users))
 

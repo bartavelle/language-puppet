@@ -10,6 +10,7 @@ import Puppet.Parser.Types
 import Puppet.Manifests
 import Puppet.Interpreter
 import Puppet.Plugins
+import Hiera.Server
 import Erb.Compute
 
 import Puppet.PP
@@ -25,6 +26,7 @@ import Control.Lens
 import Control.Monad
 import Control.Concurrent
 import qualified Data.Either.Strict as S
+import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict
 import Control.Exception
 
@@ -90,18 +92,23 @@ initDaemon prefs = do
     catalogStats  <- newStats
     getStatements <- initParserDaemon prefs parserStats
     getTemplate   <- initTemplateDaemon prefs templateStats
+    hquery        <- case prefs ^. hieraPath of
+                         Just p -> startHiera p >>= \case
+                            Left _ -> return dummyHiera
+                            Right x -> return x
+                         Nothing -> return dummyHiera
     let runMaster = do
             (luastate, luafunctions) <- initLua (T.pack (prefs ^. modulesPath))
             let luacontainer = HM.fromList [ (fname, puppetFunc luastate fname) | fname <- luafunctions ]
                 myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
-            master myprefs controlChan getStatements getTemplate catalogStats
+            master myprefs controlChan getStatements getTemplate catalogStats hquery
     replicateM_ (prefs ^. compilePoolSize) (forkIO runMaster)
     return (DaemonMethods (gCatalog controlChan) parserStats catalogStats templateStats)
 
 gCatalog :: Chan DaemonQuery -> T.Text -> Facts -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))
-gCatalog q nodename fcts = do
+gCatalog q ndename fcts = do
     t <- newEmptyMVar
-    writeChan q (DaemonQuery nodename fcts t)
+    writeChan q (DaemonQuery ndename fcts t)
     readMVar t
 
 data DaemonQuery = DaemonQuery
@@ -117,14 +124,15 @@ master :: Preferences
        -> ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) )
        -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
        -> MStats
+       -> (Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue)))
        -> IO ()
-master prefs controlQ getStatements getTemplate stats = forever $ do
-    (DaemonQuery nodename facts q) <- readChan controlQ
-    logDebug ("Received query for node " <> nodename)
-    traceEventIO ("Received query for node " <> T.unpack nodename)
-    (stmts :!: warnings) <- measure stats nodename $ getCatalog getStatements getTemplate (prefs ^. prefPDB) nodename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs)
+master prefs controlQ getStatements getTemplate stats hquery = forever $ do
+    (DaemonQuery ndename facts q) <- readChan controlQ
+    logDebug ("Received query for node " <> ndename)
+    traceEventIO ("Received query for node " <> T.unpack ndename)
+    (stmts :!: warnings) <- measure stats ndename $ getCatalog getStatements getTemplate (prefs ^. prefPDB) ndename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs) hquery
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact m) "")) warnings
-    traceEventIO ("getCatalog finished for " <> T.unpack nodename)
+    traceEventIO ("getCatalog finished for " <> T.unpack ndename)
     putMVar q stmts
 
 initParserDaemon :: Preferences -> MStats -> IO ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) )

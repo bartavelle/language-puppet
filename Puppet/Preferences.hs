@@ -22,6 +22,7 @@ data Preferences = Preferences
     , _prefPDB         :: PuppetDBAPI
     , _natTypes        :: Container PuppetTypeMethods -- ^ The list of native types.
     , _prefExtFuncs    :: Container ( [PValue] -> InterpreterMonad PValue )
+    , _hieraPath       :: Maybe FilePath
     }
 
 makeClassy ''Preferences
@@ -34,4 +35,4 @@ genPreferences basedir = do
         templatedir = basedir <> "/templates"
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    return $ Preferences manifestdir modulesdir templatedir 4 4 dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions)
+    return $ Preferences manifestdir modulesdir templatedir 4 4 dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just "hiera.yaml")

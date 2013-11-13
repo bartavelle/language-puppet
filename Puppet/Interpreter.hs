@@ -21,13 +21,13 @@ import qualified Data.Either.Strict as S
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Control.Monad.Trans.RWS.Strict
-import Control.Monad.Error hiding (mapM)
+import Control.Monad.Error hiding (mapM,forM)
 import Control.Lens
 import qualified Data.Maybe.Strict as S
 import qualified Data.Graph as G
 import qualified Data.Tree as T
 import Data.Foldable (toList,foldl',Foldable,foldlM)
-import Data.Traversable (mapM)
+import Data.Traversable (mapM,forM)
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
@@ -40,9 +40,10 @@ getCatalog :: ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) ) -- ^ get
            -> Facts -- ^ Facts ...
            -> Container PuppetTypeMethods -- ^ List of native types
            -> Container ( [PValue] -> InterpreterMonad PValue )
+           -> (Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))) -- ^ Hiera query function
            -> IO (Pair (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))  [Pair Priority Doc])
-getCatalog gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs = do
-    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename
+getCatalog gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery = do
+    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery
         dummypos = initialPPos "dummy"
         initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
         stt  = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
@@ -433,22 +434,43 @@ loadVariable varname varval = do
                                 )
         _ -> scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
 
-loadParameters :: Foldable f => Container PValue -> f (Pair T.Text (S.Maybe Expression)) -> PPosition -> InterpreterMonad ()
-loadParameters params classParams defaultPos = do
+-- | This function loads class and define parameters into scope. It checks
+-- that all mandatory parameters are set, that no extra parameter is
+-- declared.
+--
+-- It is able to fill unset parameters with values from Hiera (for classes
+-- only) or default values.
+loadParameters :: Foldable f => Container PValue -> f (Pair T.Text (S.Maybe Expression)) -> PPosition -> S.Maybe T.Text -> InterpreterMonad ()
+loadParameters params classParams defaultPos wHiera = do
+    params' <- case wHiera of
+        S.Just classname -> do
+            -- pass 1 : we retrieve the paramters that have no default values and
+            -- that are not set, to try to get them with Hiera
+            let !classParamSet   = HS.fromList (fmap S.fst (classParams ^.. folded))
+                !definedParamSet = ikeys params
+                !unsetParams     = classParamSet `HS.difference` definedParamSet
+                loadHieraParam curprms paramname = do
+                    v <- runHiera (classname <> "::" <> paramname)
+                    case v of
+                        S.Nothing -> return curprms
+                        S.Just vl -> return (curprms & at paramname ?~ vl)
+            foldM loadHieraParam params (toList unsetParams)
+        S.Nothing -> return params
+    -- pass 2 : we check that everything is right
     let !classParamSet     = HS.fromList (map S.fst (toList classParams))
         !mandatoryParamSet = HS.fromList (map S.fst (classParams ^.. folded . filtered (S.isNothing . S.snd)))
-        !definedParamSet   = ikeys params
+        !definedParamSet   = ikeys params'
         !unsetParams       = mandatoryParamSet `HS.difference` definedParamSet
         !spuriousParams    = definedParamSet `HS.difference` classParamSet
     unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters where not set:" <+> tupled (map ttext $ toList unsetParams))
     unless (fnull spuriousParams) $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ttext) $ toList spuriousParams))
     let isDefault = not . flip HS.member definedParamSet . S.fst
-    mapM_ (uncurry loadVariable) (itoList params)
+    mapM_ (uncurry loadVariable) (itoList params')
     curPos .= defaultPos
     forM_ (filter isDefault (toList classParams)) $ \(k :!: v) -> do
         rv <- case v of
                   S.Nothing -> throwPosError "Internal error: invalid invariant at loadParameters"
-                  S.Just e -> resolveExpression e
+                  S.Just e  -> resolveExpression e
         loadVariable k rv
 
 -- | Enters a new scope, checks it is not already defined, and inherits the
@@ -506,7 +528,7 @@ expandDefine r = do
             -- errors
             scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p :!: curContType)
             scopes . ix scopename . scopeVariables . at "callermodule_name" ?= (curcaller :!: p :!: curContType)
-            loadParameters (r ^. rattributes) defineParams cp
+            loadParameters (r ^. rattributes) defineParams cp S.Nothing
             curPos .= cp
             res <- evaluateStatementsVector stmts
             out <- finalize (spurious ++ res)
@@ -514,6 +536,7 @@ expandDefine r = do
             popScope
             return out
         _ -> throwPosError ("Internal error: we did not retrieve a DefineDeclaration, but had" <+> pretty dls)
+
 
 loadClass :: T.Text
           -> Container PValue
@@ -556,7 +579,7 @@ loadClass rclassname params cincludetype = do
                     -- not done through loadvariable because of override
                     -- errors
                     scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p :!: ContClass classname)
-                    loadParameters params classParams cp
+                    loadParameters params classParams cp (S.Just classname)
                     curPos .= cp
                     res <- evaluateStatementsVector stmts
                     out <- finalize (classresource ++ spurious ++ inhstmts ++ res)

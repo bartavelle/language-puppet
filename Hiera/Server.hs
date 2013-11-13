@@ -4,7 +4,7 @@ a huge caveat : only the data files are watched for changes, not the main config
 
 A minor bug is that interpolation will not work for inputs containing the % character when it isn't used for interpolation.
 -}
-module Hiera.Server (startHiera) where
+module Hiera.Server (startHiera,dummyHiera) where
 
 import qualified Data.FileCache as F
 import qualified Data.Yaml as Y
@@ -81,9 +81,11 @@ startHiera hieraconfig = Y.decodeFileEither hieraconfig >>= \case
     Left ex -> return (Left (show ex))
     Right cfg -> do
         cache <- F.newFileCache
-        print cfg
         return (Right (query cfg cache))
 
+-- | A dummy hiera function that will be used when hiera is not detected
+dummyHiera :: Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))
+dummyHiera _ _ = return (S.Right S.Nothing)
 
 runUntilJ :: [IO (S.Maybe a)] -> IO (S.Maybe a)
 runUntilJ [] = return S.Nothing
@@ -91,9 +93,6 @@ runUntilJ (x:xs) = x >>= \case
     v@(S.Just _) -> return v
     S.Nothing -> runUntilJ xs
 
--- getVariable :: Container ScopeInformation -> T.Text -> T.Text -> Either
--- Doc PValue
---
 query :: HieraConfig -> HieraCache -> Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))
 query (HieraConfig b h) cache vars hquery = fmap S.Right (runUntilJ (map query' h)) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
     where
