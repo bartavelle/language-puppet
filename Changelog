@@ -5,6 +5,7 @@ v0.10.3 ()
 	resource clashes
 	* is_virtual fact
 	* new stdlib functions: flatten, str2bool, validate_absolute_path
+	* Hiera support !
   Bugs fixed
 	* Deserialization problems with puppetDBs
 	* Fixed several bugs with imported resources
