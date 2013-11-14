@@ -14,7 +14,10 @@ import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
 import qualified Data.Text as T
 import qualified Data.Attoparsec.Text as AT
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BS
+
+import qualified Data.HashMap.Strict as HM
+
 import Control.Applicative
 import Control.Lens
 import Control.Lens.Aeson
@@ -44,7 +47,7 @@ data HieraStringPart = HString T.Text
 type HieraCache = F.FileCacheR Doc Y.Value
 
 instance FromJSON InterpolableHieraString where
-    parseJSON (String s) = case AT.parseOnly interpolableString s of
+    parseJSON (String s) = case parseInterpolableString s of
                                Right x -> return (InterpolableHieraString x)
                                Left rr -> fail rr
     parseJSON _ = fail "Invalid value type"
@@ -67,11 +70,16 @@ instance FromJSON HieraConfig where
             <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HString "common"]])
     parseJSON _ = fail "Not a valid Hiera configuration"
 
+-- | An attoparsec parser that turns text into parts that are ready for
+-- interpolation
 interpolableString :: AT.Parser [HieraStringPart]
 interpolableString = AT.many1 (fmap HString rawPart <|> fmap HVariable interpPart)
     where
         rawPart = AT.takeWhile1 (/= '%')
         interpPart = AT.string "%{" *> AT.takeWhile1 (/= '}') <* AT.char '}'
+
+parseInterpolableString :: T.Text -> Either String [HieraStringPart]
+parseInterpolableString t = AT.parseOnly interpolableString t
 
 -- | The only method you'll ever need. It runs a Hiera server and gives you
 -- a querying function. The 'Nil' output is explicitely given as a Maybe
@@ -93,22 +101,37 @@ runUntilJ (x:xs) = x >>= \case
     v@(S.Just _) -> return v
     S.Nothing -> runUntilJ xs
 
+interpolateText :: Container ScopeInformation -> T.Text -> T.Text
+interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveInterpolable vars of
+                             Just x -> x
+                             Nothing -> t
+
+resolveInterpolable :: Container ScopeInformation -> [HieraStringPart] -> Maybe T.Text
+resolveInterpolable vars = fmap T.concat . mapM (resolveInterpolablePart vars)
+
+resolveInterpolablePart :: Container ScopeInformation -> HieraStringPart -> Maybe T.Text
+resolveInterpolablePart _ (HString x) = Just x
+resolveInterpolablePart vars (HVariable v) = getVariable vars "::" v ^? _Right . _PString
+
+interpolatePValue :: Container ScopeInformation -> PValue -> PValue
+interpolatePValue v (PHash h) = PHash . HM.fromList . map ( (_1 %~ interpolateText v) . (_2 %~ interpolatePValue v) ) . HM.toList $ h
+interpolatePValue v (PArray r) = PArray (fmap (interpolatePValue v) r)
+interpolatePValue v (PString t) = PString (interpolateText v t)
+interpolatePValue _ x = x
+
 query :: HieraConfig -> HieraCache -> Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))
 query (HieraConfig b h) cache vars hquery = fmap S.Right (runUntilJ (map query' h)) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
     where
         query' :: InterpolableHieraString -> IO (S.Maybe PValue)
         query' (InterpolableHieraString strs) =
-            case fmap T.concat (mapM resolveInterpolablePart strs) of
+            case resolveInterpolable vars strs of
                 Just s -> runUntilJ (map (query'' s) b)
                 Nothing -> return S.Nothing
-        resolveInterpolablePart :: HieraStringPart -> Maybe T.Text
-        resolveInterpolablePart (HString x) = Just x
-        resolveInterpolablePart (HVariable v) = getVariable vars "::" v ^? _Right . _PString
         query'' :: T.Text -> HieraBackend -> IO (S.Maybe PValue)
         query'' hieraname backend = do
             let (decodefunction, datadir, extension) = case backend of
-                                                (JsonBackend d) -> (fmap (strictifyEither . (_Left %~ string). A.eitherDecodeStrict') . BS.readFile       , d, ".json")
-                                                (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ string . show))                 . Y.decodeFileEither, d, ".yaml")
+                                                (JsonBackend d) -> (fmap (strictifyEither . (_Left %~ string). A.eitherDecode') . BS.readFile       , d, ".json")
+                                                (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ string . show))           . Y.decodeFileEither, d, ".yaml")
                 filename = datadir <> "/" <> T.unpack hieraname <> extension
                 mfromJSON x = case A.fromJSON x of
                                   A.Success a -> Just a
@@ -118,4 +141,4 @@ query (HieraConfig b h) cache vars hquery = fmap S.Right (runUntilJ (map query' 
             v <- F.query cache filename (decodefunction filename)
             case v of
                 S.Left _ -> return S.Nothing
-                S.Right x -> return $ strictifyMaybe (x ^? key hquery >>= mfromJSON)
+                S.Right x -> return $ fmap (interpolatePValue vars) $ strictifyMaybe (x ^? key hquery >>= mfromJSON)
