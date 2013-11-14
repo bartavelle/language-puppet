@@ -124,7 +124,7 @@ master :: Preferences
        -> ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) )
        -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
        -> MStats
-       -> (Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue)))
+       -> HieraQueryFunc
        -> IO ()
 master prefs controlQ getStatements getTemplate stats hquery = forever $ do
     (DaemonQuery ndename facts q) <- readChan controlQ

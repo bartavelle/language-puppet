@@ -41,11 +41,23 @@ import Data.Bits
 type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
 
 -- | A hiera helper function
-runHiera :: T.Text -> InterpreterMonad (S.Maybe PValue)
-runHiera q = do
+runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (S.Maybe PValue)
+runHiera q t = do
     hquery <- view hieraQuery
     scps <- use scopes
-    interpreterIO (hquery scps q)
+    interpreterIO (hquery scps q t)
+
+-- | The implementation of all hiera functions
+hieraCall :: HieraQueryType -> PValue -> (Maybe PValue) -> (Maybe PValue) -> InterpreterMonad PValue
+hieraCall _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not yet supported"
+hieraCall qt q df _ = do
+    qs <- resolvePValueString q
+    o <- runHiera qs qt
+    case o of
+        S.Just p  -> return p
+        S.Nothing -> case df of
+                         Just d -> return d
+                         Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
 -- | Tries to convert a pair of PValues into numbers, as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
@@ -370,13 +382,16 @@ resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two argum
 resolveFunction' "pdbresourcequery" [q] = pdbresourcequery q Nothing
 resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
 resolveFunction' "pdbresourcequery" _ = throwPosError "pdbresourcequery(): Expects one or two arguments"
-resolveFunction' "hiera" [q] = do
-    qs <- resolvePValueString q
-    o <- runHiera qs
-    case o of
-        S.Just p  -> return p
-        S.Nothing -> return PUndef
-resolveFunction' "hiera" _ = throwPosError "hiera(): Expects a single argument"
+resolveFunction' "hiera"       [q]     = hieraCall Priority   q Nothing  Nothing
+resolveFunction' "hiera"       [q,d]   = hieraCall Priority   q (Just d) Nothing
+resolveFunction' "hiera"       [q,d,o] = hieraCall Priority   q (Just d) (Just o)
+resolveFunction' "hiera_array" [q]     = hieraCall ArrayMerge q Nothing  Nothing
+resolveFunction' "hiera_array" [q,d]   = hieraCall ArrayMerge q (Just d) Nothing
+resolveFunction' "hiera_array" [q,d,o] = hieraCall ArrayMerge q (Just d) (Just o)
+resolveFunction' "hiera_hash"  [q]     = hieraCall HashMerge  q Nothing  Nothing
+resolveFunction' "hiera_hash"  [q,d]   = hieraCall HashMerge  q (Just d) Nothing
+resolveFunction' "hiera_hash"  [q,d,o] = hieraCall HashMerge  q (Just d) (Just o)
+resolveFunction' "hiera" _ = throwPosError "hiera(): Expects one, two or three arguments"
 
 -- user functions
 resolveFunction' fname args = do

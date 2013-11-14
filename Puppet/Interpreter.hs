@@ -40,7 +40,7 @@ getCatalog :: ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) ) -- ^ get
            -> Facts -- ^ Facts ...
            -> Container PuppetTypeMethods -- ^ List of native types
            -> Container ( [PValue] -> InterpreterMonad PValue )
-           -> (Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))) -- ^ Hiera query function
+           -> HieraQueryFunc -- ^ Hiera query function
            -> IO (Pair (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))  [Pair Priority Doc])
 getCatalog gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery = do
     let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery
@@ -450,7 +450,7 @@ loadParameters params classParams defaultPos wHiera = do
                 !definedParamSet = ikeys params
                 !unsetParams     = classParamSet `HS.difference` definedParamSet
                 loadHieraParam curprms paramname = do
-                    v <- runHiera (classname <> "::" <> paramname)
+                    v <- runHiera (classname <> "::" <> paramname) Priority
                     case v of
                         S.Nothing -> return curprms
                         S.Just vl -> return (curprms & at paramname ?~ vl)

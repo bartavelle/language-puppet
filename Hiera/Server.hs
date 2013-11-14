@@ -4,7 +4,7 @@ a huge caveat : only the data files are watched for changes, not the main config
 
 A minor bug is that interpolation will not work for inputs containing the % character when it isn't used for interpolation.
 -}
-module Hiera.Server (startHiera,dummyHiera) where
+module Hiera.Server (startHiera,dummyHiera,HieraQueryFunc) where
 
 import qualified Data.FileCache as F
 import qualified Data.Yaml as Y
@@ -15,7 +15,7 @@ import qualified Data.Maybe.Strict as S
 import qualified Data.Text as T
 import qualified Data.Attoparsec.Text as AT
 import qualified Data.ByteString.Lazy as BS
-
+import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 
 import Control.Applicative
@@ -84,7 +84,7 @@ parseInterpolableString t = AT.parseOnly interpolableString t
 -- | The only method you'll ever need. It runs a Hiera server and gives you
 -- a querying function. The 'Nil' output is explicitely given as a Maybe
 -- type.
-startHiera :: FilePath -> IO (Either String (Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))))
+startHiera :: FilePath -> IO (Either String (HieraQueryFunc))
 startHiera hieraconfig = Y.decodeFileEither hieraconfig >>= \case
     Left ex -> return (Left (show ex))
     Right cfg -> do
@@ -92,14 +92,32 @@ startHiera hieraconfig = Y.decodeFileEither hieraconfig >>= \case
         return (Right (query cfg cache))
 
 -- | A dummy hiera function that will be used when hiera is not detected
-dummyHiera :: Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))
-dummyHiera _ _ = return (S.Right S.Nothing)
+dummyHiera :: HieraQueryFunc
+dummyHiera _ _ _ = return (S.Right S.Nothing)
 
-runUntilJ :: [IO (S.Maybe a)] -> IO (S.Maybe a)
-runUntilJ [] = return S.Nothing
-runUntilJ (x:xs) = x >>= \case
+-- | The combinator for "normal" queries
+queryCombinator :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
+queryCombinator [] = return S.Nothing
+queryCombinator (x:xs) = x >>= \case
     v@(S.Just _) -> return v
-    S.Nothing -> runUntilJ xs
+    S.Nothing -> queryCombinator xs
+
+-- | The combinator for hiera_array
+queryCombinatorArray :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
+queryCombinatorArray = fmap rejoin . sequence
+    where
+        rejoin = S.Just . PArray . V.concat . map toA
+        toA S.Nothing = V.empty
+        toA (S.Just (PArray r)) = r
+        toA (S.Just a) = V.singleton a
+
+-- | The combinator for hiera_array
+queryCombinatorHash :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
+queryCombinatorHash = fmap (S.Just . PHash . mconcat . map toH) . sequence
+    where
+        toH S.Nothing = mempty
+        toH (S.Just (PHash h)) = h
+        toH _ = throw (ErrorCall "The hiera value was not a hash")
 
 interpolateText :: Container ScopeInformation -> T.Text -> T.Text
 interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveInterpolable vars of
@@ -119,13 +137,17 @@ interpolatePValue v (PArray r) = PArray (fmap (interpolatePValue v) r)
 interpolatePValue v (PString t) = PString (interpolateText v t)
 interpolatePValue _ x = x
 
-query :: HieraConfig -> HieraCache -> Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))
-query (HieraConfig b h) cache vars hquery = fmap S.Right (runUntilJ (map query' h)) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
+query :: HieraConfig -> HieraCache -> HieraQueryFunc
+query (HieraConfig b h) cache vars hquery qtype = fmap S.Right (sequencerFunction (map query' h)) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
     where
+        sequencerFunction = case qtype of
+                                Priority   -> queryCombinator
+                                ArrayMerge -> queryCombinatorArray
+                                HashMerge  -> queryCombinatorHash
         query' :: InterpolableHieraString -> IO (S.Maybe PValue)
         query' (InterpolableHieraString strs) =
             case resolveInterpolable vars strs of
-                Just s -> runUntilJ (map (query'' s) b)
+                Just s -> sequencerFunction (map (query'' s) b)
                 Nothing -> return S.Nothing
         query'' :: T.Text -> HieraBackend -> IO (S.Maybe PValue)
         query'' hieraname backend = do

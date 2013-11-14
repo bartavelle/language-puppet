@@ -52,6 +52,14 @@ data PValue = PBoolean !Bool
             | PHash !(Container PValue)
             deriving (Eq, Show)
 
+-- | The different kind of hiera queries
+data HieraQueryType = Priority   -- ^ standard hiera query
+                    | ArrayMerge -- ^ hiera_array
+                    | HashMerge  -- ^ hiera_hash
+
+-- | The type of the Hiera API function
+type HieraQueryFunc = Container ScopeInformation -> T.Text -> HieraQueryType -> IO (S.Either Doc (S.Maybe PValue))
+
 data RSearchExpression
     = REqualitySearch !T.Text !PValue
     | RNonEqualitySearch !T.Text !PValue
@@ -136,7 +144,7 @@ data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Conta
                                            , _pdbAPI                  :: PuppetDBAPI
                                            , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
                                            , _thisNodename            :: T.Text
-                                           , _hieraQuery              :: Container ScopeInformation -> T.Text -> IO (S.Either Doc (S.Maybe PValue))
+                                           , _hieraQuery              :: HieraQueryFunc
                                            }
 
 data Warning = Warning !Doc
