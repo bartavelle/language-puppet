@@ -24,6 +24,15 @@ type PPosition = Pair Position Position
 
 type Position = SourcePos
 
+lSourceName :: Lens' Position SourceName
+lSourceName = lens sourceName setSourceName
+
+lSourceLine :: Lens' Position Line
+lSourceLine = lens sourceLine setSourceLine
+
+lSourceColumn :: Lens' Position Column
+lSourceColumn = lens sourceColumn setSourceColumn
+
 initialPPos :: T.Text -> PPosition
 initialPPos x =
     let i = initialPos (T.unpack x)

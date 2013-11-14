@@ -708,6 +708,17 @@ mainFunctionCall "tag" args = do
     return []
 mainFunctionCall "fail" [x] = fmap (("fail:" <+>) . dullred . ttext) (resolvePValueString x) >>= throwPosError
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
+mainFunctionCall "hiera_include" [x] = do
+    ndname <- resolvePValueString x
+    classes <- runHiera ndname ArrayMerge >>= \case
+                    S.Just (PArray r) -> return (toList r)
+                    _ -> return []
+    p <- use curPos
+    curPos %= (_1 . lSourceName %~ (<> " [hiera_include call]"))
+    o <- mainFunctionCall "include" classes
+    curPos .= p
+    return o
+mainFunctionCall "hiera_include" _ = throwPosError "hiera_include(): This function takes a single argument"
 mainFunctionCall fname args = do
     p <- use curPos
     let representation = MainFunctionCall fname mempty p
@@ -717,7 +728,6 @@ mainFunctionCall fname args = do
         Nothing -> throwPosError ("Unknown function:" <+> pretty representation)
     unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs <$> pretty representation)
     return []
-
 -- Method stuff
 
 evaluateHFC :: HFunctionCall -> InterpreterMonad [Resource]
