@@ -17,7 +17,7 @@ parameterfunctions =
     [("allowdupe"               , [string, defaultvalue "false", values ["true","false"]])
     ,("attribute_membership"    , [string, defaultvalue "minimum", values ["inclusive","minimum"]])
     ,("attributes"              , [rarray,strings])
-    ,("auth_membership"         , [defaultvalue "true"])
+    ,("auth_membership"         , [defaultvalue "minimum", string, values ["inclusive","minimum"]])
     ,("auths"                   , [rarray,strings])
     ,("comment"                 , [string])
     ,("ensure"                  , [defaultvalue "present", string, values ["present","absent","role"]])

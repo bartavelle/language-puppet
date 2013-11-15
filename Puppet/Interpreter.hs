@@ -580,6 +580,7 @@ loadClass rclassname params cincludetype = do
                     -- not done through loadvariable because of override
                     -- errors
                     scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p :!: ContClass classname)
+                    scopes . ix "::" . scopeVariables . at "calling_module"   ?= (PString modulename :!: p :!: ContClass classname) -- hiera compatibility :(
                     loadParameters params classParams cp (S.Just classname)
                     curPos .= cp
                     res <- evaluateStatementsVector stmts

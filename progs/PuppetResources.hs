@@ -112,11 +112,12 @@ import Data.Monoid hiding (First)
 import qualified Text.Parsec as P
 import qualified Data.Vector as V
 import qualified Data.Either.Strict as S
-import Options.Applicative as O
+import Options.Applicative as O hiding ((&))
 import Control.Monad
 import Text.Regex.PCRE.String
 import Data.Text.Strict.Lens
--- import Data.Aeson
+import Data.Aeson (encode)
+import Control.Lens as L
 
 import Facter
 
@@ -177,6 +178,37 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _hieraFile    :: Maybe FilePath
                                } deriving Show
 
+prepareForPuppetApply :: WireCatalog -> WireCatalog
+prepareForPuppetApply w =
+    let res = V.filter (\r -> r ^. rvirtuality == Normal) (w ^. wResources) :: V.Vector Resource
+        -- step 1 : capitalize resources types (and names in case of
+        -- classes), and filter out exported stuff
+        capi :: RIdentifier -> RIdentifier
+        capi r = r & itype %~ capitalizeRT & if r ^. itype == "class"
+                                                then iname %~ capitalizeRT
+                                                else id
+        aliasMap :: HM.HashMap RIdentifier T.Text
+        aliasMap = HM.fromList $ concatMap genAliasList (res ^.. folded)
+        genAliasList r = map (\n -> (RIdentifier (r ^. rid . itype) n, r ^. rid . iname)) (r ^. rid . iname : r ^.. ralias . folded)
+        nr = V.map (rid %~ capi) res
+        ne = V.map capEdge (w ^. wEdges)
+        capEdge (PuppetEdge a b x) = PuppetEdge (capi a) (capi b) x
+        -- step 2 : replace all references with the resource title in case
+        -- of aliases - yes this sucks
+        knownEdge :: PuppetEdge -> Bool
+        knownEdge (PuppetEdge s d _) = (aliasMap ^. contains s) && (aliasMap ^. contains d)
+        correctEdges = V.map correctEdge $ V.filter knownEdge ne
+        correctResources = V.map correctResource nr
+        correct :: RIdentifier -> RIdentifier
+        correct ri = ri & iname %~ \n -> HM.lookupDefault n ri aliasMap
+        correctEdge :: PuppetEdge -> PuppetEdge
+        correctEdge (PuppetEdge s d x) = PuppetEdge (correct s) (correct d) x
+        correctResource :: Resource -> Resource
+        correctResource r = r & rrelations %~ HM.fromList . filter (\(x,_) -> aliasMap ^. contains x) . map (_1 %~ correct) . HM.toList
+    in   (wResources .~ correctResources)
+       . (wEdges     .~ correctEdges)
+       $ w
+
 cmdlineParser :: Parser CommandLine
 cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority <*> optional hiera
     where
@@ -230,7 +262,8 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename)
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
     (rawcatalog,m,rawexported) <- queryfunc tnodename
-    void $ replaceCatalog pdbapi (generateWireCatalog tnodename (rawcatalog <> rawexported) m)
+    let wireCatalog = generateWireCatalog tnodename (rawcatalog <> rawexported) m
+    void $ replaceCatalog pdbapi wireCatalog
     void $ commitDB pdbapi
     let cmpMatch Nothing _ curcat = return curcat
         cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
@@ -243,8 +276,8 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename)
         filterCatalog = cmpMatch mrt (_1 . itype . unpacked) >=> cmpMatch mrn (_1 . iname . unpacked)
     catalog  <- filterCatalog rawcatalog
     exported <- filterCatalog rawexported
-    case (showcontent, showjson)  of
-        (_, True) -> BSL.putStrLn ("TODO JSON MODE")
+    case (showcontent, showjson) of
+        (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
         (True, _) -> do
             unless (mrt == Just "file" || mrt == Nothing) (error $ "Show content only works for file, not for " ++ show mrt)
             case mrn of

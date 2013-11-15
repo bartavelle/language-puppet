@@ -64,15 +64,14 @@ checkParameterList validparameters res | HS.null validparameters = Right res
         keyset = HS.fromList $ HM.keys (res ^. rattributes)
         setdiff = HS.difference keyset (metaparameters `HS.union` validparameters)
 
--- | This validator always accept the resources, but add the default parameters
--- (such as title).
+-- | This validator always accept the resources, but add the default parameters (to be defined :)
 addDefaults :: PuppetTypeValidate
 addDefaults res = Right (res & rattributes %~ newparams)
     where
         def PUndef = False
         def _ = True
         newparams p = HM.filter def $ HM.union p defaults
-        defaults    = HM.fromList [("title", PString (res ^. rid ^. iname))]
+        defaults    = HM.empty
 
 -- | Helper function that runs a validor on a PArray
 runarray :: T.Text -> (T.Text -> PValue -> PuppetTypeValidate) -> PuppetTypeValidate

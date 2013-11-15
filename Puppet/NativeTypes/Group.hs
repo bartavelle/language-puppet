@@ -18,7 +18,7 @@ parameterfunctions =
     [("allowdupe"               , [string, defaultvalue "false", values ["true","false"]])
     ,("attribute_membership"    , [string, defaultvalue "minimum", values ["inclusive","minimum"]])
     ,("attributes"              , [strings])
-    ,("auth_membership"         , [defaultvalue "true"])
+    ,("auth_membership"         , [defaultvalue "minimum", string, values ["inclusive","minimum"]])
     ,("ensure"                  , [defaultvalue "present", string, values ["present","absent"]])
     ,("gid"                     , [integer])
     ,("ia_load_module"          , [string])

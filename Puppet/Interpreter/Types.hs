@@ -445,7 +445,11 @@ rel2text RBefore = "before"
 rel2text RSubscribe = "subscribe"
 
 rid2text :: RIdentifier -> T.Text
-rid2text (RIdentifier t n) = t `T.append` "[" `T.append` n `T.append` "]"
+rid2text (RIdentifier t n) = capitalizeRT t `T.append` "[" `T.append` capn `T.append` "]"
+    where
+        capn = if t == "classe"
+                   then capitalizeRT n
+                   else n
 
 instance ToJSON Resource where
     toJSON r = object [ ("type", String $ r ^. rid . itype)
