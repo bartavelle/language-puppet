@@ -6,8 +6,8 @@ v0.10.3 ()
 	* is_virtual fact
 	* new stdlib functions: flatten, str2bool, validate_absolute_path
 	* Hiera support
-	lookups are not supported yet
 	* JSON output that is compatible with "puppet apply"
+	* New addfacts command for the pdbquery utility
   Bugs fixed
 	* Deserialization problems with puppetDBs
 	* Fixed several bugs with imported resources

@@ -15,6 +15,7 @@ import qualified Data.Either.Strict as S
 import Data.Vector.Lens
 
 data PDBType = PDBRemote | PDBDummy | PDBTest
+             deriving Eq
 
 instance Read PDBType where
     readsPrec _ r | isJust reml = [(PDBRemote, fromJust reml)]

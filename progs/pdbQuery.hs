@@ -5,6 +5,7 @@ import Puppet.Interpreter.Types
 import PuppetDB.Common
 import PuppetDB.TestDB
 import PuppetDB.Remote
+import Facter
 
 import Options.Applicative as O
 import qualified Data.Text as T
@@ -14,7 +15,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Either.Strict as S
 import Control.Lens
 import qualified Data.HashMap.Strict as HM
-import Control.Monad (forM_)
+import Control.Monad (forM_,unless)
 import qualified Data.Vector as V
 
 data CommandLine = CommandLine { _pdbloc :: Maybe FilePath
@@ -28,6 +29,7 @@ data Command = DumpFacts
              | DeactivateNode T.Text
              | DumpResources T.Text
              | CreateTestDB FilePath
+             | AddFacts T.Text
 
 factedit :: Parser Command
 factedit = EditFact <$> O.argument (Just . T.pack) mempty <*> O.argument (Just . T.pack) mempty
@@ -40,6 +42,9 @@ delnodeparser = DeactivateNode <$> O.argument (Just . T.pack) mempty
 
 createtestdb :: Parser Command
 createtestdb = CreateTestDB <$> O.argument Just mempty
+
+addfacts :: Parser Command
+addfacts = AddFacts <$> O.argument (Just . T.pack) mempty
 
 cmdlineParser :: Parser CommandLine
 cmdlineParser = CommandLine <$> optional pl <*> pt <*> cmd
@@ -59,6 +64,7 @@ cmdlineParser = CommandLine <$> optional pl <*> pt <*> cmd
                         <> command "delnode"   (ParserInfo delnodeparser    True "Deactivate node"    "Deactivate node"    "" 6)
                         <> command "nodes"     (ParserInfo (pure DumpNodes) True "Dump all nodes"     "Dump all nodes"     "" 8)
                         <> command "snapshot"  (ParserInfo createtestdb     True "Create a test DB from the current DB" "" "" 10)
+                        <> command "addfacts"  (ParserInfo addfacts         True "Adds facts to the test DB for the given node name, if they are not already defined" "" "" 11)
                         )
 
 display :: (Show r, ToJSON a) => String -> S.Either r a -> IO ()
@@ -74,12 +80,17 @@ run cmdl = do
     pdbapi <- case epdbapi of
                   S.Left r -> error (show r)
                   S.Right x -> return x
+    let getOrError s (S.Left rr) = error (s <> " " <> show rr)
+        getOrError _ (S.Right x) = return x
     case _pdbcmd cmdl of
         DumpFacts -> getFacts pdbapi QEmpty >>= display "get facts"
         DumpNodes -> getNodes pdbapi QEmpty >>= display "dump nodes"
+        AddFacts n -> do
+            unless (_pdbtype cmdl == PDBTest) (error "This option only works with the test puppetdb")
+            fcts <- puppetDBFacts n pdbapi
+            replaceFacts pdbapi [(n, fcts)] >>= getOrError "replace facts"
+            commitDB pdbapi >>= getOrError "commit db"
         CreateTestDB destfile -> do
-            let getOrError s (S.Left rr) = error (s <> " " <> show rr)
-                getOrError _ (S.Right x) = return x
             ndb <- loadTestDB destfile >>= getOrError "puppetdb load"
             allnodes <- getNodes pdbapi QEmpty >>= getOrError "get nodes"
             allfacts <- getFacts pdbapi QEmpty >>= getOrError "get facts"
