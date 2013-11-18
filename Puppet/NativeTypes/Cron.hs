@@ -19,8 +19,8 @@ parameterset = HS.fromList $ map fst parameterfunctions
 
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
-    [("command"             , [string, mandatory])
-    ,("ensure"              , [defaultvalue "present", string, values ["present","absent"]])
+    [("ensure"              , [defaultvalue "present", string, values ["present","absent"]])
+    ,("command"             , [string, mandatoryNotAbsent])
     ,("environment"         , [])
     ,("hour"                , [vrange 0 23 [] ])
     ,("minute"              , [vrange 0 59 [] ])
