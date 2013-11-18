@@ -186,7 +186,7 @@ data ModifierType = ModifierCollector -- ^ For collectors, optional resources
 
 data OverrideType = CantOverride -- ^ Overriding forbidden, will throw an error
                   | Replace -- ^ Can silently replace
-                  | CantReplace
+                  | CantReplace -- ^ Silently ignore errors
 
 data ResourceCollectorType = RealizeVirtual
                            | RealizeCollected

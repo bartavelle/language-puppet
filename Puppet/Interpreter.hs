@@ -83,14 +83,17 @@ finalize rlist = do
                     addOverrides' r x
                 Nothing -> return r
         addOverrides' r (ResRefOverride _ prms p) = do
-            let inter = (r ^. rattributes) `HM.intersection` prms
-            unless (fnull inter) $ do
-                s <- getScopeName
-                i <- case r ^. rscope of
-                         []    -> return False
-                         (x:_) -> isParent s x
-                unless i $ throwPosError ("You are not allowed to override the following parameters " <+> containerComma inter <+> "already defined at" <+> showPPos p)
-            return (r & rattributes %~ (<>) prms)
+            let forb = throwPosError ("Override of parameters of the following resource is forbidden in the current context:" </> pretty r <+>  showPPos p)
+            s <- getScope
+            overrideType <- case r ^. rscope of
+                                [] -> forb -- we could not get the current resource context
+                                (x:_) -> if x == s
+                                             then return CantOverride -- we are in the same context : can't replace, but add stuff
+                                             else isParent (scopeName s) x >>= \i ->
+                                                if i
+                                                    then return Replace -- we can override what's defined in a parent
+                                                    else forb
+            foldM (\cr a -> addAttribute overrideType cr a) r (HM.toList prms)
     withDefaults <- mapM (addOverrides >=> addDefaults) rlist
     -- There might be some overrides that could not be applied. The only
     -- valid reason is that they override something in exported resources.
@@ -394,6 +397,7 @@ evaluateStatement (ResourceOverride rt urn eargs p) = do
     scp <- getScopeName
     curoverrides <- use (scopes . ix scp . scopeOverrides)
     let rident = RIdentifier rt rn
+    -- check that we didn't already override those values
     withAssignements <- case curoverrides ^. at rident of
                             Just (ResRefOverride _ prevass prevpos) -> do
                                 let cm = prevass `HM.intersection` raassignements
@@ -444,7 +448,7 @@ loadParameters :: Foldable f => Container PValue -> f (Pair T.Text (S.Maybe Expr
 loadParameters params classParams defaultPos wHiera = do
     params' <- case wHiera of
         S.Just classname -> do
-            -- pass 1 : we retrieve the paramters that have no default values and
+            -- pass 1 : with classes, we retrieve the parameters that have no default values and
             -- that are not set, to try to get them with Hiera
             let !classParamSet   = HS.fromList (fmap S.fst (classParams ^.. folded))
                 !definedParamSet = ikeys params
@@ -627,7 +631,7 @@ addAttribute b r (t,v) = case (r ^. rattributes . at t, b) of
                                  i <- isParent curscope (rcurcontainer r)
                                  if i
                                      then return (r & rattributes . at t ?~ v)
-                                     else throwPosError ("Attribute" <+> ttext t <+> "defined multiple times for" <+> pretty (r ^. rid) <+> showPPos (r ^. rpos))
+                                     else throwPosError ("Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty (r ^. rid) <+> showPPos (r ^. rpos))
 
 registerResource :: T.Text -> T.Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"
