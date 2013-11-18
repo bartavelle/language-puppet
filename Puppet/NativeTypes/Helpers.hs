@@ -20,7 +20,7 @@ module Puppet.NativeTypes.Helpers
     , integer
     , integers
     , mandatory
-    , mandatoryNotAbsent
+    , mandatoryIfNotAbsent
     , inrange
     , faketype
     , defaulttype
