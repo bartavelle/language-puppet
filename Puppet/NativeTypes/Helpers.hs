@@ -20,6 +20,7 @@ module Puppet.NativeTypes.Helpers
     , integer
     , integers
     , mandatory
+    , mandatoryNotAbsent
     , inrange
     , faketype
     , defaulttype
@@ -140,6 +141,14 @@ nameval prm res = string prm res
                                   Just (PString al) -> Right (res & rid . iname .~ al)
                                   Just x -> Left ("The alias must be a string, not" <+> pretty x)
                                   Nothing -> Right (r & rattributes . at prm ?~ PString (r ^. rid . iname))
+
+-- | Checks that a given parameter is set unless the resources "ensure" is set to absent
+mandatoryIfNotAbsent :: T.Text -> PuppetTypeValidate
+mandatoryIfNotAbsent param res = case res ^. rattributes . at param of
+    Just _  -> Right res
+    Nothing -> case res ^. rattributes . at "ensure" of
+                   Just "absent" -> Right res
+                   _ -> Left $ "Parameter" <+> paramname param <+> "should be set."
 
 -- | Checks that a given parameter is set.
 mandatory :: T.Text -> PuppetTypeValidate
