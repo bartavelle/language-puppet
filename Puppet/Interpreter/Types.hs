@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, TemplateHaskell, CPP, ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase #-}
+{-# LANGUAGE DeriveGeneric, TemplateHaskell, CPP, ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase, FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Puppet.Interpreter.Types where
 
@@ -58,7 +58,7 @@ data HieraQueryType = Priority   -- ^ standard hiera query
                     | HashMerge  -- ^ hiera_hash
 
 -- | The type of the Hiera API function
-type HieraQueryFunc = Container ScopeInformation -> T.Text -> HieraQueryType -> IO (S.Either Doc (S.Maybe PValue))
+type HieraQueryFunc = Container ScopeInformation -> T.Text -> HieraQueryType -> IO (S.Either Doc (Pair InterpreterWriter (S.Maybe PValue)))
 
 data RSearchExpression
     = REqualitySearch !T.Text !PValue
@@ -147,17 +147,17 @@ data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Conta
                                            , _hieraQuery              :: HieraQueryFunc
                                            }
 
-data Warning = Warning !Doc
+newtype Warning = Warning Doc
 
-data InterpreterWriter = InterpreterWriter { _warnings :: ![Pair Priority Doc] }
+newtype InterpreterWriter = InterpreterWriter { _warnings :: [Pair Priority Doc] }
 
-warn :: Doc -> InterpreterMonad ()
+warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
 warn d = tell (InterpreterWriter [WARNING :!: d])
 
-debug :: Doc -> InterpreterMonad ()
+debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
 debug d = tell (InterpreterWriter [DEBUG :!: d])
 
-logWriter :: Priority -> Doc -> InterpreterMonad ()
+logWriter :: (Monad m, MonadWriter InterpreterWriter m) => Priority -> Doc -> m ()
 logWriter prio d = tell (InterpreterWriter [prio :!: d])
 
 instance Monoid InterpreterWriter where

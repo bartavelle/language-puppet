@@ -35,4 +35,4 @@ genPreferences basedir = do
         templatedir = basedir <> "/templates"
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    return $ Preferences manifestdir modulesdir templatedir 4 4 dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just "hiera.yaml")
+    return $ Preferences manifestdir modulesdir templatedir 4 4 dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just (basedir <> "/hiera.yaml"))

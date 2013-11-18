@@ -1,11 +1,13 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, LambdaCase #-}
 module Puppet.Testing
     ( module Control.Lens
     , module Data.Monoid
     , module Puppet.PP
     , module Puppet.Interpreter.Types
+    , H.hspec
     , basicTest
     , testingDaemon
+    , defaultDaemon
     , testCatalog
     , describeCatalog
     , it
@@ -29,6 +31,8 @@ import qualified Test.Hspec as H
 import qualified Test.Hspec.Formatters as H
 import qualified Test.Hspec.Runner as H
 import qualified Test.Hspec.Core as HC
+import Facter
+import PuppetDB.Common
 
 import Puppet.Preferences
 import Puppet.PP
@@ -94,14 +98,21 @@ hTestFileSources = do
 
 -- | Initializes a daemon made for running tests, using the specific test
 -- puppetDB
-testingDaemon :: Maybe T.Text -- ^ Might contain the URL of the actual PuppetDB, used for getting facts.
+testingDaemon :: PuppetDBAPI -- ^ Contains the puppetdb API functions
               -> FilePath -- ^ Path to the manifests
               -> (T.Text -> IO (Container T.Text)) -- ^ The facter function
               -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog)))
-testingDaemon purl pdir allFacts = do
+testingDaemon pdb pdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
     prefs <- genPreferences pdir
-    q <- initDaemon (prefs { _compilePoolSize = 8, _parsePoolSize = 2 })
+    q <- initDaemon (prefs { _compilePoolSize = 8, _parsePoolSize = 2, _prefPDB = pdb })
     return (\nodname -> allFacts nodname >>= _dGetCatalog q nodname)
 
+-- | A default testing daemon.
+defaultDaemon :: FilePath -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog)))
+defaultDaemon pdir = do
+    pdb <- getDefaultDB PDBTest >>= \case
+                S.Left x -> error (show x)
+                S.Right y -> return y
+    testingDaemon pdb pdir (flip puppetDBFacts pdb)
 

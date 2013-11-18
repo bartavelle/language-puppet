@@ -26,7 +26,6 @@ import Control.Lens
 import Control.Monad
 import Control.Concurrent
 import qualified Data.Either.Strict as S
-import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict
 import Control.Exception
 

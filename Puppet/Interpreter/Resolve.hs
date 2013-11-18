@@ -37,6 +37,7 @@ import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Base16 as B16
 import Text.Regex.PCRE.ByteString.Utils
 import Data.Bits
+import Control.Monad.RWS.Strict (tell)
 
 type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
 
@@ -45,7 +46,9 @@ runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (S.Maybe PValue)
 runHiera q t = do
     hquery <- view hieraQuery
     scps <- use scopes
-    interpreterIO (hquery scps q t)
+    (w :!: o) <- interpreterIO (hquery scps q t)
+    tell w
+    return o
 
 -- | The implementation of all hiera functions
 hieraCall :: HieraQueryType -> PValue -> (Maybe PValue) -> (Maybe PValue) -> InterpreterMonad PValue
