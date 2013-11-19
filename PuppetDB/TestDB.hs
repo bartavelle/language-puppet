@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase #-}
 module PuppetDB.TestDB (loadTestDB,initTestDB) where
 
--- import Data.Aeson
 import Data.Yaml
 import qualified Data.Text as T
 import qualified Data.Either.Strict as S
@@ -32,7 +31,13 @@ makeFields ''DBContent
 type DB = TVar DBContent
 
 instance FromJSON DBContent where
-    parseJSON (Object v) = DBContent <$> v .: "resources" <*> v .: "facts" <*> pure Nothing
+    parseJSON (Object v) = do
+        let toText :: Value -> Parser T.Text
+            toText (String m) = pure m
+            toText (Number n) = pure (T.pack (show n))
+            toText x = fail ("Could not convert " ++ show x ++ " to a string when parsing facts")
+        fcts <- v .: "facts" >>= traverse (traverse toText)
+        DBContent <$> v .: "resources" <*> pure fcts <*> pure Nothing
     parseJSON _ = mempty
 
 instance ToJSON DBContent where
