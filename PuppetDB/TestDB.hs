@@ -13,7 +13,6 @@ import Control.Applicative
 import Data.List (foldl')
 import Text.Parsec.Pos
 import Data.CaseInsensitive
-import Debug.Trace
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
@@ -48,7 +47,7 @@ loadTestDB :: FilePath -> IO (S.Either Doc PuppetDBAPI)
 loadTestDB fp =
     decodeFileEither fp >>= \case
         Left (OtherParseException rr) -> return (S.Left (string (show rr)))
-        Left rr -> trace ("Warning: could not decode " ++ fp ++ " :" ++ show rr) (S.Right <$> genDBAPI (newDB & backingFile ?~ fp ))
+        Left _ -> S.Right <$> genDBAPI (newDB & backingFile ?~ fp )
         Right x -> fmap S.Right (genDBAPI (x & backingFile ?~ fp ))
 
 

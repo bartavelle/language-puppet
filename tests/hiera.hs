@@ -32,9 +32,10 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
         pusers = HM.fromList [ ("bob", PHash (HM.singleton "uid" "100"))
                              , ("tom" , PHash (HM.singleton "uid" "12"))
                              ]
-    Right q <- startHiera (tmpfp ++ "/hiera.yaml")
-    let checkOutput v (S.Right x) = x @?= v
+    Right rq <- startHiera (tmpfp ++ "/hiera.yaml")
+    let checkOutput v (S.Right (_ :!: x)) = x @?= v
         checkOutput _ (S.Left rr) = assertFailure (show rr)
+        q = rq
     hspec $ do
         describe "lookup data without a key" $ do
             it "returns an error when called with an empty string" $ q mempty "" Priority >>= checkOutput S.Nothing
