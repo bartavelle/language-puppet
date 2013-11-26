@@ -8,6 +8,7 @@ v0.10.3 ()
 	* Hiera support
 	* JSON output that is compatible with "puppet apply"
 	* New addfacts command for the pdbquery utility
+	* Support for the classes variable in templates
   Bugs fixed
 	* Deserialization problems with puppetDBs
 	* Fixed several bugs with imported resources

@@ -10,6 +10,7 @@ import Puppet.Parser.PrettyPrinter()
 import Data.Version (parseVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
 
+import Data.Maybe (fromMaybe)
 import Data.Aeson hiding ((.=))
 import Data.CaseInsensitive  ( mk )
 import qualified Data.Vector as V
@@ -424,10 +425,17 @@ pdbresourcequery q key = do
 calcTemplate :: (T.Text -> Either T.Text T.Text) -> PValue -> InterpreterMonad PValue
 calcTemplate templatetype templatename = do
     fname       <- resolvePValueString templatename
-    scps        <- use scopes
+    classes     <- (PArray . V.fromList . map PString . HM.keys) `fmap` use loadedClasses
     scp         <- getScopeName
+    scps        <- use scopes
+    -- inject the special template variables (just classes for now)
+    let cd = fromMaybe ContRoot (scps ^? ix scp . scopeContainer . cctype) -- get the current containder description
+        -- Inject the classes variable. Note that we are relying on the
+        -- invariant that the scope is already entered, and hence present
+        -- in the scps container.
+        cscps = scps & ix scp . scopeVariables . at "classes" ?~ ( classes :!: initialPPos "dummy" :!: cd )
     computeFunc <- view computeTemplateFunction
-    liftIO (computeFunc (templatetype fname) scp scps)
+    liftIO (computeFunc (templatetype fname) scp cscps)
         >>= \case
             S.Left rr -> throwPosError ("template error for" <+> ttext fname <+> ":" <$> rr)
             S.Right r -> return (PString r)
