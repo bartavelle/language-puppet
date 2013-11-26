@@ -37,7 +37,7 @@ parameterfunctions =
     ,("replace"     , [string, values ["true","false"]])
     ,("sourceselect", [values ["first","all"]])
     ,("target"      , [string])
-    ,("source"      , [])
+    ,("source"      , [rarray, strings, flip runarray checkSource])
     ]
 
 validateFile :: PuppetTypeValidate
@@ -63,3 +63,9 @@ validateSourceOrContent res = let
     in if source && content
         then Left "Source and content can't be specified at the same time"
         else Right res
+
+checkSource :: T.Text -> PValue -> PuppetTypeValidate
+checkSource _ (PString x) res | "puppet://" `T.isPrefixOf` x = Right res
+                              | "file://" `T.isPrefixOf` x = Right res
+                              | otherwise = throwError "A source should start with either puppet:// or file://"
+checkSource _ x _ = throwError ("Expected a string, not" <+> pretty x)

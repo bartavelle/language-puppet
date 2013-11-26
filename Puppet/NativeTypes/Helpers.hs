@@ -24,6 +24,7 @@ module Puppet.NativeTypes.Helpers
     , inrange
     , faketype
     , defaulttype
+    , runarray
     ) where
 
 import Puppet.PP hiding (string,integer)
