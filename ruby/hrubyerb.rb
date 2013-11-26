@@ -7,6 +7,10 @@ class Scope
         @variables = variables
     end
 
+    def [](key)
+        lookupvar(key)
+    end
+
     def vl(name)
         if name.start_with?("::")
             name = name[2..-1]

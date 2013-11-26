@@ -7,6 +7,10 @@ class Scope
         @context = ctx
     end
 
+    def [](key)
+        lookupvar(key)
+    end
+
     def lookupvar(name)
         if name.start_with?("::")
             name = name[2..-1]

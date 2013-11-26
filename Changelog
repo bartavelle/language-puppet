@@ -9,6 +9,8 @@ v0.10.3 ()
 	* JSON output that is compatible with "puppet apply"
 	* New addfacts command for the pdbquery utility
 	* Support for the classes variable in templates
+	* Support for @instance variables in inline_template
+	* Support for scope['key'] syntax in templates
   Bugs fixed
 	* Deserialization problems with puppetDBs
 	* Fixed several bugs with imported resources
