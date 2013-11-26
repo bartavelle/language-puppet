@@ -488,19 +488,24 @@ enterScope :: S.Maybe T.Text -> CurContainerDesc -> InterpreterMonad T.Text
 enterScope parent cont = do
     let scopename = scopeName cont
     scopeAlreadyDefined <- use (scopes . contains scopename)
-    when scopeAlreadyDefined (throwPosError ("Internal error: scope" <+> brackets (ttext scopename) <+> "already defined when loading scope for" <+> pretty cont))
-    scp <- getScopeName
-    -- TODO fill tags
-    basescope <- case parent of
-        S.Nothing -> do
-            curdefs <- use (scopes . ix scp . scopeDefaults)
-            return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty parent
-        S.Just p -> do
-            parentscope <- use (scopes . at p)
-            when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ttext p))
-            let Just psc = parentscope
-            return (psc & scopeParent .~ parent)
-    scopes . at scopename ?= basescope
+    let isImported = case cont of
+                         ContImported _ -> True
+                         _ -> False
+    -- it is OK to reuse a scope related to imported stuff
+    unless (scopeAlreadyDefined && isImported) $ do
+        when scopeAlreadyDefined (throwPosError ("Internal error: scope" <+> brackets (ttext scopename) <+> "already defined when loading scope for" <+> pretty cont))
+        scp <- getScopeName
+        -- TODO fill tags
+        basescope <- case parent of
+            S.Nothing -> do
+                curdefs <- use (scopes . ix scp . scopeDefaults)
+                return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty parent
+            S.Just p -> do
+                parentscope <- use (scopes . at p)
+                when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ttext p))
+                let Just psc = parentscope
+                return (psc & scopeParent .~ parent)
+        scopes . at scopename ?= basescope
     return scopename
 
 dropInitialColons :: T.Text -> T.Text
