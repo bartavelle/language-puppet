@@ -105,7 +105,7 @@ startHiera hieraconfig = Y.decodeFileEither hieraconfig >>= \case
 
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: HieraQueryFunc
-dummyHiera _ _ _ = return (S.Right (InterpreterWriter [] :!: S.Nothing))
+dummyHiera _ _ _ = return (S.Right ([] :!: S.Nothing))
 
 -- | The combinator for "normal" queries
 queryCombinator :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)

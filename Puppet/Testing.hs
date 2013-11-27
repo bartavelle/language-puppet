@@ -15,7 +15,7 @@ module Puppet.Testing
     ) where
 
 import Prelude hiding (notElem,all)
-import Control.Monad.RWS.Strict hiding ((<>))
+import Control.Monad.Trans.RSS.Strict
 import Control.Lens
 import Data.Foldable hiding (forM_)
 import Data.Maybe

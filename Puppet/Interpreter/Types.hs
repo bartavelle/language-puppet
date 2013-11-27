@@ -15,7 +15,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import Data.Tuple.Strict
-import Control.Monad.RWS.Strict hiding ((<>))
+import Control.Monad.Trans.RSS.Strict
+import Control.Monad.Writer hiding ((<>))
 import Control.Monad.Error
 import Control.Lens
 import Data.String (IsString(..))
@@ -149,22 +150,19 @@ data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Conta
 
 newtype Warning = Warning Doc
 
-newtype InterpreterWriter = InterpreterWriter { _warnings :: [Pair Priority Doc] }
+type InterpreterLog = Pair Priority Doc
+type InterpreterWriter = [InterpreterLog]
 
 warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-warn d = tell (InterpreterWriter [WARNING :!: d])
+warn d = tell [WARNING :!: d]
 
 debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-debug d = tell (InterpreterWriter [DEBUG :!: d])
+debug d = tell [DEBUG :!: d]
 
 logWriter :: (Monad m, MonadWriter InterpreterWriter m) => Priority -> Doc -> m ()
-logWriter prio d = tell (InterpreterWriter [prio :!: d])
+logWriter prio d = tell [prio :!: d]
 
-instance Monoid InterpreterWriter where
-    mempty = InterpreterWriter []
-    mappend (InterpreterWriter a) (InterpreterWriter b) = {-# SCC "mappendInterpreterWriter" #-} InterpreterWriter (a ++ b)
-
-type InterpreterMonad = ErrorT Doc (RWST InterpreterReader InterpreterWriter InterpreterState IO)
+type InterpreterMonad = ErrorT Doc (RSST InterpreterReader InterpreterLog InterpreterState IO)
 
 instance Error Doc where
     noMsg = empty

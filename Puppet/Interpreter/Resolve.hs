@@ -38,7 +38,7 @@ import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Base16 as B16
 import Text.Regex.PCRE.ByteString.Utils
 import Data.Bits
-import Control.Monad.RWS.Strict (tell)
+import Control.Monad.Writer (tell)
 
 type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
 

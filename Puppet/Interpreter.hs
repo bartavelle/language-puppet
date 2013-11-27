@@ -20,7 +20,7 @@ import qualified Data.Tuple.Strict as S
 import qualified Data.Either.Strict as S
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
-import Control.Monad.Trans.RWS.Strict
+import Control.Monad.Trans.RSS.Strict
 import Control.Monad.Error hiding (mapM,forM)
 import Control.Lens
 import qualified Data.Maybe.Strict as S
@@ -50,8 +50,8 @@ getCatalog gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery 
         factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts" :!: ContRoot)
         callervars = ifromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
         baseVars = isingleton "::" (ScopeInformation (factvars <> callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
-    (output, _, warnings) <- runRWST (runErrorT (computeCatalog ndename)) rdr stt
-    return (strictifyEither output :!: _warnings warnings)
+    (output, (_, warnings)) <- runRSST (runErrorT (computeCatalog ndename)) rdr (stt, [])
+    return (strictifyEither output :!: warnings)
 
 isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
 isParent _ (ContImport _ _) = return False -- no relationship through import
