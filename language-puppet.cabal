@@ -114,7 +114,7 @@ library
                         , hspec                >= 1.7.0  && <1.8.0
                         , yaml                 >= 0.8.0  && <0.9
                         , lens-aeson           >= 0.1.2  && <0.2
-                        , fixedWriter
+                        , stateWriter          >= 0.1.3  && <0.2
 
 Test-Suite test-lexer
   hs-source-dirs: tests

@@ -9,9 +9,12 @@ import Text.Parsec.Combinator
 import Text.Parsec.Language (emptyDef)
 import Erb.Ruby
 import Text.Parsec.Expr
+import Text.Parsec.Pos
 import qualified Text.Parsec.Token as P
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Control.Monad.Identity
+import Control.Exception (catch,SomeException)
 
 def :: P.GenLanguageDef String u Identity
 def = emptyDef
@@ -152,6 +155,10 @@ erbparser :: Parser [RubyStatement]
 erbparser = textblock
 
 parseErbFile :: FilePath -> IO (Either ParseError [RubyStatement])
-parseErbFile fname = do
-    input <- readFile fname
-    return (runParser erbparser () fname input)
+parseErbFile fname = parseContent `catch` handler
+    where
+        parseContent = (runParser erbparser () fname . T.unpack) `fmap` T.readFile fname
+        handler e = let msg = show (e :: SomeException)
+                    in  return $ Left $ newErrorMessage (Message msg) (initialPos fname)
+
+

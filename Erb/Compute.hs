@@ -105,7 +105,7 @@ computeTemplate fileinfo curcontext variables mstats filecache = do
                                     Right x -> (x, T.unpack x)
     parsed <- case fileinfo of
                   Right _      -> measure mstats ("parsing - " <> filename) $ lazyQuery filecache ufilename $ parseErbFile ufilename
-                  Left content -> measure mstats ("parsing - " <> filename) (return (runParser erbparser () "inline" (T.unpack content)))
+                  Left content -> measure mstats ("parsing - " <> filename) $ return (runParser erbparser () "inline" (T.unpack content))
     case parsed of
         Left err -> do
             let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show err
@@ -149,7 +149,7 @@ hrresolveVariable _ rscp rvariables rtoresolve = do
         Right r -> toRuby r
 
 computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO TemplateAnswer
-computeTemplateWRuby fileinfo curcontext variables = freezeGC $ do
+computeTemplateWRuby fileinfo curcontext variables = freezeGC $ eitherDocIO $ do
     rscp <- embedHaskellValue curcontext
     rvariables <- embedHaskellValue variables
     let varlist = variables ^. ix curcontext . scopeVariables

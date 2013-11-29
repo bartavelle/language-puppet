@@ -162,7 +162,7 @@ debug d = tell [DEBUG :!: d]
 logWriter :: (Monad m, MonadWriter InterpreterWriter m) => Priority -> Doc -> m ()
 logWriter prio d = tell [prio :!: d]
 
-type InterpreterMonad = ErrorT Doc (RSST InterpreterReader InterpreterLog InterpreterState IO)
+type InterpreterMonad = ErrorT Doc (RSST InterpreterReader InterpreterWriter InterpreterState IO)
 
 instance Error Doc where
     noMsg = empty
@@ -382,10 +382,16 @@ instance FromRuby PValue where
                            Success suc -> return (Just suc)
 #endif
 
+eitherDocIO :: IO (S.Either Doc a) -> IO (S.Either Doc a)
+eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ dullred $ text $ show (e :: SomeException))
+    where
+        check (S.Left r) = return (S.Left r)
+        check (S.Right x) = return (S.Right x)
+
 interpreterIO :: IO (S.Either Doc a) -> InterpreterMonad a
 {-# INLINE interpreterIO #-}
 interpreterIO f = do
-    liftIO (f `catch` (\e -> return $ S.Left $ dullred $ text $ show (e :: SomeException))) >>= \case
+    liftIO (eitherDocIO f) >>= \case
         S.Right x -> return x
         S.Left rr -> throwPosError rr
 
