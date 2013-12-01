@@ -117,6 +117,7 @@ import Control.Monad
 import Text.Regex.PCRE.String
 import Data.Text.Strict.Lens
 import Data.Aeson (encode)
+import Data.Yaml (decodeFileEither)
 import Control.Lens as L
 
 import Facter
@@ -143,11 +144,12 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> Maybe FilePath -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
-initializedaemonWithPuppet prio pdbapi puppetdir hierapath = do
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> Maybe FilePath -> Facts -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+initializedaemonWithPuppet prio pdbapi puppetdir hierapath fcts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel prio)
     q <- fmap ((prefPDB .~ pdbapi) . (hieraPath .~ hierapath)) (genPreferences puppetdir) >>= initDaemon
-    let f ndename = puppetDBFacts ndename pdbapi
+    let overrideFacts m = fcts `HM.union` m
+        f ndename = fmap overrideFacts (puppetDBFacts ndename pdbapi)
             >>= _dGetCatalog q ndename
             >>= \case
                     S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
@@ -176,6 +178,7 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _pdbfile      :: Maybe FilePath
                                , _loglevel     :: LOG.Priority
                                , _hieraFile    :: Maybe FilePath
+                               , _factsFile    :: Maybe FilePath
                                } deriving Show
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
@@ -210,7 +213,7 @@ prepareForPuppetApply w =
        $ w
 
 cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority <*> optional hiera
+cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority <*> optional hiera <*> optional fcts
     where
         sc = switch (  long "showcontent"
                     <> short 'c'
@@ -243,11 +246,20 @@ cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T
                           <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
                           <> value LOG.WARNING
                           )
+        fcts = strOption (  long "facts"
+                         <> help "Path to a Yaml file containing a list of 'facts' that will override locally resolved facts"
+                         )
+
+loadFactsOverrides :: FilePath -> IO Facts
+loadFactsOverrides fp = decodeFileEither fp >>= \case
+    Left rr -> error ("Error when parsing " ++ fp ++ ": " ++ show rr)
+    Right x -> return x
+
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing _ _ _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename) mpdbf prio hpath) = do
+run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename) mpdbf prio hpath fcts) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> rr))
         checkError _ (S.Right x) = return x
         tnodename = T.pack ndename
@@ -256,7 +268,10 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename)
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
                   (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir hpath
+    !factsOverrides <- case fcts of
+                          Nothing -> return mempty
+                          Just p -> loadFactsOverrides p
+    queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""

@@ -11,6 +11,7 @@ v0.10.3 ()
 	* Support for the classes variable in templates
 	* Support for @instance variables in inline_template
 	* Support for scope['key'] syntax in templates
+	* Support for facts overriding with puppetresources
   Bugs fixed
 	* Deserialization problems with puppetDBs
 	* Fixed several bugs with imported resources
