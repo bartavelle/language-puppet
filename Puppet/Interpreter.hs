@@ -50,7 +50,7 @@ getCatalog gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery 
         factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts" :!: ContRoot)
         callervars = ifromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
         baseVars = isingleton "::" (ScopeInformation (factvars <> callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
-    (output, (_, warnings)) <- runRSST (runErrorT (computeCatalog ndename)) rdr (stt, [])
+    (output, _, warnings) <- runRSST (runErrorT (computeCatalog ndename)) rdr stt
     return (strictifyEither output :!: warnings)
 
 isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
