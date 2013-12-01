@@ -18,6 +18,7 @@ v0.10.3 ()
 	* Bug with relationships overrides that got stored as parameters
 	* Importing several exported resources from the same class now works
 	* Templates with an invalid encoding could crash the process
+	* Yaml parse errors of the puppetdb file now throw errors
 
 v0.10.2 (2013/10/27)
   Bugs fixed
