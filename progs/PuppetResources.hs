@@ -144,12 +144,11 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> Maybe FilePath -> Facts -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
-initializedaemonWithPuppet prio pdbapi puppetdir hierapath fcts = do
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> IO (T.Text -> IO (FinalCatalog, EdgeMap, FinalCatalog))
+initializedaemonWithPuppet prio pdbapi puppetdir hierapath overrideFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel prio)
     q <- fmap ((prefPDB .~ pdbapi) . (hieraPath .~ hierapath)) (genPreferences puppetdir) >>= initDaemon
-    let overrideFacts m = fcts `HM.union` m
-        f ndename = fmap overrideFacts (puppetDBFacts ndename pdbapi)
+    let f ndename = fmap overrideFacts (puppetDBFacts ndename pdbapi)
             >>= _dGetCatalog q ndename
             >>= \case
                     S.Left rr -> putDoc rr >> putStrLn "" >> error "error!"
@@ -179,6 +178,7 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _loglevel     :: LOG.Priority
                                , _hieraFile    :: Maybe FilePath
                                , _factsFile    :: Maybe FilePath
+                               , _factsDef     :: Bool
                                } deriving Show
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
@@ -213,7 +213,7 @@ prepareForPuppetApply w =
        $ w
 
 cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority <*> optional hiera <*> optional fcts
+cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority <*> optional hiera <*> optional fcts <*> fco
     where
         sc = switch (  long "showcontent"
                     <> short 'c'
@@ -249,6 +249,9 @@ cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T
         fcts = strOption (  long "facts"
                          <> help "Path to a Yaml file containing a list of 'facts' that will override locally resolved facts"
                          )
+        fco = switch (  long "facts-defaults"
+                     <> help "Facts loaded with --facts will not override already defined facts"
+                     )
 
 loadFactsOverrides :: FilePath -> IO Facts
 loadFactsOverrides fp = decodeFileEither fp >>= \case
@@ -256,10 +259,10 @@ loadFactsOverrides fp = decodeFileEither fp >>= \case
     Right x -> return x
 
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing _ _ _ _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename) mpdbf prio hpath fcts) = do
+run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename) mpdbf prio hpath fcts fdef) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> rr))
         checkError _ (S.Right x) = return x
         tnodename = T.pack ndename
@@ -269,8 +272,12 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename)
                   (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     !factsOverrides <- case fcts of
-                          Nothing -> return mempty
-                          Just p -> loadFactsOverrides p
+                          Nothing -> return id
+                          Just p -> do
+                              f <- loadFactsOverrides p
+                              return $ if fdef
+                                  then \x -> x `HM.union` f
+                                  else \x -> f `HM.union` x
     queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
