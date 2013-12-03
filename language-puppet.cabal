@@ -41,6 +41,7 @@ library
                        , Puppet.NativeTypes
                        , Puppet.NativeTypes.Helpers
                        , Puppet.Interpreter
+                       , Puppet.Interpreter.Resolve
                        , SafeProcess
                        , Puppet.Stdlib
                        , Puppet.Testing
@@ -57,7 +58,6 @@ library
                        , Erb.Ruby
                        , Erb.Evaluate
                        , Erb.Compute
-                       , Puppet.Interpreter.Resolve
                        , Puppet.Manifests
                        , Puppet.NativeTypes.ZoneRecord
                        , Puppet.NativeTypes.Cron

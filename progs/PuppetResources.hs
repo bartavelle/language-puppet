@@ -130,6 +130,7 @@ import Puppet.Parser.Types
 import Puppet.Parser
 import Puppet.Parser.PrettyPrinter()
 import Puppet.Interpreter.PrettyPrinter()
+import Puppet.Interpreter.Resolve (_PString)
 import PuppetDB.Remote
 import PuppetDB.Dummy
 import PuppetDB.TestDB
@@ -178,7 +179,7 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _loglevel     :: LOG.Priority
                                , _hieraFile    :: Maybe FilePath
                                , _factsFile    :: Maybe FilePath
-                               , _factsDef     :: Bool
+                               , _factsDef     :: Maybe FilePath
                                } deriving Show
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
@@ -213,7 +214,18 @@ prepareForPuppetApply w =
        $ w
 
 cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T.pack <$> rt) <*> optional (T.pack <$> rn) <*> pdir <*> optional nn <*> optional pdbfile <*> priority <*> optional hiera <*> optional fcts <*> fco
+cmdlineParser = CommandLine <$> optional remotepdb
+                            <*> sj
+                            <*> sc
+                            <*> optional (T.pack <$> rt)
+                            <*> optional (T.pack <$> rn)
+                            <*> pdir
+                            <*> optional nn
+                            <*> optional pdbfile
+                            <*> priority
+                            <*> optional hiera
+                            <*> optional fcts
+                            <*> optional fco
     where
         sc = switch (  long "showcontent"
                     <> short 'c'
@@ -246,17 +258,21 @@ cmdlineParser = CommandLine <$> optional remotepdb <*> sj <*> sc <*> optional (T
                           <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
                           <> value LOG.WARNING
                           )
-        fcts = strOption (  long "facts"
+        fcts = strOption (  long "facts-override"
                          <> help "Path to a Yaml file containing a list of 'facts' that will override locally resolved facts"
                          )
-        fco = switch (  long "facts-defaults"
-                     <> help "Facts loaded with --facts will not override already defined facts"
-                     )
+        fco = strOption  (  long "facts-defaults"
+                         <> help "Path to a Yaml file containing a list of 'facts' that will be used as defaults"
+                         )
 
 loadFactsOverrides :: FilePath -> IO Facts
 loadFactsOverrides fp = decodeFileEither fp >>= \case
     Left rr -> error ("Error when parsing " ++ fp ++ ": " ++ show rr)
-    Right x -> return x
+    Right x -> case traverse tv x of
+                   Just y -> return y
+                   Nothing -> error ("Error when parsing " ++ fp ++ ": some of the values were not strings")
+    where
+        tv x = x ^? _PString
 
 run :: CommandLine -> IO ()
 run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _) = parseFile f >>= \case
@@ -271,13 +287,11 @@ run (CommandLine puppeturl showjson showcontent mrt mrn puppetdir (Just ndename)
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
                   (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    !factsOverrides <- case fcts of
-                          Nothing -> return id
-                          Just p -> do
-                              f <- loadFactsOverrides p
-                              return $ if fdef
-                                  then \x -> x `HM.union` f
-                                  else \x -> f `HM.union` x
+    !factsOverrides <- case (fcts, fdef) of
+                           (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
+                           (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
+                           (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
+                           (Nothing, Nothing) -> return id
     queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
