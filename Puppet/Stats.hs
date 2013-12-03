@@ -1,7 +1,9 @@
 {-| A quickly done module that exports utility functions used to collect various
 statistics. All statistics are stored in a MVar holding a HashMap.
+
+This is not accurate in the presence of lazy evaluation. Nothing is forced.
 -}
-module Puppet.Stats where
+module Puppet.Stats (measure, measure_, newStats, getStats, StatsTable, StatsPoint(..), MStats) where
 
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Control.Monad
@@ -10,20 +12,32 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import Control.Lens
 
-data StatsPoint = StatsPoint !Int !Double !Double !Double
-    deriving(Show)
+data StatsPoint = StatsPoint { _statspointCount :: !Int    -- ^ Total number of calls to a computation
+                             , _statspointTotal :: !Double -- ^ Total time spent during this computation
+                             , _statspointMin   :: !Double -- ^ Minimum execution time
+                             , _statspointMax   :: !Double -- ^ Maximum execution time
+                             } deriving(Show)
+
+-- | A table where keys are the names of the computations, and values are
+-- 'StatsPoint's.
 type StatsTable = HM.HashMap T.Text StatsPoint
 
-type MStats = MVar StatsTable
+newtype MStats = MStats { unMStats :: MVar StatsTable }
 
+-- | Returns the actual statistical values.
 getStats :: MStats -> IO StatsTable
-getStats = readMVar
+getStats = readMVar . unMStats
 
+-- | Create a new statistical container.
 newStats :: IO MStats
-newStats = newMVar HM.empty
+newStats = MStats `fmap` newMVar HM.empty
 
-measure :: MStats -> T.Text -> IO a -> IO a
-measure mtable statsname action = do
+-- | Wraps a computation, and measures related execution statistics.
+measure :: MStats -- ^ Statistics container
+        -> T.Text -- ^ Action identifier
+        -> IO a   -- ^ Computation
+        -> IO a
+measure (MStats mtable) statsname action = do
     (!tm, !out) <- time action
     !stats <- takeMVar mtable
     let nstats :: StatsTable
@@ -40,6 +54,7 @@ measure mtable statsname action = do
     putMVar mtable nstats
     return out
 
+-- | Just like 'measure', discarding the result value.
 measure_ :: MStats -> T.Text -> IO a -> IO ()
 measure_ mtable statsname action = void ( measure mtable statsname action )
 

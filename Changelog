@@ -1,4 +1,4 @@
-v0.10.3 ()
+v0.10.3 (2013/12/03)
   New features
     * The scope tracking system has been improved. It is now possible to know
 	the original host of an imported resource, which helps a lot in case of

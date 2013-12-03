@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Puppet.Daemon (initDaemon, DaemonQuery(..), logDebug, logInfo, logWarning, logError) where
+module Puppet.Daemon (initDaemon, logDebug, logInfo, logWarning, logError) where
 
 import Puppet.Parser
 import Puppet.Utils
@@ -66,7 +66,7 @@ tunnel :
 
 Known bugs :
 
-* It might be buggy when top level statements that are not class/define/nodes
+* It might be buggy when top level statements that are not class\/define\/nodes
 are altered, or when files loaded with require are changed.
 
 * Exported resources are supported through the PuppetDB interface.

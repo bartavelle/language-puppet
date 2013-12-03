@@ -1,5 +1,33 @@
 {-# LANGUAGE LambdaCase #-}
-module Puppet.Interpreter.Resolve where
+-- | This module is all about converting and resolving foreign data into
+-- the fully exploitable corresponding data type. The main use case is the
+-- conversion of 'Expression' to 'PValue'.
+module Puppet.Interpreter.Resolve
+    ( -- * Pure resolution functions and prisms
+      _PString,
+      _PInteger,
+      pvnum,
+      getVariable,
+      pValue2Bool,
+      -- * Monadic resolution functions
+      resolveVariable,
+      resolveExpression,
+      resolveValue,
+      resolvePValueString,
+      resolveExpressionString,
+      resolveExpressionStrings,
+      resolveArgument,
+      runHiera,
+      isNativeType,
+      -- * Search expression management
+      resolveSearchExpression,
+      checkSearchExpression,
+      searchExpressionToPuppetDB,
+      -- * Higher order puppet functions handling
+      hfGenerateAssociations,
+      hfSetvars,
+      hfRestorevars,
+    ) where
 
 import Puppet.PP
 import Puppet.Interpreter.Types
@@ -40,9 +68,12 @@ import Text.Regex.PCRE.ByteString.Utils
 import Data.Bits
 import Control.Monad.Writer (tell)
 
+-- | A useful type that is used when trying to perform arithmetic on Puppet
+-- numbers.
 type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
 
--- | A hiera helper function
+-- | A hiera helper function, that will throw all Hiera errors and log
+-- messages to the main monad.
 runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (S.Maybe PValue)
 runHiera q t = do
     hquery <- view hieraQuery
@@ -51,7 +82,7 @@ runHiera q t = do
     tell w
     return o
 
--- | The implementation of all hiera functions
+-- | The implementation of all hiera_* functions
 hieraCall :: HieraQueryType -> PValue -> (Maybe PValue) -> (Maybe PValue) -> InterpreterMonad PValue
 hieraCall _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not yet supported"
 hieraCall qt q df _ = do
@@ -63,7 +94,7 @@ hieraCall qt q df _ = do
                          Just d -> return d
                          Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
--- | Tries to convert a pair of PValues into numbers, as defined in
+-- | Tries to convert a pair of 'PValue's into 'Number's, as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
 -- that they are of the same type
 toNumbers :: PValue -> PValue -> S.Maybe NumberPair
@@ -76,7 +107,14 @@ toNumbers (PString a) (PString b) =
         _ -> S.Nothing
 toNumbers _ _ = S.Nothing
 
-binaryOperation :: Expression -> Expression -> (Integer -> Integer -> Integer) -> (Double -> Double -> Double) -> InterpreterMonad PValue
+-- | This tries to run a numerical binary operation on two puppet
+-- expressions. It will try to resolve them, then convert them to numbers
+-- (using 'toNumbners'), and will finally apply the correct operation.
+binaryOperation :: Expression -- ^ left operand
+                -> Expression -- ^ right operand
+                -> (Integer -> Integer -> Integer) -- ^ operation in case those are integers
+                -> (Double -> Double -> Double) -- ^ operation in case those are doubles
+                -> InterpreterMonad PValue
 binaryOperation a b opi opd = do
     ra <- resolveExpression a
     rb <- resolveExpression b
@@ -85,6 +123,8 @@ binaryOperation a b opi opd = do
         S.Just (S.Right (na :!: nb)) -> return (pvnum # D (opd na nb))
         S.Just (S.Left (na :!: nb))  -> return (pvnum # I (opi na nb))
 
+-- | Just like 'binaryOperation', but for operations that only work on
+-- integers.
 integerOperation :: Expression -> Expression -> (Integer -> Integer -> Integer) -> InterpreterMonad PValue
 integerOperation a b opr = do
     ra <- resolveExpression a
@@ -94,7 +134,7 @@ integerOperation a b opr = do
         S.Just (S.Right _) -> throwPosError ("Expected integer values, not" <+> pretty ra <+> "or" <+> pretty rb)
         S.Just (S.Left (na :!: nb))  -> return (pvnum # I (opr na nb))
 
--- | Converting PValue to and from Number with a prism!
+-- | A prism between 'PValue' and 'Number'
 pvnum :: Prism' PValue Number
 pvnum = prism num2PValue toNumber
     where
@@ -107,16 +147,19 @@ pvnum = prism num2PValue toNumber
                                      _ -> Left p
         toNumber p = Left p
 
+-- | A prism between 'PValue' and 'T.Text'
 _PString :: Prism' PValue T.Text
 _PString = prism PString $ \x -> case x of
                                      PString s -> Right s
                                      n -> Left n
 
+-- | A prism between 'PValue' and 'Integer'
 _PInteger :: Prism' PValue Integer
 _PInteger = prism (PString . T.pack . show) $ \x -> case x ^? pvnum of
                                                         Just (I z) -> Right z
                                                         _ -> Left x
 
+-- | Resolves a variable, or throws an error if it can't.
 resolveVariable :: T.Text -> InterpreterMonad PValue
 resolveVariable fullvar = do
     scps <- use scopes
@@ -125,10 +168,15 @@ resolveVariable fullvar = do
         Left rr -> throwPosError rr
         Right x -> return x
 
+-- | A simple helper that checks if a given type is native or a define.
 isNativeType :: T.Text -> InterpreterMonad Bool
 isNativeType t = view (nativeTypes . contains t)
 
-getVariable :: Container ScopeInformation -> T.Text -> T.Text -> Either Doc PValue
+-- | A pure function for resolving variables.
+getVariable :: Container ScopeInformation -- ^ The whole scope data.
+            -> T.Text -- ^ Current scope name.
+            -> T.Text -- ^ Full variable name.
+            -> Either Doc PValue
 getVariable scps scp fullvar = do
     (varscope, varname) <- case T.splitOn "::" fullvar of
                                [] -> throwError "This doesn't make any sense in resolveVariable"
@@ -142,6 +190,7 @@ getVariable scps scp fullvar = do
                 Just pp -> extractVariable pp
                 Nothing -> throwError ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ttext varscope <+> "or root")
 
+-- | A helper for numerical comparison functions.
 numberCompare :: Expression -> Expression -> (Integer -> Integer -> Bool) -> (Double -> Double -> Bool) -> InterpreterMonad PValue
 numberCompare a b compi compd = do
     ra <- resolveExpression a
@@ -151,6 +200,7 @@ numberCompare a b compi compd = do
         S.Just (S.Right (na :!: nb)) -> return (PBoolean (compd na nb))
         S.Just (S.Left  (na :!: nb)) -> return (PBoolean (compi na nb))
 
+-- | Handles the wonders of puppet equality checks.
 puppetEquality :: PValue -> PValue -> Bool
 puppetEquality ra rb =
     case toNumbers ra rb of
@@ -167,6 +217,8 @@ puppetEquality ra rb =
                  -- for case insensitive matching
                  _ -> ra == rb
 
+-- | The main resolution function : turns an 'Expression' into a 'PValue',
+-- if possible.
 resolveExpression :: Expression -> InterpreterMonad PValue
 resolveExpression (PValue v) = resolveValue v
 resolveExpression (Not e) = fmap (PBoolean . not . pValue2Bool) (resolveExpression e)
@@ -255,6 +307,8 @@ resolveExpression a@(FunctionApplication e (PValue (UHFunctionCall hf))) = do
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
 resolveExpression x = throwPosError ("Don't know how to resolve this expression:" <$> pretty x)
 
+-- | Resolves an 'UValue' (terminal for the 'Expression' data type) into
+-- a 'PValue'
 resolveValue :: UValue -> InterpreterMonad PValue
 resolveValue n@(URegexp _ _) = throwPosError ("Regular expressions are not allowed in this context: " <+> pretty n)
 resolveValue (UBoolean x) = return (PBoolean x)
@@ -270,33 +324,41 @@ resolveValue (UVariableReference v) = resolveVariable v
 resolveValue (UFunctionCall fname args) = resolveFunction fname args
 resolveValue (UHFunctionCall hf) = evaluateHFCPure hf
 
-resolveValueString :: UValue -> InterpreterMonad T.Text
-resolveValueString = resolveValue >=> resolvePValueString
-
+-- | Turns strings and booleans into 'T.Text', or throws an error.
 resolvePValueString :: PValue -> InterpreterMonad T.Text
 resolvePValueString (PString x) = return x
 resolvePValueString (PBoolean True) = return "true"
 resolvePValueString (PBoolean False) = return "false"
 resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <$> pretty x)
 
+-- | > resolveValueString = resolveValue >=> resolvePValueString
+resolveValueString :: UValue -> InterpreterMonad T.Text
+resolveValueString = resolveValue >=> resolvePValueString
+
+-- | > resolveExpressionString = resolveExpression >=> resolvePValueString
 resolveExpressionString :: Expression -> InterpreterMonad T.Text
 resolveExpressionString = resolveExpression >=> resolvePValueString
 
+-- | Just like 'resolveExpressionString', but accepts arrays.
 resolveExpressionStrings :: Expression -> InterpreterMonad [T.Text]
 resolveExpressionStrings x =
     resolveExpression x >>= \case
         PArray a -> mapM resolvePValueString (V.toList a)
         y -> fmap return (resolvePValueString y)
 
+-- | A special helper function for argument like argument like pairs.
 resolveArgument :: Pair T.Text Expression -> InterpreterMonad (Pair T.Text PValue)
 resolveArgument (argname :!: argval) = (:!:) `fmap` pure argname <*> resolveExpression argval
 
+-- | Turns a 'PValue' into a 'Bool', as explained in the reference
+-- documentation.
 pValue2Bool :: PValue -> Bool
 pValue2Bool PUndef = False
 pValue2Bool (PString "") = False
 pValue2Bool (PBoolean x) = x
 pValue2Bool _ = True
 
+-- | This resolve function calls at the expression level.
 resolveFunction :: T.Text -> V.Vector Expression -> InterpreterMonad PValue
 resolveFunction "fqdn_rand" args = do
     let nbargs = V.length args
@@ -447,6 +509,8 @@ resolveExpressionSE e = resolveExpression e >>=
         PHash _  -> throwPosError "The use of an array in a search expression is undefined"
         resolved -> return resolved
 
+-- | Turns an unresolved 'SearchExpression' from the parser into a fully
+-- resolved 'RSearchExpression'.
 resolveSearchExpression :: SearchExpression -> InterpreterMonad RSearchExpression
 resolveSearchExpression AlwaysTrue = return RAlwaysTrue
 resolveSearchExpression (EqualitySearch a e) = REqualitySearch `fmap` pure a <*> resolveExpressionSE e
@@ -454,6 +518,8 @@ resolveSearchExpression (NonEqualitySearch a e) = RNonEqualitySearch `fmap` pure
 resolveSearchExpression (AndSearch e1 e2) = RAndSearch `fmap` resolveSearchExpression e1 <*> resolveSearchExpression e2
 resolveSearchExpression (OrSearch e1 e2) = ROrSearch `fmap` resolveSearchExpression e1 <*> resolveSearchExpression e2
 
+-- | Turns a resource type and 'RSearchExpression' into something that can
+-- be used in a PuppetDB query.
 searchExpressionToPuppetDB :: T.Text -> RSearchExpression -> Query ResourceField
 searchExpressionToPuppetDB rtype res = QAnd ( QEqual RType (capitalizeRT rtype) : mkSE res )
     where
@@ -466,6 +532,9 @@ searchExpressionToPuppetDB rtype res = QAnd ( QEqual RType (capitalizeRT rtype) 
         mkFld "title" = RTitle
         mkFld z = RParameter z
 
+-- | Checks whether a given 'Resource' matches a 'RSearchExpression'. Note
+-- that the expression doesn't check for type, so you must filter the
+-- resources by type beforehand, if needs be.
 checkSearchExpression :: RSearchExpression -> Resource -> Bool
 checkSearchExpression RAlwaysTrue _ = True
 checkSearchExpression (RAndSearch a b) r = checkSearchExpression a r && checkSearchExpression b r
@@ -483,11 +552,8 @@ checkSearchExpression (REqualitySearch attributename v) r = case r ^. rattribute
                                                                 Nothing -> False
                                                                 Just x -> puppetEquality x v
 
-{---------------------------------------
-- Higher order functions part
-----------------------------------------}
-
--- | Generates associations for evaluation of blocks
+-- | Generates variable associations for evaluation of blocks. Each item
+-- corresponds to an iteration in the calling block.
 hfGenerateAssociations :: HFunctionCall -> InterpreterMonad [[(T.Text, PValue)]]
 hfGenerateAssociations hf = do
     sourceexpression <- case hf ^. hfexpr of
@@ -508,7 +574,11 @@ hfGenerateAssociations hf = do
          (invalid, _) -> throwPosError ("Can't iterate on this data type:" <+> pretty invalid)
 
 -- | Sets the proper variables, and returns the scope variables the way
--- they were before being modified.
+-- they were before being modified. This is a hack that ensures that
+-- variables are local to the new scope.
+--
+-- It doesn't work at all like other Puppet parts, but consistency isn't
+-- really expected here ...
 hfSetvars :: [(T.Text, PValue)] -> InterpreterMonad (Container (Pair (Pair PValue PPosition) CurContainerDesc))
 hfSetvars vals =
     do
@@ -520,14 +590,14 @@ hfSetvars vals =
         mapM_ hfSetvar vals
         return save
 
--- | Restores what needs restoring. This will erase all allocation.
+-- | Restores what needs restoring. This will erase all allocations.
 hfRestorevars :: Container (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
 hfRestorevars save =
     do
         scp <- getScopeName
         scopes . ix scp . scopeVariables .= save
 
--- | Evaluates a statement in "pure" mode.
+-- | Evaluates a statement in "pure" mode. TODO
 evalPureStatement :: Statement -> InterpreterMonad ()
 evalPureStatement = undefined
 

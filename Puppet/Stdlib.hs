@@ -19,6 +19,7 @@ import qualified Data.Text.Encoding as T
 import Data.Attoparsec.Number
 import qualified Data.ByteString.Base16 as B16
 
+-- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
 stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("any2array", any2array)

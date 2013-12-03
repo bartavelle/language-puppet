@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase #-}
+-- | A stub implementation of PuppetDB, backed by a YAML file.
 module PuppetDB.TestDB (loadTestDB,initTestDB) where
 
 import Data.Yaml
@@ -55,6 +56,7 @@ loadTestDB fp =
     where
         baseError r = return $ S.Left $ "Could not parse" <+> string fp <> ":" <+> r
 
+-- | Starts a new PuppetDB, without any backing file.
 initTestDB :: IO PuppetDBAPI
 initTestDB = genDBAPI newDB
 

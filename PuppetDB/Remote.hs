@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module PuppetDB.Remote where
+module PuppetDB.Remote (pdbConnect) where
 
 import Puppet.Utils
 import Puppet.PP
@@ -43,6 +43,7 @@ pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
     let req = initReq { requestHeaders = [("Accept", "application/json")] }
     runRequest req
 
+-- | Given an URL (ie. @http://localhost:8080}), will return an incomplete 'PuppetDBAPI'.
 pdbConnect :: T.Text -> IO (S.Either Doc PuppetDBAPI)
 pdbConnect url = return $ S.Right $ PuppetDBAPI
     (return (ttext url))
