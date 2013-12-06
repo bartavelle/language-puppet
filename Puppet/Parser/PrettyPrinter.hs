@@ -21,6 +21,17 @@ hashComma = encloseSep lbrace rbrace comma . map showC . V.toList
     where
         showC (a :!: b) = pretty a <+> text "=>" <+> pretty b
 
+-- Extremely hacky escaping system
+stringEscape :: T.Text -> T.Text
+stringEscape = T.concatMap escapeChar
+    where
+        escapeChar '"' = "\\\""
+        escapeChar '\n' = "\\n"
+        escapeChar '\t' = "\\t"
+        escapeChar '\r' = "\\r"
+        escapeChar x = T.singleton x
+{-# INLINE stringEscape #-}
+
 instance Pretty Expression where
     pretty (Equal a b)            = parens (pretty a <+> text "==" <+> pretty b)
     pretty (Different a b)        = parens (pretty a <+> text "!=" <+> pretty b)
@@ -71,10 +82,10 @@ instance Pretty SearchExpression where
 instance Pretty UValue where
     pretty (UBoolean True)  = dullmagenta $ text "true"
     pretty (UBoolean False) = dullmagenta $ text "false"
-    pretty (UString s) = dullcyan (text (show s))
+    pretty (UString s) = char '"' <> dullcyan (ttext (stringEscape s)) <> char '"'
     pretty (UInterpolable v) = char '"' <> hcat (map specific (V.toList v)) <> char '"'
         where
-            specific (UString s) = dullcyan (text (tail (init (show s))))
+            specific (UString s) = dullcyan (ttext (stringEscape s))
             specific (UVariableReference vr) = dullblue (text "${" <> text (T.unpack vr) <> char '}')
             specific x = bold (red (pretty x))
     pretty UUndef = dullmagenta (text "undef")
