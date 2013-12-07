@@ -23,7 +23,7 @@ import Erb.Ruby
 import Debug.Trace
 import qualified System.Log.Logger as LOG
 import qualified Data.Text as T
-import Text.Parsec
+import Text.Parsec hiding (string)
 import Text.Parsec.Error
 import Text.Parsec.Pos
 import System.Environment
@@ -60,26 +60,31 @@ type TemplateAnswer = S.Either Doc T.Text
 
 #ifdef HRUBY
 showRubyError :: RubyError -> Doc
-showRubyError = undefined
-#endif
+showRubyError (Stack msg stk) = dullred (string msg) </> dullyellow (string stk)
+showRubyError (WithOutput str _) = dullred (string str)
 
+initTemplateDaemon :: RubyInterpreter -> Preferences -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
+initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _ _ _) mvstats = do
+    controlchan <- newChan
+    templatecache <- newFileCache
+    -- forkOS is used because ruby doesn't like to change threads
+    -- all initialization is done on the current thread
+    let returnError rs = return $ \_ _ _ -> return (S.Left (showRubyError rs))
+    getRubyScriptPath "hrubyerb.rb" >>= loadFile intr >>= \case
+        Left rs -> returnError rs
+        Right () -> registerGlobalFunction4 intr "varlookup" hrresolveVariable >>= \case
+            Right () -> do
+                void $ forkIO $ templateDaemon intr (T.pack modpath) (T.pack templatepath) controlchan mvstats templatecache
+                return (templateQuery controlchan)
+            Left rs -> returnError rs
+#else
 initTemplateDaemon :: Preferences -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
 initTemplateDaemon (Preferences _ modpath templatepath _ _ _ _ _ _) mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
-#ifdef HRUBY
-    -- forkOS is used because ruby doesn't like to change threads
-    -- all initialization is done on the current thread
-    int <- startRubyInterpreter
-    getRubyScriptPath "hrubyerb.rb" >>= loadFile int >>= \case
-        Left re -> \_ _ _ -> return (S.Left (showRubyError re))
-        Right () -> return ()
-    registerGlobalFunction4 int "varlookup" hrresolveVariable
-    void $ forkIO $ templateDaemon int (T.pack modpath) (T.pack templatepath) controlchan mvstats templatecache
-#else
     forkIO (templateDaemon () (T.pack modpath) (T.pack templatepath) controlchan mvstats templatecache)
-#endif
     return (templateQuery controlchan)
+#endif
 
 templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text)
 templateQuery qchan filename scope variables = do
@@ -88,7 +93,7 @@ templateQuery qchan filename scope variables = do
     readChan rchan
 
 templateDaemon :: RubyInterpreter -> T.Text -> T.Text -> Chan TemplateQuery -> MStats -> FileCacheR ParseError [RubyStatement] -> IO ()
-templateDaemon int modpath templatepath qchan mvstats filecache = do
+templateDaemon intr modpath templatepath qchan mvstats filecache = do
     (respchan, fileinfo, scope, variables) <- readChan qchan
     case fileinfo of
         Right filename -> do
@@ -98,15 +103,18 @@ templateDaemon int modpath templatepath qchan mvstats filecache = do
             acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
             if null acceptablefiles
                 then writeChan respchan (S.Left $ "Can't find template file for" <+> ttext filename <+> ", looked in" <+> list (map ttext searchpathes))
-                else measure mvstats ("total - " <> filename) (computeTemplate (Right (head acceptablefiles)) scope variables mvstats filecache) >>= writeChan respchan
-        Left _ -> measure mvstats "total - inline" (computeTemplate fileinfo scope variables mvstats filecache) >>= writeChan respchan
-    templateDaemon modpath templatepath qchan mvstats filecache
+                else measure mvstats ("total - " <> filename) (computeTemplate intr (Right (head acceptablefiles)) scope variables mvstats filecache) >>= writeChan respchan
+        Left _ -> measure mvstats "total - inline" (computeTemplate intr fileinfo scope variables mvstats filecache) >>= writeChan respchan
+    templateDaemon intr modpath templatepath qchan mvstats filecache
 
 computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> MStats -> FileCacheR ParseError [RubyStatement] -> IO TemplateAnswer
-computeTemplate int fileinfo curcontext variables mstats filecache = do
+computeTemplate intr fileinfo curcontext variables mstats filecache = do
     let (filename, ufilename) = case fileinfo of
                                     Left _ -> ("inline", "inline")
                                     Right x -> (x, T.unpack x)
+        mkSafe a = makeSafe intr a >>= \case
+            Left rr -> return (S.Left (showRubyError rr))
+            Right x -> return x
     parsed <- case fileinfo of
                   Right _      -> measure mstats ("parsing - " <> filename) $ lazyQuery filecache ufilename $ parseErbFile ufilename
                   Left content -> measure mstats ("parsing - " <> filename) $ return (runParser erbparser () "inline" (T.unpack content))
@@ -115,14 +123,14 @@ computeTemplate int fileinfo curcontext variables mstats filecache = do
             let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show err
             traceEventIO msg
             LOG.debugM "Erb.Compute" msg
-            measure mstats ("ruby - " <> filename) $ computeTemplateWRuby fileinfo curcontext variables
+            measure mstats ("ruby - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables
         Right ast -> case rubyEvaluate variables curcontext ast of
                 Right ev -> return (S.Right ev)
                 Left err -> do
                     let !msg = "template " ++ ufilename ++ " evaluation failed " ++ show err
                     traceEventIO msg
                     LOG.debugM "Erb.Compute" msg
-                    measure mstats ("ruby efail - " <> filename) $ makeSafe int $ computeTemplateWRuby fileinfo curcontext variables
+                    measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables
 
 getRubyScriptPath :: String -> IO String
 getRubyScriptPath rubybin = do
