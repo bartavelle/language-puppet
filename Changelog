@@ -1,6 +1,7 @@
-v0.10.4 ()
+v0.10.4 (2013/12/18)
   New features
 	* Moved to the latest hruby version.
+	* Updated the text bound
 
 v0.10.3 (2013/12/03)
   New features
