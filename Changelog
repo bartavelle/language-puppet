@@ -1,3 +1,9 @@
+v0.10.5 ()
+  New features
+	*
+  Bugs fixed
+	* Lambda blocks can now end with a bare function call
+
 v0.10.4 (2013/12/18)
   New features
 	* Moved to the latest hruby version.

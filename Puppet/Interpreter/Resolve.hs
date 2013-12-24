@@ -599,16 +599,33 @@ hfRestorevars save =
 
 -- | Evaluates a statement in "pure" mode. TODO
 evalPureStatement :: Statement -> InterpreterMonad ()
-evalPureStatement = undefined
+evalPureStatement _ = throwPosError "So called 'pure' statements are not yet supported"
+
+-- | This extracts the final expression from an HFunctionCall.
+-- When it does not exists, it checks if the last statement is in fact
+-- a function call
+transformPureHf :: HFunctionCall -> InterpreterMonad (HFunctionCall, Expression)
+transformPureHf hf =
+        case hf ^. hfexpression of
+            S.Just x -> return (hf, x)
+            S.Nothing -> do
+                let statements = hf ^. hfstatements
+                if V.null statements
+                    then throwPosError ("The statement block must not be empty" <+> pretty hf)
+                    else case V.last statements of
+                             (MainFunctionCall fn args _) ->
+                                let expr = PValue (UFunctionCall fn args)
+                                in  return (hf & hfstatements %~ V.init
+                                               & hfexpression .~ S.Just expr
+                                           , expr)
+                             _ -> throwPosError ("The statement block must end with an expression" <+> pretty hf)
 
 -- | All the "higher order function" stuff, for "value" mode. In this case
 -- we are in "pure" mode, and only a few statements are allowed.
 evaluateHFCPure :: HFunctionCall -> InterpreterMonad PValue
-evaluateHFCPure hf = do
+evaluateHFCPure hf' = do
+    (hf, finalexpression) <- transformPureHf hf'
     varassocs <- hfGenerateAssociations hf
-    finalexpression <- case hf ^. hfexpression of
-                           S.Just x -> return x
-                           S.Nothing -> throwPosError ("The statement block must end with an expression" <+> pretty hf)
     let runblock :: [(T.Text, PValue)] -> InterpreterMonad PValue
         runblock assocs = do
             saved <- hfSetvars assocs
