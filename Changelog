@@ -1,8 +1,7 @@
-v0.10.5 ()
-  New features
-	*
+v0.10.5 (2014/01/06)
   Bugs fixed
 	* Lambda blocks can now end with a bare function call
+	* Fix version bounds with hslua and luautils
 
 v0.10.4 (2013/12/18)
   New features
