@@ -185,8 +185,9 @@ bareword = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Bare word"
     where
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
 
-genFunctionCall :: Parser (T.Text, V.Vector Expression)
-genFunctionCall = do
+-- The first argument defines if non-parenthesized arguments are acceptable
+genFunctionCall :: Bool -> Parser (T.Text, V.Vector Expression)
+genFunctionCall nonparens = do
     fname <- moduleName <?> "Function name"
     -- this is a hack. Contrary to what the documentation says,
     -- a "bareword" can perfectly be a qualified name :
@@ -194,12 +195,16 @@ genFunctionCall = do
     let argsc sep e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument") `sep` comma
         terminalF = terminalG (fail "function hack")
         expressionF = buildExpressionParser expressionTable (token terminalF) <?> "function expression"
-    args  <- parens (argsc sepEndBy expression) <|> argsc sepEndBy1 expressionF <?> "Function arguments"
+        withparens = parens (argsc sepEndBy expression)
+        withoutparens = argsc sepEndBy1 expressionF
+    args  <- withparens <|> if nonparens
+                                then withoutparens <?> "Function arguments"
+                                else fail "Function arguments"
     return (fname, V.fromList args)
 
 functionCall :: Parser UValue
 functionCall = do
-    (fname, args) <- genFunctionCall
+    (fname, args) <- genFunctionCall False
     return $ UFunctionCall fname args
 
 literalValue :: Parser T.Text
@@ -483,7 +488,7 @@ classDefinition = do
 mainFunctionCall :: Parser [Statement]
 mainFunctionCall = do
     p <- getPosition
-    (fname, args) <- genFunctionCall
+    (fname, args) <- genFunctionCall True
     pe <- getPosition
     return [ MainFunctionCall fname args (p :!: pe) ]
 

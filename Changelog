@@ -1,3 +1,8 @@
+v0.10.6 ()
+  Bugs fixed
+	* Parsing function calls without parens at the expression level is not
+	allowed now.
+
 v0.10.5 (2014/01/06)
   Bugs fixed
 	* Lambda blocks can now end with a bare function call
