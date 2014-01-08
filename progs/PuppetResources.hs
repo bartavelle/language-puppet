@@ -272,7 +272,10 @@ loadFactsOverrides fp = decodeFileEither fp >>= \case
                    Just y -> return y
                    Nothing -> error ("Error when parsing " ++ fp ++ ": some of the values were not strings")
     where
-        tv x = x ^? _PString
+        tv x = x ^? _PString <|> isBool x
+        isBool (PBoolean True)  = Just "true"
+        isBool (PBoolean False) = Just "false"
+        isBool _ = Nothing
 
 run :: CommandLine -> IO ()
 run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _) = parseFile f >>= \case
