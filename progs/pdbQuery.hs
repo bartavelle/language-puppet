@@ -83,7 +83,9 @@ run cmdl = do
     let getOrError s (S.Left rr) = error (s <> " " <> show rr)
         getOrError _ (S.Right x) = return x
     case _pdbcmd cmdl of
-        DumpFacts -> getFacts pdbapi QEmpty >>= display "get facts"
+        DumpFacts -> if _pdbtype cmdl == PDBDummy
+                         then puppetDBFacts "dummy"  pdbapi >>= mapM_ print . HM.toList
+                         else getFacts pdbapi QEmpty >>= display "get facts"
         DumpNodes -> getNodes pdbapi QEmpty >>= display "dump nodes"
         AddFacts n -> do
             unless (_pdbtype cmdl == PDBTest) (error "This option only works with the test puppetdb")
