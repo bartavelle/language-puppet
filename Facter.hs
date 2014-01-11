@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import Control.Arrow
 import qualified Data.Either.Strict as S
 import Control.Lens
+import System.Posix.User
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -100,12 +101,17 @@ factMountPoints = do
 version :: IO [(String, String)]
 version = return [("facterversion", "0.1"),("environment","test")]
 
+factUser :: IO [(String, String)]
+factUser = do
+    username <- getLoginName
+    return [("id",username)]
+
 puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container T.Text)
 puppetDBFacts nodename pdbapi =
     getFacts pdbapi (QEqual FCertname nodename) >>= \case
         S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
         _ -> do
-            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, version, factMountPoints, factOS])
+            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, version, factMountPoints, factOS, factUser])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
                 (hostname, ddomainname) = T.break (== '.') nodename
                 domainname = if T.null ddomainname
