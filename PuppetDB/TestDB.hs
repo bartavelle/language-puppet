@@ -49,12 +49,15 @@ loadTestDB fp =
     decodeFileEither fp >>= \case
         Left (OtherParseException rr) -> return (S.Left (string (show rr)))
         Left (InvalidYaml Nothing) -> baseError "Unknown error"
-        Left (InvalidYaml (Just (YamlException s))) -> baseError (string s)
+        Left (InvalidYaml (Just (YamlException s))) -> if take 21 s == "Yaml file not found: "
+                                                          then newFile
+                                                          else baseError (string s)
         Left (InvalidYaml (Just (YamlParseException pb ctx (YamlMark _ l c)))) -> baseError $ red (string pb <+> string ctx) <+> "at line" <+> int l <> ", column" <+> int c
-        Left _ -> S.Right <$> genDBAPI (newDB & backingFile ?~ fp )
+        Left _ -> newFile
         Right x -> fmap S.Right (genDBAPI (x & backingFile ?~ fp ))
     where
         baseError r = return $ S.Left $ "Could not parse" <+> string fp <> ":" <+> r
+        newFile = S.Right <$> genDBAPI (newDB & backingFile ?~ fp )
 
 -- | Starts a new PuppetDB, without any backing file.
 initTestDB :: IO PuppetDBAPI
