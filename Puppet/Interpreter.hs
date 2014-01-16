@@ -337,7 +337,7 @@ evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
                    . filter ((/= fqdn) . _rnode)
                    ) `fmap` interpreterIO (getResources pdb q)
             scpdesc <- ContImported `fmap` getScope
-            void $ enterScope S.Nothing scpdesc
+            void $ enterScope S.Nothing scpdesc "importing" p
             pushScope scpdesc
             o <- finalize res
             popScope
@@ -484,9 +484,10 @@ loadParameters params classParams defaultPos wHiera = do
 -- Inheriting the defaults is necessary for non native types, because they
 -- will be expanded in "finalize", so if this was not done, we would be
 -- expanding the defines without the defaults applied
-enterScope :: S.Maybe T.Text -> CurContainerDesc -> InterpreterMonad T.Text
-enterScope parent cont = do
+enterScope :: S.Maybe T.Text -> CurContainerDesc -> T.Text -> PPosition -> InterpreterMonad T.Text
+enterScope parent cont modulename p = do
     let scopename = scopeName cont
+    curcaller <- resolveVariable "module_name"
     scopeAlreadyDefined <- use (scopes . contains scopename)
     let isImported = case cont of
                          ContImported _ -> True
@@ -500,12 +501,15 @@ enterScope parent cont = do
             S.Nothing -> do
                 curdefs <- use (scopes . ix scp . scopeDefaults)
                 return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty parent
-            S.Just p -> do
-                parentscope <- use (scopes . at p)
-                when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ttext p))
+            S.Just prt -> do
+                parentscope <- use (scopes . at prt)
+                when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ttext prt))
                 let Just psc = parentscope
                 return (psc & scopeParent .~ parent)
         scopes . at scopename ?= basescope
+    scopes . ix scopename . scopeVariables . at "module_name"        ?= (PString modulename :!: p :!: cont)
+    scopes . ix scopename . scopeVariables . at "caller_module_name" ?= (curcaller          :!: p :!: cont)
+    scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (PString modulename :!: p :!: cont) -- hiera compatibility :(
     return scopename
 
 dropInitialColons :: T.Text -> T.Text
@@ -518,16 +522,15 @@ expandDefine r = do
         modulename = case T.splitOn "::" deftype of
                          [] -> deftype
                          (x:_) -> x
-    curcaller <- resolveVariable "module_name"
     let curContType = ContDefine deftype defname
-    scopename <- enterScope S.Nothing curContType
+    p <- use curPos
+    void $ enterScope S.Nothing curContType modulename p
     (spurious, dls) <- getstt TopDefine deftype
     let isImported (ContImported _) = True
         isImported _ = False
     isImportedDefine <- isImported `fmap` getScope
     case dls of
         (DefineDeclaration _ defineParams stmts cp) -> do
-            p <- use curPos
             curPos .= r ^. rpos
             curscp <- getScope
             when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
@@ -536,8 +539,6 @@ expandDefine r = do
             loadVariable "name" (PString defname)
             -- not done through loadvariable because of override
             -- errors
-            scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p :!: curContType)
-            scopes . ix scopename . scopeVariables . at "callermodule_name" ?= (curcaller :!: p :!: curContType)
             loadParameters (r ^. rattributes) defineParams cp S.Nothing
             curPos .= cp
             res <- evaluateStatementsVector stmts
@@ -572,10 +573,13 @@ loadClass rclassname params cincludetype = do
                     -- check if we need to define a resource representing the class
                     -- This will be the case for the first standard include
                     inhstmts <- case inh of
-                                    S.Nothing -> return []
+                                    S.Nothing     -> return []
                                     S.Just ihname -> loadClass ihname mempty IncludeResource
                     let !scopedesc = ContClass classname
-                    scopename <- enterScope inh scopedesc
+                        modulename = case T.splitOn "::" classname of
+                                         []    -> classname
+                                         (x:_) -> x
+                    void $ enterScope inh scopedesc modulename p
                     classresource <- if cincludetype == IncludeStandard
                                          then do
                                              scp <- use curScope
@@ -583,13 +587,8 @@ loadClass rclassname params cincludetype = do
                                              return [Resource (RIdentifier "class" classname) (HS.singleton classname) mempty mempty scp Normal mempty p fqdn]
                                          else return []
                     pushScope scopedesc
-                    let modulename = case T.splitOn "::" classname of
-                                         [] -> classname
-                                         (x:_) -> x
                     -- not done through loadvariable because of override
                     -- errors
-                    scopes . ix scopename . scopeVariables . at "module_name" ?= (PString modulename :!: p :!: ContClass classname)
-                    scopes . ix "::" . scopeVariables . at "calling_module"   ?= (PString modulename :!: p :!: ContClass classname) -- hiera compatibility :(
                     loadParameters params classParams cp (S.Just classname)
                     curPos .= cp
                     res <- evaluateStatementsVector stmts
