@@ -315,6 +315,7 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                 getNodeName (Node (NodeName n) _ _ _) = Just n
                 getNodeName _ = Nothing
             parallel_ (map (computeCatalogs True queryfunc pdbapi printFunc c) topnodes)
+            putStrLn ("Tested " ++ show (length topnodes) ++ " nodes.")
         else computeCatalogs False queryfunc pdbapi printFunc c tnodename
     void $ commitDB pdbapi
 
