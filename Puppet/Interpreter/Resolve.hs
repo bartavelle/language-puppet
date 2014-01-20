@@ -315,7 +315,11 @@ resolveValue (UBoolean x) = return (PBoolean x)
 resolveValue (UString x) = return (PString x)
 resolveValue UUndef = return PUndef
 resolveValue (UInterpolable vals) = fmap (PString . mconcat) (mapM resolveValueString (V.toList vals))
-resolveValue (UResourceReference t e) = PResourceReference `fmap` pure t <*> resolveExpressionString e
+resolveValue (UResourceReference t e) = do
+    r <- resolveExpressionStrings e
+    case r of
+        [s] -> return (PResourceReference t s)
+        _   -> return (PArray (V.fromList (map (\s -> PResourceReference t s) r)))
 resolveValue (UArray a) = fmap PArray (V.mapM resolveExpression a)
 resolveValue (UHash a) = fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
     where
