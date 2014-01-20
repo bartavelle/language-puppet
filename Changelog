@@ -1,6 +1,7 @@
 v0.10.6 ()
   New features
     * New all nodes testing for puppetresources.
+	* Added some uname related facts.
   Bugs fixed
 	* Parsing function calls without parens at the expression level is not
 	allowed now.

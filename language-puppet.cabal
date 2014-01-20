@@ -115,6 +115,7 @@ library
                         , yaml                 >= 0.8.0  && <0.9
                         , lens-aeson           >= 0.1.2  && <0.2
                         , stateWriter          == 0.2.*
+                        , split                == 0.2.*
 
 Test-Suite test-lexer
   hs-source-dirs: tests

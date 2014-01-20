@@ -12,6 +12,9 @@ import Control.Arrow
 import qualified Data.Either.Strict as S
 import Control.Lens
 import System.Posix.User
+import System.Posix.Unistd (getSystemID, SystemID(..))
+import Data.List.Split (splitOn)
+import Data.List (intercalate)
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -58,30 +61,26 @@ factNET = return [("ipaddress", "192.168.0.1")]
 factOS :: IO [(String, String)]
 factOS = do
     lsb <- fmap (map (break (== '=')) . lines) (readFile "/etc/lsb-release")
-    hostname <- fmap (head . lines) (readFile "/proc/sys/kernel/hostname")
-    let getval st | null filtered = "?"
+    let getval st | null filterd = "?"
                   | otherwise = rvalue
-                  where filtered = filter (\(k,_) -> k == st) lsb
-                        value    = (tail . snd . head) filtered
+                  where filterd = filter (\(k,_) -> k == st) lsb
+                        value    = (tail . snd . head) filterd
                         rvalue | head value == '"' = read value
                                | otherwise         = value
-        release = getval "DISTRIB_RELEASE"
+        lrelease = getval "DISTRIB_RELEASE"
         distid  = getval "DISTRIB_ID"
-        maj     | release == "?" = "?"
-                | otherwise = fst $ break (== '.') release
+        maj     | lrelease == "?" = "?"
+                | otherwise = fst $ break (== '.') lrelease
         osfam   | distid == "Ubuntu" = "Debian"
                 | otherwise = distid
     return  [ ("lsbdistid"              , distid)
             , ("operatingsystem"        , distid)
-            , ("lsbdistrelease"         , release)
-            , ("operatingsystemrelease" , release)
+            , ("lsbdistrelease"         , lrelease)
+            , ("operatingsystemrelease" , lrelease)
             , ("lsbmajdistrelease"      , maj)
             , ("osfamily"               , osfam)
-            , ("hostname"               , hostname)
             , ("lsbdistcodename"        , getval "DISTRIB_CODENAME")
             , ("lsbdistdescription"     , getval "DISTRIB_DESCRIPTION")
-            , ("hardwaremodel"          , arch)
-            , ("architecture"           , arch)
             ]
 
 factMountPoints :: IO [(String, String)]
@@ -98,33 +97,46 @@ factMountPoints = do
         goodfs = map (!! 1) goodlines
     return [("mountpoints", unwords goodfs)]
 
-version :: IO [(String, String)]
-version = return [("facterversion", "0.1"),("environment","test")]
+fversion :: IO [(String, String)]
+fversion = return [("facterversion", "0.1"),("environment","test")]
 
 factUser :: IO [(String, String)]
 factUser = do
     username <- getLoginName
     return [("id",username)]
 
+factUName :: IO [(String, String)]
+factUName = do
+    SystemID sn nn rl _ mc <- getSystemID
+    let vparts = splitOn "." (takeWhile (/='-') rl)
+    return [ ("kernel"           , sn)                              -- Linux
+           , ("kernelmajversion" , intercalate "." (take 2 vparts)) -- 3.5
+           , ("kernelrelease"    , rl)                              -- 3.5.0-45-generic
+           , ("kernelversion"    , intercalate "." (take 3 vparts)) -- 3.5.0
+           , ("hardwareisa"      , mc)                              -- x86_64
+           , ("hardwaremodel"    , mc)                              -- x86_64
+           , ("hostname"         , nn)
+           ]
+
 puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container T.Text)
-puppetDBFacts nodename pdbapi =
-    getFacts pdbapi (QEqual FCertname nodename) >>= \case
+puppetDBFacts ndename pdbapi =
+    getFacts pdbapi (QEqual FCertname ndename) >>= \case
         S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
         _ -> do
-            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, version, factMountPoints, factOS, factUser])
+            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
-                (hostname, ddomainname) = T.break (== '.') nodename
+                (hostname, ddomainname) = T.break (== '.') ndename
                 domainname = if T.null ddomainname
                                  then ""
                                  else T.tail ddomainname
-                nfacts = genFacts [ ("fqdn", nodename)
+                nfacts = genFacts [ ("fqdn", ndename)
                                   , ("hostname", hostname)
                                   , ("domain", domainname)
                                   , ("rootrsa", "xxx")
                                   , ("operatingsystem", "Ubuntu")
                                   , ("puppetversion", "language-puppet")
                                   , ("virtual", "xenu")
-                                  , ("clientcert", nodename)
+                                  , ("clientcert", ndename)
                                   , ("is_virtual", "true")
                                   ]
                 allfacts = nfacts `HM.union` ofacts
