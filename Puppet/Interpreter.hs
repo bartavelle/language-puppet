@@ -559,8 +559,11 @@ loadClass rclassname params cincludetype = do
     -- check if the class has already been loaded
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
     use (loadedClasses . at classname) >>= \case
-        Just (_ :!: pp) -> do
-            when (cincludetype == IncludeResource) (throwPosError ("Can't include class" <+> ttext classname <+> "twice when using the resource-like syntax (first occurence at" <+> showPPos pp <> ")"))
+        Just (prv :!: pp) -> do
+            when (  (cincludetype == IncludeResource)
+                 || (prv          == IncludeResource)
+                 )
+                (throwPosError ("Can't include class" <+> ttext classname <+> "twice when using the resource-like syntax (first occurence at" <+> showPPos pp <> ")"))
             return []
         -- already loaded, go on
         Nothing -> do
@@ -574,7 +577,7 @@ loadClass rclassname params cincludetype = do
                     -- This will be the case for the first standard include
                     inhstmts <- case inh of
                                     S.Nothing     -> return []
-                                    S.Just ihname -> loadClass ihname mempty IncludeResource
+                                    S.Just ihname -> loadClass ihname mempty IncludeStandard
                     let !scopedesc = ContClass classname
                         modulename = case T.splitOn "::" classname of
                                          []    -> classname
@@ -662,7 +665,10 @@ registerResource rt rn arg vrt p = do
     case rt of
         "class" -> {-# SCC "rrClass" #-} do
             definedResources . at resid ?= r
-            fmap (r:) $ loadClass rn (r ^. rattributes) IncludeResource
+            let attrs = r ^. rattributes
+            fmap (r:) $ loadClass rn attrs $ if HM.null attrs
+                                                 then IncludeStandard
+                                                 else IncludeResource
         _ -> {-# SCC "rrGeneralCase" #-}
             use (definedResources . at resid) >>= \case
                 Just otheres -> throwPosError ("Resource" <+> pretty resid <+> "already defined:" <$>

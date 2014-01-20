@@ -6,6 +6,7 @@ v0.10.6 ()
 	allowed now.
 	* Allow parsing of boolean facts from YAML files.
 	* Allow resource references with array variables.
+	* Fix spurious multiple includes error.
 
 v0.10.5 (2014/01/06)
   Bugs fixed
