@@ -41,6 +41,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "is_array" isArray
                               , singleArgument "is_domain_name" isDomainName
                               , singleArgument "is_integer" isInteger
+                              , singleArgument "is_string" isString
                               , singleArgument "keys" keys
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("merge", merge)
@@ -200,6 +201,12 @@ isDomainName s = do
 
 isInteger :: PValue -> InterpreterMonad PValue
 isInteger = return . PBoolean . not . isn't pvnum
+
+isString :: PValue -> InterpreterMonad PValue
+isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? pvnum) of
+                                     (_, Just _) -> False
+                                     (Just _, _) -> True
+                                     _           -> False
 
 keys :: PValue -> InterpreterMonad PValue
 keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)
