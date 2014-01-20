@@ -19,6 +19,7 @@ import Control.Monad.Trans.RSS.Strict
 import Control.Monad.Writer hiding ((<>))
 import Control.Monad.Error
 import Control.Lens
+import Control.Lens.Aeson
 import Data.String (IsString(..))
 import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
@@ -33,6 +34,8 @@ import Control.Applicative hiding (empty)
 import Data.Time.Clock
 import GHC.Stack
 import Data.Maybe (fromMaybe)
+import Data.Attoparsec.Number
+import Data.Attoparsec.Text (parseOnly,number)
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -649,3 +652,16 @@ instance FromJSON PNodeInfo where
                                      <*> v .:  "facts_timestamp"
                                      <*> v .:  "report_timestamp"
     parseJSON _ = fail "invalide node info"
+
+instance AsNumber PValue where
+    _Number = prism num2PValue toNumber
+        where
+            num2PValue :: Number -> PValue
+            num2PValue (I x) = PString (T.pack (show x))
+            num2PValue (D x) = PString (T.pack (show x))
+            toNumber :: PValue -> Either PValue Number
+            toNumber p@(PString x) = case parseOnly number x of
+                                         Right y -> Right y
+                                         _       -> Left p
+            toNumber p = Left p
+

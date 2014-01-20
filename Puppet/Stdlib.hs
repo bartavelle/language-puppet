@@ -7,6 +7,7 @@ import Puppet.Interpreter.Resolve
 import Puppet.Interpreter.Types
 
 import Control.Lens
+import Control.Lens.Aeson
 import Data.Char
 import Data.Monoid
 import Control.Monad
@@ -81,9 +82,9 @@ compileRE p =
         Left ms -> throwPosError ("Can't parse regexp" <+> pretty (URegexp p undefined) <+> ":" <+> text (show ms))
 
 puppetAbs :: PValue -> InterpreterMonad PValue
-puppetAbs y = case y ^? pvnum of
-                  Just (I x) -> return $ pvnum # I (abs x)
-                  Just (D x) -> return $ pvnum # D (abs x)
+puppetAbs y = case y ^? _Number of
+                  Just (I x) -> return $ _Integer # abs x
+                  Just (D x) -> return $ _Double  # abs x
                   Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
 
 any2array :: [PValue] -> InterpreterMonad PValue
@@ -129,12 +130,12 @@ puppetConcat [a,b] = throwPosError ("concat(): both arguments must be arrays, no
 puppetConcat _ = throwPosError "concat(): expects 2 arguments"
 
 puppetCount :: [PValue] -> InterpreterMonad PValue
-puppetCount [PArray x] = return (pvnum # I (V.foldl' cnt 0 x))
+puppetCount [PArray x] = return (_Integer # V.foldl' cnt 0 x)
     where
         cnt cur (PString "") = cur
         cnt cur PUndef = cur
         cnt cur _ = cur + 1
-puppetCount [PArray x, y] = return (pvnum # I (V.foldl' cnt 0 x))
+puppetCount [PArray x, y] = return (_Integer # V.foldl' cnt 0 x)
     where
         cnt cur z | y == z = cur + 1
                   | otherwise = cur
@@ -152,8 +153,8 @@ delete [a,_] = throwPosError ("delete(): First argument must be an Array, String
 delete _ = throwPosError "delete(): expects 2 arguments"
 
 deleteAt :: [PValue] -> InterpreterMonad PValue
-deleteAt [PArray r, z] = case z ^? pvnum of
-                              Just (I gn) ->
+deleteAt [PArray r, z] = case z ^? _Integer of
+                              Just gn ->
                                 let n = fromInteger gn
                                     lr = V.length r
                                     s1 = V.slice 0 n r
@@ -200,10 +201,10 @@ isDomainName s = do
     return $ PBoolean $ not (T.null rs) && T.length rs <= 255 && all checkPart prts
 
 isInteger :: PValue -> InterpreterMonad PValue
-isInteger = return . PBoolean . not . isn't pvnum
+isInteger = return . PBoolean . not . isn't _Integer
 
 isString :: PValue -> InterpreterMonad PValue
-isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? pvnum) of
+isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
                                      (_, Just _) -> False
                                      (Just _, _) -> True
                                      _           -> False

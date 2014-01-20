@@ -5,8 +5,6 @@
 module Puppet.Interpreter.Resolve
     ( -- * Pure resolution functions and prisms
       _PString,
-      _PInteger,
-      pvnum,
       getVariable,
       pValue2Bool,
       -- * Monadic resolution functions
@@ -54,6 +52,7 @@ import Control.Monad
 import Control.Monad.Error
 import Data.Tuple.Strict
 import Control.Lens
+import Control.Lens.Aeson
 import Data.Attoparsec.Number
 import Data.Attoparsec.Text
 import qualified Data.Either.Strict as S
@@ -120,8 +119,8 @@ binaryOperation a b opi opd = do
     rb <- resolveExpression b
     case toNumbers ra rb of
         S.Nothing -> throwPosError ("Expected numbers, not" <+> pretty ra <+> "or" <+> pretty rb)
-        S.Just (S.Right (na :!: nb)) -> return (pvnum # D (opd na nb))
-        S.Just (S.Left (na :!: nb))  -> return (pvnum # I (opi na nb))
+        S.Just (S.Right (na :!: nb)) -> return (_Double  # opd na nb)
+        S.Just (S.Left (na :!: nb))  -> return (_Integer # opi na nb)
 
 -- | Just like 'binaryOperation', but for operations that only work on
 -- integers.
@@ -132,32 +131,13 @@ integerOperation a b opr = do
     case toNumbers ra rb of
         S.Nothing -> throwPosError ("Expected numbers, not" <+> pretty ra <+> "or" <+> pretty rb)
         S.Just (S.Right _) -> throwPosError ("Expected integer values, not" <+> pretty ra <+> "or" <+> pretty rb)
-        S.Just (S.Left (na :!: nb))  -> return (pvnum # I (opr na nb))
-
--- | A prism between 'PValue' and 'Number'
-pvnum :: Prism' PValue Number
-pvnum = prism num2PValue toNumber
-    where
-        num2PValue :: Number -> PValue
-        num2PValue (I x) = PString (T.pack (show x))
-        num2PValue (D x) = PString (T.pack (show x))
-        toNumber :: PValue -> Either PValue Number
-        toNumber p@(PString x) = case parseOnly number x of
-                                     Right y -> Right y
-                                     _ -> Left p
-        toNumber p = Left p
+        S.Just (S.Left (na :!: nb))  -> return (_Integer # opr na nb)
 
 -- | A prism between 'PValue' and 'T.Text'
 _PString :: Prism' PValue T.Text
 _PString = prism PString $ \x -> case x of
                                      PString s -> Right s
                                      n -> Left n
-
--- | A prism between 'PValue' and 'Integer'
-_PInteger :: Prism' PValue Integer
-_PInteger = prism (PString . T.pack . show) $ \x -> case x ^? pvnum of
-                                                        Just (I z) -> Right z
-                                                        _ -> Left x
 
 -- | Resolves a variable, or throws an error if it can't.
 resolveVariable :: T.Text -> InterpreterMonad PValue
@@ -270,8 +250,8 @@ resolveExpression (Lookup a idx) =
                 Nothing -> throwPosError ("Can't find index '" <> ttext ridx <> "' in" <+> pretty (PHash h))
         PArray ar -> do
             ridx <- resolveExpression idx
-            i <- case ridx ^? pvnum of
-                     Just (I n) -> return (fromIntegral n)
+            i <- case ridx ^? _Integer of
+                     Just n -> return (fromIntegral n)
                      _ -> throwPosError ("Need an integral number for indexing an array, not" <+> pretty ridx)
             let arl = V.length ar
             if arl <= i
@@ -369,8 +349,8 @@ resolveFunction "fqdn_rand" args = do
     when (nbargs < 1 || nbargs > 2) (throwPosError "fqdn_rand(): Expects one or two arguments")
     fqdn <- resolveVariable "::fqdn" >>= resolvePValueString
     (mx:targs) <- mapM resolveExpressionString (V.toList args)
-    curmax <- case PString mx ^? pvnum of
-                  Just (I x) -> return x
+    curmax <- case PString mx ^? _Integer of
+                  Just x -> return x
                   _ -> throwPosError ("fqdn_rand(): the first argument must be an integer, not" <+> ttext mx)
     let rargs = if null targs
                  then [fqdn, ""]
@@ -379,7 +359,7 @@ resolveFunction "fqdn_rand" args = do
         myhash = toint (MD5.hash (T.encodeUtf8 fullstring)) :: Integer
         toint = BS.foldl' (\c nx -> c*256 + fromIntegral nx) 0
         fullstring = T.intercalate ":" rargs
-    return (pvnum # I val)
+    return (_Integer # val)
 resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveFunction' fname
 
 resolveFunction' :: T.Text -> [PValue] -> InterpreterMonad PValue

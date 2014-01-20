@@ -7,6 +7,7 @@ import qualified Data.Text as T
 import qualified Data.Either.Strict as S
 import qualified Data.Vector as V
 import Control.Lens
+import Control.Lens.Aeson
 import Control.Exception
 import Control.Concurrent.STM
 import Data.Monoid
@@ -108,7 +109,7 @@ dbapiInfo db = do
 
 ncompare :: (Integer -> Integer -> Bool) ->  (a -> b -> Extracted) -> a -> Integer -> (b -> Bool)
 ncompare operation f a i v = case f a v of
-                                 EText tt -> case PString tt ^? _PInteger of
+                                 EText tt -> case PString tt ^? _Integer of
                                                  Just ii -> operation i ii
                                                  _ -> False
                                  _ -> False
