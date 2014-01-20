@@ -487,7 +487,11 @@ loadParameters params classParams defaultPos wHiera = do
 enterScope :: S.Maybe T.Text -> CurContainerDesc -> T.Text -> PPosition -> InterpreterMonad T.Text
 enterScope parent cont modulename p = do
     let scopename = scopeName cont
-    curcaller <- resolveVariable "module_name"
+    -- | This is a special hack for inheritance, because at this time we
+    -- have not properly stacked the scopes.
+    curcaller <- case parent of
+                     S.Nothing  -> resolveVariable "module_name"
+                     S.Just prt -> return (PString $ T.takeWhile (/=':') prt)
     scopeAlreadyDefined <- use (scopes . contains scopename)
     let isImported = case cont of
                          ContImported _ -> True
@@ -507,9 +511,9 @@ enterScope parent cont modulename p = do
                 let Just psc = parentscope
                 return (psc & scopeParent .~ parent)
         scopes . at scopename ?= basescope
-    scopes . ix scopename . scopeVariables . at "module_name"        ?= (PString modulename :!: p :!: cont)
     scopes . ix scopename . scopeVariables . at "caller_module_name" ?= (curcaller          :!: p :!: cont)
-    scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (PString modulename :!: p :!: cont) -- hiera compatibility :(
+    scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (curcaller          :!: p :!: cont) -- hiera compatibility :(
+    scopes . ix scopename . scopeVariables . at "module_name"        ?= (PString modulename :!: p :!: cont)
     return scopename
 
 dropInitialColons :: T.Text -> T.Text
