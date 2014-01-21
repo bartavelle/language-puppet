@@ -204,12 +204,18 @@ resolveExpression (PValue v) = resolveValue v
 resolveExpression (Not e) = fmap (PBoolean . not . pValue2Bool) (resolveExpression e)
 resolveExpression (And a b) = do
     ra <- fmap pValue2Bool (resolveExpression a)
-    rb <- fmap pValue2Bool (resolveExpression b)
-    return (PBoolean (ra && rb))
+    if ra
+        then do
+            rb <- fmap pValue2Bool (resolveExpression b)
+            return (PBoolean (ra && rb))
+        else return (PBoolean False)
 resolveExpression (Or a b) = do
     ra <- fmap pValue2Bool (resolveExpression a)
-    rb <- fmap pValue2Bool (resolveExpression b)
-    return (PBoolean (ra || rb))
+    if ra
+        then return (PBoolean True)
+        else do
+            rb <- fmap pValue2Bool (resolveExpression b)
+            return (PBoolean (ra || rb))
 resolveExpression (LessThan a b) = numberCompare a b (<) (<)
 resolveExpression (MoreThan a b) = numberCompare a b (>) (>)
 resolveExpression (LessEqualThan a b) = numberCompare a b (<=) (<=)
@@ -451,7 +457,7 @@ resolveFunction' fname args = do
         Nothing -> throwPosError ("Unknown function" <+> dullred (ttext fname))
 
 pdbresourcequery :: PValue -> Maybe T.Text -> InterpreterMonad PValue
-pdbresourcequery q key = do
+pdbresourcequery q mkey = do
     pdb <- view pdbAPI
     rrv <- case fromJSON (toJSON q) of
                Success rq -> interpreterIO (getResources pdb rq)
@@ -464,7 +470,7 @@ pdbresourcequery q key = do
                                          Just val -> return val
                                          Nothing -> throwPosError ("pdbresourcequery strange error, could not find key" <+> ttext ky <+> "in" <+> pretty (PHash h))
         extractSubHash _ x = throwPosError ("pdbresourcequery strange error, expected a hash, had" <+> pretty x)
-    case key of
+    case mkey of
         Nothing -> return (PArray rv)
         (Just k) -> fmap PArray (V.mapM (extractSubHash k) rv)
 
