@@ -337,7 +337,7 @@ evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
                    . filter ((/= fqdn) . _rnode)
                    ) `fmap` interpreterIO (getResources pdb q)
             scpdesc <- ContImported `fmap` getScope
-            void $ enterScope S.Nothing scpdesc "importing" p
+            void $ enterScope SENormal scpdesc "importing" p
             pushScope scpdesc
             o <- finalize res
             popScope
@@ -478,20 +478,28 @@ loadParameters params classParams defaultPos wHiera = do
                   S.Just e  -> resolveExpression e
         loadVariable k rv
 
+data ScopeEnteringContext = SENormal
+                          | SEChild  !T.Text -- ^ We enter the scope as the child of another class
+                          | SEParent !T.Text -- ^ We enter the scope as the parent of another class
+
 -- | Enters a new scope, checks it is not already defined, and inherits the
 -- defaults from the current scope
 --
 -- Inheriting the defaults is necessary for non native types, because they
 -- will be expanded in "finalize", so if this was not done, we would be
 -- expanding the defines without the defaults applied
-enterScope :: S.Maybe T.Text -> CurContainerDesc -> T.Text -> PPosition -> InterpreterMonad T.Text
-enterScope parent cont modulename p = do
+enterScope :: ScopeEnteringContext
+           -> CurContainerDesc
+           -> T.Text
+           -> PPosition
+           -> InterpreterMonad T.Text
+enterScope secontext cont modulename p = do
     let scopename = scopeName cont
     -- | This is a special hack for inheritance, because at this time we
     -- have not properly stacked the scopes.
-    curcaller <- case parent of
-                     S.Nothing  -> resolveVariable "module_name"
-                     S.Just prt -> return (PString $ T.takeWhile (/=':') prt)
+    curcaller <- case secontext of
+                     SEParent l -> return (PString $ T.takeWhile (/=':') l)
+                     _ -> resolveVariable "module_name"
     scopeAlreadyDefined <- use (scopes . contains scopename)
     let isImported = case cont of
                          ContImported _ -> True
@@ -501,15 +509,15 @@ enterScope parent cont modulename p = do
         when scopeAlreadyDefined (throwPosError ("Internal error: scope" <+> brackets (ttext scopename) <+> "already defined when loading scope for" <+> pretty cont))
         scp <- getScopeName
         -- TODO fill tags
-        basescope <- case parent of
-            S.Nothing -> do
-                curdefs <- use (scopes . ix scp . scopeDefaults)
-                return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty parent
-            S.Just prt -> do
+        basescope <- case secontext of
+            SEChild prt -> do
                 parentscope <- use (scopes . at prt)
                 when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ttext prt))
                 let Just psc = parentscope
-                return (psc & scopeParent .~ parent)
+                return (psc & scopeParent .~ S.Just prt)
+            _ -> do
+                curdefs <- use (scopes . ix scp . scopeDefaults)
+                return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty S.Nothing
         scopes . at scopename ?= basescope
     scopes . ix scopename . scopeVariables . at "caller_module_name" ?= (curcaller          :!: p :!: cont)
     scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (curcaller          :!: p :!: cont) -- hiera compatibility :(
@@ -528,7 +536,7 @@ expandDefine r = do
                          (x:_) -> x
     let curContType = ContDefine deftype defname
     p <- use curPos
-    void $ enterScope S.Nothing curContType modulename p
+    void $ enterScope SENormal curContType modulename p
     (spurious, dls) <- getstt TopDefine deftype
     let isImported (ContImported _) = True
         isImported _ = False
@@ -554,10 +562,11 @@ expandDefine r = do
 
 
 loadClass :: T.Text
+          -> S.Maybe T.Text -- ^ Set if this is an inheritance load, so that we can set calling module properly
           -> Container PValue
           -> ClassIncludeType
           -> InterpreterMonad [Resource]
-loadClass rclassname params cincludetype = do
+loadClass rclassname loadedfrom params cincludetype = do
     let classname = dropInitialColons rclassname
     p <- use curPos
     -- check if the class has already been loaded
@@ -581,12 +590,16 @@ loadClass rclassname params cincludetype = do
                     -- This will be the case for the first standard include
                     inhstmts <- case inh of
                                     S.Nothing     -> return []
-                                    S.Just ihname -> loadClass ihname mempty IncludeStandard
+                                    S.Just ihname -> loadClass ihname (S.Just classname) mempty IncludeStandard
                     let !scopedesc = ContClass classname
                         modulename = case T.splitOn "::" classname of
                                          []    -> classname
                                          (x:_) -> x
-                    void $ enterScope inh scopedesc modulename p
+                        secontext = case (inh, loadedfrom) of
+                                        (S.Just x,_) -> SEChild x
+                                        (_,S.Just x) -> SEParent x
+                                        _ -> SENormal
+                    void $ enterScope secontext scopedesc modulename p
                     classresource <- if cincludetype == IncludeStandard
                                          then do
                                              scp <- use curScope
@@ -670,9 +683,9 @@ registerResource rt rn arg vrt p = do
         "class" -> {-# SCC "rrClass" #-} do
             definedResources . at resid ?= r
             let attrs = r ^. rattributes
-            fmap (r:) $ loadClass rn attrs $ if HM.null attrs
-                                                 then IncludeStandard
-                                                 else IncludeResource
+            fmap (r:) $ loadClass rn S.Nothing attrs $ if HM.null attrs
+                                                           then IncludeStandard
+                                                           else IncludeResource
         _ -> {-# SCC "rrGeneralCase" #-}
             use (definedResources . at resid) >>= \case
                 Just otheres -> throwPosError ("Resource" <+> pretty resid <+> "already defined:" <$>
@@ -708,7 +721,7 @@ mainFunctionCall "warning" a = logWithModifier WARNING      dullyellow  a
 mainFunctionCall "include" includes =
     fmap concat $ forM includes $ \e -> do
         classname <- resolvePValueString e
-        loadClass classname mempty IncludeStandard
+        loadClass classname S.Nothing mempty IncludeStandard
 mainFunctionCall "create_resources" [rtype, hs] = mainFunctionCall "create_resources" [rtype, hs, PHash mempty]
 mainFunctionCall "create_resources" [PString rtype, PHash hs, PHash defs] = do
     p <- use curPos
