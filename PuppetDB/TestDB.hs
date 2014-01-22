@@ -20,8 +20,8 @@ import qualified Data.HashSet as HS
 
 import Puppet.Parser.Types
 import Puppet.Interpreter.Types
-import Puppet.Interpreter.Resolve
 import Puppet.PP hiding ((<$>))
+import Puppet.Lens
 
 data DBContent = DBContent { _dbcontentResources   :: Container WireCatalog
                            , _dbcontentFacts       :: Container Facts

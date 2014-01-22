@@ -8,6 +8,7 @@ import Puppet.Interpreter.Types
 
 import Control.Lens
 import Control.Lens.Aeson
+import Puppet.Lens
 import Data.Char
 import Data.Monoid
 import Control.Monad

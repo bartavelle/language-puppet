@@ -3,8 +3,7 @@
 -- the fully exploitable corresponding data type. The main use case is the
 -- conversion of 'Expression' to 'PValue'.
 module Puppet.Interpreter.Resolve
-    ( -- * Pure resolution functions and prisms
-      _PString,
+    ( -- * Pure resolution functions
       getVariable,
       pValue2Bool,
       -- * Monadic resolution functions
@@ -52,7 +51,7 @@ import Control.Monad
 import Control.Monad.Error
 import Data.Tuple.Strict
 import Control.Lens
-import Control.Lens.Aeson
+import Control.Lens.Aeson hiding (key)
 import Data.Attoparsec.Number
 import Data.Attoparsec.Text
 import qualified Data.Either.Strict as S
@@ -132,12 +131,6 @@ integerOperation a b opr = do
         S.Nothing -> throwPosError ("Expected numbers, not" <+> pretty ra <+> "or" <+> pretty rb)
         S.Just (S.Right _) -> throwPosError ("Expected integer values, not" <+> pretty ra <+> "or" <+> pretty rb)
         S.Just (S.Left (na :!: nb))  -> return (_Integer # opr na nb)
-
--- | A prism between 'PValue' and 'T.Text'
-_PString :: Prism' PValue T.Text
-_PString = prism PString $ \x -> case x of
-                                     PString s -> Right s
-                                     n -> Left n
 
 -- | Resolves a variable, or throws an error if it can't.
 resolveVariable :: T.Text -> InterpreterMonad PValue
@@ -636,5 +629,4 @@ evaluateHFCPure hf' = do
                 PHash  hh -> return $ PHash  $ HM.fromList $ map Prelude.fst   $ filter Prelude.snd $ Prelude.zip (HM.toList hh) res
                 x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
         x -> throwPosError ("This type of function is not supported yet by language-puppet!" <+> pretty x)
-
 

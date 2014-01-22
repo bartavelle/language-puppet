@@ -50,6 +50,7 @@ library
                        , PuppetDB.Dummy
                        , PuppetDB.Common
                        , Hiera.Server
+                       , Puppet.Lens
   other-modules:       Text.Parser.Parsec
                        , Puppet.Utils
                        , Puppet.NativeTypes.File

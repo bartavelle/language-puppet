@@ -130,12 +130,12 @@ import Puppet.Parser.Types
 import Puppet.Parser
 import Puppet.Parser.PrettyPrinter()
 import Puppet.Interpreter.PrettyPrinter()
-import Puppet.Interpreter.Resolve (_PString)
 import PuppetDB.Remote
 import PuppetDB.Dummy
 import PuppetDB.TestDB
 import PuppetDB.Common
 import Puppet.Testing hiding ((<$>))
+import Puppet.Lens
 
 import Control.Concurrent.ParallelIO (parallel_)
 import Data.Maybe (mapMaybe)
