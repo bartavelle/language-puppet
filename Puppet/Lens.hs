@@ -17,13 +17,13 @@ module Puppet.Lens
  , _DefineDeclaration
  , _ClassDeclaration
  , _Statements
-
  ) where
 
 import Control.Lens
 import Control.Lens.Aeson
 import Control.Applicative
 
+import Puppet.PP (displayNocolor)
 import Puppet.Parser.Types
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.Resolve
@@ -132,13 +132,7 @@ _PParse = prism dspl prs
         prs i = case unsafePerformIO (runParserT (puppetParser <* eof) () "dummy" i) of
                 Left _  -> Left i
                 Right x -> Right x
-        dspl = T.pack . flip displayS "" . dropEffects . renderPretty 0.4 180 . ppStatements
-        dropEffects :: SimpleDoc -> SimpleDoc
-        dropEffects (SSGR _ x) = dropEffects x
-        dropEffects (SLine l d) = SLine l (dropEffects d)
-        dropEffects (SText v t d) = SText v t (dropEffects d)
-        dropEffects (SChar c d) = SChar c (dropEffects d)
-        dropEffects SEmpty = SEmpty
+        dspl = T.pack . displayNocolor . ppStatements
 
 _VariableAssignment :: Prism' Statement (T.Text,Expression,PPosition)
 _VariableAssignment = prism rebuild extract
