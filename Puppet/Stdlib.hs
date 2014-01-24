@@ -205,7 +205,6 @@ isInteger :: PValue -> InterpreterMonad PValue
 isInteger = return . PBoolean . not . isn't _Integer
 
 isString :: PValue -> InterpreterMonad PValue
-isString (PUndef) = return (PBoolean True)
 isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
                                      (_, Just _) -> False
                                      (Just _, _) -> True

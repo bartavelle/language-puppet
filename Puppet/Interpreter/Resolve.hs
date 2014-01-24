@@ -359,7 +359,10 @@ resolveFunction "fqdn_rand" args = do
         toint = BS.foldl' (\c nx -> c*256 + fromIntegral nx) 0
         fullstring = T.intercalate ":" rargs
     return (_Integer # val)
-resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveFunction' fname
+resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveFunction' fname . map undefEmptyString
+    where
+        undefEmptyString PUndef = PString ""
+        undefEmptyString x = x
 
 resolveFunction' :: T.Text -> [PValue] -> InterpreterMonad PValue
 resolveFunction' "defined" [PResourceReference rt rn] = fmap PBoolean (use (definedResources . contains (RIdentifier rt rn)))
