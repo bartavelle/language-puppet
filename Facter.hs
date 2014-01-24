@@ -6,7 +6,6 @@ import Text.Printf
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Puppet.Interpreter.Types
-import System.Info
 import qualified Data.Text as T
 import Control.Arrow
 import qualified Data.Either.Strict as S
@@ -15,6 +14,7 @@ import System.Posix.User
 import System.Posix.Unistd (getSystemID, SystemID(..))
 import Data.List.Split (splitOn)
 import Data.List (intercalate)
+import System.Environment
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -118,12 +118,17 @@ factUName = do
            , ("hostname"         , nn)
            ]
 
+fenv :: IO [(String,String)]
+fenv = do
+    path <- getEnv "PATH"
+    return [ ("path", path) ]
+
 puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container T.Text)
 puppetDBFacts ndename pdbapi =
     getFacts pdbapi (QEqual FCertname ndename) >>= \case
         S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
         _ -> do
-            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName])
+            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
                 (hostname, ddomainname) = T.break (== '.') ndename
                 domainname = if T.null ddomainname
@@ -138,6 +143,7 @@ puppetDBFacts ndename pdbapi =
                                   , ("virtual", "xenu")
                                   , ("clientcert", ndename)
                                   , ("is_virtual", "true")
+                                  , ("concat_basedir", "/var/lib/puppet/concat")
                                   ]
                 allfacts = nfacts `HM.union` ofacts
                 genFacts = HM.fromList

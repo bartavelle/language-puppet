@@ -25,7 +25,7 @@ parameterfunctions =
     ,("ensure"      , [defaultvalue "present", string])
     ,("force"       , [string, values ["true","false"]])
     ,("group"       , [defaultvalue "root", string])
-    ,("ignore"      , [string])
+    ,("ignore"      , [strings])
     ,("links"       , [string])
     ,("mode"        , [defaultvalue "0644", string])
     ,("owner"       , [string])

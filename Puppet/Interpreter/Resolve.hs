@@ -30,7 +30,7 @@ import Puppet.PP
 import Puppet.Interpreter.Types
 import Puppet.Parser.Types
 import Puppet.Interpreter.PrettyPrinter()
-import Puppet.Parser.PrettyPrinter()
+import Puppet.Parser.PrettyPrinter(showPos)
 
 import Data.Version (parseVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
@@ -49,7 +49,7 @@ import Control.Applicative hiding ((<$>))
 import Control.Exception
 import Control.Monad
 import Control.Monad.Error
-import Data.Tuple.Strict
+import Data.Tuple.Strict as S
 import Control.Lens
 import Control.Lens.Aeson hiding (key)
 import Data.Attoparsec.Number
@@ -387,12 +387,12 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement] = resolveFunction' 
 resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
     -- TODO handle all the flags
     -- http://docs.puppetlabs.com/references/latest/function.html#regsubst
-    when (pflags /= "G") (throwPosError "regsubst(): Currently only supports a single flag (G)")
+    when (pflags /= "G") (use curPos >>= \p -> warn ("regsubst(): Currently only supports a single flag (G) " <> showPos (S.fst p)))
     target      <- fmap T.encodeUtf8 (resolvePValueString ptarget)
     regexp      <- fmap T.encodeUtf8 (resolvePValueString pregexp)
     replacement <- fmap T.encodeUtf8 (resolvePValueString preplacement)
     liftIO (substituteCompile regexp target replacement) >>= \case
-        Left rr -> throwPosError ("regsubst():" <+> text rr)
+        Left rr -> throwPosError ("regsubst" <> parens (pretty pregexp <> comma <> pretty preplacement) <> ":" <+> text rr)
         Right x -> fmap PString (safeDecodeUtf8 x)
 resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 arguments"
 resolveFunction' "split" [psrc, psplt] = do

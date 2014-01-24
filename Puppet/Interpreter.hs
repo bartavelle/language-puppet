@@ -158,7 +158,8 @@ computeCatalog ndename = do
             -- replace the modified stuff
             let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
             return (toList res)
-    resnode <- evaluateNode node >>= finalStep . (++ restop)
+        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty (initialPPos "dummy") ndename
+    resnode <- evaluateNode node >>= finalStep . (++ (mainstage : restop))
     let (real :!: exported) = foldl' classify (mempty :!: mempty) resnode
         classify (curr :!: cure) r =
             let i curm = curm & at (r ^. rid) ?~ r

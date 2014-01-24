@@ -101,7 +101,7 @@ library
                         , time                 == 1.4.*
                         , filecache            >= 0.2.2  && < 0.3
                         , regex-pcre-builtin   >= 0.94.4
-                        , pcre-utils           == 0.1.*
+                        , pcre-utils           >= 0.1.0.1 && < 0.2
                         , process              == 1.1.*
                         , iconv                == 0.4.*
                         , http-types           == 0.8.*
