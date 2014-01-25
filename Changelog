@@ -1,4 +1,4 @@
-v0.10.6 ()
+v0.10.6 (2014/01/25)
   New features
 	* New all nodes testing for puppetresources.
 	* Added some uname related facts.
