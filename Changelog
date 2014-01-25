@@ -1,13 +1,15 @@
 v0.10.6 ()
   New features
-    * New all nodes testing for puppetresources.
+	* New all nodes testing for puppetresources.
 	* Added some uname related facts.
+	* Added some lenses and prisms.
   Bugs fixed
 	* Parsing function calls without parens at the expression level is not
 	allowed now.
 	* Allow parsing of boolean facts from YAML files.
 	* Allow resource references with array variables.
 	* Fix spurious multiple includes error.
+	* Fixed the implementation of some puppet functions.
 
 v0.10.5 (2014/01/06)
   Bugs fixed
