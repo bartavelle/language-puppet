@@ -114,7 +114,7 @@ testingDaemon :: PuppetDBAPI -- ^ Contains the puppetdb API functions
 testingDaemon pdb pdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
     prefs <- genPreferences pdir
-    q <- initDaemon (prefs { _compilePoolSize = 8, _parsePoolSize = 2, _prefPDB = pdb })
+    q <- initDaemon (prefs { _prefPDB = pdb })
     return (\nodname -> allFacts nodname >>= _dGetCatalog q nodname)
 
 -- | A default testing daemon.

@@ -93,7 +93,8 @@ initDaemon prefs = do
     templateStats <- newStats
     parserStats   <- newStats
     catalogStats  <- newStats
-    getStatements <- initParserDaemon prefs parserStats
+    pfilecache    <- newFileCache
+    let getStatements = parseFunction prefs pfilecache parserStats
 #ifdef HRUBY
     intr          <- startRubyInterpreter
     getTemplate   <- initTemplateDaemon intr prefs templateStats
@@ -143,19 +144,18 @@ master prefs controlQ getStatements getTemplate stats hquery = forever $ do
     traceEventIO ("getCatalog finished for " <> T.unpack ndename)
     putMVar q stmts
 
-initParserDaemon :: Preferences -> MStats -> IO ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) )
-initParserDaemon prefs mstats = do
-    let nbthreads = prefs ^. parsePoolSize
-    logDebug ("initParserDaemon - " <> tshow nbthreads <> " threads")
-    controlChan <- newChan
-    filecache   <- newFileCache
-    replicateM_ nbthreads (forkIO (pmaster prefs controlChan filecache mstats))
-    return $ \tt tn -> do
-        c <- newEmptyMVar
-        writeChan controlChan (ParserQuery tt tn c)
-        readMVar c
-
-data ParserMessage = ParserQuery !TopLevelType !T.Text !(MVar (S.Either Doc Statement))
+parseFunction :: Preferences -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either Doc Statement)
+parseFunction prefs filecache stats topleveltype toplevelname =
+    case compileFileList prefs topleveltype toplevelname of
+        S.Left rr -> return (S.Left rr)
+        S.Right fname -> do
+            let sfname = T.unpack fname
+                handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
+                handleFailure e = return (S.Left (show e))
+            x <- measure stats fname (query filecache sfname (parseFile sfname `catch` handleFailure))
+            case x of
+                S.Right stmts -> filterStatements topleveltype toplevelname stmts
+                S.Left rr -> return (S.Left (red (text rr)))
 
 -- TODO this is wrong, see
 -- http://docs.puppetlabs.com/puppet/3/reference/lang_namespaces.html#behavior
@@ -177,17 +177,3 @@ parseFile fname = do
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
         Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
 
-pmaster :: Preferences -> Chan ParserMessage -> FileCache (V.Vector Statement) -> MStats -> IO ()
-pmaster prefs controlqueue filecache stats = forever $ do
-    (ParserQuery topleveltype toplevelname responseQ) <- readChan controlqueue
-    case compileFileList prefs topleveltype toplevelname of
-        S.Left rr -> putMVar responseQ (S.Left rr)
-        S.Right fname -> do
-            let sfname = T.unpack fname
-                handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
-                handleFailure e = return (S.Left (show e))
-                colorError (S.Right x) = S.Right x
-                colorError (S.Left rr) = S.Left (red (text rr))
-            fmap colorError ( measure stats fname (query filecache sfname (parseFile sfname `catch` handleFailure)) ) >>= \case
-                S.Left rr     -> putMVar responseQ (S.Left rr)
-                S.Right stmts -> filterStatements topleveltype toplevelname stmts >>= putMVar responseQ

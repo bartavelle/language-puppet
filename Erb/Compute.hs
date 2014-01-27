@@ -64,7 +64,7 @@ showRubyError (Stack msg stk) = dullred (string msg) </> dullyellow (string stk)
 showRubyError (WithOutput str _) = dullred (string str)
 
 initTemplateDaemon :: RubyInterpreter -> Preferences -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
-initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _ _ _) mvstats = do
+initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _ _) mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
     -- forkOS is used because ruby doesn't like to change threads

@@ -1,3 +1,9 @@
+v0.11.0 ()
+  New features
+	* Removal of the dedicated parsing threads.
+	* Better default RTS options (for now, just the default allocation size)
+  Bugs fixed
+
 v0.10.6 (2014/01/25)
   New features
 	* New all nodes testing for puppetresources.
