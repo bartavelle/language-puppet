@@ -28,6 +28,7 @@ import qualified Data.Graph as G
 import qualified Data.Tree as T
 import Data.Foldable (toList,foldl',Foldable,foldlM)
 import Data.Traversable (mapM,forM)
+import Debug.Trace (traceEventIO)
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
@@ -569,6 +570,8 @@ loadClass :: T.Text
           -> InterpreterMonad [Resource]
 loadClass rclassname loadedfrom params cincludetype = do
     let classname = dropInitialColons rclassname
+    ndn <- view thisNodename
+    liftIO (traceEventIO ('[' : T.unpack ndn ++ "] loadClass " ++ T.unpack classname))
     p <- use curPos
     -- check if the class has already been loaded
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations

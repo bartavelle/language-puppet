@@ -171,10 +171,11 @@ compileFileList prefs _ name = moduleInfo
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
+    traceEventIO ("Start parsing " ++ fname)
     cnt <- T.readFile fname
     runParserT puppetParser () fname cnt >>= \case
-        Right r -> return (S.Right r)
-        Left rr -> return (S.Left (show rr))
+        Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
+        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
 
 pmaster :: Preferences -> Chan ParserMessage -> FileCache (V.Vector Statement) -> MStats -> IO ()
 pmaster prefs controlqueue filecache stats = forever $ do
