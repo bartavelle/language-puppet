@@ -50,15 +50,11 @@ function that will take a node name, 'Facts' and return either an error or the
 functions that can be used in order to query the daemon for statistics,
 following the format in "Puppet.Stats".
 
-It will internaly initialize several threads that communicate with channels. It
-should scale well, althrough it hasn't really been tested yet. It should cache
-the ASL of every .pp file, and could use a bit of memory. As a comparison, it
+It will internaly initialize a thread for the LUA interpreter, and a thread for the Ruby one.
+It should cache the AST of every .pp file, and could use a bit of memory. As a comparison, it
 fits in 60 MB with the author's manifests, but really breathes when given 300 MB
 of heap space. In this configuration, even if it spawns a ruby process for every
 template evaluation, it is way faster than the puppet stack.
-
-It is recommended to ask for as many parser and interpreter threads as there are
-CPUs.
 
 It can optionnaly talk with PuppetDB, by setting an URL in the 'Prefs' data
 structure. The recommended way to set it to http://localhost:8080 and set a SSH
@@ -71,8 +67,6 @@ Known bugs :
 * It might be buggy when top level statements that are not class\/define\/nodes
 are altered, or when files loaded with require are changed.
 
-* Exported resources are supported through the PuppetDB interface.
-
 * The catalog is not computed exactly the same way Puppet does. Take a look at
 "Puppet.Interpreter.Catalog" for a list of differences.
 
@@ -80,7 +74,7 @@ are altered, or when files loaded with require are changed.
 
 * There might be race conditions because file status are checked before they
 are opened. This means the program might end with an exception when the file
-is not existent. This will need fixing.
+is nonexistent. This will need fixing.
 
 -}
 initDaemon :: Preferences -> IO DaemonMethods
