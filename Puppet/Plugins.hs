@@ -37,7 +37,6 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 import Control.Monad.IO.Class
-import Control.Monad (void)
 import Control.Concurrent
 
 import Puppet.Interpreter.Types
@@ -114,25 +113,14 @@ initLua moduledir = do
 initLuaMaster :: T.Text -> IO (HM.HashMap T.Text ([PValue] -> InterpreterMonad PValue))
 initLuaMaster moduledir = do
     (luastate, luafunctions) <- initLua moduledir
-    c <- newChan
-    void $ forkIO (luaMaster c luastate)
+    c <- newMVar luastate
     let callf fname args = do
-            r <- liftIO $ do
-                o <- newEmptyMVar
-                writeChan c (LuaQuery fname args o)
-                takeMVar o
+            r <- liftIO $ withMVar c $ \stt ->
+                catch (fmap Right (Lua.callfunc stt (T.unpack fname) args)) (\e -> return $ Left $ show (e :: SomeException))
             case r of
                 Right x -> return x
                 Left rr -> throwPosError (string rr)
     return $ HM.fromList [(fname, callf fname) | fname <- luafunctions]
-
-data LuaQuery = LuaQuery T.Text [PValue] (MVar (Either String PValue))
-
-luaMaster :: Chan LuaQuery -> Lua.LuaState -> IO ()
-luaMaster c stt  = do
-    LuaQuery fname args o <- readChan c
-    catch (fmap Right (Lua.callfunc stt (T.unpack fname) args)) (\e -> return $ Left $ show (e :: SomeException)) >>= putMVar o
-    luaMaster c stt
 
 -- | Obviously releases the Lua state.
 closeLua :: Lua.LuaState -> IO ()
