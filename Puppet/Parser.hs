@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, GeneralizedNewtypeDeriving #-}
 module Puppet.Parser (puppetParser,expression,runMyParser) where
 
 import qualified Data.Text as T
@@ -26,12 +26,12 @@ import Text.Parser.Token.Highlight
 import Text.Parsec.Error (ParseError)
 import Text.Parsec.Text ()
 import qualified Text.Parsec.Prim as PP
-import qualified Text.Parsec.Char as PP
 import Text.Parsec.Text ()
 
 import Unsafe.Coerce
 
 newtype Parser a = Parser { unParser :: PP.ParsecT T.Text () IO a }
+                   deriving (Functor, Monad, Parsing, LookAheadParsing, CharParsing, Applicative, Alternative, MonadIO)
 
 getPosition :: Parser SourcePos
 getPosition = Parser PP.getPosition
@@ -40,48 +40,6 @@ runMyParser :: Parser a -> SourceName -> T.Text -> IO (Either ParseError a)
 runMyParser (Parser p) = PP.runPT p ()
 
 type OP = PP.ParsecT T.Text () IO
-
-instance Functor Parser where
-    fmap = unsafeCoerce (fmap :: (a -> b) -> OP a -> OP b)
-
-instance Monad Parser where
-    return = unsafeCoerce (return :: a -> OP a)
-    fail = unsafeCoerce (fail :: String -> OP ())
-    (>>=) = unsafeCoerce ((>>=) :: OP a -> (a -> OP b) -> OP b)
-
-instance Parsing Parser where
-    try           = unsafeCoerce (PP.try :: OP a -> OP a)
-    (<?>)         = unsafeCoerce ((<?>) :: OP a -> String -> OP a)
-    skipMany      = unsafeCoerce (PP.skipMany :: OP a -> OP ())
-    skipSome      = unsafeCoerce (skipSome :: OP a -> OP ())
-    unexpected    = unsafeCoerce (PP.unexpected :: String -> OP ())
-    eof           = unsafeCoerce (eof :: OP ())
-    notFollowedBy = Parser . notFollowedBy . unParser
-
-instance LookAheadParsing Parser where
-    lookAhead = unsafeCoerce (PP.lookAhead :: OP a -> OP a)
-
-instance CharParsing Parser where
-    satisfy = unsafeCoerce (PP.satisfy :: (Char -> Bool) -> OP Char)
-    char    = unsafeCoerce (PP.char :: Char -> OP Char)
-    notChar = Parser . notChar
-    anyChar = unsafeCoerce (PP.anyChar :: OP Char)
-    string  = unsafeCoerce (PP.string :: String -> OP String)
-
-instance Applicative Parser where
-    pure  = unsafeCoerce (pure :: a -> OP a)
-    (<*>) = unsafeCoerce ((<*>) :: OP (a -> b) -> OP a -> OP b)
-    (*>)  = unsafeCoerce ((*>) :: OP a -> OP b -> OP b)
-    (<*)  = unsafeCoerce ((<*) :: OP a -> OP b -> OP a)
-
-instance Alternative Parser where
-    empty = unsafeCoerce (empty :: OP a)
-    (<|>) = unsafeCoerce ((<|>) :: OP a -> OP a -> OP a)
-    some  = unsafeCoerce (some :: OP a -> OP [a])
-    many  = unsafeCoerce (many :: OP a -> OP [a])
-
-instance MonadIO Parser where
-    liftIO = unsafeCoerce (liftIO :: IO a -> OP a)
 
 instance TokenParsing Parser where
     someSpace = skipMany (simpleSpace <|> oneLineComment <|> multiLineComment)
