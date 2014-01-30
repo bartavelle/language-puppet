@@ -19,7 +19,7 @@ import Control.Monad.Trans.RSS.Strict
 import Control.Monad.Writer hiding ((<>))
 import Control.Monad.Error
 import Control.Lens
-import Control.Lens.Aeson
+import Data.Aeson.Lens
 import Data.String (IsString(..))
 import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
@@ -36,6 +36,7 @@ import GHC.Stack
 import Data.Maybe (fromMaybe)
 import Data.Attoparsec.Number
 import Data.Attoparsec.Text (parseOnly,number)
+import Data.Scientific
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -656,12 +657,17 @@ instance FromJSON PNodeInfo where
 instance AsNumber PValue where
     _Number = prism num2PValue toNumber
         where
-            num2PValue :: Number -> PValue
-            num2PValue (I x) = PString (T.pack (show x))
-            num2PValue (D x) = PString (T.pack (show x))
-            toNumber :: PValue -> Either PValue Number
+            num2PValue :: Scientific -> PValue
+            num2PValue s =
+               let e = base10Exponent s
+                   c = coefficient s
+               in  PString $ T.pack $ if e >= 0
+                                          then show (c * 10 ^ e)
+                                          else show ( (fromInteger c / 10 ^ negate e) :: Double)
+            toNumber :: PValue -> Either PValue Scientific
             toNumber p@(PString x) = case parseOnly number x of
-                                         Right y -> Right y
+                                         Right (I n) -> Right (fromInteger n)
+                                         Right (D n) -> Right (fromRational (toRational n))
                                          _       -> Left p
             toNumber p = Left p
 

@@ -7,7 +7,7 @@ import Puppet.Interpreter.Resolve
 import Puppet.Interpreter.Types
 
 import Control.Lens
-import Control.Lens.Aeson
+import Data.Aeson.Lens
 import Puppet.Lens
 import Data.Char
 import Data.Monoid
@@ -18,7 +18,6 @@ import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Attoparsec.Number
 import qualified Data.ByteString.Base16 as B16
 
 -- | Contains the implementation of the StdLib functions.
@@ -84,8 +83,7 @@ compileRE p =
 
 puppetAbs :: PValue -> InterpreterMonad PValue
 puppetAbs y = case y ^? _Number of
-                  Just (I x) -> return $ _Integer # abs x
-                  Just (D x) -> return $ _Double  # abs x
+                  Just x -> return $ _Number # abs x
                   Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
 
 any2array :: [PValue] -> InterpreterMonad PValue

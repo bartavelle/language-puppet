@@ -30,7 +30,7 @@ module Puppet.Lens
  ) where
 
 import Control.Lens
-import Control.Lens.Aeson
+import Data.Aeson.Lens
 import Control.Applicative
 
 import Puppet.PP (displayNocolor)
@@ -44,7 +44,6 @@ import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import Data.Tuple.Strict hiding (uncurry)
-import Text.Parsec.Prim (runParserT)
 import System.IO.Unsafe
 import Data.Bits
 import Text.Parser.Combinators (eof)
@@ -130,7 +129,7 @@ _PResolveValue = prism toU toP
 _PParse :: Prism' T.Text (V.Vector Statement)
 _PParse = prism dspl prs
     where
-        prs i = case unsafePerformIO (runParserT (puppetParser <* eof) () "dummy" i) of
+        prs i = case unsafePerformIO (runMyParser (puppetParser <* eof) "dummy" i) of
                 Left _  -> Left i
                 Right x -> Right x
         dspl = T.pack . displayNocolor . ppStatements

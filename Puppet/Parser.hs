@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Puppet.Parser (puppetParser,expression) where
+module Puppet.Parser (puppetParser,expression,runMyParser) where
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -12,7 +12,7 @@ import Data.Char
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Applicative
-import Control.Lens
+import Control.Lens hiding (noneOf)
 
 import Puppet.Parser.Types
 
@@ -20,13 +20,78 @@ import Text.Parsec.Expr
 import Text.Parser.Token hiding (stringLiteral')
 import Text.Parser.Combinators
 import Text.Parser.Char
+import Text.Parsec.Pos (SourcePos,SourceName)
 import Text.Parser.LookAhead
-import Text.Parser.Parsec ()
 import Text.Parser.Token.Highlight
-import Text.Parsec.Prim (getPosition, ParsecT)
+import Text.Parsec.Error (ParseError)
+import Text.Parsec.Text ()
+import qualified Text.Parsec.Prim as PP
+import qualified Text.Parsec.Char as PP
 import Text.Parsec.Text ()
 
-type Parser = ParsecT T.Text () IO
+import Unsafe.Coerce
+
+newtype Parser a = Parser { unParser :: PP.ParsecT T.Text () IO a }
+
+getPosition :: Parser SourcePos
+getPosition = Parser PP.getPosition
+
+runMyParser :: Parser a -> SourceName -> T.Text -> IO (Either ParseError a)
+runMyParser (Parser p) = PP.runPT p ()
+
+type OP = PP.ParsecT T.Text () IO
+
+instance Functor Parser where
+    fmap = unsafeCoerce (fmap :: (a -> b) -> OP a -> OP b)
+
+instance Monad Parser where
+    return = unsafeCoerce (return :: a -> OP a)
+    fail = unsafeCoerce (fail :: String -> OP ())
+    (>>=) = unsafeCoerce ((>>=) :: OP a -> (a -> OP b) -> OP b)
+
+instance Parsing Parser where
+    try           = unsafeCoerce (PP.try :: OP a -> OP a)
+    (<?>)         = unsafeCoerce ((<?>) :: OP a -> String -> OP a)
+    skipMany      = unsafeCoerce (PP.skipMany :: OP a -> OP ())
+    skipSome      = unsafeCoerce (skipSome :: OP a -> OP ())
+    unexpected    = unsafeCoerce (PP.unexpected :: String -> OP ())
+    eof           = unsafeCoerce (eof :: OP ())
+    notFollowedBy = Parser . notFollowedBy . unParser
+
+instance LookAheadParsing Parser where
+    lookAhead = unsafeCoerce (PP.lookAhead :: OP a -> OP a)
+
+instance CharParsing Parser where
+    satisfy = unsafeCoerce (PP.satisfy :: (Char -> Bool) -> OP Char)
+    char    = unsafeCoerce (PP.char :: Char -> OP Char)
+    notChar = Parser . notChar
+    anyChar = unsafeCoerce (PP.anyChar :: OP Char)
+    string  = unsafeCoerce (PP.string :: String -> OP String)
+
+instance Applicative Parser where
+    pure  = unsafeCoerce (pure :: a -> OP a)
+    (<*>) = unsafeCoerce ((<*>) :: OP (a -> b) -> OP a -> OP b)
+    (*>)  = unsafeCoerce ((*>) :: OP a -> OP b -> OP b)
+    (<*)  = unsafeCoerce ((<*) :: OP a -> OP b -> OP a)
+
+instance Alternative Parser where
+    empty = unsafeCoerce (empty :: OP a)
+    (<|>) = unsafeCoerce ((<|>) :: OP a -> OP a -> OP a)
+    some  = unsafeCoerce (some :: OP a -> OP [a])
+    many  = unsafeCoerce (many :: OP a -> OP [a])
+
+instance MonadIO Parser where
+    liftIO = unsafeCoerce (liftIO :: IO a -> OP a)
+
+instance TokenParsing Parser where
+    someSpace = skipMany (simpleSpace <|> oneLineComment <|> multiLineComment)
+      where
+        simpleSpace = skipSome (satisfy isSpace)
+        oneLineComment = char '#' >> void (manyTill anyChar newline)
+        multiLineComment = try (string "/*") >> inComment
+        inComment =     void (try (string "*/"))
+                    <|> (skipSome (noneOf "*/") >> inComment)
+                    <|> (oneOf "*/" >> inComment)
 
 stringLiteral' :: Parser T.Text
 stringLiteral' = char '\'' *> interior <* symbolic '\''
@@ -192,14 +257,14 @@ genFunctionCall nonparens = do
     -- this is a hack. Contrary to what the documentation says,
     -- a "bareword" can perfectly be a qualified name :
     -- include foo::bar
-    let argsc sep e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument") `sep` comma
+    let argsc sep e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
-        expressionF = buildExpressionParser expressionTable (token terminalF) <?> "function expression"
+        expressionF = unsafeCoerce (buildExpressionParser expressionTable (unsafeCoerce (token terminalF)) <?> "function expression")
         withparens = parens (argsc sepEndBy expression)
         withoutparens = argsc sepEndBy1 expressionF
     args  <- withparens <|> if nonparens
-                                then withoutparens <?> "Function arguments"
-                                else fail "Function arguments"
+                                then withoutparens <?> "Function arguments B"
+                                else fail "Function arguments C"
     return (fname, V.fromList args)
 
 functionCall :: Parser UValue
@@ -243,7 +308,7 @@ terminal = terminalG (fmap PValue (fmap UHFunctionCall (try hfunctionCall) <|> t
 
 expression :: Parser Expression
 expression = condExpression
-             <|> buildExpressionParser expressionTable (token terminal)
+             <|> unsafeCoerce (buildExpressionParser expressionTable (unsafeCoerce (token terminal)))
              <?> "expression"
     where
         condExpression = do
@@ -263,34 +328,39 @@ expression = condExpression
 
 expressionTable :: [[Operator T.Text () IO Expression]]
 expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) AssocLeft ]
-                    [ Prefix ( operator "-"   >> return Negate           ) ]
-                  , [ Prefix ( operator "!"   >> return Not              ) ]
-                  , [ Infix  ( operator "."   >> return FunctionApplication ) AssocLeft ]
-                  , [ Infix  ( reserved "in"  >> return Contains         ) AssocLeft ]
-                  , [ Infix  ( operator "/"   >> return Division         ) AssocLeft
-                    , Infix  ( operator "*"   >> return Multiplication   ) AssocLeft
+                    [ Prefix ( operator' "-"   >> return Negate           ) ]
+                  , [ Prefix ( operator' "!"   >> return Not              ) ]
+                  , [ Infix  ( operator' "."   >> return FunctionApplication ) AssocLeft ]
+                  , [ Infix  ( reserved' "in"  >> return Contains         ) AssocLeft ]
+                  , [ Infix  ( operator' "/"   >> return Division         ) AssocLeft
+                    , Infix  ( operator' "*"   >> return Multiplication   ) AssocLeft
                     ]
-                  , [ Infix  ( operator "+"   >> return Addition     ) AssocLeft
-                    , Infix  ( operator "-"   >> return Substraction ) AssocLeft
+                  , [ Infix  ( operator' "+"   >> return Addition     ) AssocLeft
+                    , Infix  ( operator' "-"   >> return Substraction ) AssocLeft
                     ]
-                  , [ Infix  ( operator "<<"  >> return LeftShift  ) AssocLeft
-                    , Infix  ( operator ">>"  >> return RightShift ) AssocLeft
+                  , [ Infix  ( operator' "<<"  >> return LeftShift  ) AssocLeft
+                    , Infix  ( operator' ">>"  >> return RightShift ) AssocLeft
                     ]
-                  , [ Infix  ( operator "=="  >> return Equal     ) AssocLeft
-                    , Infix  ( operator "!="  >> return Different ) AssocLeft
+                  , [ Infix  ( operator' "=="  >> return Equal     ) AssocLeft
+                    , Infix  ( operator' "!="  >> return Different ) AssocLeft
                     ]
-                  , [ Infix  ( operator ">="  >> return MoreEqualThan ) AssocLeft
-                    , Infix  ( operator "<="  >> return LessEqualThan ) AssocLeft
-                    , Infix  ( operator ">"   >> return MoreThan      ) AssocLeft
-                    , Infix  ( operator "<"   >> return LessThan      ) AssocLeft
+                  , [ Infix  ( operator' ">="  >> return MoreEqualThan ) AssocLeft
+                    , Infix  ( operator' "<="  >> return LessEqualThan ) AssocLeft
+                    , Infix  ( operator' ">"   >> return MoreThan      ) AssocLeft
+                    , Infix  ( operator' "<"   >> return LessThan      ) AssocLeft
                     ]
-                  , [ Infix  ( reserved "and" >> return And ) AssocLeft
-                    , Infix  ( reserved "or"  >> return Or  ) AssocLeft
+                  , [ Infix  ( reserved' "and" >> return And ) AssocLeft
+                    , Infix  ( reserved' "or"  >> return Or  ) AssocLeft
                     ]
-                  , [ Infix  ( operator "=~"  >> return RegexMatch    ) AssocLeft
-                    , Infix  ( operator "!~"  >> return NotRegexMatch ) AssocLeft
+                  , [ Infix  ( operator' "=~"  >> return RegexMatch    ) AssocLeft
+                    , Infix  ( operator' "!~"  >> return NotRegexMatch ) AssocLeft
                     ]
                   ]
+    where
+        operator' :: String -> OP String
+        operator' = unsafeCoerce operator
+        reserved' :: String -> OP String
+        reserved' = unsafeCoerce reserved
 
 stringExpression :: Parser Expression
 stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variableOrHash <|> fmap (PValue . UString) literalValue

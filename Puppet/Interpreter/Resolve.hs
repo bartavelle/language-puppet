@@ -51,7 +51,7 @@ import Control.Monad
 import Control.Monad.Error
 import Data.Tuple.Strict as S
 import Control.Lens
-import Control.Lens.Aeson hiding (key)
+import Data.Aeson.Lens hiding (key)
 import Data.Attoparsec.Number
 import Data.Attoparsec.Text
 import qualified Data.Either.Strict as S
@@ -143,7 +143,7 @@ resolveVariable fullvar = do
 
 -- | A simple helper that checks if a given type is native or a define.
 isNativeType :: T.Text -> InterpreterMonad Bool
-isNativeType t = view (nativeTypes . contains t)
+isNativeType t = has (ix t) `fmap` view nativeTypes
 
 -- | A pure function for resolving variables.
 getVariable :: Container ScopeInformation -- ^ The whole scope data.
@@ -365,16 +365,16 @@ resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveF
         undefEmptyString x = x
 
 resolveFunction' :: T.Text -> [PValue] -> InterpreterMonad PValue
-resolveFunction' "defined" [PResourceReference rt rn] = fmap PBoolean (use (definedResources . contains (RIdentifier rt rn)))
+resolveFunction' "defined" [PResourceReference rt rn] = fmap (PBoolean . has (ix (RIdentifier rt rn))) (use definedResources)
 resolveFunction' "defined" [ut] = do
     t <- resolvePValueString ut
     -- case 1, netsted thingie
     nestedStuff <- use nestedDeclarations
-    if (nestedStuff ^. contains (TopDefine, t)) || (nestedStuff ^. contains (TopClass, t))
+    if (has (ix (TopDefine, t)) nestedStuff) || (has (ix (TopClass, t)) nestedStuff)
         then return (PBoolean True)
         else do -- case 2, loadeded class
             lc <- use loadedClasses
-            if lc ^. contains t
+            if has (ix t) lc
                 then return (PBoolean True)
                 else fmap PBoolean (isNativeType t)
 resolveFunction' "defined" x = throwPosError ("defined(): expects a single resource reference, type or class name, and not" <+> pretty x)

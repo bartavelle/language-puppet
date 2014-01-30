@@ -7,7 +7,7 @@ import qualified Data.Text as T
 import qualified Data.Either.Strict as S
 import qualified Data.Vector as V
 import Control.Lens
-import Control.Lens.Aeson
+import Data.Aeson.Lens
 import Control.Exception
 import Control.Concurrent.STM
 import Data.Monoid

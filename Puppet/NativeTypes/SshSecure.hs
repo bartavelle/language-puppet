@@ -25,7 +25,7 @@ parameterfunctions =
     ]
 
 userOrTarget :: PuppetTypeValidate
-userOrTarget res = case (res ^. rattributes . containsAt "user", res ^. rattributes . containsAt "target") of
+userOrTarget res = case (res ^. rattributes & has (ix "user"), res ^. rattributes & has (ix "target")) of
                        (False, False) -> Left "Parameters user or target are mandatory"
                        _              -> Right res
 

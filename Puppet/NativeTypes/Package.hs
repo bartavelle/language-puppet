@@ -91,7 +91,7 @@ checkFeatures =
                                  then Right (s, r)
                                  else Left ("Feature" <+> text (show f) <+> "is required for the current configuration")
         checkParam :: T.Text -> PackagingFeatures -> (HS.HashSet PackagingFeatures, Resource) -> Either Doc (HS.HashSet PackagingFeatures, Resource)
-        checkParam pn f (s,r) = if r ^. rattributes . containsAt pn
+        checkParam pn f (s,r) = if has (ix pn) (r ^. rattributes)
                                     then checkFeature s r f
                                     else Right (s,r)
         checkAdminFile :: (HS.HashSet PackagingFeatures, Resource) -> Either Doc (HS.HashSet PackagingFeatures, Resource)

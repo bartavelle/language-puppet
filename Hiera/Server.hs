@@ -22,7 +22,7 @@ import Control.Monad.Writer.Strict
 
 import Control.Applicative
 import Control.Lens
-import Control.Lens.Aeson
+import Data.Aeson.Lens
 import Puppet.Lens
 import System.FilePath.Lens (directory)
 import Control.Exception

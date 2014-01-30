@@ -14,7 +14,6 @@ import Hiera.Server
 import Erb.Compute
 
 import Puppet.PP
-import Text.Parsec
 import Data.FileCache
 import qualified System.Log.Logger as LOG
 import qualified Data.Text as T
@@ -146,7 +145,7 @@ parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
     traceEventIO ("Start parsing " ++ fname)
     cnt <- T.readFile fname
-    runParserT puppetParser () fname cnt >>= \case
+    runMyParser puppetParser fname cnt >>= \case
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
         Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
 

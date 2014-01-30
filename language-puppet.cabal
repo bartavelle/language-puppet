@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                language-puppet
-version:             0.10.6
+version:             0.11.0
 synopsis:            Tools to parse and evaluate the Puppet DSL.
 description:         This is a set of tools that is supposed to fill all your Puppet needs : syntax checks, catalog compilation, PuppetDB queries, simulationg of complex interactions between nodes, Puppet master replacement, and more !
 homepage:            http://lpuppet.banquise.net/
@@ -51,8 +51,7 @@ library
                        , PuppetDB.Common
                        , Hiera.Server
                        , Puppet.Lens
-  other-modules:       Text.Parser.Parsec
-                       , Puppet.Utils
+  other-modules:         Puppet.Utils
                        , Puppet.NativeTypes.File
                        , Paths_language_puppet
                        , Erb.Parser
@@ -74,7 +73,7 @@ library
                        , Puppet.Interpreter.RubyRandom
   extensions:          OverloadedStrings, BangPatterns
   if flag(hruby)
-    Build-depends: hruby >= 0.1.3 && <0.2
+    Build-depends: hruby >= 0.2 && <0.3
     CPP-Options:   -DHRUBY
 
   ghc-options:         -Wall -funbox-strict-fields
@@ -85,28 +84,28 @@ library
                         , strict-base-types    >= 0.2
                         , hashable             == 1.2.*
                         , unordered-containers == 0.2.*
-                        , text                 >= 0.11   && < 1.1
+                        , text                 >= 0.11
                         , vector               == 0.10.*
                         , parsec               == 3.1.*
                         , mtl                  == 2.1.*
-                        , lens                 >= 3.9    && < 4
-                        , parsers              >= 0.9    && < 0.10
+                        , lens                 >= 4      && < 5
+                        , parsers              >= 0.10   && < 0.11
                         , ansi-wl-pprint       == 0.6.*
                         , unix                 == 2.6.*
-                        , aeson                == 0.6.*
+                        , aeson                == 0.7.*
                         , luautils             >= 0.1.3 && < 0.1.4
                         , hslua                >= 0.3.10 && < 0.4
                         , transformers         == 0.3.*
                         , hslogger             == 1.2.*
                         , time                 == 1.4.*
-                        , filecache            >= 0.2.2  && < 0.3
+                        , filecache            >= 0.2.3  && < 0.3
                         , regex-pcre-builtin   >= 0.94.4
                         , pcre-utils           >= 0.1.0.1 && < 0.2
                         , process              == 1.1.*
                         , iconv                == 0.4.*
                         , http-types           == 0.8.*
                         , http-conduit         >= 1.9    && <1.10
-                        , attoparsec           == 0.10.*
+                        , attoparsec           == 0.11.*
                         , case-insensitive     == 1.1.*
                         , cryptohash           >= 0.10   && < 0.12
                         , base16-bytestring    == 0.1.*
@@ -114,9 +113,9 @@ library
                         , stm                  == 2.4.*
                         , hspec                >= 1.7.0  && <1.8.0
                         , yaml                 >= 0.8.0  && <0.9
-                        , lens-aeson           >= 0.1.2  && <0.2
                         , stateWriter          == 0.2.*
                         , split                == 0.2.*
+                        , scientific           == 0.2.*
 
 Test-Suite test-lexer
   hs-source-dirs: tests
@@ -153,7 +152,7 @@ Test-Suite test-puppetdb
 executable puppetresources
   hs-source-dirs:      progs
   extensions:          BangPatterns, OverloadedStrings
-  ghc-options:         -Wall -rtsopts -threaded -eventlog -with-rtsopts "-A2M"
+  ghc-options:         -Wall -rtsopts -threaded -with-rtsopts "-A2M"
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative,regex-pcre-builtin,lens,aeson,yaml,parallel-io
   main-is:             PuppetResources.hs

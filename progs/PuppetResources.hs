@@ -163,7 +163,7 @@ initializedaemonWithPuppet prio pdbapi puppetdir hierapath overrideFacts = do
     return f
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
-parseFile fp = T.readFile fp >>= P.runParserT puppetParser () fp
+parseFile fp = T.readFile fp >>= runMyParser puppetParser fp
 
 printContent :: T.Text -> FinalCatalog -> IO ()
 printContent filename catalog =
@@ -206,7 +206,7 @@ prepareForPuppetApply w =
         -- step 2 : replace all references with the resource title in case
         -- of aliases - yes this sucks
         knownEdge :: PuppetEdge -> Bool
-        knownEdge (PuppetEdge s d _) = (aliasMap ^. contains s) && (aliasMap ^. contains d)
+        knownEdge (PuppetEdge s d _) = (aliasMap & has (ix s)) && (aliasMap & has (ix d))
         correctEdges = V.map correctEdge $ V.filter knownEdge ne
         correctResources = V.map correctResource nr
         correct :: RIdentifier -> RIdentifier
@@ -214,7 +214,7 @@ prepareForPuppetApply w =
         correctEdge :: PuppetEdge -> PuppetEdge
         correctEdge (PuppetEdge s d x) = PuppetEdge (correct s) (correct d) x
         correctResource :: Resource -> Resource
-        correctResource r = r & rrelations %~ HM.fromList . filter (\(x,_) -> aliasMap ^. contains x) . map (_1 %~ correct) . HM.toList
+        correctResource r = r & rrelations %~ HM.fromList . filter (\(x,_) -> aliasMap & has (ix x)) . map (_1 %~ correct) . HM.toList
     in   (wResources .~ correctResources)
        . (wEdges     .~ correctEdges)
        $ w

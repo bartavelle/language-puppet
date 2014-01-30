@@ -236,7 +236,7 @@ makeEdgeMap ct = do
     -- check that all resources are defined, and build graph
     let checkResDef :: (RIdentifier, [LinkInformation]) -> InterpreterMonad (RIdentifier, RIdentifier, [RIdentifier])
         checkResDef (ri, lifs) = do
-            let checkExists r msg = unless (defs ^. contains r) (throwPosError msg)
+            let checkExists r msg = unless (defs & has (ix r)) (throwPosError msg)
                 errmsg = "Unknown resource" <+> pretty ri <+> "used in the following relationships:" <+> vcat prels
                 prels = [ pretty (li ^. linksrc) <+> "->" <+> pretty (li ^. linkdst) <+> showPPos (li ^. linkPos) | li <- lifs ]
             checkExists ri errmsg
@@ -420,7 +420,7 @@ loadVariable varname varval = do
     curcont <- getCurContainer
     scp <- getScopeName
     p <- use curPos
-    scopeDefined <- use (scopes . contains scp)
+    scopeDefined <- has (ix scp) `fmap` use scopes
     variableDefined <- preuse (scopes . ix scp . scopeVariables . ix varname)
     case (scopeDefined, variableDefined) of
         (False, _) -> throwPosError ("Internal error: trying to save a variable in unknown scope" <+> ttext scp)
@@ -502,7 +502,7 @@ enterScope secontext cont modulename p = do
     curcaller <- case secontext of
                      SEParent l -> return (PString $ T.takeWhile (/=':') l)
                      _ -> resolveVariable "module_name"
-    scopeAlreadyDefined <- use (scopes . contains scopename)
+    scopeAlreadyDefined <- has (ix scopename) `fmap` use scopes
     let isImported = case cont of
                          ContImported _ -> True
                          _ -> False

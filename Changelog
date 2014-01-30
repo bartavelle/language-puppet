@@ -2,6 +2,8 @@ v0.11.0 ()
   New features
 	* Removal of the dedicated parsing threads.
 	* Better default RTS options (for now, just the default allocation size)
+	* Upgraded dependencies : aeson 0.7, attoparsec 0.11, lens 4, parsers
+	  0.10, text 1.1, filecache 0.3, hruby 0.2
   Bugs fixed
 
 v0.10.6 (2014/01/25)
