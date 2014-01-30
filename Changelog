@@ -1,4 +1,4 @@
-v0.11.0 ()
+v0.11.0 (2014/01/30)
   New features
 	* Removal of the dedicated parsing threads.
 	* Better default RTS options (for now, just the default allocation size)
