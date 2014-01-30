@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TemplateHaskell #-}
 module Puppet.Lens
  ( -- * Pure resolution prisms
    _PResolveExpression
@@ -8,14 +8,24 @@ module Puppet.Lens
  , _PBoolean
  , _PString
  , _PResourceReference
+ , _PUndef
  , _PArray
  -- * Parsing prism
  , _PParse
  -- * Lenses and Prisms for 'Statement's
- , _VariableAssignment
- , _NodeDeclaration
- , _DefineDeclaration
+ , _ResourceDeclaration
+ , _DefaultDeclaration
+ , _ResourceOverride
+ , _ConditionalStatement
  , _ClassDeclaration
+ , _DefineDeclaration
+ , _Node
+ , _VariableAssignment
+ , _MainFunctionCall
+ , _SHFunctionCall
+ , _ResourceCollection
+ , _Dependency
+ , _TopContainer
  , _Statements
  ) where
 
@@ -33,13 +43,15 @@ import Puppet.Parser.PrettyPrinter (ppStatements)
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
-import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict hiding (uncurry)
 import Text.Parsec.Prim (runParserT)
-import Text.PrettyPrint.ANSI.Leijen (renderPretty,displayS,SimpleDoc(..))
 import System.IO.Unsafe
 import Data.Bits
 import Text.Parser.Combinators (eof)
+
+-- Prisms
+makePrisms ''PValue
+makePrisms ''Statement
 
 -- | Incomplete
 _PResolveExpression :: Prism' Expression PValue
@@ -113,17 +125,6 @@ _PResolveValue = prism toU toP
         toU (PArray r) = UArray (fmap (PValue . toU) r)
         toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (PValue (UString k) :!: PValue (toU v))) $ HM.toList h)
 
-_PHash :: Prism' PValue (Container PValue)
-_PHash = prism PHash $ \c -> case c of; PHash x -> Right x; _ -> Left c
-_PBoolean :: Prism' PValue Bool
-_PBoolean = prism PBoolean $ \c -> case c of; PBoolean x -> Right x; _ -> Left c
-_PString :: Prism' PValue T.Text
-_PString = prism PString $ \c -> case c of; PString x -> Right x; _ -> Left c
-_PResourceReference :: Prism' PValue (T.Text, T.Text)
-_PResourceReference = prism (uncurry PResourceReference) $ \c -> case c of; PResourceReference t n -> Right (t,n); _ -> Left c
-_PArray :: Prism' PValue (V.Vector PValue)
-_PArray = prism PArray $ \c -> case c of; PArray x -> Right x; _ -> Left c
-
 -- | Warning, this uses 'unsafePerformIO' to parse (parsing Regexps
 -- requires IO).
 _PParse :: Prism' T.Text (V.Vector Statement)
@@ -133,41 +134,6 @@ _PParse = prism dspl prs
                 Left _  -> Left i
                 Right x -> Right x
         dspl = T.pack . displayNocolor . ppStatements
-
-_VariableAssignment :: Prism' Statement (T.Text,Expression,PPosition)
-_VariableAssignment = prism rebuild extract
-    where
-        extract (VariableAssignment t e p) = Right (t,e,p)
-        extract x = Left x
-        rebuild (t,e,p) = VariableAssignment t e p
-
-_NodeDeclaration :: Prism' Statement (NodeDesc, V.Vector Statement, S.Maybe NodeDesc, PPosition)
-_NodeDeclaration = prism rebuild extract
-    where
-        extract (Node nd s nd' p) = Right (nd, s, nd', p)
-        extract x = Left x
-        rebuild (nd, s, nd', p) = Node nd s nd' p
-
-_DefineDeclaration :: Prism' Statement (T.Text, V.Vector (Pair T.Text (S.Maybe Expression)), V.Vector Statement, PPosition)
-_DefineDeclaration = prism rebuild extract
-    where
-        extract (DefineDeclaration n args stmts p) = Right (n, args, stmts, p)
-        extract x = Left x
-        rebuild (n, args, stmts, p) = DefineDeclaration n args stmts p
-
-_ClassDeclaration :: Prism' Statement (T.Text, V.Vector (Pair T.Text (S.Maybe Expression)), S.Maybe T.Text, V.Vector Statement, PPosition)
-_ClassDeclaration = prism rebuild extract
-    where
-        extract (ClassDeclaration n args inh stmts p) = Right (n, args, inh, stmts, p)
-        extract x = Left x
-        rebuild (n, args, inh, stmts, p) = ClassDeclaration n args inh stmts p
-
-_TopContainer :: Prism' Statement (V.Vector Statement, Statement)
-_TopContainer = prism rebuild extract
-    where
-        extract (TopContainer spur s) = Right (spur, s)
-        extract x = Left x
-        rebuild (spur, s) = TopContainer spur s
 
 -- | Extracts the statements from 'ClassDeclaration', 'DefineDeclaration',
 -- 'Node' and the spurious statements of 'TopContainer'.
