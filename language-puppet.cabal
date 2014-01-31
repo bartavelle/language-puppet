@@ -81,7 +81,7 @@ library
   -- other-modules:       
   build-depends:       base ==4.6.*
                         , bytestring
-                        , strict-base-types    >= 0.2
+                        , strict-base-types    >= 0.2.2
                         , hashable             == 1.2.*
                         , unordered-containers == 0.2.*
                         , text                 >= 0.11

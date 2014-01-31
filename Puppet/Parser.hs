@@ -28,8 +28,6 @@ import Text.Parsec.Text ()
 import qualified Text.Parsec.Prim as PP
 import Text.Parsec.Text ()
 
-import Unsafe.Coerce
-
 newtype Parser a = Parser { unParser :: PP.ParsecT T.Text () IO a }
                    deriving (Functor, Monad, Parsing, LookAheadParsing, CharParsing, Applicative, Alternative, MonadIO)
 
@@ -217,7 +215,7 @@ genFunctionCall nonparens = do
     -- include foo::bar
     let argsc sep e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
-        expressionF = unsafeCoerce (buildExpressionParser expressionTable (unsafeCoerce (token terminalF)) <?> "function expression")
+        expressionF = Parser (buildExpressionParser expressionTable (unParser (token terminalF)) <?> "function expression")
         withparens = parens (argsc sepEndBy expression)
         withoutparens = argsc sepEndBy1 expressionF
     args  <- withparens <|> if nonparens
@@ -266,7 +264,7 @@ terminal = terminalG (fmap PValue (fmap UHFunctionCall (try hfunctionCall) <|> t
 
 expression :: Parser Expression
 expression = condExpression
-             <|> unsafeCoerce (buildExpressionParser expressionTable (unsafeCoerce (token terminal)))
+             <|> Parser (buildExpressionParser expressionTable (unParser (token terminal)))
              <?> "expression"
     where
         condExpression = do
@@ -315,10 +313,10 @@ expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) As
                     ]
                   ]
     where
-        operator' :: String -> OP String
-        operator' = unsafeCoerce operator
-        reserved' :: String -> OP String
-        reserved' = unsafeCoerce reserved
+        operator' :: String -> OP ()
+        operator' = unParser . operator
+        reserved' :: String -> OP ()
+        reserved' = unParser . reserved
 
 stringExpression :: Parser Expression
 stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variableOrHash <|> fmap (PValue . UString) literalValue
