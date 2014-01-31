@@ -497,7 +497,7 @@ enterScope :: ScopeEnteringContext
            -> InterpreterMonad T.Text
 enterScope secontext cont modulename p = do
     let scopename = scopeName cont
-    -- | This is a special hack for inheritance, because at this time we
+    -- This is a special hack for inheritance, because at this time we
     -- have not properly stacked the scopes.
     curcaller <- case secontext of
                      SEParent l -> return (PString $ T.takeWhile (/=':') l)
