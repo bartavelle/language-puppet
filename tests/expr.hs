@@ -5,7 +5,7 @@ import Text.PrettyPrint.ANSI.Leijen
 import Puppet.Parser
 import Puppet.Parser.PrettyPrinter()
 import Puppet.Parser.Types
-import Text.Parsec
+import Text.Parser.Combinators
 import Control.Monad
 import Data.Maybe
 import qualified Data.Text as T
@@ -22,7 +22,7 @@ testcases =
 main :: IO ()
 main = do
     testres <- forM testcases $ \(a,b) -> do
-        na <- runParserT (expression <* eof ) () "tests" a
+        na <- runMyParser (expression <* eof) "tests" a
         return (na, b)
     let isFailure (Left x, _) = Just (show x)
         isFailure (Right x, e) = if x == e

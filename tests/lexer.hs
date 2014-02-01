@@ -4,7 +4,6 @@ module Main where
 import Control.Monad
 import System.FilePath.Glob
 import Puppet.Parser
-import Text.Parsec
 import System.Environment
 import Puppet.Parser.PrettyPrinter
 import Text.PrettyPrint.ANSI.Leijen
@@ -26,7 +25,7 @@ allchecks = do
 -- returns errors
 testparser :: FilePath -> IO (String, Bool)
 testparser fp = do
-    T.readFile fp >>= runParserT puppetParser () fp >>= \case
+    T.readFile fp >>= runMyParser puppetParser fp >>= \case
         Right _ -> return ("PASS", True)
         Left rr -> return (show rr, False)
 
@@ -34,7 +33,7 @@ check :: String -> IO ()
 check fname = do
     putStr fname
     putStr ": "
-    res <- T.readFile fname >>= runParserT puppetParser () fname
+    res <- T.readFile fname >>= runMyParser puppetParser fname
     is <- queryTerminal (Fd 1)
     let rfunc = if is
                     then renderPretty 0.2 200
