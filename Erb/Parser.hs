@@ -2,10 +2,10 @@
 module Erb.Parser where
 
 import Text.Parsec.String
-import Text.Parsec.Prim
+import Text.Parsec.Prim hiding ((<|>),many)
 import Text.Parsec.Char
 import Text.Parsec.Error
-import Text.Parsec.Combinator
+import Text.Parsec.Combinator hiding (optional)
 import Text.Parsec.Language (emptyDef)
 import Erb.Ruby
 import Text.Parsec.Expr
@@ -15,6 +15,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Control.Monad.Identity
 import Control.Exception (catch,SomeException)
+import Control.Applicative
 
 def :: P.GenLanguageDef String u Identity
 def = emptyDef
@@ -91,28 +92,40 @@ term
 
 scopeLookup :: Parser Expression
 scopeLookup = do
-    void $ try $ string "scope.lookupvar("
+    void $ try $ string "scope"
+    end <- (string ".lookupvar(" >> return (char ')')) <|> (char '[' >> return (char ']'))
     expr <- rubyexpression
-    void $ char ')'
+    void $ end
     return $ Object expr
 
-blockinfo :: Parser String
-blockinfo = many1 $ noneOf "}"
-
 stringLiteral :: Parser Expression
-stringLiteral = doubleQuoted <|> singleQuoted
+stringLiteral = Value `fmap` (doubleQuoted <|> singleQuoted)
 
-doubleQuoted :: Parser Expression
-doubleQuoted = fmap (Value . Literal . T.pack) $ between (char '"') (char '"') (many $ noneOf "\"")
+doubleQuoted :: Parser Value
+doubleQuoted = fmap Interpolable $ between (char '"') (char '"') quoteInternal
+    where
+        quoteInternal = many (basicContent <|> interpvar <|> escaped)
+        escaped = char '\\' >> (Value . Literal . T.singleton) `fmap` anyChar
+        basicContent = (Value . Literal . T.pack) `fmap` many1 (noneOf "\"\\#")
+        interpvar = do
+            void $ try (string "#{")
+            o <- many1 (noneOf "}")
+            void $ char '}'
+            return (Object (Value (Literal (T.pack o))))
 
-singleQuoted :: Parser Expression
-singleQuoted = fmap (Value . Literal . T.pack) $ between (char '\'') (char '\'') (many $ noneOf "'")
+singleQuoted :: Parser Value
+singleQuoted = fmap (Literal . T.pack) $ between (char '\'') (char '\'') (many $ noneOf "'")
 
 objectterm :: Parser Expression
 objectterm = do
-    methodname <- fmap (Value . Literal . T.pack) identifier
+    void $ optional (char '@')
+    methodname' <- fmap T.pack identifier
+    let methodname = Value (Literal methodname')
     lookAhead anyChar >>= \case
-        '{' -> fmap (MethodCall methodname . BlockOperation . T.pack) (braces blockinfo)
+        '[' -> do
+            hr <- many (symbol "[" *> rubyexpression <* symbol "]")
+            return $! foldl LookupOperation (Object methodname) hr
+        '{' -> fmap (MethodCall methodname . BlockOperation . T.pack) (braces (many1 $ noneOf "}"))
         '(' -> fmap (MethodCall methodname . Value . Array) (parens (rubyexpression `sepBy` symbol ","))
         _ -> return $ Object methodname
 
@@ -143,13 +156,17 @@ textblock = textblockW Nothing
 
 rubyblock :: Parser [RubyStatement]
 rubyblock = do
+    ps <- option [] (char '-' >> return [DropPrevSpace'])
     parsed <- optionMaybe (char '=') >>= \case
-        Just _  -> spaces >> fmap Puts rubyexpression
-        Nothing -> spaces >> rubystatement
+        Just _  -> spaces >> fmap (return . Puts) rubyexpression
+        Nothing -> spaces >> many1 rubystatement
     spaces
-    void $ try $ string "%>"
+    let dn (x:xs) = DropNextSpace x : xs
+        dn x = x
+    ns <- option id (char '-' >> return dn)
+    void $ string "%>"
     n <- textblock
-    return (parsed : n)
+    return (ps ++ parsed ++ ns n)
 
 erbparser :: Parser [RubyStatement]
 erbparser = textblock

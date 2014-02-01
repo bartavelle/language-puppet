@@ -1,3 +1,4 @@
+-- | Base types for the internal ruby parser ("Erb.Parser").
 module Erb.Ruby where
 
 import qualified Data.Text as T
@@ -5,6 +6,8 @@ import Text.PrettyPrint.ANSI.Leijen
 
 data Value
     = Literal !T.Text
+    | Interpolable ![Expression]
+    | Symbol !T.Text
     | Array ![Expression]
     deriving (Show, Ord, Eq)
 
@@ -48,5 +51,8 @@ instance Pretty Expression where
 
 data RubyStatement
     = Puts !Expression
-    deriving(Show)
+    | DropPrevSpace !RubyStatement
+    | DropPrevSpace'
+    | DropNextSpace !RubyStatement
+    deriving(Show,Eq)
 
