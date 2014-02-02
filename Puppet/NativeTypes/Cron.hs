@@ -4,11 +4,11 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Puppet.NativeTypes.Helpers
 import Control.Monad.Error
 import Puppet.Interpreter.Types
-import Puppet.Utils
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 import qualified Data.Vector as V
+import Data.Attoparsec.Number
 
 nativeCron :: (PuppetTypeName, PuppetTypeMethods)
 nativeCron = ("cron", PuppetTypeMethods validateCron parameterset)
@@ -58,9 +58,10 @@ parseval resval mi ma pname res | "*/" `T.isPrefixOf` resval = checkint (T.drop 
 
 checkint :: T.Text -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 checkint st mi ma pname res =
-    case readDecimal st of
-        Right v -> checkint' v mi ma pname res
-        Left rr -> Left $ "Invalid value type for parameter" <+> paramname pname <+> ": " <+> red (text rr)
+    case text2Number st of
+        Just (I v) -> checkint' v mi ma pname res
+        Just (D _) -> Left $ "Invalid value type for parameter" <+> paramname pname <+> ": expected an integer"
+        Nothing    -> Left $ "Invalid value type for parameter" <+> paramname pname <+> ": " <+> red (ttext st)
 
 checkint' :: Integer -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 checkint' i mi ma param res =

@@ -13,6 +13,7 @@ import Puppet.Utils
 import Control.Lens
 import qualified Data.Vector as V
 import Data.Char (isSpace)
+import Data.Attoparsec.Number
 
 rubyEvaluate :: Container ScopeInformation -> T.Text -> [RubyStatement] -> Either Doc T.Text
 rubyEvaluate vars ctx = foldl (evalruby vars ctx) (Right "") . optimize
@@ -61,6 +62,6 @@ evalValue (PString x) = Right x
 evalValue x = Right $ tshow x
 
 a2i :: T.Text -> Maybe Int
-a2i x = case readDecimal x of
-            Right y -> Just y
+a2i x = case text2Number x of
+            Just (I y) -> Just (fromIntegral y)
             _ -> Nothing

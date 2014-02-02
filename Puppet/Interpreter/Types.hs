@@ -8,7 +8,7 @@ import Puppet.Parser.PrettyPrinter
 import Text.Parsec.Pos
 
 import Data.Aeson as A
-import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
+import Text.PrettyPrint.ANSI.Leijen hiding ((<$>),rational)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
@@ -35,8 +35,9 @@ import Data.Time.Clock
 import GHC.Stack
 import Data.Maybe (fromMaybe)
 import Data.Attoparsec.Number
-import Data.Attoparsec.Text (parseOnly,number)
+import Data.Attoparsec.Text (parseOnly,rational)
 import Data.Scientific
+import Debug.Trace
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -654,6 +655,22 @@ instance FromJSON PNodeInfo where
                                      <*> v .:  "report_timestamp"
     parseJSON _ = fail "invalide node info"
 
+text2Scientific :: T.Text -> Maybe Scientific
+text2Scientific t = case parseOnly rational t of
+            Left _ -> Nothing
+            Right s -> Just s
+
+scientific2Number :: Scientific -> Number
+scientific2Number s =
+    let e = base10Exponent s
+        c = coefficient s
+    in  if e >= 0
+            then I (c * 10 ^ e)
+            else traceShow (c,e)  $ D ((fromInteger c / 10 ^ negate e) :: Double)
+
+text2Number :: T.Text -> Maybe Number
+text2Number = fmap scientific2Number . text2Scientific
+
 instance AsNumber PValue where
     _Number = prism num2PValue toNumber
         where
@@ -665,9 +682,8 @@ instance AsNumber PValue where
                                           then show (c * 10 ^ e)
                                           else show ( (fromInteger c / 10 ^ negate e) :: Double)
             toNumber :: PValue -> Either PValue Scientific
-            toNumber p@(PString x) = case parseOnly number x of
-                                         Right (I n) -> Right (fromInteger n)
-                                         Right (D n) -> Right (fromRational (toRational n))
-                                         _       -> Left p
+            toNumber p@(PString x) = case text2Scientific x of
+                                         Just o -> Right o
+                                         _      -> Left p
             toNumber p = Left p
 

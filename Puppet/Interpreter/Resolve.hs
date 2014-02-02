@@ -24,6 +24,7 @@ module Puppet.Interpreter.Resolve
       hfGenerateAssociations,
       hfSetvars,
       hfRestorevars,
+      toNumbers
     ) where
 
 import Puppet.PP
@@ -53,7 +54,6 @@ import Data.Tuple.Strict as S
 import Control.Lens
 import Data.Aeson.Lens hiding (key)
 import Data.Attoparsec.Number
-import Data.Attoparsec.Text
 import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
 import Text.Regex.PCRE.ByteString
@@ -97,12 +97,13 @@ hieraCall qt q df _ = do
 -- that they are of the same type
 toNumbers :: PValue -> PValue -> S.Maybe NumberPair
 toNumbers (PString a) (PString b) =
-    case parseOnly number a :!: parseOnly number b of
-        (Right (I x) :!: Right (I y)) -> S.Just (S.Left (x :!: y))
-        (Right (D x) :!: Right (D y)) -> S.Just (S.Right (x :!: y))
-        (Right (I x) :!: Right (D y)) -> S.Just (S.Right (fromIntegral x :!: y))
-        (Right (D x) :!: Right (I y)) -> S.Just (S.Right (x :!: fromIntegral y))
-        _ -> S.Nothing
+    let t2s = fmap scientific2Number . text2Scientific
+    in  case t2s a :!: t2s b of
+            (Just (I x) :!: Just (I y)) -> S.Just (S.Left (x :!: y))
+            (Just (D x) :!: Just (D y)) -> S.Just (S.Right (x :!: y))
+            (Just (I x) :!: Just (D y)) -> S.Just (S.Right (fromIntegral x :!: y))
+            (Just (D x) :!: Just (I y)) -> S.Just (S.Right (x :!: fromIntegral y))
+            _ -> S.Nothing
 toNumbers _ _ = S.Nothing
 
 -- | This tries to run a numerical binary operation on two puppet

@@ -39,6 +39,7 @@ import qualified Data.Text as T
 import Puppet.Utils
 import Control.Lens
 import qualified Data.Vector as V
+import Data.Attoparsec.Number
 
 type PuppetTypeName = T.Text
 
@@ -128,10 +129,8 @@ integers :: T.Text -> PuppetTypeValidate
 integers param = runarray param integer''
 
 integer'' :: T.Text -> PValue -> PuppetTypeValidate
-integer'' param val res = case val of
-    PString x -> if T.all isDigit x
-        then Right res
-        else Left $ "Parameter" <+> paramname param <+> "should be an integer"
+integer'' param val res = case puppet2number val of
+    Just (I v) -> Right (res & rattributes . at param ?~ PString (T.pack (show v)))
     _ -> Left $ "Parameter" <+> paramname param <+> "must be an integer"
 
 -- | Copies the "name" value into the parameter if this is not set. It implies
@@ -222,11 +221,11 @@ inrange mi ma param res =
         na = va >>= puppet2number
     in case (va,na) of
         (Nothing, _)       -> Right res
-        (_,Just (Left v))  -> if (v >= fromIntegral mi) && (v <= fromIntegral ma)
-                                    then Right res
-                                    else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
-        (_,Just (Right v)) -> if (v>=mi) && (v<=ma)
-                                    then Right res
-                                    else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
+        (_,Just (D v))  -> if (v >= fromIntegral mi) && (v <= fromIntegral ma)
+                               then Right res
+                               else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
+        (_,Just (I v)) -> if (v>=mi) && (v<=ma)
+                              then Right res
+                              else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
         (Just x,_)         -> Left $ "Parameter" <+> paramname param <+> "should be an integer, and not" <+> pretty x
 

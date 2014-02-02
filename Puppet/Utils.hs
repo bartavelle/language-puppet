@@ -1,7 +1,5 @@
 module Puppet.Utils
-    ( readDecimal
-    , readRational
-    , puppet2number
+    ( puppet2number
     , textElem
     , module Data.Monoid
     , getDirectoryContents
@@ -18,29 +16,15 @@ import Data.Monoid
 import System.Posix.Directory.ByteString
 import qualified Data.Either.Strict as S
 
+import Data.Attoparsec.Number
 import Puppet.Interpreter.Types
 
 strictifyEither :: Either a b -> S.Either a b
 strictifyEither (Left x) = S.Left x
 strictifyEither (Right x) = S.Right x
 
-readDecimal :: (Integral a) => T.Text -> Either String a
-readDecimal t = case T.signed T.decimal t of
-                    Right (x, "") -> Right x
-                    Right _ -> Left "Trailing characters when reading an integer"
-                    Left r -> Left r
-
-readRational :: Fractional a => T.Text -> Either String a
-readRational t = case T.signed T.rational t of
-                    Right (x, "") -> Right x
-                    Right _ -> Left "Trailing characters when reading an integer"
-                    Left r -> Left r
-
-puppet2number :: PValue -> Maybe (Either Double Integer)
-puppet2number (PString s) = case (readDecimal s, readRational s) of
-                                (Right i,_) -> Just (Right i)
-                                (_,Right d) -> Just (Left d)
-                                _ -> Nothing
+puppet2number :: PValue -> Maybe Number
+puppet2number (PString s) = text2Number s
 puppet2number _ = Nothing
 
 textElem :: Char -> T.Text -> Bool
