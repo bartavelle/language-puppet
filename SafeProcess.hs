@@ -63,7 +63,7 @@ safeReadProcess prog args str =
 
 terminateProcessGroup :: ProcessHandle -> IO ()
 terminateProcessGroup ph = do
-    let (ProcessHandle pmvar) = ph
+    let (ProcessHandle pmvar _) = ph
     readMVar pmvar >>= \case
         OpenHandle pid -> do  -- pid is a POSIX pid
             signalProcessGroup 15 pid

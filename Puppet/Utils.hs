@@ -10,7 +10,6 @@ module Puppet.Utils
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Text.Read as T
 import qualified Data.ByteString as BS
 import Data.Monoid
 import System.Posix.Directory.ByteString

@@ -162,6 +162,9 @@ computeCatalog ndename = do
         mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty (initialPPos "dummy") ndename
     resnode <- evaluateNode node >>= finalStep . (++ (mainstage : restop))
     let (real :!: exported) = foldl' classify (mempty :!: mempty) resnode
+        classify :: Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
+                 -> Resource
+                 -> Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
         classify (curr :!: cure) r =
             let i curm = curm & at (r ^. rid) ?~ r
             in  case r ^. rvirtuality of

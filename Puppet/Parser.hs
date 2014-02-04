@@ -1,4 +1,5 @@
-{-# LANGUAGE LambdaCase, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase, GeneralizedNewtypeDeriving, StandaloneDeriving,
+FlexibleContexts #-}
 module Puppet.Parser (puppetParser,expression,runMyParser) where
 
 import qualified Data.Text as T
@@ -28,18 +29,26 @@ import Text.Parsec.Text ()
 import qualified Text.Parsec.Prim as PP
 import Text.Parsec.Text ()
 
-newtype Parser a = Parser { unParser :: PP.ParsecT T.Text () IO a }
-                   deriving (Functor, Monad, Parsing, LookAheadParsing, CharParsing, Applicative, Alternative, MonadIO)
+newtype ParserT m a = ParserT { unParser :: m a }
+                   deriving (Functor, Applicative, Alternative)
+
+deriving instance Monad m => Monad (ParserT m)
+deriving instance MonadIO m => MonadIO (ParserT m)
+deriving instance (Monad m, Parsing m) => Parsing (ParserT m)
+deriving instance (Monad m, CharParsing m) => CharParsing (ParserT m)
+deriving instance (Monad m, LookAheadParsing m) => LookAheadParsing (ParserT m)
+
+type Parser = ParserT (PP.ParsecT T.Text () IO)
 
 getPosition :: Parser SourcePos
-getPosition = Parser PP.getPosition
+getPosition = ParserT PP.getPosition
 
 runMyParser :: Parser a -> SourceName -> T.Text -> IO (Either ParseError a)
-runMyParser (Parser p) = PP.runPT p ()
+runMyParser (ParserT p) = PP.runPT p ()
 
 type OP = PP.ParsecT T.Text () IO
 
-instance TokenParsing Parser where
+instance (CharParsing m, Monad m) => TokenParsing (ParserT m) where
     someSpace = skipMany (simpleSpace <|> oneLineComment <|> multiLineComment)
       where
         simpleSpace = skipSome (satisfy isSpace)
@@ -215,7 +224,7 @@ genFunctionCall nonparens = do
     -- include foo::bar
     let argsc sep e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
-        expressionF = Parser (buildExpressionParser expressionTable (unParser (token terminalF)) <?> "function expression")
+        expressionF = ParserT (buildExpressionParser expressionTable (unParser (token terminalF)) <?> "function expression")
         withparens = parens (argsc sepEndBy expression)
         withoutparens = argsc sepEndBy1 expressionF
     args  <- withparens <|> if nonparens
@@ -264,7 +273,7 @@ terminal = terminalG (fmap PValue (fmap UHFunctionCall (try hfunctionCall) <|> t
 
 expression :: Parser Expression
 expression = condExpression
-             <|> Parser (buildExpressionParser expressionTable (unParser (token terminal)))
+             <|> ParserT (buildExpressionParser expressionTable (unParser (token terminal)))
              <?> "expression"
     where
         condExpression = do

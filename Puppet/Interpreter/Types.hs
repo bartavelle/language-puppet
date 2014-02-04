@@ -37,7 +37,6 @@ import Data.Maybe (fromMaybe)
 import Data.Attoparsec.Number
 import Data.Attoparsec.Text (parseOnly,rational)
 import Data.Scientific
-import Debug.Trace
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -666,7 +665,7 @@ scientific2Number s =
         c = coefficient s
     in  if e >= 0
             then I (c * 10 ^ e)
-            else traceShow (c,e)  $ D ((fromInteger c / 10 ^ negate e) :: Double)
+            else D ((fromInteger c / 10 ^ negate e) :: Double)
 
 text2Number :: T.Text -> Maybe Number
 text2Number = fmap scientific2Number . text2Scientific
