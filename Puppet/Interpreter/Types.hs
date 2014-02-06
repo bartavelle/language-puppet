@@ -361,7 +361,7 @@ getScope = use curScope >>= \s -> if null s
 
 instance FromJSON PValue where
     parseJSON Null       = return PUndef
-    parseJSON (Number n) = return (PString (T.pack (show n)))
+    parseJSON (Number n) = return (PString (T.pack (show (scientific2Number n))))
     parseJSON (String s) = return (PString s)
     parseJSON (Bool b)   = return (PBoolean b)
     parseJSON (Array v)  = fmap PArray (V.mapM parseJSON v)
