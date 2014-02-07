@@ -134,17 +134,18 @@ computeTemplate intr fileinfo curcontext variables mstats filecache = do
 
 getRubyScriptPath :: String -> IO String
 getRubyScriptPath rubybin = do
-    cabalPath <- getDataFileName $ "ruby/" ++ rubybin :: IO FilePath
-    exists    <- fileExist cabalPath
-    if exists
-        then return cabalPath
-        else do
+    let checkpath :: FilePath -> (IO FilePath) -> IO FilePath
+        checkpath fp nxt = do
+            e <- fileExist fp
+            if e
+                then return fp
+                else nxt
+        withExecutablePath = do
             path <- fmap (T.unpack . takeDirectory . T.pack) getExecutablePath
             let fullpath = path <> "/" <> rubybin
-            lexists <- fileExist cabalPath
-            return $ if lexists
-                         then fullpath
-                         else rubybin
+            checkpath fullpath $ checkpath ("/usr/local/bin/" <> rubybin) (return rubybin)
+    cabalPath <- getDataFileName $ "ruby/" ++ rubybin :: IO FilePath
+    checkpath cabalPath withExecutablePath
 
 #ifdef HRUBY
 -- This must be called from the proper thread. As this is callback, this
