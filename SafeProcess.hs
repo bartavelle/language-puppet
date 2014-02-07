@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, CPP #-}
 -- from http://stackoverflow.com/questions/8820903/haskell-how-to-timeout-a-function-that-runs-an-external-command
 module SafeProcess where
 
@@ -63,7 +63,11 @@ safeReadProcess prog args str =
 
 terminateProcessGroup :: ProcessHandle -> IO ()
 terminateProcessGroup ph = do
+#if MIN_VERSION_base(4,7,0)
     let (ProcessHandle pmvar _) = ph
+#else
+    let (ProcessHandle pmvar) = ph
+#endif
     readMVar pmvar >>= \case
         OpenHandle pid -> do  -- pid is a POSIX pid
             signalProcessGroup 15 pid
