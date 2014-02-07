@@ -73,7 +73,7 @@ library
                        , Puppet.Interpreter.RubyRandom
   extensions:          OverloadedStrings, BangPatterns
   if flag(hruby)
-    Build-depends: hruby >= 0.2.4 && <0.3
+    Build-depends: hruby >= 0.2.5 && <0.3
     CPP-Options:   -DHRUBY
 
   ghc-options:         -Wall -funbox-strict-fields
