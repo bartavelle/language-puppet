@@ -2,6 +2,7 @@ Package: puppetresources
 Version: VERSION-BUILDNUMBER
 Maintainer: Bartavelle <bartavelle@gmail.com>
 Files: puppetresources /usr/local/bin/puppetresources
+       pdbquery        /usr/local/bin/pdbquery
        calcerb.rb      /usr/local/bin/calcerb.rb
        hrubyerb.rb     /usr/local/bin/hrubyerb.rb
 Architecture: amd64

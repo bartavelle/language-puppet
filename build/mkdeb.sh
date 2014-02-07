@@ -14,6 +14,7 @@ fi
 
 cp build/equivs dist/build/puppetresources/ && \
     cp ruby/*.rb dist/build/puppetresources/ && \
+    cp dist/build/pdbquery/pdbquery dist/build/puppetresources/ && \
     cd dist/build/puppetresources && \
     sed -i -e "s/Version: .*/Version: $VERSION-$BUILDNUMBER/" equivs && \
     equivs-build -f equivs && \
