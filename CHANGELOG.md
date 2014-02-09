@@ -1,6 +1,10 @@
-# v0.12.0 ()
+# v0.12.1 ()
+## Bugs fixed
+* Fixed dependencies so that builds with GHC 7.8-rc1 work.
+
+# v0.12.0 (2014/02/7)
 ## New featues
-* Builds against GHC 7.8-rc1
+* Builds against GHC 7.8-rc1.
 
 # v0.11.1 (2014/01/31)
 ## Bugs fixed
