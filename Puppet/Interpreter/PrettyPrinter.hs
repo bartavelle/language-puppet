@@ -90,7 +90,7 @@ instance Pretty CurContainerDesc where
     pretty (ContImported x) = magenta "imported" <> braces (pretty x)
     pretty ContRoot = dullyellow (text "::")
     pretty (ContClass cname) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname))
-    pretty (ContDefine dtype dname) = pretty (PResourceReference dtype dname)
+    pretty (ContDefine dtype dname _) = pretty (PResourceReference dtype dname)
 
 instance Pretty ResDefaults where
     pretty (ResDefaults t _ v p) = capitalize t <+> showPPos p <$> containerComma v

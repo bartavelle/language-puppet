@@ -1,4 +1,6 @@
 # v0.12.1 ()
+## New featues
+* *Dead code* finder in puppetresources.
 ## Bugs fixed
 * Fixed dependencies so that builds with GHC 7.8-rc1 work.
 

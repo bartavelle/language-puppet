@@ -109,7 +109,7 @@ data ResDefaults = ResDefaults { _defType     :: !T.Text
 
 data CurContainerDesc = ContRoot -- ^ Contained at node or root level
                       | ContClass !T.Text -- ^ Contained in a class
-                      | ContDefine !T.Text !T.Text -- ^ Contained in a define
+                      | ContDefine !T.Text !T.Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
                       | ContImported !CurContainerDesc -- ^ Dummy container for imported resources, so that we know we must update the nodename
                       | ContImport !Nodename !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
     deriving (Eq, Generic, Ord)
@@ -238,7 +238,7 @@ data PuppetTypeMethods = PuppetTypeMethods
 
 type FinalCatalog = HM.HashMap RIdentifier Resource
 
-data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))
+data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])) -- ^ The most important function, computing catalogs. Given a node name and a list of facts, it returns the result of the catalog compilation : either an error, or a tuple containing all the resources in this catalog, the dependency map, the exported resources, and a list of known resources, that might not be up to date, but are here for code coverage tests.
                                    , _dParserStats   :: MStats
                                    , _dCatalogStats  :: MStats
                                    , _dTemplateStats :: MStats
@@ -345,7 +345,7 @@ scopeName :: CurContainerDesc -> T.Text
 scopeName (ContRoot        ) = "::"
 scopeName (ContImported x  ) = "::imported::" `T.append` scopeName x
 scopeName (ContClass x     ) = x
-scopeName (ContDefine dt dn) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
+scopeName (ContDefine dt dn _) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
 scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
 
 getScopeName :: InterpreterMonad T.Text

@@ -107,7 +107,7 @@ gCatalog :: Preferences
          -> HieraQueryFunc
          -> T.Text
          -> Facts
-         -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))
+         -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
     traceEventIO ("Received query for node " <> T.unpack ndename)

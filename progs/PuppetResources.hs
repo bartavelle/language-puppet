@@ -146,7 +146,7 @@ import Data.Either (partitionEithers)
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
 
-type QueryFunc = T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog))
+type QueryFunc = T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 checkErrorStrict :: S.Either Doc x -> IO x
 checkErrorStrict (S.Left rr) = putDoc rr >> putStrLn "" >> error "error!"
@@ -287,21 +287,23 @@ loadFactsOverrides fp = decodeFileEither fp >>= \case
         isBool _ = Nothing
 
 -- this finds the dead code
-findDeadCode :: String -> [FinalCatalog] -> IO ()
+findDeadCode :: String -> [Resource] -> IO ()
 findDeadCode puppetdir catalogs = do
     -- first collect all files / positions from all the catalogs
-    let allpositions = Set.fromList $ catalogs ^.. traverse . traverse . rpos
+    let allpositions = Set.fromList $ catalogs ^.. traverse . rpos
         allfiles = Set.fromList $ allpositions ^.. folded . _1 . lSourceName
     -- now find all haskell files
     puppetfiles <- Set.fromList . concat . fst <$> G.globDir [G.compile "**/*.pp"] (puppetdir <> "/modules")
     let deadfiles = puppetfiles `Set.difference`   allfiles
         usedfiles = puppetfiles `Set.intersection` allfiles
-    putDoc ("The following files are not used: " <> list (map string $ Set.toList deadfiles))
-    putStrLn ""
+    unless (Set.null deadfiles) $ do
+        putDoc ("The following files are not used: " <> list (map string $ Set.toList deadfiles))
+        putStrLn ""
     allparses <- parallel (map parseFile (Set.toList usedfiles))
     let (parseFailed, parseSucceeded) = partitionEithers allparses
-    putDoc ("The following files could not be parsed:" </> indent 4 (vcat (map (string . show) parseFailed)))
-    putStrLn ""
+    unless (null parseFailed) $ do
+        putDoc ("The following files could not be parsed:" </> indent 4 (vcat (map (string . show) parseFailed)))
+        putStrLn ""
     let getSubStatements s@(ResourceDeclaration{}) = [s]
         getSubStatements (ConditionalStatement conds _) = conds ^.. traverse . _2 . tgt
         getSubStatements s@(ClassDeclaration{}) = extractPrism s
@@ -316,8 +318,9 @@ findDeadCode puppetdir catalogs = do
         deadResources = filter isDead allResources
         isDead (ResourceDeclaration _ _ _ _ pp) = not $ Set.member pp allpositions
         isDead _ = True
-    putDoc ("The following resource declarations were not used:" </> indent 4 (vcat (map pretty deadResources)))
-    putStrLn ""
+    unless (null deadResources) $ do
+        putDoc ("The following resource declarations were not used:" </> indent 4 (vcat (map pretty deadResources)))
+        putStrLn ""
 
 run :: CommandLine -> IO ()
 run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _) = parseFile f >>= \case
@@ -354,18 +357,21 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                 getNodeName _ = Nothing
             cats <- parallel (map (computeCatalogs True queryfunc pdbapi printFunc c) topnodes)
             putStrLn ("Tested " ++ show (length topnodes) ++ " nodes.")
-            when deadcode $ findDeadCode puppetdir (catMaybes cats)
+            -- merge all the resources together
+            let cc = catMaybes cats
+                allres = (cc ^.. folded . _1 . folded) ++ (cc ^.. folded . _2 . folded)
+            when deadcode $ findDeadCode puppetdir allres
         else void $ computeCatalogs False queryfunc pdbapi printFunc c tnodename
     void $ commitDB pdbapi
 
-computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe FinalCatalog)
+computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe (FinalCatalog, [Resource]))
 computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _) tnodename = queryfunc tnodename >>= \case
     S.Left rr -> do
         if testOnly
             then putDoc ("Problem with" <+> ttext tnodename <+> ":" <+> rr </> mempty)
             else putDoc rr >> putStrLn "" >> error "error!"
         return Nothing
-    S.Right (rawcatalog,m,rawexported) -> do
+    S.Right (rawcatalog,m,rawexported,knownRes) -> do
         let wireCatalog = generateWireCatalog tnodename (rawcatalog <> rawexported) m
         void $ replaceCatalog pdbapi wireCatalog
         let cmpMatch Nothing _ curcat = return curcat
@@ -394,7 +400,7 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson show
                 unless (HM.null exported) $ do
                     printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
                     printFunc (pretty (HM.elems exported))
-        return (Just (rawcatalog <> rawexported))
+        return (Just (rawcatalog <> rawexported, knownRes))
 
 main :: IO ()
 main = execParser pinfo >>= run

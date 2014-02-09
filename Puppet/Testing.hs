@@ -110,7 +110,7 @@ hTestFileSources = do
 testingDaemon :: PuppetDBAPI -- ^ Contains the puppetdb API functions
               -> FilePath -- ^ Path to the manifests
               -> (T.Text -> IO (Container T.Text)) -- ^ The facter function
-              -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog)))
+              -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
 testingDaemon pdb pdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
     prefs <- genPreferences pdir
@@ -118,7 +118,7 @@ testingDaemon pdb pdir allFacts = do
     return (\nodname -> allFacts nodname >>= _dGetCatalog q nodname)
 
 -- | A default testing daemon.
-defaultDaemon :: FilePath -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog)))
+defaultDaemon :: FilePath -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
 defaultDaemon pdir = do
     pdb <- getDefaultDB PDBTest >>= \case
                 S.Left x -> error (show x)
