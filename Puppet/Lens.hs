@@ -144,10 +144,12 @@ _Statements = lens (V.toList . sget) (\s v -> sset s (V.fromList v))
         sget (DefineDeclaration _ _ s _) = s
         sget (Node _ s _ _) = s
         sget (TopContainer s _) = s
+        sget (SHFunctionCall (HFunctionCall _ _ _ s _) _) = s
         sget _ = V.empty
         sset :: Statement -> V.Vector Statement -> Statement
         sset (ClassDeclaration n args inh _ p) s = ClassDeclaration n args inh s p
         sset (Node ns _ nd' p) s = Node ns s nd' p
         sset (DefineDeclaration n args _ p) s = DefineDeclaration n args s p
         sset (TopContainer _ p) s = TopContainer s p
+        sset (SHFunctionCall (HFunctionCall t e pr _ e2) p) s = SHFunctionCall (HFunctionCall t e pr s e2) p
         sset x _ = x
