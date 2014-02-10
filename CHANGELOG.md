@@ -1,7 +1,8 @@
 # v0.12.1 ()
 ## New featues
 * *Dead code* finder in puppetresources.
-* CPU related facts
+* CPU related facts.
+* `puppetresources` now exits with the proper error code.
 ## Bugs fixed
 * Fixed dependencies so that builds with GHC 7.8-rc1 work.
 

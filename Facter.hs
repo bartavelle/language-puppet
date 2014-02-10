@@ -54,6 +54,7 @@ factRAM = do
         swaptotal = ginfo "SwapTotal:"
         ginfo st  = sdesc $ head $ filter ((== st) . head) meminfo
         sdesc [_, size, unit] = storagedesc (size, unit)
+        sdesc _ = storagedesc ("1","B")
     return [("memorysize", memtotal), ("memoryfree", memfree), ("swapfree", swapfree), ("swapsize", swaptotal)]
 
 factNET :: IO [(String, String)]
@@ -127,7 +128,8 @@ fenv = do
 factProcessor :: IO [(String,String)]
 factProcessor = do
     cpuinfo <- readFile "/proc/cpuinfo"
-    let cpuinfos = zip [ "processor" ++ show (n :: Int) | n <- [0..]] $ mapMaybe (stripPrefix "model name    : ") (lines cpuinfo)
+    let cpuinfos = zip [ "processor" ++ show (n :: Int) | n <- [0..]] modelnames
+        modelnames = mapMaybe (fmap (dropWhile (`elem` "\t :")) . stripPrefix "model name") (lines cpuinfo)
     return $ ("processorcount", show (length cpuinfos)) : cpuinfos
 
 puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container T.Text)

@@ -120,6 +120,13 @@ import Data.Text.Strict.Lens
 import Data.Aeson (encode)
 import Data.Yaml (decodeFileEither)
 import Control.Lens as L
+import Control.Concurrent.ParallelIO (parallel)
+import Data.Maybe (mapMaybe)
+import qualified System.FilePath.Glob as G
+import Data.Either (partitionEithers)
+import Data.List (isInfixOf)
+import qualified Test.Hspec.Runner as H
+import System.Exit (exitFailure, exitSuccess)
 
 import Facter
 
@@ -137,11 +144,7 @@ import PuppetDB.TestDB
 import PuppetDB.Common
 import Puppet.Testing hiding ((<$>))
 import Puppet.Lens
-
-import Control.Concurrent.ParallelIO (parallel)
-import Data.Maybe (mapMaybe,catMaybes)
-import qualified System.FilePath.Glob as G
-import Data.Either (partitionEithers)
+import Puppet.Stats
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
@@ -157,13 +160,13 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> IO QueryFunc
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> IO (QueryFunc, MStats, MStats, MStats)
 initializedaemonWithPuppet prio pdbapi puppetdir hierapath overrideFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel prio)
     q <- fmap ((prefPDB .~ pdbapi) . (hieraPath .~ hierapath)) (genPreferences puppetdir) >>= initDaemon
     let f ndename = fmap overrideFacts (puppetDBFacts ndename pdbapi)
             >>= _dGetCatalog q ndename
-    return f
+    return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
 parseFile fp = T.readFile fp >>= runMyParser puppetParser fp
@@ -287,22 +290,21 @@ loadFactsOverrides fp = decodeFileEither fp >>= \case
         isBool _ = Nothing
 
 -- this finds the dead code
-findDeadCode :: String -> [Resource] -> IO ()
-findDeadCode puppetdir catalogs = do
+findDeadCode :: String -> [Resource] -> Set.Set FilePath -> IO ()
+findDeadCode puppetdir catalogs allfiles = do
     -- first collect all files / positions from all the catalogs
     let allpositions = Set.fromList $ catalogs ^.. traverse . rpos
-        allfiles = Set.fromList $ allpositions ^.. folded . _1 . lSourceName
     -- now find all haskell files
     puppetfiles <- Set.fromList . concat . fst <$> G.globDir [G.compile "**/*.pp"] (puppetdir <> "/modules")
-    let deadfiles = puppetfiles `Set.difference`   allfiles
+    let deadfiles = Set.filter ("/manifests/" `isInfixOf`) $ puppetfiles `Set.difference`   allfiles
         usedfiles = puppetfiles `Set.intersection` allfiles
     unless (Set.null deadfiles) $ do
-        putDoc ("The following files are not used: " <> list (map string $ Set.toList deadfiles))
+        putDoc ("The following files" <+> int (Set.size deadfiles) <+> "are not used: " <> list (map string $ Set.toList deadfiles))
         putStrLn ""
     allparses <- parallel (map parseFile (Set.toList usedfiles))
     let (parseFailed, parseSucceeded) = partitionEithers allparses
     unless (null parseFailed) $ do
-        putDoc ("The following files could not be parsed:" </> indent 4 (vcat (map (string . show) parseFailed)))
+        putDoc ("The following" <+> int (length parseFailed) <+> "files could not be parsed:" </> indent 4 (vcat (map (string . show) parseFailed)))
         putStrLn ""
     let getSubStatements s@(ResourceDeclaration{}) = [s]
         getSubStatements (ConditionalStatement conds _) = conds ^.. traverse . _2 . tgt
@@ -319,7 +321,7 @@ findDeadCode puppetdir catalogs = do
         isDead (ResourceDeclaration _ _ _ _ pp) = not $ Set.member pp allpositions
         isDead _ = True
     unless (null deadResources) $ do
-        putDoc ("The following resource declarations were not used:" </> indent 4 (vcat (map pretty deadResources)))
+        putDoc ("The following" <+> int (length deadResources) <+> "resource declarations are not used:" </> indent 4 (vcat (map pretty deadResources)))
         putStrLn ""
 
 run :: CommandLine -> IO ()
@@ -340,14 +342,14 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
-    queryfunc <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
+    (queryfunc,mPStats,_,_) <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
             else displayIO stdout (renderCompact x) >> putStrLn ""
     let allnodes = tnodename == "allnodes" || deadcode
         deadcode = tnodename == "deadcode"
-    if allnodes
+    exit <- if allnodes
         then do
             allstmts <- parseFile (puppetdir <> "/manifests/site.pp") >>= \presult -> case presult of
                                                                                           Left rr -> error (show rr)
@@ -357,20 +359,35 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                 getNodeName _ = Nothing
             cats <- parallel (map (computeCatalogs True queryfunc pdbapi printFunc c) topnodes)
             putStrLn ("Tested " ++ show (length topnodes) ++ " nodes.")
+            -- the the parsing statistics, so that we known which files
+            -- were parsed
+            pStats <- getStats mPStats
             -- merge all the resources together
-            let cc = catMaybes cats
+            let cc = mapMaybe fst cats
+                testFailures = getSum (cats ^. traverse . _2 . _Just . to (Sum . H.summaryFailures))
                 allres = (cc ^.. folded . _1 . folded) ++ (cc ^.. folded . _2 . folded)
-            when deadcode $ findDeadCode puppetdir allres
-        else void $ computeCatalogs False queryfunc pdbapi printFunc c tnodename
+                allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
+            when deadcode $ findDeadCode puppetdir allres allfiles
+            return $ if testFailures > 0
+                         then exitFailure
+                         else exitSuccess
+        else do
+            r <- computeCatalogs False queryfunc pdbapi printFunc c tnodename
+            return $ case snd r of
+                         Just s -> if (H.summaryFailures s > 0)
+                                       then exitFailure
+                                       else exitSuccess
+                         Nothing -> exitSuccess
     void $ commitDB pdbapi
+    exit
 
-computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe (FinalCatalog, [Resource]))
+computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
 computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _) tnodename = queryfunc tnodename >>= \case
     S.Left rr -> do
         if testOnly
             then putDoc ("Problem with" <+> ttext tnodename <+> ":" <+> rr </> mempty)
             else putDoc rr >> putStrLn "" >> error "error!"
-        return Nothing
+        return (Nothing, Just (H.Summary 1 1))
     S.Right (rawcatalog,m,rawexported,knownRes) -> do
         let wireCatalog = generateWireCatalog tnodename (rawcatalog <> rawexported) m
         void $ replaceCatalog pdbapi wireCatalog
@@ -383,24 +400,26 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson show
                                             Right Nothing -> return False
                                             _ -> return True
             filterCatalog = cmpMatch mrt (_1 . itype . unpacked) >=> cmpMatch mrn (_1 . iname . unpacked)
-        case (testOnly, showcontent, showjson) of
-            (True, _, _) -> void $ testCatalog tnodename puppetdir rawcatalog basicTest
-            (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
+        testResult <- case (testOnly, showcontent, showjson) of
+            (True, _, _) -> Just `fmap` testCatalog tnodename puppetdir rawcatalog basicTest
+            (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog)) >> return Nothing
             (_, True, _) -> do
                 catalog  <- filterCatalog rawcatalog
                 unless (mrt == Just "file" || mrt == Nothing) (error $ "Show content only works for file, not for " ++ show mrt)
                 case mrn of
                     Just f -> printContent f catalog
                     Nothing -> error "You should supply a resource name when using showcontent"
+                return Nothing
             _ -> do
                 catalog  <- filterCatalog rawcatalog
                 exported <- filterCatalog rawexported
-                void $ testCatalog tnodename puppetdir rawcatalog basicTest
+                r <- testCatalog tnodename puppetdir rawcatalog basicTest
                 printFunc (pretty (HM.elems catalog))
                 unless (HM.null exported) $ do
                     printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
                     printFunc (pretty (HM.elems exported))
-        return (Just (rawcatalog <> rawexported, knownRes))
+                return (Just r)
+        return (Just (rawcatalog <> rawexported, knownRes), testResult)
 
 main :: IO ()
 main = execParser pinfo >>= run
