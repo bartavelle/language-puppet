@@ -13,8 +13,9 @@ import Control.Lens
 import System.Posix.User
 import System.Posix.Unistd (getSystemID, SystemID(..))
 import Data.List.Split (splitOn)
-import Data.List (intercalate)
+import Data.List (intercalate,stripPrefix)
 import System.Environment
+import Data.Maybe (mapMaybe)
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -123,12 +124,18 @@ fenv = do
     path <- getEnv "PATH"
     return [ ("path", path) ]
 
+factProcessor :: IO [(String,String)]
+factProcessor = do
+    cpuinfo <- readFile "/proc/cpuinfo"
+    let cpuinfos = zip [ "processor" ++ show (n :: Int) | n <- [0..]] $ mapMaybe (stripPrefix "model name    : ") (lines cpuinfo)
+    return $ ("processorcount", show (length cpuinfos)) : cpuinfos
+
 puppetDBFacts :: T.Text -> PuppetDBAPI -> IO (Container T.Text)
 puppetDBFacts ndename pdbapi =
     getFacts pdbapi (QEqual FCertname ndename) >>= \case
         S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
         _ -> do
-            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv])
+            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv, factProcessor])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
                 (hostname, ddomainname) = T.break (== '.') ndename
                 domainname = if T.null ddomainname
