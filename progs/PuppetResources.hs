@@ -342,7 +342,7 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
-    (queryfunc,mPStats,_,_) <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
+    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
@@ -358,16 +358,37 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                 getNodeName (Node (NodeName n) _ _ _) = Just n
                 getNodeName _ = Nothing
             cats <- parallel (map (computeCatalogs True queryfunc pdbapi printFunc c) topnodes)
-            putStrLn ("Tested " ++ show (length topnodes) ++ " nodes.")
             -- the the parsing statistics, so that we known which files
             -- were parsed
             pStats <- getStats mPStats
+            cStats <- getStats mCStats
+            tStats <- getStats mTStats
             -- merge all the resources together
             let cc = mapMaybe fst cats
                 testFailures = getSum (cats ^. traverse . _2 . _Just . to (Sum . H.summaryFailures))
                 allres = (cc ^.. folded . _1 . folded) ++ (cc ^.. folded . _2 . folded)
                 allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
             when deadcode $ findDeadCode puppetdir allres allfiles
+            -- compute statistics
+            let (parsing, wPName, wPMean) = worstAndSum pStats
+                (cataloging, wCName, wCMean) = worstAndSum cStats
+                (templating, wTName, wTMean) = worstAndSum tStats
+                parserShare = 100 * parsing / cataloging
+                templateShare = 100 * templating / cataloging
+                formatDouble = take 5 . show -- yeah, well ...
+                worstAndSum = HM.foldlWithKey' accum (0,"",0)
+                accum (cursum, curmaxname, curmaxmean) curname (StatsPoint cnt total _ _) = (cursum + total, maxname, maxmean)
+                    where
+                        curmean = total / fromIntegral cnt
+                        (maxname, maxmean) = if curmean > curmaxmean
+                                                 then (curname, curmean)
+                                                 else (curmaxname, curmaxmean)
+            putStr ("Tested " ++ show (length topnodes) ++ " nodes. ")
+            putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
+            when (prio == LOG.DEBUG) $ do
+                putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
+                putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
+                putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
             return $ if testFailures > 0
                          then exitFailure
                          else exitSuccess

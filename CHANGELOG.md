@@ -3,6 +3,7 @@
 * *Dead code* finder in puppetresources.
 * CPU related facts.
 * `puppetresources` now exits with the proper error code.
+* `puppetresources` can now display some statistics about compilation times.
 ## Bugs fixed
 * Fixed dependencies so that builds with GHC 7.8-rc1 work.
 
