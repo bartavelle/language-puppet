@@ -127,6 +127,7 @@ import Data.Either (partitionEithers)
 import Data.List (isInfixOf)
 import qualified Test.Hspec.Runner as H
 import System.Exit (exitFailure, exitSuccess)
+import Data.Tuple (swap)
 
 import Facter
 
@@ -324,6 +325,15 @@ findDeadCode puppetdir catalogs allfiles = do
         putDoc ("The following" <+> int (length deadResources) <+> "resource declarations are not used:" </> indent 4 (vcat (map pretty deadResources)))
         putStrLn ""
 
+newtype Maximum a = Maximum { getMaximum :: Maybe a }
+
+instance (Ord a) => Monoid (Maximum a) where
+    mempty = Maximum Nothing
+    mappend (Maximum Nothing) m2 = m2
+    mappend m1 (Maximum Nothing) = m1
+    mappend (Maximum (Just a1)) (Maximum (Just a2)) = Maximum (Just (max a1 a2))
+
+
 run :: CommandLine -> IO ()
 run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
@@ -370,22 +380,18 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                 allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
             when deadcode $ findDeadCode puppetdir allres allfiles
             -- compute statistics
-            let (parsing, wPName, wPMean) = worstAndSum pStats
-                (cataloging, wCName, wCMean) = worstAndSum cStats
-                (templating, wTName, wTMean) = worstAndSum tStats
+            let (parsing,    Just (wPName, wPMean)) = worstAndSum pStats
+                (cataloging, Just (wCName, wCMean)) = worstAndSum cStats
+                (templating, Just (wTName, wTMean)) = worstAndSum tStats
                 parserShare = 100 * parsing / cataloging
                 templateShare = 100 * templating / cataloging
                 formatDouble = take 5 . show -- yeah, well ...
-                worstAndSum = HM.foldlWithKey' accum (0,"",0)
-                accum (cursum, curmaxname, curmaxmean) curname (StatsPoint cnt total _ _) = (cursum + total, maxname, maxmean)
-                    where
-                        curmean = total / fromIntegral cnt
-                        (maxname, maxmean) = if curmean > curmaxmean
-                                                 then (curname, curmean)
-                                                 else (curmaxname, curmaxmean)
+                worstAndSum = (_1 %~ getSum)
+                                    . (_2 %~ fmap swap . getMaximum)
+                                    . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
             putStr ("Tested " ++ show (length topnodes) ++ " nodes. ")
             putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
-            when (prio == LOG.DEBUG) $ do
+            when (prio <= LOG.INFO) $ do
                 putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
                 putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
                 putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
