@@ -67,8 +67,6 @@ initTemplateDaemon :: RubyInterpreter -> Preferences -> MStats -> IO (Either T.T
 initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _) mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
-    -- forkOS is used because ruby doesn't like to change threads
-    -- all initialization is done on the current thread
     let returnError rs = return $ \_ _ _ -> return (S.Left (showRubyError rs))
     getRubyScriptPath "hrubyerb.rb" >>= loadFile intr >>= \case
         Left rs -> returnError rs
@@ -94,6 +92,7 @@ templateQuery qchan filename scope variables = do
 
 templateDaemon :: RubyInterpreter -> T.Text -> T.Text -> Chan TemplateQuery -> MStats -> FileCacheR ParseError [RubyStatement] -> IO ()
 templateDaemon intr modpath templatepath qchan mvstats filecache = do
+    nameThread "RubyTemplateDaemon"
     (respchan, fileinfo, scope, variables) <- readChan qchan
     case fileinfo of
         Right filename -> do
@@ -115,10 +114,11 @@ computeTemplate intr fileinfo curcontext variables mstats filecache = do
         mkSafe a = makeSafe intr a >>= \case
             Left rr -> return (S.Left (showRubyError rr))
             Right x -> return x
+    traceEventIO ("START template " ++ T.unpack filename)
     parsed <- case fileinfo of
                   Right _      -> measure mstats ("parsing - " <> filename) $ lazyQuery filecache ufilename $ parseErbFile ufilename
                   Left content -> measure mstats ("parsing - " <> filename) $ return (runParser erbparser () "inline" (T.unpack content))
-    case parsed of
+    o <- case parsed of
         Left err -> do
             let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show err
             traceEventIO msg
@@ -131,6 +131,8 @@ computeTemplate intr fileinfo curcontext variables mstats filecache = do
                     traceEventIO msg
                     LOG.debugM "Erb.Compute" msg
                     measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables
+    traceEventIO ("STOP template " ++ T.unpack filename)
+    return o
 
 getRubyScriptPath :: String -> IO String
 getRubyScriptPath rubybin = do
@@ -212,9 +214,9 @@ computeTemplateWRuby fileinfo curcontext variables = do
         input = T.fromText curcontext <> "\n" <> T.fromText filename <> "\n" <> rubyvars :: T.Builder
         ufilename = T.unpack filename
     rubyscriptpath <- getRubyScriptPath "calcerb.rb"
-    traceEventIO ("start running ruby" ++ ufilename)
+    traceEventIO ("START ruby " ++ ufilename)
     !ret <- safeReadProcessTimeout "ruby" [rubyscriptpath] (T.toLazyText input) 1000
-    traceEventIO ("finished running ruby" ++ ufilename)
+    traceEventIO ("STOP ruby " ++ ufilename)
     F.forM_ temp removeLink
     case ret of
         Just (Right x) -> return $! S.Right x

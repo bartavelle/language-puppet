@@ -50,6 +50,7 @@ getCatalog :: ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) ) -- ^ get
            -> HieraQueryFunc -- ^ Hiera query function
            -> IO (Pair (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
 getCatalog gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery = do
+    nameThread ("Catalog " <> T.unpack ndename)
     let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery
         dummypos = initialPPos "dummy"
         initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)

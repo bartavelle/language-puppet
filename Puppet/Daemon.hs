@@ -110,10 +110,10 @@ gCatalog :: Preferences
          -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
-    traceEventIO ("Received query for node " <> T.unpack ndename)
+    traceEventIO ("START gCatalog " <> T.unpack ndename)
     (stmts :!: warnings) <- measure stats ndename $ getCatalog getStatements getTemplate (prefs ^. prefPDB) ndename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs) hquery
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact m) "")) warnings
-    traceEventIO ("getCatalog finished for " <> T.unpack ndename)
+    traceEventIO ("STOP gCatalog " <> T.unpack ndename)
     return stmts
 
 parseFunction :: Preferences -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either Doc Statement)
@@ -143,9 +143,12 @@ compileFileList prefs _ name = moduleInfo
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
-    traceEventIO ("Start parsing " ++ fname)
+    traceEventIO ("START parsing " ++ fname)
     cnt <- T.readFile fname
-    runMyParser puppetParser fname cnt >>= \case
+    o <- runMyParser puppetParser fname cnt >>= \case
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
         Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
+    traceEventIO ("STOP parsing " ++ fname)
+    return o
+
 

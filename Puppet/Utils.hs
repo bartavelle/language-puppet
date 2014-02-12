@@ -6,6 +6,7 @@ module Puppet.Utils
     , takeBaseName
     , takeDirectory
     , strictifyEither
+    , nameThread
     ) where
 
 import qualified Data.Text as T
@@ -14,6 +15,8 @@ import qualified Data.ByteString as BS
 import Data.Monoid
 import System.Posix.Directory.ByteString
 import qualified Data.Either.Strict as S
+import Control.Concurrent (myThreadId)
+import GHC.Conc (labelThread)
 
 import Data.Attoparsec.Number
 import Puppet.Interpreter.Types
@@ -28,6 +31,9 @@ puppet2number _ = Nothing
 
 textElem :: Char -> T.Text -> Bool
 textElem c = T.any (==c)
+
+nameThread :: String -> IO ()
+nameThread n = myThreadId >>= flip labelThread n
 
 getDirectoryContents :: T.Text -> IO [T.Text]
 getDirectoryContents fpath = do
