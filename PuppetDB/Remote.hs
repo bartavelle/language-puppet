@@ -37,9 +37,9 @@ pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
                 Null -> ""
                 _ -> T.decodeUtf8 $ "?" <> W.renderSimpleQuery False [("query", jsonquery)]
     let fullurl = url <> "/v3/" <> querytype <> q
-    initReq <- case (parseUrl (T.unpack fullurl) :: Maybe (Request a)) of
-        Just x -> return x
-        Nothing -> throwError "Something failed when parsing the PuppetDB URL"
+    initReq <- case parseUrl (T.unpack fullurl) of
+            Right r -> return (r :: Request)
+            Left rr -> throwError ("Something failed when parsing the PuppetDB URL" <+> string (show (rr :: HttpException)))
     let req = initReq { requestHeaders = [("Accept", "application/json")] }
     runRequest req
 
@@ -54,5 +54,5 @@ pdbConnect url = return $ S.Right $ PuppetDBAPI
     (pdbRequest url "resources")
     (pdbRequest url "nodes")
     (return (S.Left "operation not supported"))
-    (\nodename -> pdbRequest url ("nodes/" <> nodename <> "/resources"))
+    (\ndename -> pdbRequest url ("nodes/" <> ndename <> "/resources"))
 
