@@ -102,8 +102,8 @@ templateDaemon intr modpath templatepath qchan mvstats filecache = do
             acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
             if null acceptablefiles
                 then writeChan respchan (S.Left $ "Can't find template file for" <+> ttext filename <+> ", looked in" <+> list (map ttext searchpathes))
-                else measure mvstats ("total - " <> filename) (computeTemplate intr (Right (head acceptablefiles)) scope variables mvstats filecache) >>= writeChan respchan
-        Left _ -> measure mvstats "total - inline" (computeTemplate intr fileinfo scope variables mvstats filecache) >>= writeChan respchan
+                else measure mvstats filename (computeTemplate intr (Right (head acceptablefiles)) scope variables mvstats filecache) >>= writeChan respchan
+        Left _ -> measure mvstats "inline" (computeTemplate intr fileinfo scope variables mvstats filecache) >>= writeChan respchan
     templateDaemon intr modpath templatepath qchan mvstats filecache
 
 computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> MStats -> FileCacheR ParseError [RubyStatement] -> IO TemplateAnswer
