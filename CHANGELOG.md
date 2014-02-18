@@ -5,6 +5,7 @@
 * `puppetresources` now exits with the proper error code.
 * `puppetresources` can now display some statistics about compilation times.
 * Bumped the version of the http-conduit dependency.
+* Facts are now dumped in `TestDB` format by `pdbquery`.
 ## Bugs fixed
 * Fixed dependencies so that builds with GHC 7.8-rc1 work.
 

@@ -7,7 +7,7 @@ import PuppetDB.TestDB
 import PuppetDB.Remote
 import Facter
 
-import Options.Applicative as O
+import Options.Applicative as O hiding ((&))
 import qualified Data.Text as T
 import Data.Monoid
 import Data.Yaml hiding (Parser)
@@ -17,6 +17,7 @@ import Control.Lens
 import qualified Data.HashMap.Strict as HM
 import Control.Monad (forM_,unless)
 import qualified Data.Vector as V
+import Data.List (foldl')
 
 data CommandLine = CommandLine { _pdbloc :: Maybe FilePath
                                , _pdbtype :: PDBType
@@ -58,7 +59,7 @@ cmdlineParser = CommandLine <$> optional pl <*> pt <*> cmd
                     <> value PDBTest
                     <> help "PuppetDB types : test, remote, dummy"
                     )
-        cmd = subparser (  command "dumpfacts" (ParserInfo (pure DumpFacts) True "Dump all facts"     "Dump all facts"     "" 4)
+        cmd = subparser (  command "dumpfacts" (ParserInfo (pure DumpFacts) True "Dump all facts"     "Dump all facts, and store them in /tmp/allfacts.yaml"  "" 4)
                         <> command "editfact"  (ParserInfo factedit         True "Edit a fact corresponding to a node" ""  "" 7)
                         <> command "dumpres"   (ParserInfo resourcesparser  True "Dump resources"     "Dump resources"     "" 5)
                         <> command "delnode"   (ParserInfo delnodeparser    True "Deactivate node"    "Deactivate node"    "" 6)
@@ -70,6 +71,10 @@ cmdlineParser = CommandLine <$> optional pl <*> pt <*> cmd
 display :: (Show r, ToJSON a) => String -> S.Either r a -> IO ()
 display s (S.Left rr) = error (s <> " " <> show rr)
 display _ (S.Right a) = BS.putStrLn (encode a)
+
+checkError :: (Show r) => String -> S.Either r a -> IO a
+checkError s (S.Left rr) = error (s <> " " <> show rr)
+checkError _ (S.Right a) = return a
 
 run :: CommandLine -> IO ()
 run cmdl = do
@@ -85,7 +90,14 @@ run cmdl = do
     case _pdbcmd cmdl of
         DumpFacts -> if _pdbtype cmdl == PDBDummy
                          then puppetDBFacts "dummy"  pdbapi >>= mapM_ print . HM.toList
-                         else getFacts pdbapi QEmpty >>= display "get facts"
+                         else do
+                             allfacts <- getFacts pdbapi QEmpty >>= checkError "get facts"
+                             tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= checkError "load test db"
+                             let groupfacts = foldl' groupfact HM.empty allfacts
+                                 groupfact curmap (PFactInfo ndname fctname fctval) =
+                                     curmap & at ndname . non HM.empty %~ (at fctname ?~ fctval)
+                             replaceFacts tmpdb (HM.toList groupfacts) >>= checkError "replace facts in dummy db"
+                             commitDB tmpdb >>= checkError "commit db"
         DumpNodes -> getNodes pdbapi QEmpty >>= display "dump nodes"
         AddFacts n -> do
             unless (_pdbtype cmdl == PDBTest) (error "This option only works with the test puppetdb")

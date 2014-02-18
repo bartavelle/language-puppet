@@ -200,7 +200,7 @@ isDomainName s = do
     return $ PBoolean $ not (T.null rs) && T.length rs <= 255 && all checkPart prts
 
 isInteger :: PValue -> InterpreterMonad PValue
-isInteger = return . PBoolean . not . isn't _Integer
+isInteger = return . PBoolean . has _Integer
 
 isString :: PValue -> InterpreterMonad PValue
 isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
