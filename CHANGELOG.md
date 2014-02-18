@@ -1,3 +1,8 @@
+# v0.12.2 (2014/02/18)
+## New featues
+* Facts are now dumped in `TestDB` format by `pdbquery`.
+* The `puppetresources` command now has switch controlling the PuppetDB commit and "catalog update".
+
 # v0.12.1 (2014/02/10)
 ## New featues
 * *Dead code* finder in puppetresources.
@@ -5,8 +10,6 @@
 * `puppetresources` now exits with the proper error code.
 * `puppetresources` can now display some statistics about compilation times.
 * Bumped the version of the http-conduit dependency.
-* Facts are now dumped in `TestDB` format by `pdbquery`.
-* The `puppetresources` command now has switch controlling the PuppetDB commit and "catalog update".
 ## Bugs fixed
 * Fixed dependencies so that builds with GHC 7.8-rc1 work.
 
