@@ -112,7 +112,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
     traceEventIO ("START gCatalog " <> T.unpack ndename)
     (stmts :!: warnings) <- measure stats ndename $ getCatalog getStatements getTemplate (prefs ^. prefPDB) ndename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs) hquery
-    mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact m) "")) warnings
+    mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
     return stmts
 
