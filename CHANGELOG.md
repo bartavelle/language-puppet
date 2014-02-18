@@ -6,6 +6,7 @@
 * `puppetresources` can now display some statistics about compilation times.
 * Bumped the version of the http-conduit dependency.
 * Facts are now dumped in `TestDB` format by `pdbquery`.
+* The `puppetresources` command now has switch controlling the PuppetDB commit and "catalog update".
 ## Bugs fixed
 * Fixed dependencies so that builds with GHC 7.8-rc1 work.
 

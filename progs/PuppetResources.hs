@@ -193,6 +193,8 @@ data CommandLine = CommandLine { _pdb          :: Maybe String
                                , _hieraFile    :: Maybe FilePath
                                , _factsFile    :: Maybe FilePath
                                , _factsDef     :: Maybe FilePath
+                               , _commitDB     :: Bool
+                               , _checkExport  :: Bool
                                } deriving Show
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
@@ -239,7 +241,14 @@ cmdlineParser = CommandLine <$> optional remotepdb
                             <*> optional hiera
                             <*> optional fcts
                             <*> optional fco
+                            <*> commitdb
+                            <*> checkExported
     where
+        commitdb = switch (  long "commitdb"
+                          <> help "Commit the computed catalogs in the puppetDB"
+                          )
+        checkExported = switch (  long "checkExported"
+                               <> help "Save exported resources in the puppetDB")
         sc = switch (  long "showcontent"
                     <> short 'c'
                     <> help "When specifying a file resource, only output its content (useful for testing templates)")
@@ -335,10 +344,10 @@ instance (Ord a) => Monoid (Maximum a) where
 
 
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef) = do
+run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef docommit _) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> rr))
         checkError _ (S.Right x) = return x
         tnodename = T.pack ndename
@@ -405,11 +414,11 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                                        then exitFailure
                                        else exitSuccess
                          Nothing -> exitSuccess
-    void $ commitDB pdbapi
+    when docommit $ void $ commitDB pdbapi
     exit
 
 computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
-computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _) tnodename = queryfunc tnodename >>= \case
+computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _ _ checkExported) tnodename = queryfunc tnodename >>= \case
     S.Left rr -> do
         if testOnly
             then putDoc ("Problem with" <+> ttext tnodename <+> ":" <+> rr </> mempty)
@@ -417,7 +426,7 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson show
         return (Nothing, Just (H.Summary 1 1))
     S.Right (rawcatalog,m,rawexported,knownRes) -> do
         let wireCatalog = generateWireCatalog tnodename (rawcatalog <> rawexported) m
-        void $ replaceCatalog pdbapi wireCatalog
+        when checkExported $ void $ replaceCatalog pdbapi wireCatalog
         let cmpMatch Nothing _ curcat = return curcat
             cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
                 Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
