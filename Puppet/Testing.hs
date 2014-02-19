@@ -4,6 +4,7 @@ module Puppet.Testing
     , module Data.Monoid
     , module Puppet.PP
     , module Puppet.Interpreter.Types
+    , module Puppet.Lens
     , H.hspec
     , basicTest
     , testingDaemon
@@ -12,6 +13,14 @@ module Puppet.Testing
     , describeCatalog
     , it
     , shouldBe
+    , PSpec
+    , PSpecM
+    , lCatalog
+    , lModuledir
+    , lPuppetdir
+    , withResource
+    , withParameter
+    , withFileContent
     ) where
 
 import Prelude hiding (notElem,all)
@@ -21,7 +30,7 @@ import Data.Maybe
 import Data.Monoid
 import Control.Monad.Error
 import Control.Monad.Reader
-import Control.Applicative hiding ((<$>))
+import Control.Applicative
 import System.Posix.Files
 import qualified Data.Either.Strict as S
 import qualified Data.Text as T
@@ -34,14 +43,16 @@ import Facter
 import PuppetDB.Common
 
 import Puppet.Preferences
-import Puppet.PP
+import Puppet.PP hiding ((<$>))
 import Puppet.Daemon
+import Puppet.Lens
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.PrettyPrinter ()
 
-data TestEnv = TestEnv { _catalog   :: FinalCatalog
-                       , _moduledir :: FilePath
-                       , _puppetdir :: FilePath
+-- | The state of the reader monad the tests run in
+data TestEnv = TestEnv { _lCatalog   :: FinalCatalog
+                       , _lModuledir :: FilePath
+                       , _lPuppetdir :: FilePath
                        }
 makeClassy ''TestEnv
 
@@ -64,6 +75,7 @@ testCatalog nd pdir catlg test = H.hspecWith (H.defaultConfig { H.configFormatte
 describeCatalog :: Nodename -> FilePath -> FinalCatalog -> PSpec -> H.Spec
 describeCatalog nd pdir catlg test = H.describe (T.unpack nd) $ runReaderT test (TestEnv catlg (pdir <> "/modules") pdir)
 
+-- | This tests that file sources are valid.
 basicTest :: PSpec
 basicTest = hTestFileSources
 
@@ -73,6 +85,41 @@ it n tst = tst >>= lift . H.it n
 shouldBe :: (Show a, Eq a) => a -> a -> PSpecM H.Expectation
 shouldBe a b = return (a `H.shouldBe` b)
 
+-- | Run tests on a specific resource
+withResource :: String -- ^ The test description (the thing that goes after should)
+             -> T.Text -- ^ Resource type
+             -> T.Text -- ^ Resource name
+             -> (Resource -> H.Expectation) -- ^ Testing function
+             -> PSpec
+withResource desc t n o = do
+    let ridentifier = RIdentifier t n
+    mr <- view (lCatalog . at ridentifier)
+    lift $ case mr of
+        Nothing -> H.it ("Should have resource " ++ show (pretty ridentifier)) (H.expectationFailure "Resource not found")
+        Just v -> H.it ("Resource " ++ show (pretty ridentifier) ++ " should " ++ desc) (o v)
+
+-- | Tests a specific parameter
+withParameter :: T.Text   -- ^ The parameter name
+              -> Resource -- ^ The resource to test
+              -> (PValue -> H.Expectation) -- ^ Testing function
+              -> H.Expectation
+withParameter prm r o = do
+    case r ^. rattributes . at prm of
+        Nothing -> H.expectationFailure ("Parameter " ++ T.unpack prm ++ " not found")
+        Just v -> o v
+
+-- | Retrieves a given file content, and runs a test on it. It works on the
+-- explicit "content" parameter, or can resolve the "source" parameter to
+-- open the file.
+withFileContent :: String -- ^ Test description (the thing that goes after should)
+                -> T.Text -- ^ The file path
+                -> (T.Text -> H.Expectation) -- ^ Testing function
+                -> PSpec
+withFileContent desc fn action = withResource desc "file" fn $ \r ->
+    case r ^? rattributes . ix "content" . _PString of
+        Just v  -> action v
+        Nothing -> H.expectationFailure "Contentnot found"
+
 hTestFileSources :: PSpec
 hTestFileSources = do
     let getFiles = filter presentFile . toList
@@ -81,8 +128,8 @@ hTestFileSources = do
                       | r ^. rattributes . at "source" == Just PUndef = False
                       | otherwise = True
         getSource = mapMaybe (\r -> (,) `fmap` pure r <*> r ^. rattributes . at "source")
-    files <- fmap (getSource . getFiles) $ view catalog
-    pdir <- view puppetdir
+    files <- fmap (getSource . getFiles) $ view lCatalog
+    pdir <- view lPuppetdir
     forM_ files $ \(r,filesource) -> it ("should have a source for " ++ r ^. rid . iname . to T.unpack) $ do
         let
             testFile :: FilePath -> ErrorT Doc IO ()

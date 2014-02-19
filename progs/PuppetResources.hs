@@ -143,8 +143,7 @@ import PuppetDB.Remote
 import PuppetDB.Dummy
 import PuppetDB.TestDB
 import PuppetDB.Common
-import Puppet.Testing hiding ((<$>))
-import Puppet.Lens
+import Puppet.Testing
 import Puppet.Stats
 
 tshow :: Show a => a -> T.Text
