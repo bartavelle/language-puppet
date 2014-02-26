@@ -43,11 +43,9 @@ import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 import Data.Monoid
 import Control.Applicative hiding ((<$>))
-import Control.Exception
 import Control.Monad
 import Control.Monad.Error
 import Data.Tuple.Strict as S
@@ -56,15 +54,14 @@ import Data.Aeson.Lens hiding (key)
 import Data.Attoparsec.Number
 import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
-import Text.Regex.PCRE.ByteString
 import Puppet.Interpreter.RubyRandom
 import qualified Data.ByteString as BS
 import qualified Crypto.Hash.MD5 as MD5
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Base16 as B16
-import Text.Regex.PCRE.ByteString.Utils
 import Data.Bits
 import Control.Monad.Writer (tell)
+import Control.Monad.Operational
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.
@@ -74,9 +71,8 @@ type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
 -- messages to the main monad.
 runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (S.Maybe PValue)
 runHiera q t = do
-    hquery <- view hieraQuery
     scps <- use scopes
-    (w :!: o) <- interpreterIO (hquery scps q t)
+    (w :!: o) <- singleton (HieraQuery scps q t)
     tell w
     return o
 
@@ -144,7 +140,7 @@ resolveVariable fullvar = do
 
 -- | A simple helper that checks if a given type is native or a define.
 isNativeType :: T.Text -> InterpreterMonad Bool
-isNativeType t = has (ix t) `fmap` view nativeTypes
+isNativeType t = has (ix t) `fmap` (singleton GetNativeTypes)
 
 -- | A pure function for resolving variables.
 getVariable :: Container ScopeInformation -- ^ The whole scope data.
@@ -214,12 +210,9 @@ resolveExpression (LessThan a b) = numberCompare a b (<) (<)
 resolveExpression (MoreThan a b) = numberCompare a b (>) (>)
 resolveExpression (LessEqualThan a b) = numberCompare a b (<=) (<=)
 resolveExpression (MoreEqualThan a b) = numberCompare a b (>=) (>=)
-resolveExpression (RegexMatch a (PValue ur@(URegexp _ rv))) = do
+resolveExpression (RegexMatch a (PValue (URegexp _ rv))) = do
     ra <- fmap T.encodeUtf8 (resolveExpressionString a)
-    liftIO (execute rv ra) >>= \case
-        Left rr -> throwPosError ("Regexp matching critical failure" <+> text (show rr) <+> parens ("Regexp was" <+> pretty ur))
-        Right Nothing -> return (PBoolean False)
-        Right _ -> return (PBoolean True)
+    PBoolean `fmap` singleton (Execute rv ra)
 resolveExpression (RegexMatch _ t) = throwPosError ("The regexp matching operator expects a regular expression, not" <+> pretty t)
 resolveExpression (NotRegexMatch a v) = resolveExpression (Not (RegexMatch a v))
 resolveExpression (Equal a b) = do
@@ -262,12 +255,11 @@ resolveExpression stmt@(ConditionalValue e conds) = do
     rese <- resolveExpression e
     let checkCond [] = throwPosError ("The selector didn't match anything for input" <+> pretty rese </> pretty stmt)
         checkCond ((SelectorDefault :!: ce) : _) = resolveExpression ce
-        checkCond ((SelectorValue ur@(URegexp _ rg) :!: ce) : xs) = do
+        checkCond ((SelectorValue (URegexp _ rg) :!: ce) : xs) = do
             rs <- fmap T.encodeUtf8 (resolvePValueString rese)
-            liftIO (execute rg rs) >>= \case
-                Left rr -> throwPosError ("Regexp matching critical failure" <+> text (show rr) <+> parens ("Regexp was" <+> pretty ur))
-                Right Nothing -> checkCond xs
-                Right _ -> resolveExpression ce
+            singleton (Execute rg rs) >>= \case
+                False -> checkCond xs
+                True -> resolveExpression ce
         checkCond ((SelectorValue uv :!: ce) : xs) = do
             rv <- resolveValue uv
             if puppetEquality rese rv
@@ -392,25 +384,17 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
     target      <- fmap T.encodeUtf8 (resolvePValueString ptarget)
     regexp      <- fmap T.encodeUtf8 (resolvePValueString pregexp)
     replacement <- fmap T.encodeUtf8 (resolvePValueString preplacement)
-    liftIO (substituteCompile regexp target replacement) >>= \case
-        Left rr -> throwPosError ("regsubst" <> parens (pretty pregexp <> comma <> pretty preplacement) <> ":" <+> text rr)
-        Right x -> fmap PString (safeDecodeUtf8 x)
+    fmap PString (singleton (SubstituteCompile regexp target replacement) >>= safeDecodeUtf8)
 resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 arguments"
 resolveFunction' "split" [psrc, psplt] = do
     src  <- fmap T.encodeUtf8 (resolvePValueString psrc)
     splt <- fmap T.encodeUtf8 (resolvePValueString psplt)
-    liftIO (splitCompile splt src) >>= \case
-        Left rr -> throwPosError ("regsubst():" <+> text rr)
-        Right x -> fmap (PArray . V.fromList) $ mapM (fmap PString . safeDecodeUtf8) x
+    fmap (PArray . V.fromList) (singleton (SplitCompile splt src) >>= mapM (fmap PString . safeDecodeUtf8))
 resolveFunction' "sha1" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . SHA1.hash  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
 resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . SHA1.hash . SHA1.hash  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
-resolveFunction' "file" args = mapM resolvePValueString args >>= fmap PString . interpreterIO . file
-    where
-        file :: [T.Text] -> IO (S.Either Doc T.Text)
-        file [] = return $ S.Left ("No file found in" <+> pretty args)
-        file (x:xs) = fmap S.Right (T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
+resolveFunction' "file" args = mapM resolvePValueString args >>= fmap PString . singleton . ReadFile
 resolveFunction' "tagged" ptags = do
     tags <- fmap HS.fromList (mapM resolvePValueString ptags)
     scp <- getScopeName
@@ -447,17 +431,12 @@ resolveFunction' "hiera_hash"  [q,d,o] = hieraCall HashMerge  q (Just d) (Just o
 resolveFunction' "hiera" _ = throwPosError "hiera(): Expects one, two or three arguments"
 
 -- user functions
-resolveFunction' fname args = do
-    external <- view externalFunctions
-    case external ^. at fname of
-        Just f -> f args
-        Nothing -> throwPosError ("Unknown function" <+> dullred (ttext fname))
+resolveFunction' fname args = singleton (ExternalFunction fname args)
 
 pdbresourcequery :: PValue -> Maybe T.Text -> InterpreterMonad PValue
 pdbresourcequery q mkey = do
-    pdb <- view pdbAPI
     rrv <- case fromJSON (toJSON q) of
-               Success rq -> interpreterIO (getResources pdb rq)
+               Success rq -> singleton (PDBGetResources rq)
                Error rr   -> throwPosError ("Invalid resource query:" <+> Puppet.PP.string rr)
     rv <- case fromJSON (toJSON rrv) of
               Success x -> return x
@@ -483,11 +462,7 @@ calcTemplate templatetype templatename = do
         -- invariant that the scope is already entered, and hence present
         -- in the scps container.
         cscps = scps & ix scp . scopeVariables . at "classes" ?~ ( classes :!: initialPPos "dummy" :!: cd )
-    computeFunc <- view computeTemplateFunction
-    liftIO (computeFunc (templatetype fname) scp cscps)
-        >>= \case
-            S.Left rr -> throwPosError ("template error for" <+> ttext fname <+> ":" <$> rr)
-            S.Right r -> return (PString r)
+    PString `fmap` singleton (ComputeTemplate (templatetype fname) scp cscps)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
 resolveExpressionSE e = resolveExpression e >>=

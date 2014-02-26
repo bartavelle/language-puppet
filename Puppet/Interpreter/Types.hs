@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric, TemplateHaskell, CPP, ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase, FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Puppet.Interpreter.Types where
 
@@ -15,9 +16,11 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import Data.Tuple.Strict
-import Control.Monad.Trans.RSS.Strict
-import Control.Monad.Writer hiding ((<>))
+import Control.Monad.State.Strict
 import Control.Monad.Error
+import Control.Monad.Writer.Class
+import Control.Monad.Trans.RSS.Strict
+import Data.Monoid hiding ((<>))
 import Control.Lens
 import Data.Aeson.Lens
 import Data.String (IsString(..))
@@ -26,7 +29,6 @@ import qualified Data.Maybe.Strict as S
 import Data.Hashable
 import GHC.Generics hiding (to)
 import qualified Data.Traversable as TR
-import Control.Exception
 import qualified Data.ByteString as BS
 import System.Log.Logger
 import Data.List (foldl')
@@ -37,6 +39,11 @@ import Data.Maybe (fromMaybe)
 import Data.Attoparsec.Number
 import Data.Attoparsec.Text (parseOnly,rational)
 import Data.Scientific
+import Control.Monad.Operational
+import Text.Regex.PCRE.ByteString
+import Control.Exception
+import Control.Concurrent.MVar (MVar)
+import qualified Scripting.Lua as Lua
 
 #ifdef HRUBY
 import Foreign.Ruby
@@ -152,6 +159,44 @@ data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Conta
                                            , _hieraQuery              :: HieraQueryFunc
                                            }
 
+data InterpreterInstr a where
+    -- Utility for using what's in "InterpreterReader"
+    GetNativeTypes      :: InterpreterInstr (Container PuppetTypeMethods)
+    GetStatement        :: TopLevelType -> T.Text -> InterpreterInstr Statement
+    ComputeTemplate     :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> InterpreterInstr T.Text
+    ExternalFunction    :: T.Text -> [PValue] -> InterpreterInstr PValue
+    GetNodeName         :: InterpreterInstr T.Text
+    HieraQuery          :: Container ScopeInformation -> T.Text -> HieraQueryType -> InterpreterInstr (Pair InterpreterWriter (S.Maybe PValue))
+    GetCurrentCallStack :: InterpreterInstr [String]
+    -- error
+    ErrorThrow          :: Doc -> InterpreterInstr a
+    ErrorCatch          :: InterpreterMonad a -> (Doc -> InterpreterMonad a) -> InterpreterInstr a
+    -- writer
+    WriterTell          :: InterpreterWriter -> InterpreterInstr ()
+    WriterPass          :: InterpreterMonad (a, InterpreterWriter -> InterpreterWriter) -> InterpreterInstr a
+    WriterListen        :: InterpreterMonad a -> InterpreterInstr (a, InterpreterWriter)
+    -- puppetdb wrappers, see 'PuppetDBAPI' for details
+    PDBInformation      :: InterpreterInstr Doc
+    PDBReplaceCatalog   :: WireCatalog -> InterpreterInstr ()
+    PDBReplaceFacts     :: [(Nodename, Facts)] -> InterpreterInstr ()
+    PDBDeactivateNode   :: Nodename -> InterpreterInstr ()
+    PDBGetFacts         :: Query FactField -> InterpreterInstr [PFactInfo]
+    PDBGetResources     :: Query ResourceField -> InterpreterInstr [Resource]
+    PDBGetNodes         :: Query NodeField -> InterpreterInstr [PNodeInfo]
+    PDBCommitDB         :: InterpreterInstr ()
+    PDBGetResourcesOfNode :: Nodename -> Query ResourceField -> InterpreterInstr [Resource]
+    -- regexp :(
+    SubstituteCompile   :: BS.ByteString -> BS.ByteString -> BS.ByteString -> InterpreterInstr BS.ByteString
+    SplitCompile        :: BS.ByteString -> BS.ByteString -> InterpreterInstr [BS.ByteString]
+    Compile             :: CompOption -> ExecOption -> BS.ByteString -> InterpreterInstr  Regex
+    Execute             :: Regex -> BS.ByteString -> InterpreterInstr Bool
+    -- Reading the first file that can be read in a list
+    ReadFile            :: [T.Text] -> InterpreterInstr T.Text
+    -- Tracing events
+    TraceEvent          :: String -> InterpreterInstr ()
+    -- Calling Lua
+    CallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> InterpreterInstr PValue
+
 newtype Warning = Warning Doc
 
 type InterpreterLog = Pair Priority Doc
@@ -166,7 +211,22 @@ debug d = tell [DEBUG :!: d]
 logWriter :: (Monad m, MonadWriter InterpreterWriter m) => Priority -> Doc -> m ()
 logWriter prio d = tell [prio :!: d]
 
-type InterpreterMonad = ErrorT Doc (RSST InterpreterReader InterpreterWriter InterpreterState IO)
+-- | The main monad
+type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
+
+-- | 'InterpreterMonad' can be converted into this kind of monads
+type RSM m = ErrorT Doc (RSST InterpreterReader InterpreterWriter InterpreterState m)
+type RSMP = RSM Identity -- To be defined eventually
+type RSMIO = RSM IO
+
+instance MonadError Doc InterpreterMonad where
+    throwError = singleton . ErrorThrow
+    catchError a c = singleton (ErrorCatch a c)
+
+instance MonadWriter InterpreterWriter InterpreterMonad where
+    tell = singleton . WriterTell
+    pass = singleton . WriterPass
+    listen = singleton . WriterListen
 
 instance Error Doc where
     noMsg = empty
@@ -324,14 +384,38 @@ makeFields ''PNodeInfo
 rcurcontainer :: Resource -> CurContainerDesc
 rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
 
-throwPosError :: Doc -> InterpreterMonad a
-throwPosError s = do
+class MonadThrowPos m where
+    throwPosError :: Doc -> m a
+
+class MonadStack m where
+    getCallStack :: m [String]
+
+instance MonadStack InterpreterMonad where
+    getCallStack = singleton GetCurrentCallStack
+
+instance MonadStack RSMIO where
+    getCallStack = liftIO currentCallStack
+
+instance MonadStack RSMP where
+    getCallStack = return []
+
+tpe :: (MonadStack m, MonadError Doc m, MonadState InterpreterState m) => Doc -> m b
+tpe s = do
     p <- use (curPos . _1)
-    stack <- liftIO currentCallStack
+    stack <- getCallStack
     let dstack = if null stack
                      then mempty
                      else mempty </> string (renderStack stack)
     throwError (s <+> "at" <+> showPos p <> dstack)
+
+instance MonadThrowPos RSMIO where
+    throwPosError = tpe
+
+instance MonadThrowPos RSMP where
+    throwPosError = tpe
+
+instance MonadThrowPos InterpreterMonad where
+    throwPosError = tpe
 
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINE getCurContainer #-}
@@ -385,19 +469,23 @@ instance FromRuby PValue where
                            Error _ -> return Nothing
                            Success suc -> return (Just suc)
 #endif
-
 eitherDocIO :: IO (S.Either Doc a) -> IO (S.Either Doc a)
 eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ dullred $ text $ show (e :: SomeException))
     where
         check (S.Left r) = return (S.Left r)
         check (S.Right x) = return (S.Right x)
 
-interpreterIO :: IO (S.Either Doc a) -> InterpreterMonad a
+interpreterIO :: (MonadThrowPos m, MonadIO m) => IO (S.Either Doc a) -> m a
 {-# INLINE interpreterIO #-}
 interpreterIO f = do
     liftIO (eitherDocIO f) >>= \case
         S.Right x -> return x
         S.Left rr -> throwPosError rr
+
+mightFail :: (MonadError Doc m, MonadThrowPos m) => m (S.Either Doc a) -> m a
+mightFail a = a >>= \case
+    S.Right x -> return x
+    S.Left rr -> throwPosError rr
 
 safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad T.Text
 {-# INLINE safeDecodeUtf8 #-}

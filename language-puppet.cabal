@@ -54,6 +54,7 @@ library
                        , Erb.Ruby
                        , Erb.Evaluate
                        , Puppet.Lens
+                       , Puppet.Interpreter.IO
   other-modules:         Puppet.Utils
                        , Puppet.NativeTypes.File
                        , Erb.Compute
@@ -116,6 +117,7 @@ library
                         , stateWriter          >= 0.2.1   && < 0.3
                         , split                == 0.2.*
                         , scientific           == 0.2.*
+                        , operational
 
 Test-Suite test-lexer
   hs-source-dirs: tests

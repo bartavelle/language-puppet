@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 {-| This module is used for user plugins. It exports three functions that should
@@ -38,6 +39,8 @@ import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 import Control.Monad.IO.Class
 import Control.Concurrent
+import Control.Monad.Error
+import Control.Monad.Operational (singleton)
 
 import Puppet.Interpreter.Types
 import Puppet.Utils
@@ -93,7 +96,7 @@ loadLuaFile l file =
 {-| Runs a puppet function in the 'CatalogMonad' monad. It takes a state,
 function name and list of arguments. It returns a valid Puppet value.
 -}
-puppetFunc :: Lua.LuaState -> T.Text -> [PValue] -> InterpreterMonad PValue
+puppetFunc :: (MonadThrowPos m, MonadIO m, MonadError Doc m, Monad m) => Lua.LuaState -> T.Text -> [PValue] -> m PValue
 puppetFunc l fn args =
     liftIO ( catch (fmap Right (Lua.callfunc l (T.unpack fn) args)) (\e -> return $ Left $ show (e :: SomeException)) ) >>= \case
         Right x -> return x
@@ -114,12 +117,14 @@ initLuaMaster :: T.Text -> IO (HM.HashMap T.Text ([PValue] -> InterpreterMonad P
 initLuaMaster moduledir = do
     (luastate, luafunctions) <- initLua moduledir
     c <- newMVar luastate
-    let callf fname args = do
+    let callf fname args = singleton (CallLua c fname args)
+        {-
             r <- liftIO $ withMVar c $ \stt ->
                 catch (fmap Right (Lua.callfunc stt (T.unpack fname) args)) (\e -> return $ Left $ show (e :: SomeException))
             case r of
                 Right x -> return x
                 Left rr -> throwPosError (string rr)
+                -}
     return $ HM.fromList [(fname, callf fname) | fname <- luafunctions]
 
 -- | Obviously releases the Lua state.

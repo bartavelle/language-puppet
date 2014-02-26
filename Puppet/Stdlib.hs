@@ -2,7 +2,6 @@
 module Puppet.Stdlib (stdlibFunctions) where
 
 import Puppet.PP
-import Puppet.Parser.Types
 import Puppet.Interpreter.Resolve
 import Puppet.Interpreter.Types
 
@@ -12,13 +11,13 @@ import Puppet.Lens
 import Data.Char
 import Data.Monoid
 import Control.Monad
-import Control.Monad.IO.Class
 import Text.Regex.PCRE.ByteString
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString.Base16 as B16
+import Control.Monad.Operational
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
@@ -76,10 +75,7 @@ stringArrayFunction _ _ = throwPosError "function expects a single argument"
 
 
 compileRE :: T.Text -> InterpreterMonad Regex
-compileRE p =
-    (liftIO . compile compBlank execBlank . T.encodeUtf8) p >>= \case
-        Right r -> return r
-        Left ms -> throwPosError ("Can't parse regexp" <+> pretty (URegexp p undefined) <+> ":" <+> text (show ms))
+compileRE = singleton . Compile compBlank execBlank . T.encodeUtf8
 
 puppetAbs :: PValue -> InterpreterMonad PValue
 puppetAbs y = case y ^? _Number of
@@ -263,10 +259,7 @@ validateRe [str, PString reg, msg] = validateRe [str, PArray (V.singleton (PStri
 validateRe [str, PArray v, msg] = do
     rstr <- fmap T.encodeUtf8 (resolvePValueString str)
     let matchRE :: Regex -> InterpreterMonad Bool
-        matchRE r = liftIO (execute r rstr) >>= \case
-                        Left rr -> throwPosError ("Regexp matching critical failure" <+> text (show rr))
-                        Right Nothing -> return False
-                        _ -> return True
+        matchRE r = singleton (Execute r rstr)
     rest <- mapM (resolvePValueString >=> compileRE >=> matchRE) (V.toList v)
     if or rest
         then return PUndef

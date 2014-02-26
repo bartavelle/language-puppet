@@ -15,6 +15,7 @@ import Puppet.NativeTypes.SshSecure
 import Puppet.Interpreter.Types
 import qualified Data.HashMap.Strict as HM
 import Control.Lens
+import Control.Monad.Operational
 
 fakeTypes :: [(PuppetTypeName, PuppetTypeMethods)]
 fakeTypes = map faketype ["class"]
@@ -41,7 +42,7 @@ baseNativeTypes = HM.fromList
 -- pass
 validateNativeType :: Resource -> InterpreterMonad Resource
 validateNativeType r = do
-    tps <- view nativeTypes
+    tps <- singleton GetNativeTypes
     case tps ^. at (r ^. rid . itype) of
         Just x -> case (x ^. puppetValidate) r of
                       Right nr -> return nr
