@@ -11,10 +11,10 @@ import Puppet.Manifests
 import Puppet.Interpreter
 import Puppet.Interpreter.IO
 import Puppet.Plugins
+import Puppet.PP
 import Hiera.Server
 import Erb.Compute
 
-import Puppet.PP
 import Data.FileCache
 import qualified System.Log.Logger as LOG
 import qualified Data.Text as T
@@ -77,7 +77,7 @@ are opened. This means the program might end with an exception when the file
 is nonexistent. This will need fixing.
 
 -}
-initDaemon :: Preferences -> IO DaemonMethods
+initDaemon :: Preferences IO -> IO DaemonMethods
 initDaemon prefs = do
     logDebug "initDaemon"
     traceEventIO "initDaemon"
@@ -101,23 +101,23 @@ initDaemon prefs = do
     let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
     return (DaemonMethods (gCatalog myprefs getStatements getTemplate catalogStats hquery) parserStats catalogStats templateStats)
 
-gCatalog :: Preferences
+gCatalog :: Preferences IO
          -> ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) )
          -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
          -> MStats
-         -> HieraQueryFunc
+         -> HieraQueryFunc IO
          -> T.Text
          -> Facts
          -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
     traceEventIO ("START gCatalog " <> T.unpack ndename)
-    (stmts :!: warnings) <- measure stats ndename $ getCatalog interpretIO getStatements getTemplate (prefs ^. prefPDB) ndename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs) hquery
+    (stmts :!: warnings) <- measure stats ndename $ getCatalog interpretIO getStatements getTemplate (prefs ^. prefPDB) ndename facts (prefs ^. natTypes) (prefs ^. prefExtFuncs) hquery defaultImpureMethods
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
     return stmts
 
-parseFunction :: Preferences -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either Doc Statement)
+parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either Doc Statement)
 parseFunction prefs filecache stats topleveltype toplevelname =
     case compileFileList prefs topleveltype toplevelname of
         S.Left rr -> return (S.Left rr)
@@ -132,7 +132,7 @@ parseFunction prefs filecache stats topleveltype toplevelname =
 
 -- TODO this is wrong, see
 -- http://docs.puppetlabs.com/puppet/3/reference/lang_namespaces.html#behavior
-compileFileList :: Preferences -> TopLevelType -> T.Text -> S.Either Doc T.Text
+compileFileList :: Preferences IO -> TopLevelType -> T.Text -> S.Either Doc T.Text
 compileFileList prefs TopNode _ = S.Right (T.pack (prefs ^. manifestPath) <> "/site.pp")
 compileFileList prefs _ name = moduleInfo
     where

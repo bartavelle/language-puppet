@@ -38,7 +38,7 @@ instance Read PDBType where
             tsts = stripPrefix "test"      r
 
 -- | Given a 'PDBType', will try return a sane default implementation.
-getDefaultDB :: PDBType -> IO (S.Either Doc PuppetDBAPI)
+getDefaultDB :: PDBType -> IO (S.Either Doc (PuppetDBAPI IO))
 getDefaultDB PDBDummy  = return (S.Right dummyPuppetDB)
 getDefaultDB PDBRemote = pdbConnect "http://localhost:8080"
 getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case

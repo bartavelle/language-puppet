@@ -16,11 +16,11 @@ import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HM
 import Control.Lens
 
-data Preferences = Preferences
+data Preferences m = Preferences
     { _manifestPath    :: FilePath -- ^ The path to the manifests.
     , _modulesPath     :: FilePath -- ^ The path to the modules.
     , _templatesPath   :: FilePath -- ^ The path to the template.
-    , _prefPDB         :: PuppetDBAPI
+    , _prefPDB         :: PuppetDBAPI m
     , _natTypes        :: Container PuppetTypeMethods -- ^ The list of native types.
     , _prefExtFuncs    :: Container ( [PValue] -> InterpreterMonad PValue )
     , _hieraPath       :: Maybe FilePath
@@ -29,7 +29,7 @@ data Preferences = Preferences
 makeClassy ''Preferences
 
 genPreferences :: FilePath
-               -> IO Preferences
+               -> IO (Preferences IO)
 genPreferences basedir = do
     let manifestdir = basedir <> "/manifests"
         modulesdir  = basedir <> "/modules"

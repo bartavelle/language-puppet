@@ -44,7 +44,7 @@ pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
     runRequest req
 
 -- | Given an URL (ie. @http://localhost:8080@), will return an incomplete 'PuppetDBAPI'.
-pdbConnect :: T.Text -> IO (S.Either Doc PuppetDBAPI)
+pdbConnect :: T.Text -> IO (S.Either Doc (PuppetDBAPI IO))
 pdbConnect url = return $ S.Right $ PuppetDBAPI
     (return (ttext url))
     (const (return (S.Left "operation not supported")))

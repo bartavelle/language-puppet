@@ -45,7 +45,7 @@ instance ToJSON DBContent where
     toJSON (DBContent r f _) = object [("resources", toJSON r), ("facts", toJSON f)]
 
 -- | Initializes the test DB using a file to back its content
-loadTestDB :: FilePath -> IO (S.Either Doc PuppetDBAPI)
+loadTestDB :: FilePath -> IO (S.Either Doc (PuppetDBAPI IO))
 loadTestDB fp =
     decodeFileEither fp >>= \case
         Left (OtherParseException rr) -> return (S.Left (string (show rr)))
@@ -61,13 +61,13 @@ loadTestDB fp =
         newFile = S.Right <$> genDBAPI (newDB & backingFile ?~ fp )
 
 -- | Starts a new PuppetDB, without any backing file.
-initTestDB :: IO PuppetDBAPI
+initTestDB :: IO (PuppetDBAPI IO)
 initTestDB = genDBAPI newDB
 
 newDB :: DBContent
 newDB = DBContent mempty mempty Nothing
 
-genDBAPI :: DBContent -> IO PuppetDBAPI
+genDBAPI :: DBContent -> IO (PuppetDBAPI IO)
 genDBAPI db = do
     d <- newTVarIO db
     return (PuppetDBAPI (dbapiInfo d)

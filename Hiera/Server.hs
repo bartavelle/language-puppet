@@ -96,7 +96,7 @@ parseInterpolableString t = AT.parseOnly interpolableString t
 -- | The only method you'll ever need. It runs a Hiera server and gives you
 -- a querying function. The 'Nil' output is explicitely given as a Maybe
 -- type.
-startHiera :: FilePath -> IO (Either String (HieraQueryFunc))
+startHiera :: FilePath -> IO (Either String (HieraQueryFunc IO))
 startHiera hieraconfig = Y.decodeFileEither hieraconfig >>= \case
     Left ex -> return (Left (show ex))
     Right cfg -> do
@@ -105,7 +105,7 @@ startHiera hieraconfig = Y.decodeFileEither hieraconfig >>= \case
         return (Right (query ncfg cache))
 
 -- | A dummy hiera function that will be used when hiera is not detected
-dummyHiera :: HieraQueryFunc
+dummyHiera :: Monad m => HieraQueryFunc m
 dummyHiera _ _ _ = return (S.Right ([] :!: S.Nothing))
 
 -- | The combinator for "normal" queries
@@ -152,7 +152,7 @@ interpolatePValue _ x = x
 
 type LogWriter = WriterT InterpreterWriter IO
 
-query :: HieraConfig -> HieraCache -> HieraQueryFunc
+query :: HieraConfig -> HieraCache -> HieraQueryFunc IO
 query (HieraConfig b h bd) cache vars hquery qtype = fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' h))) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
     where
         prepout (a,s) = s :!: a

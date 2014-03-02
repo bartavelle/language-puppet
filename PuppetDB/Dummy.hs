@@ -5,7 +5,7 @@ module PuppetDB.Dummy where
 import Puppet.Interpreter.Types
 import qualified Data.Either.Strict as S
 
-dummyPuppetDB :: PuppetDBAPI
+dummyPuppetDB :: Monad m => PuppetDBAPI m
 dummyPuppetDB = PuppetDBAPI
                     (return "dummy")
                     (const (return (S.Right () )))

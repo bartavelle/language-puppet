@@ -19,7 +19,6 @@ import Data.Tuple.Strict
 import Control.Monad.State.Strict
 import Control.Monad.Error
 import Control.Monad.Writer.Class
-import Control.Monad.Trans.RSS.Strict
 import Data.Monoid hiding ((<>))
 import Control.Lens
 import Data.Aeson.Lens
@@ -70,7 +69,7 @@ data HieraQueryType = Priority   -- ^ standard hiera query
                     | HashMerge  -- ^ hiera_hash
 
 -- | The type of the Hiera API function
-type HieraQueryFunc = Container ScopeInformation -> T.Text -> HieraQueryType -> IO (S.Either Doc (Pair InterpreterWriter (S.Maybe PValue)))
+type HieraQueryFunc m = Container ScopeInformation -> T.Text -> HieraQueryType -> m (S.Either Doc (Pair InterpreterWriter (S.Maybe PValue)))
 
 data RSearchExpression
     = REqualitySearch !T.Text !PValue
@@ -150,14 +149,25 @@ data InterpreterState = InterpreterState { _scopes             :: !(Container Sc
                                          , _resMod             :: ![ResourceModifier]
                                          }
 
-data InterpreterReader = InterpreterReader { _nativeTypes             :: !(Container PuppetTypeMethods)
-                                           , _getStatement            :: TopLevelType -> T.Text -> IO (S.Either Doc Statement)
-                                           , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text)
-                                           , _pdbAPI                  :: PuppetDBAPI
-                                           , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
-                                           , _thisNodename            :: T.Text
-                                           , _hieraQuery              :: HieraQueryFunc
-                                           }
+data InterpreterReader m = InterpreterReader { _nativeTypes             :: !(Container PuppetTypeMethods)
+                                             , _getStatement            :: TopLevelType -> T.Text -> m (S.Either Doc Statement)
+                                             , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> m (S.Either Doc T.Text)
+                                             , _pdbAPI                  :: PuppetDBAPI m
+                                             , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
+                                             , _thisNodename            :: T.Text
+                                             , _hieraQuery              :: HieraQueryFunc m
+                                             , _ioMethods               :: ImpureMethods m
+                                             }
+
+data ImpureMethods m = ImputeMethods { _imGetCurrentCallStack :: m [String]
+                                     , _imReadFile            :: [T.Text] -> m (Either String T.Text)
+                                     , _imTraceEvent          :: String -> m ()
+                                     , _imSubstituteCompile   :: BS.ByteString -> BS.ByteString -> BS.ByteString -> m (Either String BS.ByteString)
+                                     , _imSplitCompile        :: BS.ByteString -> BS.ByteString -> m (Either String [BS.ByteString])
+                                     , _imCompile             :: CompOption -> ExecOption -> BS.ByteString -> m (Either String Regex)
+                                     , _imExecute             :: Regex -> BS.ByteString -> m (Either String Bool)
+                                     , _imCallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> m (Either String PValue)
+                                     }
 
 data InterpreterInstr a where
     -- Utility for using what's in "InterpreterReader"
@@ -213,11 +223,6 @@ logWriter prio d = tell [prio :!: d]
 
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
-
--- | 'InterpreterMonad' can be converted into this kind of monads
-type RSM m = ErrorT Doc (RSST InterpreterReader InterpreterWriter InterpreterState m)
-type RSMP = RSM Identity -- To be defined eventually
-type RSMIO = RSM IO
 
 instance MonadError Doc InterpreterMonad where
     throwError = singleton . ErrorThrow
@@ -326,16 +331,16 @@ data PNodeInfo = PNodeInfo { _pnodeinfoNodename    :: !Nodename
                            , _pnodeinfoReportT     :: !(S.Maybe UTCTime)
                            }
 
-data PuppetDBAPI = PuppetDBAPI { pdbInformation   :: IO Doc
-                               , replaceCatalog   :: WireCatalog         -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
-                               , replaceFacts     :: [(Nodename, Facts)] -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
-                               , deactivateNode   :: Nodename            -> IO (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-                               , getFacts         :: Query FactField     -> IO (S.Either Doc [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
-                               , getResources     :: Query ResourceField -> IO (S.Either Doc [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
-                               , getNodes         :: Query NodeField     -> IO (S.Either Doc [PNodeInfo])
-                               , commitDB         ::                        IO (S.Either Doc ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
-                               , getResourcesOfNode :: Nodename -> Query ResourceField -> IO (S.Either Doc [Resource])
-                               }
+data PuppetDBAPI m = PuppetDBAPI { pdbInformation   :: m Doc
+                                 , replaceCatalog   :: WireCatalog         -> m (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+                                 , replaceFacts     :: [(Nodename, Facts)] -> m (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+                                 , deactivateNode   :: Nodename            -> m (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+                                 , getFacts         :: Query FactField     -> m (S.Either Doc [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+                                 , getResources     :: Query ResourceField -> m (S.Either Doc [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+                                 , getNodes         :: Query NodeField     -> m (S.Either Doc [PNodeInfo])
+                                 , commitDB         ::                        m (S.Either Doc ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
+                                 , getResourcesOfNode :: Nodename -> Query ResourceField -> m (S.Either Doc [Resource])
+                                 }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
 data Query a = QEqual a T.Text
@@ -376,6 +381,7 @@ makeClassy ''ScopeInformation
 makeClassy ''Resource
 makeClassy ''InterpreterState
 makeClassy ''InterpreterReader
+makeClassy ''ImpureMethods
 makeClassy ''CurContainer
 makeFields ''WireCatalog
 makeFields ''PFactInfo
@@ -393,12 +399,6 @@ class MonadStack m where
 instance MonadStack InterpreterMonad where
     getCallStack = singleton GetCurrentCallStack
 
-instance MonadStack RSMIO where
-    getCallStack = liftIO currentCallStack
-
-instance MonadStack RSMP where
-    getCallStack = return []
-
 tpe :: (MonadStack m, MonadError Doc m, MonadState InterpreterState m) => Doc -> m b
 tpe s = do
     p <- use (curPos . _1)
@@ -407,12 +407,6 @@ tpe s = do
                      then mempty
                      else mempty </> string (renderStack stack)
     throwError (s <+> "at" <+> showPos p <> dstack)
-
-instance MonadThrowPos RSMIO where
-    throwPosError = tpe
-
-instance MonadThrowPos RSMP where
-    throwPosError = tpe
 
 instance MonadThrowPos InterpreterMonad where
     throwPosError = tpe

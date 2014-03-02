@@ -154,7 +154,7 @@ hTestFileSources = do
 
 -- | Initializes a daemon made for running tests, using the specific test
 -- puppetDB
-testingDaemon :: PuppetDBAPI -- ^ Contains the puppetdb API functions
+testingDaemon :: PuppetDBAPI IO -- ^ Contains the puppetdb API functions
               -> FilePath -- ^ Path to the manifests
               -> (T.Text -> IO (Container T.Text)) -- ^ The facter function
               -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
