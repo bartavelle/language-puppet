@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+-- | This is an internal module.
 module Puppet.Interpreter.IO where
 
 import Puppet.PP
@@ -44,19 +45,11 @@ defaultImpureMethods = ImputeMethods (liftIO currentCallStack)
         runlua c fname args = liftIO $ withMVar c $ \lstt ->
                 catch (fmap Right (Lua.callfunc lstt (T.unpack fname) args)) (\e -> return $ Left $ show (e :: SomeException))
 
-
-type InterpreterFunction m a = InterpreterReader m
-                              -> InterpreterState
-                              -> InterpreterMonad a
-                              -> m (Either Doc a, InterpreterState, InterpreterWriter)
-
-type EvalInstrSpec m a = InterpreterFunction m a -> InterpreterReader m -> InterpreterState -> ProgramViewT InterpreterInstr (State InterpreterState) a -> m (Either Doc a, InterpreterState, InterpreterWriter)
-
-evalInstrGen :: (Functor m, Monad m) => EvalInstrSpec m a
-evalInstrGen _ _ stt (Return x) = return (Right x, stt, mempty)
-evalInstrGen interpret rdr stt (a :>>= f) =
-    let runC a' = interpret rdr stt (f a')
-        thpe = interpret rdr stt . throwPosError
+evalInstrGen :: (Functor m, Monad m) => InterpreterReader m -> InterpreterState -> ProgramViewT InterpreterInstr (State InterpreterState) a -> m (Either Doc a, InterpreterState, InterpreterWriter)
+evalInstrGen _ stt (Return x) = return (Right x, stt, mempty)
+evalInstrGen rdr stt (a :>>= f) =
+    let runC a' = interpretMonad rdr stt (f a')
+        thpe = interpretMonad rdr stt . throwPosError
         pdb = _pdbAPI rdr
         strFail iof errf = iof >>= \case
             Left rr -> thpe (errf (string rr))
@@ -66,7 +59,7 @@ evalInstrGen interpret rdr stt (a :>>= f) =
             S.Right x -> runC x
     in  case a of
             ExternalFunction fname args  -> case rdr ^. externalFunctions . at fname of
-                                                Just fn -> interpret rdr stt ( fn args >>= f)
+                                                Just fn -> interpretMonad rdr stt ( fn args >>= f)
                                                 Nothing -> thpe ("Unknown function: " <> ttext fname)
             GetStatement topleveltype toplevelname
                                          -> canFail ((rdr ^. getStatement) topleveltype toplevelname)
@@ -100,6 +93,11 @@ evalInstrGen interpret rdr stt (a :>>= f) =
                                                 Right x -> runC x
                                                 Left rr -> thpe (string rr)
 
-interpretIO :: InterpreterFunction IO a
-interpretIO rd_ prmstate instr = case runState (viewT instr) prmstate of
-                                     (!a,!nextstate) -> evalInstrGen interpretIO rd_ nextstate a
+
+interpretMonad :: (Functor m, Monad m)
+                => InterpreterReader m
+                -> InterpreterState
+                -> InterpreterMonad a
+                -> m (Either Doc a, InterpreterState, InterpreterWriter)
+interpretMonad rd_ prmstate instr = case runState (viewT instr) prmstate of
+                                     (!a,!nextstate) -> evalInstrGen rd_ nextstate a
