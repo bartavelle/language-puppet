@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE GADTs #-}
 module Puppet.Interpreter.PrettyPrinter(containerComma) where
 
 import Puppet.PP
@@ -15,6 +16,9 @@ import Control.Arrow (first,second)
 import Control.Lens
 import Data.List
 import GHC.Exts
+import qualified Data.ByteString.Lazy.Char8 as BSL
+
+import Data.Aeson (ToJSON, encode)
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins
@@ -105,3 +109,40 @@ instance Pretty RSearchExpression where
     pretty (RAndSearch a b) = parens (pretty a) <+> "&&" <+> parens (pretty b)
     pretty (ROrSearch a b) = parens (pretty a) <+> "||" <+> parens (pretty b)
     pretty RAlwaysTrue = mempty
+
+pf :: Doc -> [Doc] -> Doc
+pf fn args = bold (red fn) <> tupled (map pretty args)
+
+showQuery :: ToJSON a => Query a -> Doc
+showQuery = string . BSL.unpack . encode
+
+instance Pretty (InterpreterInstr a) where
+    pretty GetNativeTypes = pf "GetNativeTypes" []
+    pretty (GetStatement tlt nm) = pf "GetStatement" [pretty tlt,ttext nm]
+    pretty (ComputeTemplate fn scp _) = pf "ComputeTemplate" [fn', ttext scp]
+        where
+            fn' = case fn of
+                      Left content -> pretty (PString content)
+                      Right filena -> ttext filena
+    pretty (ExternalFunction fn args)  = pf (ttext fn) (map pretty args)
+    pretty (CallLua _ f args)          = pf (ttext f) (map pretty args)
+    pretty GetNodeName                 = pf "GetNodeName" []
+    pretty (HieraQuery _ q _)          = pf "HieraQuery" [ttext q]
+    pretty GetCurrentCallStack         = pf "GetCurrentCallStack" []
+    pretty (ErrorThrow rr)             = pf "ErrorThrow" [rr]
+    pretty (ErrorCatch _ _)            = pf "ErrorCatch" []
+    pretty (WriterTell t)              = pf "WriterTell" (map (pretty . view _2) t)
+    pretty (WriterPass _)              = pf "WriterPass" []
+    pretty (WriterListen _)            = pf "WriterListen" []
+    pretty PDBInformation              = pf "PDBInformation" []
+    pretty (PDBReplaceCatalog _)       = pf "PDBReplaceCatalog" ["..."]
+    pretty (PDBReplaceFacts _)         = pf "PDBReplaceFacts" ["..."]
+    pretty (PDBDeactivateNode n)       = pf "PDBDeactivateNode" [ttext n]
+    pretty (PDBGetFacts q)             = pf "PDBGetFacts" [showQuery q]
+    pretty (PDBGetResources q)         = pf "PDBGetResources" [showQuery q]
+    pretty (PDBGetNodes q)             = pf "PDBGetNodes" [showQuery q]
+    pretty PDBCommitDB                 = pf "PDBCommitDB" []
+    pretty (PDBGetResourcesOfNode n q) = pf "PDBGetResourcesOfNode" [ttext n, showQuery q]
+    pretty (ReadFile f)                = pf "ReadFile" (map ttext f)
+    pretty (TraceEvent e)              = pf "TraceEvent" [string e]
+
