@@ -68,7 +68,10 @@ data HieraQueryType = Priority   -- ^ standard hiera query
                     | HashMerge  -- ^ hiera_hash
 
 -- | The type of the Hiera API function
-type HieraQueryFunc m = Container ScopeInformation -> T.Text -> HieraQueryType -> m (S.Either Doc (Pair InterpreterWriter (S.Maybe PValue)))
+type HieraQueryFunc m = Container ScopeInformation -- ^ All the variables that Hiera can interpolate
+                     -> T.Text -- ^ The query
+                     -> HieraQueryType
+                     -> m (S.Either Doc (Pair InterpreterWriter (S.Maybe PValue)))
 
 data RSearchExpression
     = REqualitySearch !T.Text !PValue

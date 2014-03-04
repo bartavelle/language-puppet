@@ -7,6 +7,7 @@ module Puppet.Interpreter.IO where
 
 import Puppet.PP
 import Puppet.Interpreter.Types
+import Puppet.Interpreter.PrettyPrinter()
 import Puppet.Plugins()
 
 import Control.Monad.Operational
@@ -24,6 +25,9 @@ import qualified Data.Text.IO as T
 import Control.Exception
 import qualified Scripting.Lua as Lua
 import Control.Concurrent.MVar
+import Data.Tuple.Strict (Pair(..))
+import qualified Data.Maybe.Strict as S
+import System.Log.Logger (Priority(..))
 
 bs :: BS.ByteString -> Doc
 bs = string . show
@@ -51,6 +55,7 @@ evalInstrGen rdr stt (a :>>= f) =
         canFail iof = iof >>= \case
             S.Left rr -> thpe rr
             S.Right x -> runC x
+        logStuff x c = (_3 %~ (x <>)) `fmap` c
     in  case a of
             ExternalFunction fname args  -> case rdr ^. externalFunctions . at fname of
                                                 Just fn -> interpretMonad rdr stt ( fn args >>= f)
@@ -58,14 +63,14 @@ evalInstrGen rdr stt (a :>>= f) =
             GetStatement topleveltype toplevelname
                                          -> canFail ((rdr ^. getStatement) topleveltype toplevelname)
             ComputeTemplate fn scp cscps -> canFail ((rdr ^. computeTemplateFunction) fn scp cscps)
-            WriterTell t                 -> (_3 %~ (t <>)) `fmap` runC ()
+            WriterTell t                 -> logStuff t (runC ())
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"
             GetNativeTypes               -> runC (rdr ^. nativeTypes)
             ErrorThrow d                 -> return (Left d, stt, mempty)
             ErrorCatch _ _               -> thpe "ErrorCatch"
             GetNodeName                  -> runC (rdr ^. thisNodename)
-            HieraQuery scps q t          -> canFail ((rdr ^. hieraQuery) scps q t)
+            hq@(HieraQuery scps q t)     -> logStuff [DEBUG :!: pretty hq] (canFail ((rdr ^. hieraQuery) scps q t))
             PDBInformation               -> pdbInformation pdb >>= runC
             PDBReplaceCatalog w          -> canFail (replaceCatalog pdb w)
             PDBReplaceFacts fcts         -> canFail (replaceFacts pdb fcts)

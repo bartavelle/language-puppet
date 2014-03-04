@@ -16,6 +16,7 @@ import qualified Data.Text as T
 import qualified Data.Attoparsec.Text as AT
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
+import qualified Data.List as L
 import qualified Data.HashMap.Strict as HM
 import Data.Tuple.Strict
 import Control.Monad.Writer.Strict
@@ -53,7 +54,7 @@ instance Pretty HieraStringPart where
     pretty (HVariable v) = dullred (string "%{" <> ttext v <> string "}")
     prettyList = mconcat . map pretty
 
-type HieraCache = F.FileCacheR Doc Y.Value
+type HieraCache = F.FileCacheR String Y.Value
 
 makeFields ''HieraConfig
 
@@ -124,7 +125,7 @@ queryCombinatorArray = fmap rejoin . sequence
         toA (S.Just (PArray r)) = r
         toA (S.Just a) = V.singleton a
 
--- | The combinator for hiera_array
+-- | The combinator for hiera_hash
 queryCombinatorHash :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
 queryCombinatorHash = fmap (S.Just . PHash . mconcat . map toH) . sequence
     where
@@ -153,7 +154,8 @@ interpolatePValue _ x = x
 type LogWriter = WriterT InterpreterWriter IO
 
 query :: HieraConfig -> HieraCache -> HieraQueryFunc IO
-query (HieraConfig b h bd) cache vars hquery qtype = fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' h))) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
+query (HieraConfig b h bd) cache vars hquery qtype = do
+    fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' h))) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
     where
         prepout (a,s) = s :!: a
         sequencerFunction = case qtype of
@@ -168,8 +170,8 @@ query (HieraConfig b h bd) cache vars hquery qtype = fmap (S.Right . prepout) (r
         query'' :: T.Text -> HieraBackend -> LogWriter (S.Maybe PValue)
         query'' hieraname backend = do
             let (decodefunction, datadir, extension) = case backend of
-                                                (JsonBackend d) -> (fmap (strictifyEither . (_Left %~ string). A.eitherDecode') . BS.readFile       , d, ".json")
-                                                (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ string . show))           . Y.decodeFileEither, d, ".yaml")
+                                                (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
+                                                (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
                 filename = mbd <> datadir <> "/" <> T.unpack hieraname <> extension
                     where
                         mbd = case datadir of
@@ -182,5 +184,10 @@ query (HieraConfig b h bd) cache vars hquery qtype = fmap (S.Right . prepout) (r
                                          _ -> warn ("Hiera: could not convert this Value to a Puppet type: " <> string (show v)) >> return S.Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
-                S.Left r -> debug ("Hiera: error when reading file " <> string filename <+> r) >> return S.Nothing
+                S.Left r -> do
+                    let errs = "Hiera: error when reading file " <> string filename <+> string r
+                    if "Yaml file not found: " `L.isInfixOf` r
+                        then debug errs
+                        else warn errs
+                    return S.Nothing
                 S.Right x -> mfromJSON (x ^? key hquery)
