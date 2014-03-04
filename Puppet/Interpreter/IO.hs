@@ -62,7 +62,7 @@ evalInstrGen rdr stt (a :>>= f) =
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"
             GetNativeTypes               -> runC (rdr ^. nativeTypes)
-            ErrorThrow d                 -> thpe d
+            ErrorThrow d                 -> return (Left d, stt, mempty)
             ErrorCatch _ _               -> thpe "ErrorCatch"
             GetNodeName                  -> runC (rdr ^. thisNodename)
             HieraQuery scps q t          -> canFail ((rdr ^. hieraQuery) scps q t)
