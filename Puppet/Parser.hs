@@ -1,13 +1,16 @@
-{-# LANGUAGE LambdaCase, GeneralizedNewtypeDeriving, StandaloneDeriving,
-FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Puppet.Parser (puppetParser,expression,runMyParser) where
 
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Data.HashSet as HS
 import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict hiding (fst,zip)
-import Text.Regex.PCRE.String
+import Text.Regex.PCRE.ByteString.Utils
 
 import Data.Char
 import Control.Monad
@@ -38,15 +41,15 @@ deriving instance (Monad m, Parsing m) => Parsing (ParserT m)
 deriving instance (Monad m, CharParsing m) => CharParsing (ParserT m)
 deriving instance (Monad m, LookAheadParsing m) => LookAheadParsing (ParserT m)
 
-type Parser = ParserT (PP.ParsecT T.Text () IO)
+type Parser = ParserT (PP.ParsecT T.Text () Identity)
 
 getPosition :: Parser SourcePos
 getPosition = ParserT PP.getPosition
 
-runMyParser :: Parser a -> SourceName -> T.Text -> IO (Either ParseError a)
-runMyParser (ParserT p) = PP.runPT p ()
+runMyParser :: Parser a -> SourceName -> T.Text -> Either ParseError a
+runMyParser (ParserT p) = PP.runP p ()
 
-type OP = PP.ParsecT T.Text () IO
+type OP = PP.ParsecT T.Text () Identity
 
 instance (CharParsing m, Monad m) => TokenParsing (ParserT m) where
     someSpace = skipMany (simpleSpace <|> oneLineComment <|> multiLineComment)
@@ -259,7 +262,7 @@ terminalG g = parens expression
          <|> fmap (PValue . UString) literalValue
 
 compileRegexp :: T.Text -> Parser Regex
-compileRegexp p = (liftIO . compile compBlank execBlank . T.unpack) p >>= \case
+compileRegexp p = case compile' compBlank execBlank (T.encodeUtf8 p) of
     Right r -> return r
     Left ms -> fail ("Can't parse regexp /" ++ T.unpack p ++ "/ : " ++ show ms)
 
@@ -291,7 +294,7 @@ expression = condExpression
             cases <- braces (cas `sepEndBy1` comma)
             return (ConditionalValue selectedExpression (V.fromList cases))
 
-expressionTable :: [[Operator T.Text () IO Expression]]
+expressionTable :: [[Operator T.Text () Identity Expression]]
 expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) AssocLeft ]
                     [ Prefix ( operator' "-"   >> return Negate           ) ]
                   , [ Prefix ( operator' "!"   >> return Not              ) ]

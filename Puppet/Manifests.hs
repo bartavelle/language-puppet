@@ -5,7 +5,7 @@ import Puppet.PP
 import Puppet.Parser.Types
 import Puppet.Interpreter.Types
 
-import Text.Regex.PCRE.ByteString
+import Text.Regex.PCRE.ByteString.Utils
 import Control.Lens
 import Control.Applicative
 import Control.Monad.Error
@@ -30,7 +30,7 @@ filterStatements TopNode ndename stmts =
         checkRegexp :: [Pair Regex Statement] -> ErrorT Doc IO (Maybe Statement)
         checkRegexp [] = return Nothing
         checkRegexp ((regexp :!: s):xs) = do
-            liftIO (execute regexp bsnodename) >>= \case
+            case execute' regexp bsnodename of
                 Left rr -> throwError ("Regexp match error:" <+> text (show rr))
                 Right Nothing -> checkRegexp xs
                 Right (Just _) -> return (Just s)

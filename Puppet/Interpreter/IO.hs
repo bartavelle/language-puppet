@@ -17,8 +17,6 @@ import Control.Lens
 import qualified Data.ByteString as BS
 import qualified Data.Either.Strict as S
 
-import Text.Regex.PCRE.ByteString
-import Text.Regex.PCRE.ByteString.Utils
 import GHC.Stack
 import Debug.Trace (traceEventIO)
 import qualified Data.Text as T
@@ -31,13 +29,9 @@ bs :: BS.ByteString -> Doc
 bs = string . show
 
 defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
-defaultImpureMethods = ImputeMethods (liftIO currentCallStack)
+defaultImpureMethods = ImpureMethods (liftIO currentCallStack)
                                      (liftIO . file)
                                      (liftIO . traceEventIO)
-                                     (\a b c -> liftIO (substituteCompile a b c))
-                                     (\a b -> liftIO (splitCompile a b))
-                                     (\a b c -> (_Left %~ show) `fmap` liftIO (compile a b c))
-                                     (\rv va -> liftIO (((_Left %~ show) . (_Right %~ has _Just)) `fmap` execute rv va))
                                      (\c fname args -> liftIO (runlua c fname args))
     where
         file [] = return $ Left ""
@@ -84,11 +78,6 @@ evalInstrGen rdr stt (a :>>= f) =
             GetCurrentCallStack          -> (rdr ^. ioMethods . imGetCurrentCallStack) >>= runC
             ReadFile fls                 -> strFail ((rdr ^. ioMethods . imReadFile) fls) (const $ "No file found in " <> list (map ttext fls))
             TraceEvent e                 -> (rdr ^. ioMethods . imTraceEvent) e >>= runC
-            SplitCompile splt src        -> strFail ((rdr ^. ioMethods . imSplitCompile) splt src) (\rr -> "split" <> parens (bs splt <> comma <> bs src) <> ":" <+> rr)
-            SubstituteCompile regexp target replacement
-                                         -> strFail ((rdr ^. ioMethods . imSubstituteCompile) regexp target replacement) (\rr -> "regsubst" <> parens (bs regexp <> comma <> bs replacement) <> ":" <+> rr)
-            Compile c e r                -> strFail ((_Left %~ show) `fmap` (rdr ^. ioMethods . imCompile) c e r) (\rr -> "compile" <> parens (bs r) <> ":" <+> rr)
-            Execute rv va                -> strFail ((rdr ^. ioMethods . imExecute) rv va) (\rr -> "execute" <> parens ("/regexp/" <> comma <>  bs va) <> ":" <+> rr)
             CallLua c fname args         -> (rdr ^. ioMethods . imCallLua) c fname args >>= \case
                                                 Right x -> runC x
                                                 Left rr -> thpe (string rr)

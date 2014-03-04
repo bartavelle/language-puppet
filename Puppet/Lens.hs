@@ -44,7 +44,6 @@ import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import Data.Tuple.Strict hiding (uncurry)
-import System.IO.Unsafe
 import Data.Bits
 import Text.Parser.Combinators (eof)
 
@@ -124,12 +123,10 @@ _PResolveValue = prism toU toP
         toU (PArray r) = UArray (fmap (PValue . toU) r)
         toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (PValue (UString k) :!: PValue (toU v))) $ HM.toList h)
 
--- | Warning, this uses 'unsafePerformIO' to parse (parsing Regexps
--- requires IO).
 _PParse :: Prism' T.Text (V.Vector Statement)
 _PParse = prism dspl prs
     where
-        prs i = case unsafePerformIO (runMyParser (puppetParser <* eof) "dummy" i) of
+        prs i = case runMyParser (puppetParser <* eof) "dummy" i of
                 Left _  -> Left i
                 Right x -> Right x
         dspl = T.pack . displayNocolor . ppStatements

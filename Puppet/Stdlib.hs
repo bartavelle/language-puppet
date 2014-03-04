@@ -11,13 +11,12 @@ import Puppet.Lens
 import Data.Char
 import Data.Monoid
 import Control.Monad
-import Text.Regex.PCRE.ByteString
+import Text.Regex.PCRE.ByteString.Utils
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString.Base16 as B16
-import Control.Monad.Operational
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
@@ -73,9 +72,16 @@ stringArrayFunction f [PArray xs] = fmap PArray (V.mapM (fmap (PString . f) . re
 stringArrayFunction _ [a] = throwPosError ("function expects a string or an array of strings, not" <+> pretty a)
 stringArrayFunction _ _ = throwPosError "function expects a single argument"
 
-
 compileRE :: T.Text -> InterpreterMonad Regex
-compileRE = singleton . Compile compBlank execBlank . T.encodeUtf8
+compileRE r = case compile' compBlank execBlank (T.encodeUtf8 r) of
+                  Left rr -> throwPosError ("Could not compile" <+> ttext r <+> ":" <+> string (show rr))
+                  Right x -> return x
+
+matchRE :: Regex -> T.Text -> InterpreterMonad Bool
+matchRE r t = case execute' r (T.encodeUtf8 t) of
+                  Left rr -> throwPosError ("Could not match:" <+> string (show rr))
+                  Right Nothing -> return False
+                  Right (Just _) -> return True
 
 puppetAbs :: PValue -> InterpreterMonad PValue
 puppetAbs y = case y ^? _Number of
@@ -257,10 +263,8 @@ validateRe :: [PValue] -> InterpreterMonad PValue
 validateRe [str, reg] = validateRe [str, reg, PString "Match failed"]
 validateRe [str, PString reg, msg] = validateRe [str, PArray (V.singleton (PString reg)), msg]
 validateRe [str, PArray v, msg] = do
-    rstr <- fmap T.encodeUtf8 (resolvePValueString str)
-    let matchRE :: Regex -> InterpreterMonad Bool
-        matchRE r = singleton (Execute r rstr)
-    rest <- mapM (resolvePValueString >=> compileRE >=> matchRE) (V.toList v)
+    rstr <- resolvePValueString str
+    rest <- mapM (resolvePValueString >=> compileRE >=> flip matchRE rstr) (V.toList v)
     if or rest
         then return PUndef
         else throwPosError (pretty msg <$> "Source string:" <+> pretty str <> comma <+> "regexps:" <+> pretty (V.toList v))

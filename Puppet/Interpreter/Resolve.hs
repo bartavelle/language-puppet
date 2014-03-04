@@ -62,6 +62,7 @@ import qualified Data.ByteString.Base16 as B16
 import Data.Bits
 import Control.Monad.Writer (tell)
 import Control.Monad.Operational
+import Text.Regex.PCRE.ByteString.Utils
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.
@@ -210,9 +211,12 @@ resolveExpression (LessThan a b) = numberCompare a b (<) (<)
 resolveExpression (MoreThan a b) = numberCompare a b (>) (>)
 resolveExpression (LessEqualThan a b) = numberCompare a b (<=) (<=)
 resolveExpression (MoreEqualThan a b) = numberCompare a b (>=) (>=)
-resolveExpression (RegexMatch a (PValue (URegexp _ rv))) = do
+resolveExpression (RegexMatch a v@(PValue (URegexp _ rv))) = do
     ra <- fmap T.encodeUtf8 (resolveExpressionString a)
-    PBoolean `fmap` singleton (Execute rv ra)
+    case execute' rv ra of
+        Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> string rr)
+        Right Nothing  -> return $ PBoolean False
+        Right (Just _) -> return $ PBoolean True
 resolveExpression (RegexMatch _ t) = throwPosError ("The regexp matching operator expects a regular expression, not" <+> pretty t)
 resolveExpression (NotRegexMatch a v) = resolveExpression (Not (RegexMatch a v))
 resolveExpression (Equal a b) = do
@@ -255,11 +259,12 @@ resolveExpression stmt@(ConditionalValue e conds) = do
     rese <- resolveExpression e
     let checkCond [] = throwPosError ("The selector didn't match anything for input" <+> pretty rese </> pretty stmt)
         checkCond ((SelectorDefault :!: ce) : _) = resolveExpression ce
-        checkCond ((SelectorValue (URegexp _ rg) :!: ce) : xs) = do
+        checkCond ((SelectorValue v@(URegexp _ rg) :!: ce) : xs) = do
             rs <- fmap T.encodeUtf8 (resolvePValueString rese)
-            singleton (Execute rg rs) >>= \case
-                False -> checkCond xs
-                True -> resolveExpression ce
+            case execute' rg rs of
+                Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> string rr)
+                Right Nothing  -> checkCond xs
+                Right (Just _) -> resolveExpression ce
         checkCond ((SelectorValue uv :!: ce) : xs) = do
             rv <- resolveValue uv
             if puppetEquality rese rv
@@ -384,12 +389,16 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
     target      <- fmap T.encodeUtf8 (resolvePValueString ptarget)
     regexp      <- fmap T.encodeUtf8 (resolvePValueString pregexp)
     replacement <- fmap T.encodeUtf8 (resolvePValueString preplacement)
-    fmap PString (singleton (SubstituteCompile regexp target replacement) >>= safeDecodeUtf8)
+    case substituteCompile' regexp target replacement of
+        Left rr -> throwPosError ("regsubst():" <+> string rr)
+        Right x -> fmap PString (safeDecodeUtf8 x)
 resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 arguments"
 resolveFunction' "split" [psrc, psplt] = do
     src  <- fmap T.encodeUtf8 (resolvePValueString psrc)
     splt <- fmap T.encodeUtf8 (resolvePValueString psplt)
-    fmap (PArray . V.fromList) (singleton (SplitCompile splt src) >>= mapM (fmap PString . safeDecodeUtf8))
+    case splitCompile' splt src of
+        Left rr -> throwPosError ("splitCompile():" <+> string rr)
+        Right x -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
 resolveFunction' "sha1" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . SHA1.hash  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
 resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . SHA1.hash . SHA1.hash  . T.encodeUtf8) (resolvePValueString pstr)

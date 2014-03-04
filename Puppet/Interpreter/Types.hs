@@ -39,7 +39,6 @@ import Data.Attoparsec.Number
 import Data.Attoparsec.Text (parseOnly,rational)
 import Data.Scientific
 import Control.Monad.Operational
-import Text.Regex.PCRE.ByteString
 import Control.Exception
 import Control.Concurrent.MVar (MVar)
 import qualified Scripting.Lua as Lua
@@ -159,13 +158,9 @@ data InterpreterReader m = InterpreterReader { _nativeTypes             :: !(Con
                                              , _ioMethods               :: ImpureMethods m
                                              }
 
-data ImpureMethods m = ImputeMethods { _imGetCurrentCallStack :: m [String]
+data ImpureMethods m = ImpureMethods { _imGetCurrentCallStack :: m [String]
                                      , _imReadFile            :: [T.Text] -> m (Either String T.Text)
                                      , _imTraceEvent          :: String -> m ()
-                                     , _imSubstituteCompile   :: BS.ByteString -> BS.ByteString -> BS.ByteString -> m (Either String BS.ByteString)
-                                     , _imSplitCompile        :: BS.ByteString -> BS.ByteString -> m (Either String [BS.ByteString])
-                                     , _imCompile             :: CompOption -> ExecOption -> BS.ByteString -> m (Either String Regex)
-                                     , _imExecute             :: Regex -> BS.ByteString -> m (Either String Bool)
                                      , _imCallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> m (Either String PValue)
                                      }
 
@@ -195,11 +190,6 @@ data InterpreterInstr a where
     PDBGetNodes         :: Query NodeField -> InterpreterInstr [PNodeInfo]
     PDBCommitDB         :: InterpreterInstr ()
     PDBGetResourcesOfNode :: Nodename -> Query ResourceField -> InterpreterInstr [Resource]
-    -- regexp :(
-    SubstituteCompile   :: BS.ByteString -> BS.ByteString -> BS.ByteString -> InterpreterInstr BS.ByteString
-    SplitCompile        :: BS.ByteString -> BS.ByteString -> InterpreterInstr [BS.ByteString]
-    Compile             :: CompOption -> ExecOption -> BS.ByteString -> InterpreterInstr  Regex
-    Execute             :: Regex -> BS.ByteString -> InterpreterInstr Bool
     -- Reading the first file that can be read in a list
     ReadFile            :: [T.Text] -> InterpreterInstr T.Text
     -- Tracing events
