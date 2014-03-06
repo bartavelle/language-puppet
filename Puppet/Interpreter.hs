@@ -529,7 +529,7 @@ enterScope secontext cont modulename p = do
                 return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty S.Nothing
         scopes . at scopename ?= basescope
     scopes . ix scopename . scopeVariables . at "caller_module_name" ?= (curcaller          :!: p :!: cont)
-    scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (PString modulename :!: p :!: cont)
+    scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (curcaller          :!: p :!: cont)
     scopes . ix scopename . scopeVariables . at "module_name"        ?= (PString modulename :!: p :!: cont)
     debug ("enterScope, scopename=" <> ttext scopename <+> "caller_module_name=" <> pretty curcaller <+> "module_name=" <> ttext modulename)
     return scopename

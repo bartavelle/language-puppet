@@ -30,7 +30,6 @@ import Control.Exception
 
 import Puppet.PP hiding ((<$>))
 import Puppet.Interpreter.Types
-import Puppet.Interpreter.Resolve
 import Puppet.Utils (strictifyEither)
 
 data HieraConfig = HieraConfig { _hieraconfigBackends  :: [HieraBackend]
@@ -133,19 +132,19 @@ queryCombinatorHash = fmap (S.Just . PHash . mconcat . map toH) . sequence
         toH (S.Just (PHash h)) = h
         toH _ = throw (ErrorCall "The hiera value was not a hash")
 
-interpolateText :: Container ScopeInformation -> T.Text -> T.Text
+interpolateText :: Container PValue -> T.Text -> T.Text
 interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveInterpolable vars of
                              Just x -> x
                              Nothing -> t
 
-resolveInterpolable :: Container ScopeInformation -> [HieraStringPart] -> Maybe T.Text
+resolveInterpolable :: Container PValue -> [HieraStringPart] -> Maybe T.Text
 resolveInterpolable vars = fmap T.concat . mapM (resolveInterpolablePart vars)
 
-resolveInterpolablePart :: Container ScopeInformation -> HieraStringPart -> Maybe T.Text
+resolveInterpolablePart :: Container PValue -> HieraStringPart -> Maybe T.Text
 resolveInterpolablePart _ (HString x) = Just x
-resolveInterpolablePart vars (HVariable v) = getVariable vars "::" v ^? _Right . _PString
+resolveInterpolablePart vars (HVariable v) = vars ^? ix v . _PString
 
-interpolatePValue :: Container ScopeInformation -> PValue -> PValue
+interpolatePValue :: Container PValue -> PValue -> PValue
 interpolatePValue v (PHash h) = PHash . HM.fromList . map ( (_1 %~ interpolateText v) . (_2 %~ interpolatePValue v) ) . HM.toList $ h
 interpolatePValue v (PArray r) = PArray (fmap (interpolatePValue v) r)
 interpolatePValue v (PString t) = PString (interpolateText v t)

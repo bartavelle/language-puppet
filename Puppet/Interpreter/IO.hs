@@ -26,7 +26,6 @@ import Control.Exception
 import qualified Scripting.Lua as Lua
 import Control.Concurrent.MVar
 import Data.Tuple.Strict (Pair(..))
-import qualified Data.Maybe.Strict as S
 import System.Log.Logger (Priority(..))
 
 bs :: BS.ByteString -> Doc

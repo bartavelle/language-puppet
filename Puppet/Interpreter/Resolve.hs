@@ -61,7 +61,7 @@ import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Base16 as B16
 import Data.Bits
 import Control.Monad.Writer (tell)
-import Control.Monad.Operational
+import Control.Monad.Operational (singleton)
 import Text.Regex.PCRE.ByteString.Utils
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
@@ -72,8 +72,13 @@ type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
 -- messages to the main monad.
 runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (S.Maybe PValue)
 runHiera q t = do
+    -- We need to merge the current scope with the top level scope
     scps <- use scopes
-    (w :!: o) <- singleton (HieraQuery scps q t)
+    ctx  <- getScopeName
+    let getV scp = fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
+        toplevels = HM.fromList $ map (_1 %~ ("::" <>)) $ HM.toList $ getV "::"
+        locals = getV ctx
+    (w :!: o) <- singleton (HieraQuery (toplevels <> locals) q t)
     tell w
     return o
 

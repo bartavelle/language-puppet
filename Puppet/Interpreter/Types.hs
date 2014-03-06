@@ -68,7 +68,7 @@ data HieraQueryType = Priority   -- ^ standard hiera query
                     | HashMerge  -- ^ hiera_hash
 
 -- | The type of the Hiera API function
-type HieraQueryFunc m = Container ScopeInformation -- ^ All the variables that Hiera can interpolate
+type HieraQueryFunc m = Container PValue -- ^ All the variables that Hiera can interpolate
                      -> T.Text -- ^ The query
                      -> HieraQueryType
                      -> m (S.Either Doc (Pair InterpreterWriter (S.Maybe PValue)))
@@ -174,7 +174,7 @@ data InterpreterInstr a where
     ComputeTemplate     :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> InterpreterInstr T.Text
     ExternalFunction    :: T.Text -> [PValue] -> InterpreterInstr PValue
     GetNodeName         :: InterpreterInstr T.Text
-    HieraQuery          :: Container ScopeInformation -> T.Text -> HieraQueryType -> InterpreterInstr (Pair InterpreterWriter (S.Maybe PValue))
+    HieraQuery          :: Container PValue -> T.Text -> HieraQueryType -> InterpreterInstr (Pair InterpreterWriter (S.Maybe PValue))
     GetCurrentCallStack :: InterpreterInstr [String]
     -- error
     ErrorThrow          :: Doc -> InterpreterInstr a
