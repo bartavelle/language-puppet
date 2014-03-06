@@ -32,6 +32,7 @@ import Puppet.Interpreter.Types
 import Puppet.Parser.Types
 import Puppet.Interpreter.PrettyPrinter()
 import Puppet.Parser.PrettyPrinter(showPos)
+import Puppet.Interpreter.RubyRandom
 
 import Data.Version (parseVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
@@ -50,11 +51,11 @@ import Control.Monad
 import Control.Monad.Error
 import Data.Tuple.Strict as S
 import Control.Lens
+import Data.Maybe (mapMaybe)
 import Data.Aeson.Lens hiding (key)
 import Data.Attoparsec.Number
 import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
-import Puppet.Interpreter.RubyRandom
 import qualified Data.ByteString as BS
 import qualified Crypto.Hash.MD5 as MD5
 import qualified Crypto.Hash.SHA1 as SHA1
@@ -75,10 +76,15 @@ runHiera q t = do
     -- We need to merge the current scope with the top level scope
     scps <- use scopes
     ctx  <- getScopeName
-    let getV scp = fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
-        toplevels = HM.fromList $ map (_1 %~ ("::" <>)) $ HM.toList $ getV "::"
+    let getV scp = mapMaybe toStr $ HM.toList $ fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
+        -- we can't use _PString, because of dependency cycles
+        toStr (k,v) = case v of
+                          PString x -> Just (k,x)
+                          _ -> Nothing
+        toplevels = map (_2 %~ ("::" <>)) $ getV "::"
         locals = getV ctx
-    (w :!: o) <- singleton (HieraQuery (toplevels <> locals) q t)
+        vars = HM.fromList (toplevels <> locals)
+    (w :!: o) <- singleton (HieraQuery vars q t)
     tell w
     return o
 

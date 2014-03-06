@@ -24,7 +24,6 @@ import Control.Monad.Writer.Strict
 import Control.Applicative
 import Control.Lens
 import Data.Aeson.Lens
-import Puppet.Lens
 import System.FilePath.Lens (directory)
 import Control.Exception
 
@@ -132,19 +131,19 @@ queryCombinatorHash = fmap (S.Just . PHash . mconcat . map toH) . sequence
         toH (S.Just (PHash h)) = h
         toH _ = throw (ErrorCall "The hiera value was not a hash")
 
-interpolateText :: Container PValue -> T.Text -> T.Text
+interpolateText :: Container T.Text -> T.Text -> T.Text
 interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveInterpolable vars of
                              Just x -> x
                              Nothing -> t
 
-resolveInterpolable :: Container PValue -> [HieraStringPart] -> Maybe T.Text
+resolveInterpolable :: Container T.Text -> [HieraStringPart] -> Maybe T.Text
 resolveInterpolable vars = fmap T.concat . mapM (resolveInterpolablePart vars)
 
-resolveInterpolablePart :: Container PValue -> HieraStringPart -> Maybe T.Text
+resolveInterpolablePart :: Container T.Text -> HieraStringPart -> Maybe T.Text
 resolveInterpolablePart _ (HString x) = Just x
-resolveInterpolablePart vars (HVariable v) = vars ^? ix v . _PString
+resolveInterpolablePart vars (HVariable v) = vars ^. at v
 
-interpolatePValue :: Container PValue -> PValue -> PValue
+interpolatePValue :: Container T.Text -> PValue -> PValue
 interpolatePValue v (PHash h) = PHash . HM.fromList . map ( (_1 %~ interpolateText v) . (_2 %~ interpolatePValue v) ) . HM.toList $ h
 interpolatePValue v (PArray r) = PArray (fmap (interpolatePValue v) r)
 interpolatePValue v (PString t) = PString (interpolateText v t)
