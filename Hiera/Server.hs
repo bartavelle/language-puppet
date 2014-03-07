@@ -156,6 +156,7 @@ query (HieraConfig b h bd) cache vars hquery qtype = do
     fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' h))) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
     where
         prepout (a,s) = s :!: a
+        varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))
         sequencerFunction = case qtype of
                                 Priority   -> queryCombinator
                                 ArrayMerge -> queryCombinatorArray
@@ -164,7 +165,7 @@ query (HieraConfig b h bd) cache vars hquery qtype = do
         query' (InterpolableHieraString strs) =
             case resolveInterpolable vars strs of
                 Just s -> sequencerFunction (map (query'' s) b)
-                Nothing -> warn ("Hiera: could not interpolate " <> pretty strs) >> return S.Nothing
+                Nothing -> warn ("Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
         query'' :: T.Text -> HieraBackend -> LogWriter (S.Maybe PValue)
         query'' hieraname backend = do
             let (decodefunction, datadir, extension) = case backend of
@@ -179,7 +180,7 @@ query (HieraConfig b h bd) cache vars hquery qtype = do
                 mfromJSON Nothing = return S.Nothing
                 mfromJSON (Just v) = case A.fromJSON v of
                                          A.Success a -> return (S.Just (interpolatePValue vars a))
-                                         _ -> warn ("Hiera: could not convert this Value to a Puppet type: " <> string (show v)) >> return S.Nothing
+                                         _ -> warn ("Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return S.Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
                 S.Left r -> do

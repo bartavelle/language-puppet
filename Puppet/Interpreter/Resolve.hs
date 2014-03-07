@@ -81,7 +81,7 @@ runHiera q t = do
         toStr (k,v) = case v of
                           PString x -> Just (k,x)
                           _ -> Nothing
-        toplevels = map (_2 %~ ("::" <>)) $ getV "::"
+        toplevels = map (_1 %~ ("::" <>)) $ getV "::"
         locals = getV ctx
         vars = HM.fromList (toplevels <> locals)
     (w :!: o) <- singleton (HieraQuery vars q t)
