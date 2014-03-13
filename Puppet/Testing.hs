@@ -7,6 +7,7 @@ module Puppet.Testing
     , module Puppet.Lens
     , H.hspec
     , basicTest
+    , usersGroupsDefined
     , testingDaemon
     , defaultDaemon
     , testCatalog
@@ -25,13 +26,14 @@ module Puppet.Testing
 
 import Prelude hiding (notElem,all)
 import Control.Lens
-import Data.Foldable hiding (forM_)
+import Data.Foldable hiding (forM_,mapM_)
 import Data.Maybe
 import Data.Monoid
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Applicative
 import System.Posix.Files
+import qualified Data.HashSet as HS
 import qualified Data.Either.Strict as S
 import qualified Data.Text as T
 import qualified System.Log.Logger as LOG
@@ -79,6 +81,37 @@ describeCatalog nd pdir catlg test = H.describe (T.unpack nd) $ runReaderT test 
 basicTest :: PSpec
 basicTest = hTestFileSources
 
+-- | This tests that all users and groups used as resource parameters are
+-- defined
+usersGroupsDefined :: PSpec
+usersGroupsDefined = do
+    c <- view lCatalog
+    let getResourceType t = c ^.. traverse . filtered (\r -> r ^. rid . itype == t && r ^. rattributes . at "ensure" /= Just "absent")
+        users = getResourceType "user"
+        groups = getResourceType "group"
+        knownUsers = HS.fromList $ map (view (rid . iname)) users ++ ["root","","syslog","mysql"]
+        knownGroups = HS.fromList $ map (view (rid . iname)) groups ++ ["root", "adm", "syslog", "mysql", "nagios",""]
+        checkResource lensU lensG = mapM_ (checkResource' lensU lensG)
+        checkResource' lensU lensG res = do
+            let d = "Resource " <> show (pretty res) <> " should have a valid "
+            case lensU of
+                Just lensU' -> do
+                    let u = res ^. rattributes . lensU' . _PString
+                    H.it (d <> "username (" ++ T.unpack u ++ ")") (HS.member u knownUsers)
+                Nothing -> return ()
+            case lensG of
+                Just lensG' -> do
+                    let g = res ^. rattributes . lensG' . _PString
+                    H.it (d <> "group (" ++ T.unpack g ++ ")") (HS.member g knownGroups)
+                Nothing -> return ()
+    lift $ do
+        checkResource (Just $ ix "owner") (Just $ ix "group") (getResourceType "file")
+        checkResource (Just $ ix "user")  (Just $ ix "group") (getResourceType "exec")
+        checkResource (Just $ ix "user")  Nothing             (getResourceType "cron")
+        checkResource (Just $ ix "user")  Nothing             (getResourceType "ssh_authorized_key")
+        checkResource (Just $ ix "user")  Nothing             (getResourceType "ssh_authorized_key_secure")
+        checkResource (Nothing)           (Just $ ix "gid") users
+
 it :: HC.Example a => String -> PSpecM a -> PSpec
 it n tst = tst >>= lift . H.it n
 
@@ -118,7 +151,7 @@ withFileContent :: String -- ^ Test description (the thing that goes after shoul
 withFileContent desc fn action = withResource desc "file" fn $ \r ->
     case r ^? rattributes . ix "content" . _PString of
         Just v  -> action v
-        Nothing -> H.expectationFailure "Contentnot found"
+        Nothing -> H.expectationFailure "Content not found"
 
 hTestFileSources :: PSpec
 hTestFileSources = do

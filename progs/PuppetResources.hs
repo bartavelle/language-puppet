@@ -448,7 +448,7 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson show
             _ -> do
                 catalog  <- filterCatalog rawcatalog
                 exported <- filterCatalog rawexported
-                r <- testCatalog tnodename puppetdir rawcatalog basicTest
+                r <- testCatalog tnodename puppetdir rawcatalog (basicTest >> usersGroupsDefined)
                 printFunc (pretty (HM.elems catalog))
                 unless (HM.null exported) $ do
                     printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
