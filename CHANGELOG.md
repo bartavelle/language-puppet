@@ -1,3 +1,8 @@
+# v0.12.3 (2014/03/13)
+## New featues
+* puppetresources now tests that groups and users are defined before being used
+ in file, user, cron and exec.
+
 # v0.12.2 (2014/02/18)
 ## New featues
 * Facts are now dumped in `TestDB` format by `pdbquery`.
