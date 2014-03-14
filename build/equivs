@@ -1,10 +1,10 @@
 Package: puppetresources
 Version: VERSION-BUILDNUMBER
 Maintainer: Bartavelle <bartavelle@gmail.com>
-Files: puppetresources /usr/local/bin/puppetresources
-       pdbquery        /usr/local/bin/pdbquery
-       calcerb.rb      /usr/local/bin/calcerb.rb
-       hrubyerb.rb     /usr/local/bin/hrubyerb.rb
+Files: puppetresources /usr/local/bin
+       pdbquery        /usr/local/bin
+       calcerb.rb      /usr/local/bin
+       hrubyerb.rb     /usr/local/bin
 Architecture: amd64
 Description: A program that displays the puppet resources associated to a node given .pp files.
 Distribution: stable
