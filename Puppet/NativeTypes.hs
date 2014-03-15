@@ -21,7 +21,7 @@ fakeTypes :: [(PuppetTypeName, PuppetTypeMethods)]
 fakeTypes = map faketype ["class"]
 
 defaultTypes :: [(PuppetTypeName, PuppetTypeMethods)]
-defaultTypes = map defaulttype ["augeas","computer","filebucket","interface","k5login","macauthorization","mailalias","maillist","mcx","nagios_command","nagios_contact","nagios_contactgroup","nagios_host","nagios_hostdependency","nagios_hostescalation","nagios_hostextinfo","nagios_hostgroup","nagios_service","nagios_servicedependency","nagios_serviceescalation","nagios_serviceextinfo","nagios_servicegroup","nagios_timeperiod","notify","package","resources","router","schedule","scheduledtask","selboolean","selmodule","service","sshauthorizedkey","sshkey","stage","tidy","vlan","yumrepo","zfs","zone","zpool"]
+defaultTypes = map defaulttype ["augeas","computer","filebucket","interface","k5login","macauthorization","mailalias","maillist","mcx","nagios_command","nagios_contact","nagios_contactgroup","nagios_host","nagios_hostdependency","nagios_hostescalation","nagios_hostextinfo","nagios_hostgroup","nagios_service","nagios_servicedependency","nagios_serviceescalation","nagios_serviceextinfo","nagios_servicegroup","nagios_timeperiod","notify","package","resources","router","schedule","scheduledtask","selboolean","selmodule","service","ssh_authorized_key","sshkey","stage","tidy","vlan","yumrepo","zfs","zone","zpool"]
 
 -- | The map of native types. They are described in "Puppet.NativeTypes.Helpers".
 baseNativeTypes :: Container PuppetTypeMethods
