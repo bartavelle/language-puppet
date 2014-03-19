@@ -169,15 +169,15 @@ hTestFileSources = do
             testFile fp = liftIO (fileExist fp) >>= (`unless` (throwError $ "Searched in" <+> string fp))
             checkFile :: PValue -> ErrorT Doc IO ()
             checkFile res@(PArray ar) = asum [checkFile x | x <- toList ar] <|> throwError ("Could not find the file in" <+> pretty res)
-            checkFile (PString f) = do
-                stringdir <- case T.stripPrefix "puppet:///" f of
-                                 Just o -> return o
-                                 Nothing -> throwError ("The source does not start with puppet:///, but is" <+> ttext f)
-                case T.splitOn "/" stringdir of
-                    ("modules":modulename:rest) -> testFile (pdir <> "/modules/" <> T.unpack modulename <> "/files/" <> T.unpack (T.intercalate "/" rest))
-                    ("files":rest) -> testFile (pdir <> "/files/" <> T.unpack (T.intercalate "/" rest))
-                    ("private":_) -> return ()
-                    _ -> throwError ("Invalid file source:" <+> ttext f)
+            checkFile (PString f) =
+                case (T.stripPrefix "puppet:///" f, T.stripPrefix "file:///" f) of
+                    (Just stringdir, _) -> case T.splitOn "/" stringdir of
+                                               ("modules":modulename:rest) -> testFile (pdir <> "/modules/" <> T.unpack modulename <> "/files/" <> T.unpack (T.intercalate "/" rest))
+                                               ("files":rest) -> testFile (pdir <> "/files/" <> T.unpack (T.intercalate "/" rest))
+                                               ("private":_) -> return ()
+                                               _ -> throwError ("Invalid file source:" <+> ttext f)
+                    (Nothing, Just _) -> return ()
+                    _ -> throwError ("The source does not start with puppet:///, but is" <+> ttext f)
             checkFile x = throwError ("Source was not a string, but" <+> pretty x)
         return $ do
             rs <- runErrorT (checkFile filesource)
