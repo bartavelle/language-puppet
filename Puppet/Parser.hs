@@ -147,15 +147,15 @@ interpolableString = fmap V.fromList $ between (char '"') (symbolic '"') $
     many (fmap UVariableReference interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (UString . T.singleton) (char '$'))
     where
         doubleQuotedStringContent = fmap (UString . T.pack . concat) $
-            some ((char '\\' *> anyChar >>= stringEscape) <|> some (noneOf "\"\\$"))
-        stringEscape :: Char -> Parser String
-        stringEscape 'n' = return "\n"
-        stringEscape 't' = return "\t"
-        stringEscape 'r' = return "\r"
-        stringEscape '"' = return "\""
-        stringEscape '\\' = return "\\"
-        stringEscape '$' = return "$"
-        stringEscape x = fail $ "unknown escape pattern \\" ++ [x]
+            some ((char '\\' *> fmap stringEscape anyChar) <|> some (noneOf "\"\\$"))
+        stringEscape :: Char -> String
+        stringEscape 'n'  = "\n"
+        stringEscape 't'  = "\t"
+        stringEscape 'r'  = "\r"
+        stringEscape '"'  = "\""
+        stringEscape '\\' = "\\"
+        stringEscape '$'  = "$"
+        stringEscape x    = ['\\',x]
         -- this is specialized because we can't be "tokenized" here
         variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
         interpolableVariableReference = do

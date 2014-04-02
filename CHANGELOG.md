@@ -1,6 +1,7 @@
 # v0.12.4 ()
 ## Bugs fixed
 * Puppetresources does not fail tests for file sources starting with `file://`.
+* Escaped characters were not properly handled in the parser.
 
 # v0.12.3 (2014/03/13)
 ## New featues
