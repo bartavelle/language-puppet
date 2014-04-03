@@ -159,6 +159,10 @@ hrresolveVariable _ rscp rvariables rtoresolve = do
     variables <- FR.extractHaskellValue rvariables
     toresolve <- FR.fromRuby rtoresolve
     let answer = case toresolve of
+                     Just "~g~e~t_h~a~s~h~" ->
+                        let getvars ctx = (variables ^. ix ctx . scopeVariables) & traverse %~ view (_1 . _1)
+                            vars = getvars "::" <> getvars scope
+                        in  Right (PHash vars)
                      Just t -> getVariable variables scope t
                      _ -> Left "The variable name is not a string"
     case answer of

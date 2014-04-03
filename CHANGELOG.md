@@ -1,4 +1,6 @@
 # v0.12.4 ()
+## New featues
+* Hacky support for scope.get_hash
 ## Bugs fixed
 * Puppetresources does not fail tests for file sources starting with `file://`.
 * Escaped characters were not properly handled in the parser.

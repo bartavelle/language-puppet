@@ -35,6 +35,10 @@ class Scope
             true
         end
     end
+
+    def get_hash
+        vl('~g~e~t_h~a~s~h~')
+    end
 end
 
 class ErbBinding
