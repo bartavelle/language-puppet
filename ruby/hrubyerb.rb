@@ -36,7 +36,7 @@ class Scope
         end
     end
 
-    def get_hash
+    def to_hash
         vl('~g~e~t_h~a~s~h~')
     end
 end
