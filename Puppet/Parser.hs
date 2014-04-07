@@ -61,6 +61,9 @@ instance (CharParsing m, Monad m) => TokenParsing (ParserT m) where
                     <|> (skipSome (noneOf "*/") >> inComment)
                     <|> (oneOf "*/" >> inComment)
 
+variable :: Parser Expression
+variable = PValue . UVariableReference <$> variableReference
+
 stringLiteral' :: Parser T.Text
 stringLiteral' = char '\'' *> interior <* symbolic '\''
     where
@@ -177,13 +180,6 @@ regexp = do
     void $ symbolic '/'
     return $! T.pack $! concat v
 
-variableOrHash :: Parser Expression
-variableOrHash = do
-    varname <- variableReference <?> "Variable reference"
-    -- chained lookups are resolved here
-    hr <- many (brackets expression)
-    return $! foldl Lookup (PValue (UVariableReference varname)) hr
-
 puppetArray :: Parser UValue
 puppetArray = fmap (UArray . V.fromList) (brackets (expression `sepEndBy` comma)) <?> "Array"
 
@@ -253,7 +249,7 @@ terminalG g = parens expression
          <|> fmap (PValue . UInterpolable) interpolableString
          <|> (reserved "undef" *> return (PValue UUndef))
          <|> fmap PValue termRegexp
-         <|> variableOrHash
+         <|> variable
          <|> fmap PValue puppetArray
          <|> fmap PValue puppetHash
          <|> fmap (PValue . UBoolean) puppetBool
@@ -295,8 +291,8 @@ expression = condExpression
             return (ConditionalValue selectedExpression (V.fromList cases))
 
 expressionTable :: [[Operator T.Text () Identity Expression]]
-expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) AssocLeft ]
-                    [ Prefix ( operator' "-"   >> return Negate           ) ]
+expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
+                  , [ Prefix ( operator' "-"   >> return Negate           ) ]
                   , [ Prefix ( operator' "!"   >> return Not              ) ]
                   , [ Infix  ( operator' "."   >> return FunctionApplication ) AssocLeft ]
                   , [ Infix  ( reserved' "in"  >> return Contains         ) AssocLeft ]
@@ -325,13 +321,15 @@ expressionTable = [ -- [ Infix  ( operator "?"   >> return ConditionalValue ) As
                     ]
                   ]
     where
+        checkLookup :: OP (Expression -> Expression)
+        checkLookup = flip Lookup <$> unParser (between (operator "[") (operator "]") expression)
         operator' :: String -> OP ()
         operator' = unParser . operator
         reserved' :: String -> OP ()
         reserved' = unParser . reserved
 
 stringExpression :: Parser Expression
-stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variableOrHash <|> fmap (PValue . UString) literalValue
+stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variable <|> fmap (PValue . UString) literalValue
 
 variableAssignment :: Parser [Statement]
 variableAssignment = do

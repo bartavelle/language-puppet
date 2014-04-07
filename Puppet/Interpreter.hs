@@ -54,12 +54,7 @@ getCatalog :: Monad m
 getCatalog convertMonad gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery im = do
     -- nameThread ("Catalog " <> T.unpack ndename)
     let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery im
-        dummypos = initialPPos "dummy"
-        initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
-        stt  = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
-        factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts" :!: ContRoot)
-        callervars = ifromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
-        baseVars = isingleton "::" (ScopeInformation (factvars <> callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
+        stt = initialState facts
     (output, _, warnings) <- convertMonad rdr stt (computeCatalog ndename)
     return (strictifyEither output :!: warnings)
 
@@ -163,7 +158,7 @@ computeCatalog ndename = do
             -- replace the modified stuff
             let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
             return (toList res)
-        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty (initialPPos "dummy") ndename
+        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummypos ndename
     resnode <- evaluateNode node >>= finalStep . (++ (mainstage : restop))
     let (real :!: exported) = foldl' classify (mempty :!: mempty) resnode
         classify :: Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)

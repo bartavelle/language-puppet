@@ -761,3 +761,14 @@ instance AsNumber PValue where
                                          _      -> Left p
             toNumber p = Left p
 
+initialState :: Facts -> InterpreterState
+initialState facts = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
+    where
+        callervars = HM.fromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
+        factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts" :!: ContRoot)
+        baseVars = HM.singleton "::" (ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
+        initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
+
+dummypos :: PPosition
+dummypos = initialPPos "dummy"
+

@@ -30,12 +30,12 @@ module Puppet.Lens
  ) where
 
 import Control.Lens
-import Data.Aeson.Lens
 import Control.Applicative
 
 import Puppet.PP (displayNocolor)
 import Puppet.Parser.Types
 import Puppet.Interpreter.Types
+import Puppet.Interpreter.Pure
 import Puppet.Interpreter.Resolve
 import Puppet.Parser
 import Puppet.Parser.PrettyPrinter (ppStatements)
@@ -44,7 +44,6 @@ import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import Data.Tuple.Strict hiding (uncurry)
-import Data.Bits
 import Text.Parser.Combinators (eof)
 
 -- Prisms
@@ -55,67 +54,17 @@ makePrisms ''Statement
 _PResolveExpression :: Prism' Expression PValue
 _PResolveExpression = prism reinject extract
     where
-        extract x@(PValue v) = case v ^? _PResolveValue of
-                                   Just r -> Right r
-                                   Nothing -> Left x
-        extract x@(And a b) =
-            let a' = a ^? _PResolveExpression . to pValue2Bool
-                b' = b ^? _PResolveExpression . to pValue2Bool
-            in  case (a',b') of
-                    (Just False, _) -> Right (PBoolean False)
-                    (Just _, Just r) -> Right (PBoolean r)
-                    _ -> Left x
-        extract x@(Or a b) =
-            let a' = a ^? _PResolveExpression . to pValue2Bool
-                b' = b ^? _PResolveExpression . to pValue2Bool
-            in  case (a',b') of
-                    (Just True, _) -> Right (PBoolean True)
-                    (Just _, Just r) -> Right (PBoolean r)
-                    _ -> Left x
-        extract x@(Addition a b)       = extractBinop x a b (+) (+)
-        extract x@(Substraction a b)   = extractBinop x a b (-) (-)
-        extract x@(Division a b)       = extractNotZero b >> extractBinop x a b div (/)
-        extract x@(Multiplication a b) = extractBinop x a b (*) (*)
-        extract x@(Modulo a b)         = extractNotZero b >> extractIntOp x a b mod
-        extract x@(RightShift a b)     = extractIntOp x a b (\v -> shiftR v . fromIntegral)
-        extract x@(LeftShift a b)      = extractIntOp x a b (\v -> shiftL v . fromIntegral)
-        extract x                      = Left x
-        reinject                       = PValue . review _PResolveValue
-
-extractNotZero :: Expression -> Either Expression PValue
-extractNotZero e = case e ^? _PResolveExpression of
-                       Just "0" -> Left e
-                       Just r   -> Right r
-                       _        -> Left e
-
-extractBinop :: Expression -> Expression -> Expression -> (Integer -> Integer -> Integer) -> (Double -> Double -> Double) -> Either Expression PValue
-extractBinop x a b opi opf = case opi `fmap` (a ^? _PResolveExpression . _Integer) <*> (b ^? _PResolveExpression . _Integer) of
-                                 Just ri -> Right $ review _Integer ri
-                                 Nothing -> case opf `fmap` (a ^? _PResolveExpression . _Double) <*> (b ^? _PResolveExpression . _Double) of
-                                                Just rd -> Right $ review _Double rd
-                                                Nothing -> Left x
-
-extractIntOp :: Expression -> Expression -> Expression -> (Integer -> Integer -> Integer) -> Either Expression PValue
-extractIntOp x a b opi = case opi `fmap` (a ^? _PResolveExpression . _Integer) <*> (b ^? _PResolveExpression . _Integer) of
-                             Just ri -> Right $ review _Integer ri
-                             Nothing -> Left x
+        extract e = case dummyEval (resolveExpression e) of
+                        Right x -> Right x
+                        Left _  -> Left e
+        reinject  = PValue . review _PResolveValue
 
 _PResolveValue :: Prism' UValue PValue
 _PResolveValue = prism toU toP
     where
-        toP (UString s) = Right (PString s)
-        toP UUndef = Right PUndef
-        toP (UBoolean b) = Right (PBoolean b)
-        toP r@(UResourceReference t n) = maybe (Left r) (Right . PResourceReference t) (n ^? _PResolveExpression . _PString)
-        toP r@(UArray lst) = maybe (Left r) (Right . PArray) (V.mapM (preview _PResolveExpression) lst)
-        toP r@(UHash lst) = maybe (Left r) (Right . PHash . HM.fromList) (mapM resolveKV (V.toList lst))
-            where
-                resolveKV (k :!: v) = do
-                    k' <- k ^? _PResolveExpression . _PString
-                    v' <- v ^? _PResolveExpression
-                    return (k',v')
-        toP r@(UInterpolable ip) = maybe (Left r) (Right . PString . T.concat . V.toList ) (V.mapM (preview (_PResolveValue . _PString)) ip)
-        toP r = Left r
+        toP uv = case dummyEval (resolveValue uv) of
+                     Right x -> Right x
+                     Left _  -> Left uv
         toU (PBoolean x) = UBoolean x
         toU PUndef = UUndef
         toU (PString s) = UString s

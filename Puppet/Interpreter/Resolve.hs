@@ -282,13 +282,24 @@ resolveExpression stmt@(ConditionalValue e conds) = do
                 then resolveExpression ce
                 else checkCond xs
     checkCond (V.toList conds)
-resolveExpression (Addition a b)       = binaryOperation a b (+) (+)
+resolveExpression (Addition a b) = do
+    ra <- resolveExpression a
+    rb <- resolveExpression b
+    case (ra, rb) of
+        (PHash ha, PHash hb) -> return (PHash (ha <> hb))
+        (PArray ha, PArray hb) -> return (PArray (ha <> hb))
+        _ -> binaryOperation a b (+) (+)
 resolveExpression (Substraction a b)   = binaryOperation a b (-) (-)
 resolveExpression (Division a b)       = binaryOperation a b div (/)
 resolveExpression (Multiplication a b) = binaryOperation a b (*) (*)
 resolveExpression (Modulo a b)         = integerOperation a b mod
 resolveExpression (RightShift a b)     = integerOperation a b (\x -> shiftR x . fromIntegral)
-resolveExpression (LeftShift a b)      = integerOperation a b (\x -> shiftL x . fromIntegral)
+resolveExpression (LeftShift a b) = do
+    ra <- resolveExpression a
+    rb <- resolveExpression b
+    case (ra, rb) of
+        (PArray ha, v) -> return (PArray (V.snoc ha v))
+        _ -> integerOperation a b (\x -> shiftL x . fromIntegral)
 resolveExpression a@(FunctionApplication e (PValue (UHFunctionCall hf))) = do
     unless (S.isNothing (hf ^. hfexpr)) (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
     resolveValue (UHFunctionCall (hf & hfexpr .~ S.Just e))
@@ -481,7 +492,7 @@ calcTemplate templatetype templatename = do
         -- Inject the classes variable. Note that we are relying on the
         -- invariant that the scope is already entered, and hence present
         -- in the scps container.
-        cscps = scps & ix scp . scopeVariables . at "classes" ?~ ( classes :!: initialPPos "dummy" :!: cd )
+        cscps = scps & ix scp . scopeVariables . at "classes" ?~ ( classes :!: dummypos :!: cd )
     PString `fmap` singleton (ComputeTemplate (templatetype fname) scp cscps)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue

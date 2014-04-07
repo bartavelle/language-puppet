@@ -95,14 +95,14 @@ scopeLookup = do
     void $ try $ string "scope"
     end <- (string ".lookupvar(" >> return (char ')')) <|> (char '[' >> return (char ']'))
     expr <- rubyexpression
-    void $ end
+    void end
     return $ Object expr
 
 stringLiteral :: Parser Expression
 stringLiteral = Value `fmap` (doubleQuoted <|> singleQuoted)
 
 doubleQuoted :: Parser Value
-doubleQuoted = fmap Interpolable $ between (char '"') (char '"') quoteInternal
+doubleQuoted = Interpolable <$> between (char '"') (char '"') quoteInternal
     where
         quoteInternal = many (basicContent <|> interpvar <|> escaped)
         escaped = char '\\' >> (Value . Literal . T.singleton) `fmap` anyChar
@@ -114,7 +114,7 @@ doubleQuoted = fmap Interpolable $ between (char '"') (char '"') quoteInternal
             return (Object (Value (Literal (T.pack o))))
 
 singleQuoted :: Parser Value
-singleQuoted = fmap (Literal . T.pack) $ between (char '\'') (char '\'') (many $ noneOf "'")
+singleQuoted = Literal . T.pack <$> between (char '\'') (char '\'') (many $ noneOf "'")
 
 objectterm :: Parser Expression
 objectterm = do
@@ -178,4 +178,5 @@ parseErbFile fname = parseContent `catch` handler
         handler e = let msg = show (e :: SomeException)
                     in  return $ Left $ newErrorMessage (Message msg) (initialPos fname)
 
-
+parseErbString :: String -> Either ParseError [RubyStatement]
+parseErbString = runParser erbparser () "dummy"
