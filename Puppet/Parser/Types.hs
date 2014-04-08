@@ -41,6 +41,7 @@ import GHC.Generics
 import Data.Char (toUpper)
 import Text.Regex.PCRE.String
 import Control.Lens
+import Data.String
 
 import Text.Parsec.Pos
 
@@ -116,6 +117,9 @@ data UValue
     | UFunctionCall !T.Text !(V.Vector Expression)
     | UHFunctionCall !HFunctionCall
 
+instance IsString UValue where
+    fromString = UString . T.pack
+
 -- The Eq instance is manual, because of the 'Regex' comparison problem
 instance Eq UValue where
     (==) (UBoolean a)               (UBoolean b)                = a == b
@@ -165,6 +169,9 @@ data Expression
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
     | PValue !UValue
     deriving (Eq)
+
+instance IsString Expression where
+    fromString = PValue . fromString
 
 data SearchExpression
     = EqualitySearch !T.Text !Expression
