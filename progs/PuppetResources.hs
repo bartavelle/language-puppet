@@ -114,6 +114,7 @@ import qualified Text.Parsec as P
 import qualified Data.Vector as V
 import qualified Data.Either.Strict as S
 import Options.Applicative as O hiding ((&))
+import Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
 import Control.Monad
 import Text.Regex.PCRE.String
 import Data.Text.Strict.Lens
@@ -460,4 +461,9 @@ main :: IO ()
 main = execParser pinfo >>= run
     where
         pinfo :: ParserInfo CommandLine
-        pinfo = ParserInfo (helper <*> cmdlineParser) True "A useful program for parsing puppet files, generating and inspecting catalogs" "puppetresources - a useful utility for dealing with Puppet" "" 3
+        pinfo = ParserInfo (helper <*> cmdlineParser)
+                           True
+                           (stringChunk "A useful program for parsing puppet files, generating and inspecting catalogs")
+                           (stringChunk "puppetresources - a useful utility for dealing with Puppet")
+                           (Chunk Nothing)
+                           3 True

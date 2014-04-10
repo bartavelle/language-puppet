@@ -8,6 +8,7 @@ import PuppetDB.Remote
 import Facter
 
 import Options.Applicative as O hiding ((&))
+import Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
 import qualified Data.Text as T
 import Data.Monoid
 import Data.Yaml hiding (Parser)
@@ -59,13 +60,14 @@ cmdlineParser = CommandLine <$> optional pl <*> pt <*> cmd
                     <> value PDBTest
                     <> help "PuppetDB types : test, remote, dummy"
                     )
-        cmd = subparser (  command "dumpfacts" (ParserInfo (pure DumpFacts) True "Dump all facts"     "Dump all facts, and store them in /tmp/allfacts.yaml"  "" 4)
-                        <> command "editfact"  (ParserInfo factedit         True "Edit a fact corresponding to a node" ""  "" 7)
-                        <> command "dumpres"   (ParserInfo resourcesparser  True "Dump resources"     "Dump resources"     "" 5)
-                        <> command "delnode"   (ParserInfo delnodeparser    True "Deactivate node"    "Deactivate node"    "" 6)
-                        <> command "nodes"     (ParserInfo (pure DumpNodes) True "Dump all nodes"     "Dump all nodes"     "" 8)
-                        <> command "snapshot"  (ParserInfo createtestdb     True "Create a test DB from the current DB" "" "" 10)
-                        <> command "addfacts"  (ParserInfo addfacts         True "Adds facts to the test DB for the given node name, if they are not already defined" "" "" 11)
+        ec = Chunk Nothing
+        cmd = subparser (  command "dumpfacts" (ParserInfo (pure DumpFacts) True (stringChunk "Dump all facts") (stringChunk "Dump all facts, and store them in /tmp/allfacts.yaml") ec 4 True)
+                        <> command "editfact"  (ParserInfo factedit         True (stringChunk "Edit a fact corresponding to a node") ec ec 7 True)
+                        <> command "dumpres"   (ParserInfo resourcesparser  True (stringChunk "Dump resources") (stringChunk "Dump resources") ec 5 True)
+                        <> command "delnode"   (ParserInfo delnodeparser    True (stringChunk "Deactivate node")(stringChunk "Deactivate node") ec 6 True)
+                        <> command "nodes"     (ParserInfo (pure DumpNodes) True (stringChunk "Dump all nodes") (stringChunk "Dump all nodes") ec 8 True)
+                        <> command "snapshot"  (ParserInfo createtestdb     True (stringChunk "Create a test DB from the current DB") ec ec 10 True)
+                        <> command "addfacts"  (ParserInfo addfacts         True (stringChunk "Adds facts to the test DB for the given node name, if they are not already defined") ec ec 11 True)
                         )
 
 display :: (Show r, ToJSON a) => String -> S.Either r a -> IO ()
@@ -122,4 +124,4 @@ main :: IO ()
 main = execParser pinfo >>= run
     where
         pinfo :: ParserInfo CommandLine
-        pinfo = ParserInfo (helper <*> cmdlineParser) True "A program to work with PuppetDB implementations" "pdbQuery - work with PuppetDB implementations" "" 3
+        pinfo = ParserInfo (helper <*> cmdlineParser) True (stringChunk "A program to work with PuppetDB implementations") (stringChunk "pdbQuery - work with PuppetDB implementations") (Chunk Nothing) 3 True

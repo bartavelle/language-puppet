@@ -39,7 +39,7 @@ pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
     let fullurl = url <> "/v3/" <> querytype <> q
     initReq <- case parseUrl (T.unpack fullurl) of
             Right r -> return (r :: Request)
-            Left rr -> throwError ("Something failed when parsing the PuppetDB URL" <+> string (show (rr :: HttpException)))
+            Left rr -> throwError ("Something failed when parsing the PuppetDB URL" <+> string (show rr))
     let req = initReq { requestHeaders = [("Accept", "application/json")] }
     runRequest req
 
