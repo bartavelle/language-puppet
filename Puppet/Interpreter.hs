@@ -471,7 +471,7 @@ loadParameters params classParams defaultPos wHiera = do
         !unsetParams       = mandatoryParamSet `HS.difference` definedParamSet
         !spuriousParams    = definedParamSet `HS.difference` classParamSet
         mclassdesc = S.maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ttext) wHiera
-    unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters where not set:" <+> tupled (map ttext $ toList unsetParams) <> mclassdesc)
+    unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ttext $ toList unsetParams) <> mclassdesc)
     unless (fnull spuriousParams) $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ttext) $ toList spuriousParams) <> mclassdesc)
     let isDefault = not . flip HS.member definedParamSet . S.fst
     mapM_ (uncurry loadVariable) (itoList params')
