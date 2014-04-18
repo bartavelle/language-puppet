@@ -25,7 +25,7 @@ allchecks = do
 -- returns errors
 testparser :: FilePath -> IO (String, Bool)
 testparser fp = do
-    T.readFile fp >>= runMyParser puppetParser fp >>= \case
+    fmap (runMyParser puppetParser fp) (T.readFile fp) >>= \case
         Right _ -> return ("PASS", True)
         Left rr -> return (show rr, False)
 
@@ -33,7 +33,7 @@ check :: String -> IO ()
 check fname = do
     putStr fname
     putStr ": "
-    res <- T.readFile fname >>= runMyParser puppetParser fname
+    res <- fmap (runMyParser puppetParser fname) (T.readFile fname)
     is <- queryTerminal (Fd 1)
     let rfunc = if is
                     then renderPretty 0.2 200
