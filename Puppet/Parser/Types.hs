@@ -183,7 +183,7 @@ instance Num Expression where
 instance Fractional Expression where
     (/) = Division
     recip x = 1 / x
-    fromRational = PValue . UString . T.pack . show
+    fromRational = PValue . UString . T.pack . show . (fromRational :: Rational -> Double)
 
 instance IsString Expression where
     fromString = PValue . fromString

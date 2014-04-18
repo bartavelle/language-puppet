@@ -106,8 +106,11 @@ hieraCall qt q df _ = do
 toNumbers :: PValue -> PValue -> S.Maybe NumberPair
 toNumbers (PString a) (PString b) =
     let t2s = fmap scientific2Number . text2Scientific
+        isFractional = T.any (=='.') a || T.any (=='.') b
     in  case t2s a :!: t2s b of
-            (Just (I x) :!: Just (I y)) -> S.Just (S.Left (x :!: y))
+            (Just (I x) :!: Just (I y)) -> if isFractional
+                                               then S.Just (S.Right (fromIntegral x :!: fromIntegral y))
+                                               else S.Just (S.Left (x :!: y))
             (Just (D x) :!: Just (D y)) -> S.Just (S.Right (x :!: y))
             (Just (I x) :!: Just (D y)) -> S.Just (S.Right (fromIntegral x :!: y))
             (Just (D x) :!: Just (I y)) -> S.Just (S.Right (x :!: fromIntegral y))
