@@ -290,7 +290,11 @@ resolveExpression (Addition a b) = do
         (PArray ha, PArray hb) -> return (PArray (ha <> hb))
         _ -> binaryOperation a b (+) (+)
 resolveExpression (Substraction a b)   = binaryOperation a b (-) (-)
-resolveExpression (Division a b)       = binaryOperation a b div (/)
+resolveExpression (Division a b)       = do
+    rb <- resolveExpression b
+    case rb of
+        "0" -> throwPosError "Division by 0"
+        _   -> binaryOperation a b div (/)
 resolveExpression (Multiplication a b) = binaryOperation a b (*) (*)
 resolveExpression (Modulo a b)         = integerOperation a b mod
 resolveExpression (RightShift a b)     = integerOperation a b (\x -> shiftR x . fromIntegral)
