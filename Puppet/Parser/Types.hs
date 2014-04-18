@@ -170,6 +170,21 @@ data Expression
     | PValue !UValue
     deriving (Eq)
 
+instance Num Expression where
+    (+) = Addition
+    (-) = Substraction
+    (*) = Multiplication
+    fromInteger = PValue . UString . T.pack . show
+    abs x = ConditionalValue (MoreEqualThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: x, SelectorDefault :!: negate x])
+    signum x = ConditionalValue (MoreThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: 1, SelectorDefault :!:
+                                                           ConditionalValue (Equal x 0) (V.fromList [SelectorValue (UBoolean True) :!: 0, SelectorDefault :!: (-1)])
+                                                           ])
+
+instance Fractional Expression where
+    (/) = Division
+    recip x = 1 / x
+    fromRational = PValue . UString . T.pack . show
+
 instance IsString Expression where
     fromString = PValue . fromString
 

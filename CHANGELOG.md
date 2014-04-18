@@ -1,8 +1,9 @@
 # v0.12.4 ()
 ## New featues
-* Hacky support for scope.get_hash
-* New stuff from the new parser (adding hashes, arrays, etc.)
-* Wrote a pure evaluation function, for unit tests and prisms:
+* Hacky support for `scope.get_hash`.
+* New stuff from the new parser (adding hashes, arrays, etc.).
+* Wrote a pure evaluation function, for unit tests and prisms.
+* `Num` and `Fractional` instances for `Expression`.
 ## Bugs fixed
 * Puppetresources does not fail tests for file sources starting with `file://`.
 * Escaped characters were not properly handled in the parser.
