@@ -9,6 +9,7 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Data.HashSet as HS
 import qualified Data.Maybe.Strict as S
+import Data.Attoparsec.Number
 import Data.Tuple.Strict hiding (fst,zip)
 import Text.Regex.PCRE.ByteString.Utils
 
@@ -236,12 +237,12 @@ functionCall = do
     (fname, args) <- genFunctionCall False
     return $ UFunctionCall fname args
 
-literalValue :: Parser T.Text
-literalValue = token (stringLiteral' <|> bareword <|> numericalvalue <?> "Literal Value")
+literalValue :: Parser UValue
+literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
     where
         numericalvalue = integerOrDouble >>= \case
-            Left x -> return (T.pack $ show x)
-            Right y -> return (T.pack $ show y)
+            Left x -> return (I x)
+            Right y -> return (D y)
 
 -- this is a hack for functions :(
 terminalG :: Parser Expression -> Parser Expression
@@ -255,7 +256,7 @@ terminalG g = parens expression
          <|> fmap (PValue . UBoolean) puppetBool
          <|> fmap PValue resourceReference
          <|> g
-         <|> fmap (PValue . UString) literalValue
+         <|> fmap PValue literalValue
 
 compileRegexp :: T.Text -> Parser Regex
 compileRegexp p = case compile' compBlank execBlank (T.encodeUtf8 p) of
@@ -281,7 +282,7 @@ expression = condExpression
                 c <- (symbol "default" *> return SelectorDefault) -- default case
                         <|> fmap SelectorValue (fmap UVariableReference variableReference
                                                  <|> fmap UBoolean puppetBool
-                                                 <|> fmap UString literalValue
+                                                 <|> literalValue
                                                  <|> fmap UInterpolable interpolableString
                                                  <|> termRegexp)
                 void $ symbol "=>"
@@ -329,7 +330,7 @@ expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- htt
         reserved' = unParser . reserved
 
 stringExpression :: Parser Expression
-stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variable <|> fmap (PValue . UString) literalValue
+stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variable <|> fmap PValue literalValue
 
 variableAssignment :: Parser [Statement]
 variableAssignment = do
@@ -347,7 +348,10 @@ nodeStmt = do
     reserved "node"
     let nm (URegexp nn nr) = return (NodeMatch nn nr)
         nm _ = fail "? can't happen, termRegexp didn't return a URegexp ?"
-    let nodename = (reserved "default" >> return NodeDefault) <|> fmap NodeName literalValue
+        toString (UString s) = s
+        toString (UNumber n) = T.pack (show n)
+        toString _ = error "Can't happen at nodeStmt"
+        nodename = (reserved "default" >> return NodeDefault) <|> fmap (NodeName . toString) literalValue
     ns <- ((termRegexp >>= nm) <|> nodename) `sepBy1` comma
     inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
     st <- braces statementList

@@ -7,6 +7,7 @@ module Puppet.Lens
  , _PHash
  , _PBoolean
  , _PString
+ , _PNumber
  , _PResourceReference
  , _PUndef
  , _PArray
@@ -27,6 +28,31 @@ module Puppet.Lens
  , _Dependency
  , _TopContainer
  , _Statements
+ -- * Lenses and Prisms for 'Expression's
+ , _Equal
+ , _Different
+ , _Not
+ , _And
+ , _Or
+ , _LessThan
+ , _MoreThan
+ , _LessEqualThan
+ , _MoreEqualThan
+ , _RegexMatch
+ , _NotRegexMatch
+ , _Contains
+ , _Addition
+ , _Substraction
+ , _Division
+ , _Multiplication
+ , _Modulo
+ , _RightShift
+ , _LeftShift
+ , _Lookup
+ , _Negate
+ , _ConditionalValue
+ , _FunctionApplication
+ , _PValue
  ) where
 
 import Control.Lens
@@ -49,6 +75,7 @@ import Text.Parser.Combinators (eof)
 -- Prisms
 makePrisms ''PValue
 makePrisms ''Statement
+makePrisms ''Expression
 
 -- | Incomplete
 _PResolveExpression :: Prism' Expression PValue
@@ -66,6 +93,7 @@ _PResolveValue = prism toU toP
                      Right x -> Right x
                      Left _  -> Left uv
         toU (PBoolean x) = UBoolean x
+        toU (PNumber x) = UNumber x
         toU PUndef = UUndef
         toU (PString s) = UString s
         toU (PResourceReference t n) = UResourceReference t (PValue (UString n))

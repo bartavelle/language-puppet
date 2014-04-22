@@ -24,11 +24,11 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
     writeFile (tmpfp ++ "/global.yaml") "---\nhttp_port: 8080\nntp_servers: ['0.ntp.puppetlabs.com', '1.ntp.puppetlabs.com']\nusers:\n  pete:\n    uid: 2000\n  tom:\n    uid: 2001\nglobal: \"glob\""
     writeFile (tmpfp ++ "/production.yaml") "---\nhttp_port: 9090\nntp_servers: ['2.ntp.puppetlabs.com', '3.ntp.puppetlabs.com']\ninterp1: '**%{::fqdn}**'\nusers:\n  bob:\n    uid: 100\n  tom:\n    uid: 12\n"
     writeFile (tmpfp ++ "/" ++ T.unpack ndname ++ ".json") "{\"testnode\":{\"1\":\"**%{::fqdn}**\",\"2\":\"nothing special\"},\"testjson\":\"ok\",\"arraytest\":[\"a\",\"%{::fqdn}\",\"c\"]}\n"
-    let users = HM.fromList [ ("pete", PHash (HM.singleton "uid" "2000"))
-                            , ("tom" , PHash (HM.singleton "uid" "2001"))
+    let users = HM.fromList [ ("pete", PHash (HM.singleton "uid" (PNumber 2000)))
+                            , ("tom" , PHash (HM.singleton "uid" (PNumber 2001)))
                             ]
-        pusers = HM.fromList [ ("bob", PHash (HM.singleton "uid" "100"))
-                             , ("tom" , PHash (HM.singleton "uid" "12"))
+        pusers = HM.fromList [ ("bob", PHash (HM.singleton "uid" (PNumber 100)))
+                             , ("tom" , PHash (HM.singleton "uid" (PNumber 12)))
                              ]
     Right q <- startHiera (tmpfp ++ "/hiera.yaml")
     let checkOutput v (S.Right (_ :!: x)) = x @?= v
@@ -37,11 +37,11 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
         describe "lookup data without a key" $ do
             it "returns an error when called with an empty string" $ q mempty "" Priority >>= checkOutput S.Nothing
         describe "lookup data with no options" $ do
-            it "can get string data" $ q mempty "http_port" Priority >>= checkOutput (S.Just "8080")
+            it "can get string data" $ q mempty "http_port" Priority >>= checkOutput (S.Just (PNumber 8080))
             it "can get arrays" $ q mempty "ntp_servers" Priority >>= checkOutput (S.Just (PArray (V.fromList ["0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
             it "can get hashes" $ q mempty "users" Priority >>= checkOutput (S.Just (PHash users))
         describe "lookup data with a scope" $ do
-            it "overrides some values" $ q vars "http_port" Priority >>= checkOutput (S.Just "9090")
+            it "overrides some values" $ q vars "http_port" Priority >>= checkOutput (S.Just (PNumber 9090))
             it "doesn't fail on others" $ q vars "global" Priority >>= checkOutput (S.Just "glob")
         describe "json backend" $ do
             it "resolves in json" $ q vars "testjson" Priority >>= checkOutput (S.Just "ok")
@@ -51,6 +51,6 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
             it "resolves in arrays" $ q vars "arraytest" Priority >>= checkOutput (S.Just (PArray (V.fromList [PString "a", PString ndname, PString "c"])))
         describe "other merge modes" $ do
             it "catenates arrays" $ q vars "ntp_servers" ArrayMerge >>= checkOutput (S.Just (PArray (V.fromList ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
-            it "puts single values in arrays" $ q vars "http_port" ArrayMerge >>= checkOutput (S.Just (PArray (V.fromList ["9090","8080"])))
+            it "puts single values in arrays" $ q vars "http_port" ArrayMerge >>= checkOutput (S.Just (PArray (V.fromList [PNumber 9090, PNumber 8080])))
             it "merges hashes" $ q vars "users" HashMerge >>= checkOutput (S.Just (PHash (pusers <> users)))
 

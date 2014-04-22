@@ -1,7 +1,7 @@
 {-| These are the function and data types that are used to define the Puppet
 native types.
 -}
-module Puppet.NativeTypes.Helpers 
+module Puppet.NativeTypes.Helpers
     ( module Puppet.PP
     , ipaddr
     , paramname
@@ -36,10 +36,10 @@ import qualified Data.HashSet as HS
 import Data.Char (isDigit)
 import Control.Monad
 import qualified Data.Text as T
-import Puppet.Utils
 import Control.Lens
 import qualified Data.Vector as V
 import Data.Attoparsec.Number
+import Data.Aeson.Lens (_Number,_Integer)
 
 type PuppetTypeName = T.Text
 
@@ -129,8 +129,8 @@ integers :: T.Text -> PuppetTypeValidate
 integers param = runarray param integer''
 
 integer'' :: T.Text -> PValue -> PuppetTypeValidate
-integer'' param val res = case puppet2number val of
-    Just (I v) -> Right (res & rattributes . at param ?~ PString (T.pack (show v)))
+integer'' param val res = case val ^? _Integer of
+    Just v -> Right (res & rattributes . at param ?~ PNumber (I v))
     _ -> Left $ "Parameter" <+> paramname param <+> "must be an integer"
 
 -- | Copies the "name" value into the parameter if this is not set. It implies
@@ -218,14 +218,11 @@ checkipv4 ip v =
 inrange :: Integer -> Integer -> T.Text -> PuppetTypeValidate
 inrange mi ma param res =
     let va = res ^. rattributes . at param
-        na = va >>= puppet2number
+        na = va ^? traverse . _Number
     in case (va,na) of
         (Nothing, _)       -> Right res
-        (_,Just (D v))  -> if (v >= fromIntegral mi) && (v <= fromIntegral ma)
-                               then Right res
-                               else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
-        (_,Just (I v)) -> if (v>=mi) && (v<=ma)
-                              then Right res
-                              else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
+        (_,Just v)  -> if (v >= fromIntegral mi) && (v <= fromIntegral ma)
+                           then Right res
+                           else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
         (Just x,_)         -> Left $ "Parameter" <+> paramname param <+> "should be an integer, and not" <+> pretty x
 

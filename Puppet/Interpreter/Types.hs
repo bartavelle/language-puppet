@@ -60,6 +60,7 @@ data PValue = PBoolean !Bool
             | PResourceReference !T.Text !T.Text
             | PArray !(V.Vector PValue)
             | PHash !(Container PValue)
+            | PNumber !Number
             deriving (Eq, Show)
 
 -- | The different kind of hiera queries
@@ -432,7 +433,7 @@ getScope = use curScope >>= \s -> if null s
 
 instance FromJSON PValue where
     parseJSON Null       = return PUndef
-    parseJSON (Number n) = return (PString (T.pack (show (scientific2Number n))))
+    parseJSON (Number n) = return $ PNumber $ scientific2Number n
     parseJSON (String s) = return (PString s)
     parseJSON (Bool b)   = return (PBoolean b)
     parseJSON (Array v)  = fmap PArray (V.mapM parseJSON v)
@@ -445,6 +446,8 @@ instance ToJSON PValue where
     toJSON (PResourceReference _ _) = Null -- TODO
     toJSON (PArray r)               = Array (V.map toJSON r)
     toJSON (PHash x)                = Object (HM.map toJSON x)
+    toJSON (PNumber (I n))          = Number (fromIntegral n)
+    toJSON (PNumber (D n))          = Number (fromFloatDigits n)
 
 #ifdef HRUBY
 instance ToRuby PValue where
@@ -749,13 +752,10 @@ instance AsNumber PValue where
     _Number = prism num2PValue toNumber
         where
             num2PValue :: Scientific -> PValue
-            num2PValue s =
-               let e = base10Exponent s
-                   c = coefficient s
-               in  PString $ T.pack $ if e >= 0
-                                          then show (c * 10 ^ e)
-                                          else show ( (fromInteger c / 10 ^ negate e) :: Double)
+            num2PValue = PNumber . scientific2Number
             toNumber :: PValue -> Either PValue Scientific
+            toNumber (PNumber (I n)) = Right (fromIntegral n)
+            toNumber (PNumber (D n)) = Right (fromFloatDigits n)
             toNumber p@(PString x) = case text2Scientific x of
                                          Just o -> Right o
                                          _      -> Left p

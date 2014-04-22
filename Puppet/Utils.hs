@@ -1,6 +1,5 @@
 module Puppet.Utils
-    ( puppet2number
-    , textElem
+    ( textElem
     , module Data.Monoid
     , getDirectoryContents
     , takeBaseName
@@ -18,16 +17,9 @@ import qualified Data.Either.Strict as S
 import Control.Concurrent (myThreadId)
 import GHC.Conc (labelThread)
 
-import Data.Attoparsec.Number
-import Puppet.Interpreter.Types
-
 strictifyEither :: Either a b -> S.Either a b
 strictifyEither (Left x) = S.Left x
 strictifyEither (Right x) = S.Right x
-
-puppet2number :: PValue -> Maybe Number
-puppet2number (PString s) = text2Number s
-puppet2number _ = Nothing
 
 textElem :: Char -> T.Text -> Bool
 textElem c = T.any (==c)

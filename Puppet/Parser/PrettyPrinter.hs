@@ -83,6 +83,7 @@ instance Pretty UValue where
     pretty (UBoolean True)  = dullmagenta $ text "true"
     pretty (UBoolean False) = dullmagenta $ text "false"
     pretty (UString s) = char '"' <> dullcyan (ttext (stringEscape s)) <> char '"'
+    pretty (UNumber n) = cyan (string (show n))
     pretty (UInterpolable v) = char '"' <> hcat (map specific (V.toList v)) <> char '"'
         where
             specific (UString s) = dullcyan (ttext (stringEscape s))

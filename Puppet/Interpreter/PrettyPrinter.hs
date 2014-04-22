@@ -39,6 +39,7 @@ instance Pretty PValue where
     pretty (PBoolean True)  = dullmagenta $ text "true"
     pretty (PBoolean False) = dullmagenta $ text "false"
     pretty (PString s) = dullcyan (ttext (stringEscape s))
+    pretty (PNumber n) = cyan (string (show n))
     pretty PUndef = dullmagenta (text "undef")
     pretty (PResourceReference t n) = capitalize t <> brackets (text (T.unpack n))
     pretty (PArray v) = list (map pretty (V.toList v))

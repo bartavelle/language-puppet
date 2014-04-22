@@ -100,6 +100,13 @@ hieraCall qt q df _ = do
                          Just d -> return d
                          Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
+-- | This functions makes sure numbers are of the same type
+toNumbers' :: Number -> Number -> NumberPair
+toNumbers' (I x) (I y) = S.Left  (x :!: y)
+toNumbers' (I x) (D y) = S.Right (fromIntegral x :!: y)
+toNumbers' (D x) (I y) = S.Right (x :!: fromIntegral y)
+toNumbers' (D x) (D y) = S.Right (x :!: y)
+
 -- | Tries to convert a pair of 'PValue's into 'Number's, as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
 -- that they are of the same type
@@ -107,13 +114,10 @@ toNumbers :: PValue -> PValue -> S.Maybe NumberPair
 toNumbers (PString a) (PString b) =
     let t2s = fmap scientific2Number . text2Scientific
         isFractional = T.any (=='.') a || T.any (=='.') b
+        fraction (S.Left (x :!: y)) | isFractional = S.Right (fromIntegral x :!: fromIntegral y)
+        fraction x = x
     in  case t2s a :!: t2s b of
-            (Just (I x) :!: Just (I y)) -> if isFractional
-                                               then S.Just (S.Right (fromIntegral x :!: fromIntegral y))
-                                               else S.Just (S.Left (x :!: y))
-            (Just (D x) :!: Just (D y)) -> S.Just (S.Right (x :!: y))
-            (Just (I x) :!: Just (D y)) -> S.Just (S.Right (fromIntegral x :!: y))
-            (Just (D x) :!: Just (I y)) -> S.Just (S.Right (x :!: fromIntegral y))
+            (Just x :!: Just y) -> S.Just $ fraction (toNumbers' x y)
             _ -> S.Nothing
 toNumbers _ _ = S.Nothing
 
@@ -126,23 +130,21 @@ binaryOperation :: Expression -- ^ left operand
                 -> (Double -> Double -> Double) -- ^ operation in case those are doubles
                 -> InterpreterMonad PValue
 binaryOperation a b opi opd = do
-    ra <- resolveExpression a
-    rb <- resolveExpression b
-    case toNumbers ra rb of
-        S.Nothing -> throwPosError ("Expected numbers, not" <+> pretty ra <+> "or" <+> pretty rb)
-        S.Just (S.Right (na :!: nb)) -> return (_Double  # opd na nb)
-        S.Just (S.Left (na :!: nb))  -> return (_Integer # opi na nb)
+    ra <- resolveExpressionNumber a
+    rb <- resolveExpressionNumber b
+    return $ PNumber $ case toNumbers' ra rb of
+                           S.Right (na :!: nb) -> D $ opd na nb
+                           S.Left (na :!: nb)  -> I $ opi na nb
 
 -- | Just like 'binaryOperation', but for operations that only work on
 -- integers.
 integerOperation :: Expression -> Expression -> (Integer -> Integer -> Integer) -> InterpreterMonad PValue
 integerOperation a b opr = do
-    ra <- resolveExpression a
-    rb <- resolveExpression b
-    case toNumbers ra rb of
-        S.Nothing -> throwPosError ("Expected numbers, not" <+> pretty ra <+> "or" <+> pretty rb)
-        S.Just (S.Right _) -> throwPosError ("Expected integer values, not" <+> pretty ra <+> "or" <+> pretty rb)
-        S.Just (S.Left (na :!: nb))  -> return (_Integer # opr na nb)
+    ra <- resolveExpressionNumber a
+    rb <- resolveExpressionNumber b
+    case toNumbers' ra rb of
+        S.Right (da :!: db) -> throwPosError ("Expected integer values, not" <+> double da <+> "or" <+> double db)
+        S.Left (na :!: nb)  -> return (PNumber $ I $ opr na nb)
 
 -- | Resolves a variable, or throws an error if it can't.
 resolveVariable :: T.Text -> InterpreterMonad PValue
@@ -294,9 +296,10 @@ resolveExpression (Addition a b) = do
         _ -> binaryOperation a b (+) (+)
 resolveExpression (Substraction a b)   = binaryOperation a b (-) (-)
 resolveExpression (Division a b)       = do
-    rb <- resolveExpression b
+    rb <- resolveExpressionNumber b
     case rb of
-        "0" -> throwPosError "Division by 0"
+        I 0 -> throwPosError "Division by 0"
+        D 0 -> throwPosError "Division by 0"
         _   -> binaryOperation a b div (/)
 resolveExpression (Multiplication a b) = binaryOperation a b (*) (*)
 resolveExpression (Modulo a b)         = integerOperation a b mod
@@ -316,6 +319,7 @@ resolveExpression x = throwPosError ("Don't know how to resolve this expression:
 -- | Resolves an 'UValue' (terminal for the 'Expression' data type) into
 -- a 'PValue'
 resolveValue :: UValue -> InterpreterMonad PValue
+resolveValue (UNumber n) = return (PNumber n)
 resolveValue n@(URegexp _ _) = throwPosError ("Regular expressions are not allowed in this context: " <+> pretty n)
 resolveValue (UBoolean x) = return (PBoolean x)
 resolveValue (UString x) = return (PString x)
@@ -334,12 +338,19 @@ resolveValue (UVariableReference v) = resolveVariable v
 resolveValue (UFunctionCall fname args) = resolveFunction fname args
 resolveValue (UHFunctionCall hf) = evaluateHFCPure hf
 
--- | Turns strings and booleans into 'T.Text', or throws an error.
+-- | Turns strings, numbers and booleans into 'T.Text', or throws an error.
 resolvePValueString :: PValue -> InterpreterMonad T.Text
 resolvePValueString (PString x) = return x
 resolvePValueString (PBoolean True) = return "true"
 resolvePValueString (PBoolean False) = return "false"
+resolvePValueString (PNumber x) = return (T.pack (show x))
 resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <$> pretty x)
+
+-- | Turns everything it can into a number, or throws an error
+resolvePValueNumber :: PValue -> InterpreterMonad Number
+resolvePValueNumber x = case x ^? _Number of
+                            Just n -> return (scientific2Number n)
+                            Nothing -> throwPosError ("Don't know how to convert this to a number:" <$> pretty x)
 
 -- | > resolveValueString = resolveValue >=> resolvePValueString
 resolveValueString :: UValue -> InterpreterMonad T.Text
@@ -348,6 +359,10 @@ resolveValueString = resolveValue >=> resolvePValueString
 -- | > resolveExpressionString = resolveExpression >=> resolvePValueString
 resolveExpressionString :: Expression -> InterpreterMonad T.Text
 resolveExpressionString = resolveExpression >=> resolvePValueString
+
+-- | > resolveExpressionNumber = resolveExpression >=> resolvePValueNumber
+resolveExpressionNumber :: Expression -> InterpreterMonad Number
+resolveExpressionNumber = resolveExpression >=> resolvePValueNumber
 
 -- | Just like 'resolveExpressionString', but accepts arrays.
 resolveExpressionStrings :: Expression -> InterpreterMonad [T.Text]

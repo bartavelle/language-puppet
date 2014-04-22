@@ -41,6 +41,7 @@ import Control.Monad.IO.Class
 import Control.Concurrent
 import Control.Monad.Error
 import Control.Monad.Operational (singleton)
+import Data.Attoparsec.Number
 
 import Puppet.Interpreter.Types
 import Puppet.Utils
@@ -53,12 +54,13 @@ instance Lua.StackValue PValue
         push l (PArray arr)              = Lua.push l (V.toList arr)
         push l (PHash m)                 = Lua.push l (Map.fromList $ HM.toList m)
         push l (PUndef)                  = Lua.push l ("undefined" :: T.Text)
+        push l (PNumber b)               = Lua.push l (fromRational (toRational b) :: Double)
 
         peek l n = do
             Lua.ltype l n >>= \case
                 Lua.TBOOLEAN -> fmap (fmap PBoolean) (Lua.peek l n)
                 Lua.TSTRING  -> fmap (fmap PString) (Lua.peek l n)
-                Lua.TNUMBER  -> fmap (fmap (PString . tshow)) (Lua.peek l n :: IO (Maybe Double))
+                Lua.TNUMBER  -> fmap (fmap (PNumber . D)) (Lua.peek l n :: IO (Maybe Double))
                 Lua.TNIL     -> return (Just PUndef)
                 Lua.TNONE    -> return (Just PUndef)
                 Lua.TTABLE   -> fmap (fmap (PArray . V.fromList)) (Lua.peek l n)

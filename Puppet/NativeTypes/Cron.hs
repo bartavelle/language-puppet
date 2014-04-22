@@ -47,6 +47,7 @@ vrange' :: Integer -> Integer -> [T.Text] -> T.Text -> Resource -> PValue -> Eit
 vrange' mi ma valuelist param res y = case y of
     PString "*"      -> Right res
     PString "absent" -> Right res
+    PNumber (I n)    -> checkint' n mi ma param res
     PString x -> if x `elem` valuelist
         then Right res
         else parseval x mi ma param res
@@ -67,4 +68,4 @@ checkint' :: Integer -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 checkint' i mi ma param res =
     if (i>=mi) && (i<=ma)
         then Right res
-        else Left $ "Parameter" <+> paramname param <+> "value is out of bound, should statisfy" <+> P.integer mi <+> "<=" <+> P.integer i <+> "<=" <+> P.integer ma
+        else Left $ "Parameter" <+> paramname param <+> "value is out of bound, should satisfy" <+> P.integer mi <+> "<=" <+> P.integer i <+> "<=" <+> P.integer ma

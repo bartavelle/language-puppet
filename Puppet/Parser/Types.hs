@@ -42,6 +42,7 @@ import Data.Char (toUpper)
 import Text.Regex.PCRE.String
 import Control.Lens
 import Data.String
+import Data.Attoparsec.Number
 
 import Text.Parsec.Pos
 
@@ -116,6 +117,7 @@ data UValue
     | UVariableReference !T.Text
     | UFunctionCall !T.Text !(V.Vector Expression)
     | UHFunctionCall !HFunctionCall
+    | UNumber Number
 
 instance IsString UValue where
     fromString = UString . T.pack
@@ -132,6 +134,7 @@ instance Eq UValue where
     (==) (URegexp a _)              (URegexp b _)               = a == b
     (==) (UVariableReference a)     (UVariableReference b)      = a == b
     (==) (UFunctionCall a1 a2)      (UFunctionCall b1 b2)       = (a1 == b1) && (a2 == b2)
+    (==) (UNumber a)                (UNumber b)                 = a == b
     (==) _ _ = False
 
 -- | A helper function for writing 'array's.
@@ -168,13 +171,13 @@ data Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression)) -- ^ All conditionals are stored in this format.
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
     | PValue !UValue
-    deriving (Eq)
+    deriving Eq
 
 instance Num Expression where
     (+) = Addition
     (-) = Substraction
     (*) = Multiplication
-    fromInteger = PValue . UString . T.pack . show
+    fromInteger = PValue . UNumber . I
     abs x = ConditionalValue (MoreEqualThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: x, SelectorDefault :!: negate x])
     signum x = ConditionalValue (MoreThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: 1, SelectorDefault :!:
                                                            ConditionalValue (Equal x 0) (V.fromList [SelectorValue (UBoolean True) :!: 0, SelectorDefault :!: (-1)])
@@ -183,7 +186,7 @@ instance Num Expression where
 instance Fractional Expression where
     (/) = Division
     recip x = 1 / x
-    fromRational = PValue . UString . T.pack . show . (fromRational :: Rational -> Double)
+    fromRational = PValue . UNumber . D . fromRational
 
 instance IsString Expression where
     fromString = PValue . fromString
