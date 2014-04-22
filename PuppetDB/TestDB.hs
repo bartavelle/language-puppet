@@ -22,6 +22,7 @@ import Puppet.Parser.Types
 import Puppet.Interpreter.Types
 import Puppet.PP hiding ((<$>))
 import Puppet.Lens
+import Puppet.Utils
 
 data DBContent = DBContent { _dbcontentResources   :: Container WireCatalog
                            , _dbcontentFacts       :: Container Facts
@@ -35,7 +36,7 @@ instance FromJSON DBContent where
     parseJSON (Object v) = do
         let toText :: Value -> Parser T.Text
             toText (String m) = pure m
-            toText (Number n) = pure (T.pack (show n))
+            toText (Number n) = pure (scientific2text n)
             toText x = fail ("Could not convert " ++ show x ++ " to a string when parsing facts")
         fcts <- v .: "facts" >>= traverse (traverse toText)
         DBContent <$> v .: "resources" <*> pure fcts <*> pure Nothing

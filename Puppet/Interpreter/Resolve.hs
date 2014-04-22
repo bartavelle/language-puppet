@@ -33,6 +33,7 @@ import Puppet.Parser.Types
 import Puppet.Interpreter.PrettyPrinter()
 import Puppet.Parser.PrettyPrinter(showPos)
 import Puppet.Interpreter.RubyRandom
+import Puppet.Utils
 
 import Data.Version (parseVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
@@ -45,7 +46,6 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Monoid
 import Control.Applicative hiding ((<$>))
 import Control.Monad
 import Control.Monad.Error
@@ -53,8 +53,6 @@ import Data.Tuple.Strict as S
 import Control.Lens
 import Data.Maybe (mapMaybe)
 import Data.Aeson.Lens hiding (key)
-import Data.Attoparsec.Number
-import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
 import qualified Data.ByteString as BS
 import qualified Crypto.Hash.MD5 as MD5
@@ -64,10 +62,11 @@ import Data.Bits
 import Control.Monad.Writer (tell)
 import Control.Monad.Operational (singleton)
 import Text.Regex.PCRE.ByteString.Utils
+import Data.Scientific
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.
-type NumberPair = S.Either (Pair Integer Integer) (Pair Double Double)
+type NumberPair = Pair Scientific Scientific
 
 -- | A hiera helper function, that will throw all Hiera errors and log
 -- messages to the main monad.
@@ -100,25 +99,15 @@ hieraCall qt q df _ = do
                          Just d -> return d
                          Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
--- | This functions makes sure numbers are of the same type
-toNumbers' :: Number -> Number -> NumberPair
-toNumbers' (I x) (I y) = S.Left  (x :!: y)
-toNumbers' (I x) (D y) = S.Right (fromIntegral x :!: y)
-toNumbers' (D x) (I y) = S.Right (x :!: fromIntegral y)
-toNumbers' (D x) (D y) = S.Right (x :!: y)
-
 -- | Tries to convert a pair of 'PValue's into 'Number's, as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
 -- that they are of the same type
 toNumbers :: PValue -> PValue -> S.Maybe NumberPair
-toNumbers (PString a) (PString b) =
-    let t2s = fmap scientific2Number . text2Scientific
-        isFractional = T.any (=='.') a || T.any (=='.') b
-        fraction (S.Left (x :!: y)) | isFractional = S.Right (fromIntegral x :!: fromIntegral y)
-        fraction x = x
-    in  case t2s a :!: t2s b of
-            (Just x :!: Just y) -> S.Just $ fraction (toNumbers' x y)
-            _ -> S.Nothing
+toNumbers (PString a) b = case text2Scientific a of
+                              Just na -> toNumbers (PNumber na) b
+                              Nothing -> S.Nothing
+toNumbers a (PString b) = toNumbers (PString b) a
+toNumbers (PNumber a) (PNumber b) = S.Just (a :!: b)
 toNumbers _ _ = S.Nothing
 
 -- | This tries to run a numerical binary operation on two puppet
@@ -126,15 +115,9 @@ toNumbers _ _ = S.Nothing
 -- (using 'toNumbners'), and will finally apply the correct operation.
 binaryOperation :: Expression -- ^ left operand
                 -> Expression -- ^ right operand
-                -> (Integer -> Integer -> Integer) -- ^ operation in case those are integers
-                -> (Double -> Double -> Double) -- ^ operation in case those are doubles
+                -> (Scientific -> Scientific -> Scientific) -- ^ operation
                 -> InterpreterMonad PValue
-binaryOperation a b opi opd = do
-    ra <- resolveExpressionNumber a
-    rb <- resolveExpressionNumber b
-    return $ PNumber $ case toNumbers' ra rb of
-                           S.Right (na :!: nb) -> D $ opd na nb
-                           S.Left (na :!: nb)  -> I $ opi na nb
+binaryOperation a b opr = ((PNumber .) . opr) `fmap` resolveExpressionNumber a <*> resolveExpressionNumber b
 
 -- | Just like 'binaryOperation', but for operations that only work on
 -- integers.
@@ -142,9 +125,9 @@ integerOperation :: Expression -> Expression -> (Integer -> Integer -> Integer) 
 integerOperation a b opr = do
     ra <- resolveExpressionNumber a
     rb <- resolveExpressionNumber b
-    case toNumbers' ra rb of
-        S.Right (da :!: db) -> throwPosError ("Expected integer values, not" <+> double da <+> "or" <+> double db)
-        S.Left (na :!: nb)  -> return (PNumber $ I $ opr na nb)
+    case (preview _Integer ra, preview _Integer rb) of
+        (Just na, Just nb) -> return (PNumber $ fromIntegral (opr na nb))
+        _ -> throwPosError ("Expected integer values, not" <+> string (show ra) <+> "or" <+> string (show rb))
 
 -- | Resolves a variable, or throws an error if it can't.
 resolveVariable :: T.Text -> InterpreterMonad PValue
@@ -178,21 +161,14 @@ getVariable scps scp fullvar = do
                 Nothing -> throwError ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ttext varscope <+> "or root")
 
 -- | A helper for numerical comparison functions.
-numberCompare :: Expression -> Expression -> (Integer -> Integer -> Bool) -> (Double -> Double -> Bool) -> InterpreterMonad PValue
-numberCompare a b compi compd = do
-    ra <- resolveExpression a
-    rb <- resolveExpression b
-    case toNumbers ra rb of
-        S.Nothing -> throwPosError ("Comparison functions expect numbers, not:" <+> pretty ra <+> comma <+> pretty rb)
-        S.Just (S.Right (na :!: nb)) -> return (PBoolean (compd na nb))
-        S.Just (S.Left  (na :!: nb)) -> return (PBoolean (compi na nb))
+numberCompare :: Expression -> Expression -> (Scientific -> Scientific -> Bool) -> InterpreterMonad PValue
+numberCompare a b comp = ((PBoolean .) . comp) `fmap` resolveExpressionNumber a <*> resolveExpressionNumber b
 
 -- | Handles the wonders of puppet equality checks.
 puppetEquality :: PValue -> PValue -> Bool
 puppetEquality ra rb =
     case toNumbers ra rb of
-        (S.Just (S.Right (na :!: nb))) -> na == nb
-        (S.Just (S.Left (na :!: nb))) -> na == nb
+        (S.Just (na :!: nb)) -> na == nb
         _ -> case (ra, rb) of
                  (PUndef , PBoolean x)         -> not x
                  (PString "true", PBoolean x)  -> x
@@ -223,10 +199,10 @@ resolveExpression (Or a b) = do
         else do
             rb <- fmap pValue2Bool (resolveExpression b)
             return (PBoolean (ra || rb))
-resolveExpression (LessThan a b) = numberCompare a b (<) (<)
-resolveExpression (MoreThan a b) = numberCompare a b (>) (>)
-resolveExpression (LessEqualThan a b) = numberCompare a b (<=) (<=)
-resolveExpression (MoreEqualThan a b) = numberCompare a b (>=) (>=)
+resolveExpression (LessThan a b) = numberCompare a b (<)
+resolveExpression (MoreThan a b) = numberCompare a b (>)
+resolveExpression (LessEqualThan a b) = numberCompare a b (<=)
+resolveExpression (MoreEqualThan a b) = numberCompare a b (>=)
 resolveExpression (RegexMatch a v@(PValue (URegexp _ rv))) = do
     ra <- fmap T.encodeUtf8 (resolveExpressionString a)
     case execute' rv ra of
@@ -293,15 +269,17 @@ resolveExpression (Addition a b) = do
     case (ra, rb) of
         (PHash ha, PHash hb) -> return (PHash (ha <> hb))
         (PArray ha, PArray hb) -> return (PArray (ha <> hb))
-        _ -> binaryOperation a b (+) (+)
-resolveExpression (Substraction a b)   = binaryOperation a b (-) (-)
+        _ -> binaryOperation a b (+)
+resolveExpression (Substraction a b)   = binaryOperation a b (-)
 resolveExpression (Division a b)       = do
+    ra <- resolveExpressionNumber a
     rb <- resolveExpressionNumber b
     case rb of
-        I 0 -> throwPosError "Division by 0"
-        D 0 -> throwPosError "Division by 0"
-        _   -> binaryOperation a b div (/)
-resolveExpression (Multiplication a b) = binaryOperation a b (*) (*)
+        0 -> throwPosError "Division by 0"
+        _ -> case ( (,) `fmap` preview _Integer ra <*> preview _Integer rb) of
+                 Just (ia, ib) -> return $ PNumber $ fromIntegral (ia `div` ib)
+                 _ -> return $ PNumber $ ra / rb
+resolveExpression (Multiplication a b) = binaryOperation a b (*)
 resolveExpression (Modulo a b)         = integerOperation a b mod
 resolveExpression (RightShift a b)     = integerOperation a b (\x -> shiftR x . fromIntegral)
 resolveExpression (LeftShift a b) = do
@@ -343,13 +321,13 @@ resolvePValueString :: PValue -> InterpreterMonad T.Text
 resolvePValueString (PString x) = return x
 resolvePValueString (PBoolean True) = return "true"
 resolvePValueString (PBoolean False) = return "false"
-resolvePValueString (PNumber x) = return (T.pack (show x))
+resolvePValueString (PNumber x) = return (scientific2text x)
 resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <$> pretty x)
 
 -- | Turns everything it can into a number, or throws an error
-resolvePValueNumber :: PValue -> InterpreterMonad Number
+resolvePValueNumber :: PValue -> InterpreterMonad Scientific
 resolvePValueNumber x = case x ^? _Number of
-                            Just n -> return (scientific2Number n)
+                            Just n -> return n
                             Nothing -> throwPosError ("Don't know how to convert this to a number:" <$> pretty x)
 
 -- | > resolveValueString = resolveValue >=> resolvePValueString
@@ -361,7 +339,7 @@ resolveExpressionString :: Expression -> InterpreterMonad T.Text
 resolveExpressionString = resolveExpression >=> resolvePValueString
 
 -- | > resolveExpressionNumber = resolveExpression >=> resolvePValueNumber
-resolveExpressionNumber :: Expression -> InterpreterMonad Number
+resolveExpressionNumber :: Expression -> InterpreterMonad Scientific
 resolveExpressionNumber = resolveExpression >=> resolvePValueNumber
 
 -- | Just like 'resolveExpressionString', but accepts arrays.

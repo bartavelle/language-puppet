@@ -35,7 +35,6 @@ import Control.Applicative hiding (empty)
 import Data.Time.Clock
 import GHC.Stack
 import Data.Maybe (fromMaybe)
-import Data.Attoparsec.Number
 import Data.Attoparsec.Text (parseOnly,rational)
 import Data.Scientific
 import Control.Monad.Operational
@@ -60,7 +59,7 @@ data PValue = PBoolean !Bool
             | PResourceReference !T.Text !T.Text
             | PArray !(V.Vector PValue)
             | PHash !(Container PValue)
-            | PNumber !Number
+            | PNumber !Scientific
             deriving (Eq, Show)
 
 -- | The different kind of hiera queries
@@ -433,7 +432,7 @@ getScope = use curScope >>= \s -> if null s
 
 instance FromJSON PValue where
     parseJSON Null       = return PUndef
-    parseJSON (Number n) = return $ PNumber $ scientific2Number n
+    parseJSON (Number n) = return $ PNumber n
     parseJSON (String s) = return (PString s)
     parseJSON (Bool b)   = return (PBoolean b)
     parseJSON (Array v)  = fmap PArray (V.mapM parseJSON v)
@@ -446,8 +445,7 @@ instance ToJSON PValue where
     toJSON (PResourceReference _ _) = Null -- TODO
     toJSON (PArray r)               = Array (V.map toJSON r)
     toJSON (PHash x)                = Object (HM.map toJSON x)
-    toJSON (PNumber (I n))          = Number (fromIntegral n)
-    toJSON (PNumber (D n))          = Number (fromFloatDigits n)
+    toJSON (PNumber n)              = Number n
 
 #ifdef HRUBY
 instance ToRuby PValue where
@@ -737,25 +735,13 @@ text2Scientific t = case parseOnly rational t of
             Left _ -> Nothing
             Right s -> Just s
 
-scientific2Number :: Scientific -> Number
-scientific2Number s =
-    let e = base10Exponent s
-        c = coefficient s
-    in  if e >= 0
-            then I (c * 10 ^ e)
-            else D ((fromInteger c / 10 ^ negate e) :: Double)
-
-text2Number :: T.Text -> Maybe Number
-text2Number = fmap scientific2Number . text2Scientific
-
 instance AsNumber PValue where
     _Number = prism num2PValue toNumber
         where
             num2PValue :: Scientific -> PValue
-            num2PValue = PNumber . scientific2Number
+            num2PValue = PNumber
             toNumber :: PValue -> Either PValue Scientific
-            toNumber (PNumber (I n)) = Right (fromIntegral n)
-            toNumber (PNumber (D n)) = Right (fromFloatDigits n)
+            toNumber (PNumber n) = Right n
             toNumber p@(PString x) = case text2Scientific x of
                                          Just o -> Right o
                                          _      -> Left p

@@ -9,7 +9,6 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Data.HashSet as HS
 import qualified Data.Maybe.Strict as S
-import Data.Attoparsec.Number
 import Data.Tuple.Strict hiding (fst,zip)
 import Text.Regex.PCRE.ByteString.Utils
 
@@ -20,6 +19,7 @@ import Control.Applicative
 import Control.Lens hiding (noneOf)
 
 import Puppet.Parser.Types
+import Puppet.Utils
 
 import Text.Parsec.Expr
 import Text.Parser.Token hiding (stringLiteral')
@@ -32,6 +32,7 @@ import Text.Parsec.Error (ParseError)
 import Text.Parsec.Text ()
 import qualified Text.Parsec.Prim as PP
 import Text.Parsec.Text ()
+import Data.Scientific
 
 newtype ParserT m a = ParserT { unParser :: m a }
                    deriving (Functor, Applicative, Alternative)
@@ -241,8 +242,8 @@ literalValue :: Parser UValue
 literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
     where
         numericalvalue = integerOrDouble >>= \case
-            Left x -> return (I x)
-            Right y -> return (D y)
+            Left x -> return (fromIntegral x)
+            Right y -> return (fromFloatDigits y)
 
 -- this is a hack for functions :(
 terminalG :: Parser Expression -> Parser Expression
@@ -349,7 +350,7 @@ nodeStmt = do
     let nm (URegexp nn nr) = return (NodeMatch nn nr)
         nm _ = fail "? can't happen, termRegexp didn't return a URegexp ?"
         toString (UString s) = s
-        toString (UNumber n) = T.pack (show n)
+        toString (UNumber n) = scientific2text n
         toString _ = error "Can't happen at nodeStmt"
         nodename = (reserved "default" >> return NodeDefault) <|> fmap (NodeName . toString) literalValue
     ns <- ((termRegexp >>= nm) <|> nodename) `sepBy1` comma

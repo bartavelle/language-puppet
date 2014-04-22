@@ -42,7 +42,7 @@ import Data.Char (toUpper)
 import Text.Regex.PCRE.String
 import Control.Lens
 import Data.String
-import Data.Attoparsec.Number
+import Data.Scientific
 
 import Text.Parsec.Pos
 
@@ -117,7 +117,7 @@ data UValue
     | UVariableReference !T.Text
     | UFunctionCall !T.Text !(V.Vector Expression)
     | UHFunctionCall !HFunctionCall
-    | UNumber Number
+    | UNumber Scientific
 
 instance IsString UValue where
     fromString = UString . T.pack
@@ -177,7 +177,7 @@ instance Num Expression where
     (+) = Addition
     (-) = Substraction
     (*) = Multiplication
-    fromInteger = PValue . UNumber . I
+    fromInteger = PValue . UNumber . fromInteger
     abs x = ConditionalValue (MoreEqualThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: x, SelectorDefault :!: negate x])
     signum x = ConditionalValue (MoreThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: 1, SelectorDefault :!:
                                                            ConditionalValue (Equal x 0) (V.fromList [SelectorValue (UBoolean True) :!: 0, SelectorDefault :!: (-1)])
@@ -186,7 +186,7 @@ instance Num Expression where
 instance Fractional Expression where
     (/) = Division
     recip x = 1 / x
-    fromRational = PValue . UNumber . D . fromRational
+    fromRational = PValue . UNumber . fromRational
 
 instance IsString Expression where
     fromString = PValue . fromString

@@ -44,16 +44,16 @@ validateFile :: PuppetTypeValidate
 validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent >=> validateMode
 
 validateMode :: PuppetTypeValidate
-validateMode res = let
-    modestr = case res ^. rattributes . at "mode" of
-                  Just (PString s) -> s
-                  _ -> "0644"
-    in do
-        when ((T.length modestr /= 3) && (T.length modestr /= 4)) (throwError "Invalid mode size")
-        unless (T.all isDigit modestr) (throwError "The mode should only be made of digits")
-        if T.length modestr == 3
-            then return $ res & rattributes . at "mode" ?~ PString (T.cons '0' modestr)
-            else return res
+validateMode res = do
+    modestr <- case res ^. rattributes . at "mode" of
+                  Just (PString s) -> return s
+                  Just x -> throwError ("Invalide mode type, should be a string " <+> pretty x)
+                  Nothing -> throwError "Could not find mode!"
+    when ((T.length modestr /= 3) && (T.length modestr /= 4)) (throwError "Invalid mode size")
+    unless (T.all isDigit modestr) (throwError "The mode should only be made of digits")
+    if T.length modestr == 3
+        then return $ res & rattributes . at "mode" ?~ PString (T.cons '0' modestr)
+        else return res
 
 validateSourceOrContent :: PuppetTypeValidate
 validateSourceOrContent res = let

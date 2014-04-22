@@ -13,7 +13,7 @@ import Puppet.Utils
 import Control.Lens
 import qualified Data.Vector as V
 import Data.Char (isSpace)
-import Data.Attoparsec.Number
+import Data.Aeson.Lens
 
 rubyEvaluate :: Container ScopeInformation -> T.Text -> [RubyStatement] -> Either Doc T.Text
 rubyEvaluate vars ctx = foldl (evalruby vars ctx) (Right "") . optimize
@@ -46,9 +46,9 @@ evalExpression mp ctx (LookupOperation varname varindex) = do
         PArray arr ->
             case a2i rvindx of
                 Nothing -> Left $ "Can't convert index to integer when resolving" <+> ttext rvname P.<> brackets (ttext rvindx)
-                Just  i -> if V.length arr <= i
+                Just  i -> if fromIntegral (V.length arr) <= i
                     then Left $ "Array out of bound" <+> ttext rvname P.<> brackets (ttext rvindx)
-                    else evalValue (arr V.! i)
+                    else evalValue (arr V.! fromIntegral i)
         PHash hs -> case hs ^. at rvindx of
                         Just x -> evalValue x
                         _ -> Left $ "Can't index variable" <+> ttext rvname <+> ", it is " <+> pretty (PHash hs)
@@ -59,10 +59,10 @@ evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
 
 evalValue :: PValue -> Either Doc T.Text
 evalValue (PString x) = Right x
-evalValue (PNumber x) = Right (T.pack (show x))
+evalValue (PNumber x) = Right (scientific2text x)
 evalValue x = Right $ tshow x
 
-a2i :: T.Text -> Maybe Int
-a2i x = case text2Number x of
-            Just (I y) -> Just (fromIntegral y)
+a2i :: T.Text -> Maybe Integer
+a2i x = case text2Scientific x of
+            Just y -> y ^? _Integer
             _ -> Nothing

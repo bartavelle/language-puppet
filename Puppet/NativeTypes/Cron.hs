@@ -8,7 +8,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 import qualified Data.Vector as V
-import Data.Attoparsec.Number
+import Data.Scientific
 
 nativeCron :: (PuppetTypeName, PuppetTypeMethods)
 nativeCron = ("cron", PuppetTypeMethods validateCron parameterset)
@@ -47,7 +47,7 @@ vrange' :: Integer -> Integer -> [T.Text] -> T.Text -> Resource -> PValue -> Eit
 vrange' mi ma valuelist param res y = case y of
     PString "*"      -> Right res
     PString "absent" -> Right res
-    PNumber (I n)    -> checkint' n mi ma param res
+    PNumber n        -> checkint' n mi ma param res
     PString x -> if x `elem` valuelist
         then Right res
         else parseval x mi ma param res
@@ -59,13 +59,12 @@ parseval resval mi ma pname res | "*/" `T.isPrefixOf` resval = checkint (T.drop 
 
 checkint :: T.Text -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 checkint st mi ma pname res =
-    case text2Number st of
-        Just (I v) -> checkint' v mi ma pname res
-        Just (D _) -> Left $ "Invalid value type for parameter" <+> paramname pname <+> ": expected an integer"
-        Nothing    -> Left $ "Invalid value type for parameter" <+> paramname pname <+> ": " <+> red (ttext st)
+    case text2Scientific st of
+        Just n  -> checkint' n mi ma pname res
+        Nothing -> Left $ "Invalid value type for parameter" <+> paramname pname <+> ": " <+> red (ttext st)
 
-checkint' :: Integer -> Integer -> Integer -> T.Text -> PuppetTypeValidate
+checkint' :: Scientific -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 checkint' i mi ma param res =
-    if (i>=mi) && (i<=ma)
+    if (i >= fromIntegral mi) && (i <= fromIntegral ma)
         then Right res
-        else Left $ "Parameter" <+> paramname param <+> "value is out of bound, should satisfy" <+> P.integer mi <+> "<=" <+> P.integer i <+> "<=" <+> P.integer ma
+        else Left $ "Parameter" <+> paramname param <+> "value is out of bound, should satisfy" <+> P.integer mi <+> "<=" <+> P.string (show i) <+> "<=" <+> P.integer ma

@@ -6,8 +6,8 @@ import Puppet.PP
 import Puppet.Parser.Types
 import Puppet.Interpreter.Types
 import Puppet.Parser.PrettyPrinter
+import Puppet.Utils
 
-import Data.Monoid
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HM
@@ -39,7 +39,7 @@ instance Pretty PValue where
     pretty (PBoolean True)  = dullmagenta $ text "true"
     pretty (PBoolean False) = dullmagenta $ text "false"
     pretty (PString s) = dullcyan (ttext (stringEscape s))
-    pretty (PNumber n) = cyan (string (show n))
+    pretty (PNumber n) = cyan (ttext (scientific2text n))
     pretty PUndef = dullmagenta (text "undef")
     pretty (PResourceReference t n) = capitalize t <> brackets (text (T.unpack n))
     pretty (PArray v) = list (map pretty (V.toList v))

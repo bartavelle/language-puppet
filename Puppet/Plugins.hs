@@ -41,7 +41,7 @@ import Control.Monad.IO.Class
 import Control.Concurrent
 import Control.Monad.Error
 import Control.Monad.Operational (singleton)
-import Data.Attoparsec.Number
+import Data.Scientific
 
 import Puppet.Interpreter.Types
 import Puppet.Utils
@@ -60,7 +60,7 @@ instance Lua.StackValue PValue
             Lua.ltype l n >>= \case
                 Lua.TBOOLEAN -> fmap (fmap PBoolean) (Lua.peek l n)
                 Lua.TSTRING  -> fmap (fmap PString) (Lua.peek l n)
-                Lua.TNUMBER  -> fmap (fmap (PNumber . D)) (Lua.peek l n :: IO (Maybe Double))
+                Lua.TNUMBER  -> fmap (fmap (PNumber . fromFloatDigits)) (Lua.peek l n :: IO (Maybe Double))
                 Lua.TNIL     -> return (Just PUndef)
                 Lua.TNONE    -> return (Just PUndef)
                 Lua.TTABLE   -> fmap (fmap (PArray . V.fromList)) (Lua.peek l n)

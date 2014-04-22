@@ -2,8 +2,8 @@
 module Puppet.Parser.PrettyPrinter where
 
 import Puppet.PP
-import Data.Monoid
 import Puppet.Parser.Types
+import Puppet.Utils
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import Data.Tuple.Strict (Pair ( (:!:) ))
@@ -83,7 +83,7 @@ instance Pretty UValue where
     pretty (UBoolean True)  = dullmagenta $ text "true"
     pretty (UBoolean False) = dullmagenta $ text "false"
     pretty (UString s) = char '"' <> dullcyan (ttext (stringEscape s)) <> char '"'
-    pretty (UNumber n) = cyan (string (show n))
+    pretty (UNumber n) = cyan (ttext (scientific2text n))
     pretty (UInterpolable v) = char '"' <> hcat (map specific (V.toList v)) <> char '"'
         where
             specific (UString s) = dullcyan (ttext (stringEscape s))

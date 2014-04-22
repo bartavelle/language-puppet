@@ -6,6 +6,7 @@ module Puppet.Utils
     , takeDirectory
     , strictifyEither
     , nameThread
+    , scientific2text
     ) where
 
 import qualified Data.Text as T
@@ -16,6 +17,14 @@ import System.Posix.Directory.ByteString
 import qualified Data.Either.Strict as S
 import Control.Concurrent (myThreadId)
 import GHC.Conc (labelThread)
+import Data.Scientific
+import Control.Lens
+import Data.Aeson.Lens
+
+scientific2text :: Scientific -> T.Text
+scientific2text n = T.pack $ case n ^? _Integer of
+                                 Just i -> show i
+                                 _      -> show n
 
 strictifyEither :: Either a b -> S.Either a b
 strictifyEither (Left x) = S.Left x

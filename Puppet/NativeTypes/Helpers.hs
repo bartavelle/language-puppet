@@ -28,6 +28,7 @@ module Puppet.NativeTypes.Helpers
     ) where
 
 import Puppet.PP hiding (string,integer)
+import Puppet.Utils
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.PrettyPrinter()
@@ -38,7 +39,6 @@ import Control.Monad
 import qualified Data.Text as T
 import Control.Lens
 import qualified Data.Vector as V
-import Data.Attoparsec.Number
 import Data.Aeson.Lens (_Number,_Integer)
 
 type PuppetTypeName = T.Text
@@ -99,6 +99,7 @@ string' param rev res = case rev of
     PString _      -> Right res
     PBoolean True  -> Right (res & rattributes . at param ?~ PString "true")
     PBoolean False -> Right (res & rattributes . at param ?~ PString "false")
+    PNumber n      -> Right (res & rattributes . at param ?~ PString (scientific2text n))
     x              -> Left $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
 
 -- | Makes sure that the parameter, if defined, has a value among this list.
@@ -130,7 +131,7 @@ integers param = runarray param integer''
 
 integer'' :: T.Text -> PValue -> PuppetTypeValidate
 integer'' param val res = case val ^? _Integer of
-    Just v -> Right (res & rattributes . at param ?~ PNumber (I v))
+    Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
     _ -> Left $ "Parameter" <+> paramname param <+> "must be an integer"
 
 -- | Copies the "name" value into the parameter if this is not set. It implies
