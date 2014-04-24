@@ -290,14 +290,7 @@ cmdlineParser = CommandLine <$> optional remotepdb
 loadFactsOverrides :: FilePath -> IO Facts
 loadFactsOverrides fp = decodeFileEither fp >>= \case
     Left rr -> error ("Error when parsing " ++ fp ++ ": " ++ show rr)
-    Right x -> case traverse tv x of
-                   Just y -> return y
-                   Nothing -> error ("Error when parsing " ++ fp ++ ": some of the values were not strings")
-    where
-        tv x = x ^? _PString <|> isBool x
-        isBool (PBoolean True)  = Just "true"
-        isBool (PBoolean False) = Just "false"
-        isBool _ = Nothing
+    Right x -> return x
 
 -- this finds the dead code
 findDeadCode :: String -> [Resource] -> Set.Set FilePath -> IO ()

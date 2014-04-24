@@ -189,7 +189,7 @@ hTestFileSources = do
 -- puppetDB
 testingDaemon :: PuppetDBAPI IO -- ^ Contains the puppetdb API functions
               -> FilePath -- ^ Path to the manifests
-              -> (T.Text -> IO (Container T.Text)) -- ^ The facter function
+              -> (T.Text -> IO Facts) -- ^ The facter function
               -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
 testingDaemon pdb pdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)

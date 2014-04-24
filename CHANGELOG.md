@@ -5,6 +5,7 @@
 * Wrote a pure evaluation function, for unit tests and prisms.
 * `Num` and `Fractional` instances for `Expression`.
 * Numbers are now internally stored as numbers, just like the new parser does.
+* Add support for "structured facts".
 ## Bugs fixed
 * Puppetresources does not fail tests for file sources starting with `file://`.
 * Escaped characters were not properly handled in the parser.

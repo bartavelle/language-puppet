@@ -22,7 +22,6 @@ import Puppet.Parser.Types
 import Puppet.Interpreter.Types
 import Puppet.PP hiding ((<$>))
 import Puppet.Lens
-import Puppet.Utils
 
 data DBContent = DBContent { _dbcontentResources   :: Container WireCatalog
                            , _dbcontentFacts       :: Container Facts
@@ -33,13 +32,7 @@ makeFields ''DBContent
 type DB = TVar DBContent
 
 instance FromJSON DBContent where
-    parseJSON (Object v) = do
-        let toText :: Value -> Parser T.Text
-            toText (String m) = pure m
-            toText (Number n) = pure (scientific2text n)
-            toText x = fail ("Could not convert " ++ show x ++ " to a string when parsing facts")
-        fcts <- v .: "facts" >>= traverse (traverse toText)
-        DBContent <$> v .: "resources" <*> pure fcts <*> pure Nothing
+    parseJSON (Object v) = DBContent <$> v .: "resources" <*> v .: "facts" <*> pure Nothing
     parseJSON _ = mempty
 
 instance ToJSON DBContent where
@@ -143,7 +136,7 @@ getFcts db f = fmap (S.Right . filter (resolveQuery factQuery f) . toFactInfo) (
             where
                 l = case t of
                         FName     -> factname
-                        FValue    -> factval
+                        FValue    -> factval . _PString
                         FCertname -> nodename
 
 resourceQuery :: ResourceField -> Resource -> Extracted

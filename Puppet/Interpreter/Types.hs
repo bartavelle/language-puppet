@@ -89,7 +89,7 @@ data ClassIncludeType = IncludeStandard | IncludeResource
 
 type Scope = T.Text
 
-type Facts = Container T.Text
+type Facts = Container PValue
 
 -- |This type is used to differenciate the distinct top level types that are
 -- exposed by the DSL.
@@ -314,7 +314,7 @@ data WireCatalog = WireCatalog { _wirecatalogNodename        :: !Nodename
 
 data PFactInfo = PFactInfo { _pfactinfoNodename :: !T.Text
                            , _pfactinfoFactname :: !T.Text
-                           , _pfactinfoFactval  :: !T.Text
+                           , _pfactinfoFactval  :: !PValue
                            }
 
 data PNodeInfo = PNodeInfo { _pnodeinfoNodename    :: !Nodename
@@ -708,7 +708,7 @@ instance ToJSON WireCatalog where
                   ]
 
 instance ToJSON PFactInfo where
-    toJSON (PFactInfo n f v) = object [("certname", String n), ("name", String f), ("value", String v)]
+    toJSON (PFactInfo n f v) = object [("certname", String n), ("name", String f), ("value", toJSON v)]
 
 instance FromJSON PFactInfo where
     parseJSON (Object v) = PFactInfo <$> v .: "certname" <*> v .: "name" <*> v .: "value"
@@ -751,7 +751,7 @@ initialState :: Facts -> InterpreterState
 initialState facts = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
     where
         callervars = HM.fromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
-        factvars = facts & each %~ (\x -> PString x :!: initialPPos "facts" :!: ContRoot)
+        factvars = facts & each %~ (\x -> x :!: initialPPos "facts" :!: ContRoot)
         baseVars = HM.singleton "::" (ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
         initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
 

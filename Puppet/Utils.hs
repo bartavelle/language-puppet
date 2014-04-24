@@ -1,3 +1,5 @@
+-- | Those are utility functions, most of them being pretty much self
+-- explanatory.
 module Puppet.Utils
     ( textElem
     , module Data.Monoid
