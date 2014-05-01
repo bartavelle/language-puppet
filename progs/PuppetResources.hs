@@ -150,10 +150,10 @@ import Puppet.Stats
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
 
-type QueryFunc = T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+type QueryFunc = T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
-checkErrorStrict :: S.Either Doc x -> IO x
-checkErrorStrict (S.Left rr) = putDoc rr >> putStrLn "" >> error "error!"
+checkErrorStrict :: S.Either PrettyError x -> IO x
+checkErrorStrict (S.Left rr) = putDoc (getError rr) >> putStrLn "" >> error "error!"
 checkErrorStrict (S.Right x) = return x
 
 {-| Does all the work of initializing a daemon for querying.
@@ -341,7 +341,7 @@ run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
 run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef docommit _) = do
-    let checkError r (S.Left rr) = error (show (red r <> ":" <+> rr))
+    let checkError r (S.Left rr) = error (show (red r <> ":" <+> getError rr))
         checkError _ (S.Right x) = return x
         tnodename = T.pack ndename
     pdbapi <- case (puppeturl, mpdbf) of
@@ -414,8 +414,8 @@ computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> Comm
 computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _ _ checkExported) tnodename = queryfunc tnodename >>= \case
     S.Left rr -> do
         if testOnly
-            then putDoc ("Problem with" <+> ttext tnodename <+> ":" <+> rr </> mempty)
-            else putDoc rr >> putStrLn "" >> error "error!"
+            then putDoc ("Problem with" <+> ttext tnodename <+> ":" <+> getError rr </> mempty)
+            else putDoc (getError rr) >> putStrLn "" >> error "error!"
         return (Nothing, Just (H.Summary 1 1))
     S.Right (rawcatalog,m,rawexported,knownRes) -> do
         let wireCatalog = generateWireCatalog tnodename (rawcatalog <> rawexported) m

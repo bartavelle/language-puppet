@@ -46,6 +46,6 @@ validateNativeType r = do
     case tps ^. at (r ^. rid . itype) of
         Just x -> case (x ^. puppetValidate) r of
                       Right nr -> return nr
-                      Left err -> throwPosError ("Invalid resource" <+> pretty r </> err)
+                      Left err -> throwPosError ("Invalid resource" <+> pretty r </> getError err)
         Nothing -> return r
 

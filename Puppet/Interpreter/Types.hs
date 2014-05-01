@@ -53,6 +53,14 @@ type Nodename = T.Text
 
 type Container = HM.HashMap T.Text
 
+newtype PrettyError = PrettyError { getError :: Doc }
+
+instance Show PrettyError where
+    show = show . getError
+
+instance IsString PrettyError where
+    fromString = PrettyError . string
+
 data PValue = PBoolean !Bool
             | PUndef
             | PString !T.Text -- integers and doubles are internally serialized as strings by puppet
@@ -71,7 +79,7 @@ data HieraQueryType = Priority   -- ^ standard hiera query
 type HieraQueryFunc m = Container T.Text -- ^ All the variables that Hiera can interpolate, the top level ones being prefixed with ::
                      -> T.Text -- ^ The query
                      -> HieraQueryType
-                     -> m (S.Either Doc (Pair InterpreterWriter (S.Maybe PValue)))
+                     -> m (S.Either PrettyError (Pair InterpreterWriter (S.Maybe PValue)))
 
 data RSearchExpression
     = REqualitySearch !T.Text !PValue
@@ -152,8 +160,8 @@ data InterpreterState = InterpreterState { _scopes             :: !(Container Sc
                                          }
 
 data InterpreterReader m = InterpreterReader { _nativeTypes             :: !(Container PuppetTypeMethods)
-                                             , _getStatement            :: TopLevelType -> T.Text -> m (S.Either Doc Statement)
-                                             , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> m (S.Either Doc T.Text)
+                                             , _getStatement            :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
+                                             , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> m (S.Either PrettyError T.Text)
                                              , _pdbAPI                  :: PuppetDBAPI m
                                              , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
                                              , _thisNodename            :: T.Text
@@ -177,8 +185,8 @@ data InterpreterInstr a where
     HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Pair InterpreterWriter (S.Maybe PValue))
     GetCurrentCallStack :: InterpreterInstr [String]
     -- error
-    ErrorThrow          :: Doc -> InterpreterInstr a
-    ErrorCatch          :: InterpreterMonad a -> (Doc -> InterpreterMonad a) -> InterpreterInstr a
+    ErrorThrow          :: PrettyError -> InterpreterInstr a
+    ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a
     -- writer
     WriterTell          :: InterpreterWriter -> InterpreterInstr ()
     WriterPass          :: InterpreterMonad (a, InterpreterWriter -> InterpreterWriter) -> InterpreterInstr a
@@ -217,7 +225,7 @@ logWriter prio d = tell [prio :!: d]
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
 
-instance MonadError Doc InterpreterMonad where
+instance MonadError PrettyError InterpreterMonad where
     throwError = singleton . ErrorThrow
     catchError a c = singleton (ErrorCatch a c)
 
@@ -226,9 +234,9 @@ instance MonadWriter InterpreterWriter InterpreterMonad where
     pass = singleton . WriterPass
     listen = singleton . WriterListen
 
-instance Error Doc where
-    noMsg = empty
-    strMsg = text
+instance Error PrettyError where
+    noMsg = PrettyError empty
+    strMsg = PrettyError . text
 
 data RIdentifier = RIdentifier { _itype :: !T.Text
                                , _iname :: !T.Text
@@ -287,7 +295,7 @@ data Resource = Resource
 
 -- |This is a function type than can be bound. It is the type of all
 -- subsequent validators.
-type PuppetTypeValidate = Resource -> Either Doc Resource
+type PuppetTypeValidate = Resource -> Either PrettyError Resource
 
 data PuppetTypeMethods = PuppetTypeMethods
     { _puppetValidate :: PuppetTypeValidate
@@ -296,7 +304,7 @@ data PuppetTypeMethods = PuppetTypeMethods
 
 type FinalCatalog = HM.HashMap RIdentifier Resource
 
-data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])) -- ^ The most important function, computing catalogs. Given a node name and a list of facts, it returns the result of the catalog compilation : either an error, or a tuple containing all the resources in this catalog, the dependency map, the exported resources, and a list of known resources, that might not be up to date, but are here for code coverage tests.
+data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource])) -- ^ The most important function, computing catalogs. Given a node name and a list of facts, it returns the result of the catalog compilation : either an error, or a tuple containing all the resources in this catalog, the dependency map, the exported resources, and a list of known resources, that might not be up to date, but are here for code coverage tests.
                                    , _dParserStats   :: MStats
                                    , _dCatalogStats  :: MStats
                                    , _dTemplateStats :: MStats
@@ -325,14 +333,14 @@ data PNodeInfo = PNodeInfo { _pnodeinfoNodename    :: !Nodename
                            }
 
 data PuppetDBAPI m = PuppetDBAPI { pdbInformation   :: m Doc
-                                 , replaceCatalog   :: WireCatalog         -> m (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
-                                 , replaceFacts     :: [(Nodename, Facts)] -> m (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
-                                 , deactivateNode   :: Nodename            -> m (S.Either Doc ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-                                 , getFacts         :: Query FactField     -> m (S.Either Doc [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
-                                 , getResources     :: Query ResourceField -> m (S.Either Doc [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
-                                 , getNodes         :: Query NodeField     -> m (S.Either Doc [PNodeInfo])
-                                 , commitDB         ::                        m (S.Either Doc ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
-                                 , getResourcesOfNode :: Nodename -> Query ResourceField -> m (S.Either Doc [Resource])
+                                 , replaceCatalog   :: WireCatalog         -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+                                 , replaceFacts     :: [(Nodename, Facts)] -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+                                 , deactivateNode   :: Nodename            -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+                                 , getFacts         :: Query FactField     -> m (S.Either PrettyError [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+                                 , getResources     :: Query ResourceField -> m (S.Either PrettyError [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+                                 , getNodes         :: Query NodeField     -> m (S.Either PrettyError [PNodeInfo])
+                                 , commitDB         ::                        m (S.Either PrettyError ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
+                                 , getResourcesOfNode :: Nodename -> Query ResourceField -> m (S.Either PrettyError [Resource])
                                  }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
@@ -392,14 +400,14 @@ class MonadStack m where
 instance MonadStack InterpreterMonad where
     getCallStack = singleton GetCurrentCallStack
 
-tpe :: (MonadStack m, MonadError Doc m, MonadState InterpreterState m) => Doc -> m b
+tpe :: (MonadStack m, MonadError PrettyError m, MonadState InterpreterState m) => Doc -> m b
 tpe s = do
     p <- use (curPos . _1)
     stack <- getCallStack
     let dstack = if null stack
                      then mempty
                      else mempty </> string (renderStack stack)
-    throwError (s <+> "at" <+> showPos p <> dstack)
+    throwError (PrettyError (s <+> "at" <+> showPos p <> dstack))
 
 instance MonadThrowPos InterpreterMonad where
     throwPosError = tpe
@@ -457,33 +465,33 @@ instance FromRuby PValue where
                            Error _ -> return Nothing
                            Success suc -> return (Just suc)
 #endif
-eitherDocIO :: IO (S.Either Doc a) -> IO (S.Either Doc a)
-eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ dullred $ text $ show (e :: SomeException))
+eitherDocIO :: IO (S.Either PrettyError a) -> IO (S.Either PrettyError a)
+eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ PrettyError $ dullred $ text $ show (e :: SomeException))
     where
         check (S.Left r) = return (S.Left r)
         check (S.Right x) = return (S.Right x)
 
-interpreterIO :: (MonadThrowPos m, MonadIO m) => IO (S.Either Doc a) -> m a
+interpreterIO :: (MonadThrowPos m, MonadIO m) => IO (S.Either PrettyError a) -> m a
 {-# INLINE interpreterIO #-}
 interpreterIO f = do
     liftIO (eitherDocIO f) >>= \case
         S.Right x -> return x
-        S.Left rr -> throwPosError rr
+        S.Left rr -> throwPosError (getError rr)
 
-mightFail :: (MonadError Doc m, MonadThrowPos m) => m (S.Either Doc a) -> m a
+mightFail :: (MonadError PrettyError m, MonadThrowPos m) => m (S.Either PrettyError a) -> m a
 mightFail a = a >>= \case
     S.Right x -> return x
-    S.Left rr -> throwPosError rr
+    S.Left rr -> throwPosError (getError rr)
 
 safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad T.Text
 {-# INLINE safeDecodeUtf8 #-}
 safeDecodeUtf8 i = return (T.decodeUtf8 i)
 
-interpreterError :: InterpreterMonad (S.Either Doc a) -> InterpreterMonad a
+interpreterError :: InterpreterMonad (S.Either PrettyError a) -> InterpreterMonad a
 {-# INLINE interpreterError #-}
 interpreterError f = f >>= \case
                              S.Right r -> return r
-                             S.Left rr -> throwPosError rr
+                             S.Left rr -> throwPosError (getError rr)
 
 resourceRelations :: Resource -> [(RIdentifier, LinkType)]
 resourceRelations = concatMap expandSet . HM.toList . _rrelations

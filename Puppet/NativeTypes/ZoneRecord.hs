@@ -38,8 +38,8 @@ validateZoneRecord = defaultValidate parameterset >=> parameterFunctions paramet
 
 validateMandatories :: PuppetTypeValidate
 validateMandatories res = case res ^. rattributes . at "rtype" of
-    Nothing                     -> Left "The rtype parameter is mandatory."
+    Nothing              -> perror "The rtype parameter is mandatory."
     Just (PString "SOA") -> foldM (flip mandatory) res ["nsname", "email", "serial", "slave_refresh", "slave_retry", "slave_expiration", "min_ttl"]
     Just (PString "NS")  -> foldM (flip mandatory) res ["owner", "rclass", "rtype", "dest"]
     Just (PString _)     -> foldM (flip mandatory) res ["owner", "rclass", "rtype", "dest", "ttl"]
-    Just x                      -> Left $ "Can't use this for the rtype parameter" <+> pretty x
+    Just x               -> perror $ "Can't use this for the rtype parameter" <+> pretty x

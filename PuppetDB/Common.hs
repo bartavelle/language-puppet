@@ -2,7 +2,6 @@
 -- | Common data types for PuppetDB.
 module PuppetDB.Common where
 
-import Puppet.PP
 import Puppet.Interpreter.Types
 import PuppetDB.Remote
 import PuppetDB.Dummy
@@ -38,7 +37,7 @@ instance Read PDBType where
             tsts = stripPrefix "test"      r
 
 -- | Given a 'PDBType', will try return a sane default implementation.
-getDefaultDB :: PDBType -> IO (S.Either Doc (PuppetDBAPI IO))
+getDefaultDB :: PDBType -> IO (S.Either PrettyError (PuppetDBAPI IO))
 getDefaultDB PDBDummy  = return (S.Right dummyPuppetDB)
 getDefaultDB PDBRemote = pdbConnect "http://localhost:8080"
 getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case

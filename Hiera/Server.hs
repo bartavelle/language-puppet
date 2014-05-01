@@ -153,7 +153,7 @@ type LogWriter = WriterT InterpreterWriter IO
 
 query :: HieraConfig -> HieraCache -> HieraQueryFunc IO
 query (HieraConfig b h bd) cache vars hquery qtype = do
-    fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' h))) `catch` (\e -> return . S.Left . string . show $ (e :: SomeException))
+    fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' h))) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
     where
         prepout (a,s) = s :!: a
         varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))

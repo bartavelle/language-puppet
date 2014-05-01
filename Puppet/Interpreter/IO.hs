@@ -28,8 +28,8 @@ import Control.Concurrent.MVar
 import Data.Tuple.Strict (Pair(..))
 import System.Log.Logger (Priority(..))
 
-bs :: BS.ByteString -> Doc
-bs = string . show
+bs :: BS.ByteString -> PrettyError
+bs = PrettyError . string . show
 
 defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
 defaultImpureMethods = ImpureMethods (liftIO currentCallStack)
@@ -42,11 +42,11 @@ defaultImpureMethods = ImpureMethods (liftIO currentCallStack)
         runlua c fname args = liftIO $ withMVar c $ \lstt ->
                 catch (fmap Right (Lua.callfunc lstt (T.unpack fname) args)) (\e -> return $ Left $ show (e :: SomeException))
 
-evalInstrGen :: (Functor m, Monad m) => InterpreterReader m -> InterpreterState -> ProgramViewT InterpreterInstr (State InterpreterState) a -> m (Either Doc a, InterpreterState, InterpreterWriter)
+evalInstrGen :: (Functor m, Monad m) => InterpreterReader m -> InterpreterState -> ProgramViewT InterpreterInstr (State InterpreterState) a -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
 evalInstrGen _ stt (Return x) = return (Right x, stt, mempty)
 evalInstrGen rdr stt (a :>>= f) =
     let runC a' = interpretMonad rdr stt (f a')
-        thpe = interpretMonad rdr stt . throwPosError
+        thpe = interpretMonad rdr stt . throwPosError . getError
         pdb = _pdbAPI rdr
         strFail iof errf = iof >>= \case
             Left rr -> thpe (errf (string rr))
@@ -58,7 +58,7 @@ evalInstrGen rdr stt (a :>>= f) =
     in  case a of
             ExternalFunction fname args  -> case rdr ^. externalFunctions . at fname of
                                                 Just fn -> interpretMonad rdr stt ( fn args >>= f)
-                                                Nothing -> thpe ("Unknown function: " <> ttext fname)
+                                                Nothing -> thpe (PrettyError ("Unknown function: " <> ttext fname))
             GetStatement topleveltype toplevelname
                                          -> canFail ((rdr ^. getStatement) topleveltype toplevelname)
             ComputeTemplate fn scp cscps -> canFail ((rdr ^. computeTemplateFunction) fn scp cscps)
@@ -80,17 +80,17 @@ evalInstrGen rdr stt (a :>>= f) =
             PDBCommitDB                  -> canFail (commitDB pdb)
             PDBGetResourcesOfNode nn q   -> canFail (getResourcesOfNode pdb nn q)
             GetCurrentCallStack          -> (rdr ^. ioMethods . imGetCurrentCallStack) >>= runC
-            ReadFile fls                 -> strFail ((rdr ^. ioMethods . imReadFile) fls) (const $ "No file found in " <> list (map ttext fls))
+            ReadFile fls                 -> strFail ((rdr ^. ioMethods . imReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
             TraceEvent e                 -> (rdr ^. ioMethods . imTraceEvent) e >>= runC
             CallLua c fname args         -> (rdr ^. ioMethods . imCallLua) c fname args >>= \case
                                                 Right x -> runC x
-                                                Left rr -> thpe (string rr)
+                                                Left rr -> thpe (PrettyError (string rr))
 
 
 interpretMonad :: (Functor m, Monad m)
                 => InterpreterReader m
                 -> InterpreterState
                 -> InterpreterMonad a
-                -> m (Either Doc a, InterpreterState, InterpreterWriter)
+                -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
 interpretMonad rd_ prmstate instr = case runState (viewT instr) prmstate of
                                      (!a,!nextstate) -> evalInstrGen rd_ nextstate a

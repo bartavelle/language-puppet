@@ -102,13 +102,13 @@ initDaemon prefs = do
     return (DaemonMethods (gCatalog myprefs getStatements getTemplate catalogStats hquery) parserStats catalogStats templateStats)
 
 gCatalog :: Preferences IO
-         -> ( TopLevelType -> T.Text -> IO (S.Either Doc Statement) )
-         -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either Doc T.Text))
+         -> ( TopLevelType -> T.Text -> IO (S.Either PrettyError Statement) )
+         -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
          -> MStats
          -> HieraQueryFunc IO
          -> T.Text
          -> Facts
-         -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+         -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
     traceEventIO ("START gCatalog " <> T.unpack ndename)
@@ -117,7 +117,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
     return stmts
 
-parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either Doc Statement)
+parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
 parseFunction prefs filecache stats topleveltype toplevelname =
     case compileFileList prefs topleveltype toplevelname of
         S.Left rr -> return (S.Left rr)
@@ -128,11 +128,11 @@ parseFunction prefs filecache stats topleveltype toplevelname =
             x <- measure stats fname (query filecache sfname (parseFile sfname `catch` handleFailure))
             case x of
                 S.Right stmts -> filterStatements topleveltype toplevelname stmts
-                S.Left rr -> return (S.Left (red (text rr)))
+                S.Left rr -> return (S.Left (PrettyError (red (text rr))))
 
 -- TODO this is wrong, see
 -- http://docs.puppetlabs.com/puppet/3/reference/lang_namespaces.html#behavior
-compileFileList :: Preferences IO -> TopLevelType -> T.Text -> S.Either Doc T.Text
+compileFileList :: Preferences IO -> TopLevelType -> T.Text -> S.Either PrettyError T.Text
 compileFileList prefs TopNode _ = S.Right (T.pack (prefs ^. manifestPath) <> "/site.pp")
 compileFileList prefs _ name = moduleInfo
     where

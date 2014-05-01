@@ -85,7 +85,7 @@ run cmdl = do
                    (Just l, PDBTest)   -> loadTestDB l
                    (_, x)              -> getDefaultDB x
     pdbapi <- case epdbapi of
-                  S.Left r -> error (show r)
+                  S.Left r -> error (show (getError r))
                   S.Right x -> return x
     let getOrError s (S.Left rr) = error (s <> " " <> show rr)
         getOrError _ (S.Right x) = return x

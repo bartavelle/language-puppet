@@ -71,14 +71,14 @@ parameterfunctions =
     ,("uninstall_options", [rarray])
     ]
 
-getFeature :: Resource -> Either Doc (HS.HashSet PackagingFeatures, Resource)
+getFeature :: Resource -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
 getFeature res = case res ^. rattributes . at "provider" of
                      Just (PString x) -> case HM.lookup x isFeatureSupported of
                                                     Just s -> Right (s,res)
-                                                    Nothing -> Left ("Do not know provider" <+> ttext x)
+                                                    Nothing -> Left $ PrettyError ("Do not know provider" <+> ttext x)
                      _ -> Left "Can't happen at Puppet.NativeTypes.Package"
 
-checkFeatures :: (HS.HashSet PackagingFeatures, Resource) -> Either Doc Resource
+checkFeatures :: (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError Resource
 checkFeatures =
         checkAdminFile
         >=> checkEnsure
@@ -86,17 +86,17 @@ checkFeatures =
         >=> checkParam "uninstall_options" UninstallOptions
         >=> decap
     where
-        checkFeature :: HS.HashSet PackagingFeatures -> Resource -> PackagingFeatures -> Either Doc (HS.HashSet PackagingFeatures, Resource)
+        checkFeature :: HS.HashSet PackagingFeatures -> Resource -> PackagingFeatures -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
         checkFeature s r f = if HS.member f s
                                  then Right (s, r)
-                                 else Left ("Feature" <+> text (show f) <+> "is required for the current configuration")
-        checkParam :: T.Text -> PackagingFeatures -> (HS.HashSet PackagingFeatures, Resource) -> Either Doc (HS.HashSet PackagingFeatures, Resource)
+                                 else Left $ PrettyError ("Feature" <+> text (show f) <+> "is required for the current configuration")
+        checkParam :: T.Text -> PackagingFeatures -> (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
         checkParam pn f (s,r) = if has (ix pn) (r ^. rattributes)
                                     then checkFeature s r f
                                     else Right (s,r)
-        checkAdminFile :: (HS.HashSet PackagingFeatures, Resource) -> Either Doc (HS.HashSet PackagingFeatures, Resource)
+        checkAdminFile :: (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
         checkAdminFile = Right -- TODO, check that it only works for aix
-        checkEnsure :: (HS.HashSet PackagingFeatures, Resource) -> Either Doc (HS.HashSet PackagingFeatures, Resource)
+        checkEnsure :: (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
         checkEnsure (s, res) = case res ^. rattributes . at "ensure" of
                                    Just (PString "latest")    -> checkFeature s res Installable >> checkFeature s res Versionable
                                    Just (PString "purged")    -> checkFeature s res Purgeable
@@ -105,7 +105,7 @@ checkFeatures =
                                    Just (PString "present")   -> checkFeature s res Installable
                                    Just (PString "held")      -> checkFeature s res Installable >> checkFeature s res Holdable
                                    _ -> Right (s, res)
-        decap :: (HS.HashSet PackagingFeatures, Resource) -> Either Doc Resource
+        decap :: (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError Resource
         decap = Right . snd
 
 validatePackage :: PuppetTypeValidate

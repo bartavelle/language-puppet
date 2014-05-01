@@ -32,24 +32,24 @@ validateHost = defaultValidate parameterset >=> parameterFunctions parameterfunc
 
 checkhostname :: T.Text -> PuppetTypeValidate
 checkhostname param res = case res ^. rattributes . at param of
-    Nothing                   -> Right res
+    Nothing            -> Right res
     Just (PArray xs)   -> V.foldM (checkhostname' param) res xs
     Just x@(PString _) -> checkhostname' param res x
-    Just x                    -> Left $ paramname param <+> "should be an array or a single string, not" <+> pretty x
+    Just x             -> perror $ paramname param <+> "should be an array or a single string, not" <+> pretty x
 
-checkhostname' :: T.Text -> Resource -> PValue -> Either Doc Resource
-checkhostname' prm _   (PString "") = Left $ "Empty hostname for parameter" <+> paramname prm
+checkhostname' :: T.Text -> Resource -> PValue -> Either PrettyError Resource
+checkhostname' prm _   (PString "") = perror $ "Empty hostname for parameter" <+> paramname prm
 checkhostname' prm res (PString x ) = checkhostname'' prm res x
-checkhostname' prm _   x            = Left $ "Parameter " <+> paramname prm <+> "should be an string or an array of strings, but this was found :" <+> pretty x
+checkhostname' prm _   x            = perror $ "Parameter " <+> paramname prm <+> "should be an string or an array of strings, but this was found :" <+> pretty x
 
-checkhostname'' :: T.Text -> Resource -> T.Text -> Either Doc Resource
-checkhostname'' prm _   "" = Left $ "Empty hostname part in parameter" <+> paramname prm
+checkhostname'' :: T.Text -> Resource -> T.Text -> Either PrettyError Resource
+checkhostname'' prm _   "" = perror $ "Empty hostname part in parameter" <+> paramname prm
 checkhostname'' prm res prt =
     let (cur,nxt) = T.break (=='.') prt
         nextfunc = if T.null nxt
                         then Right res
                         else checkhostname'' prm res (T.tail nxt)
     in if T.null cur || (T.head cur == '-') || not (T.all (\x -> isAlphaNum x || (x=='-')) cur)
-            then Left $ "Invalid hostname part for parameter" <+> paramname prm
+            then perror $ "Invalid hostname part for parameter" <+> paramname prm
             else nextfunc
 

@@ -39,10 +39,10 @@ pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy template
         templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
         templatedummy (Left cnt) ctx scope =
             return $ case parseErbString (T.unpack cnt) of
-                         Left rr -> S.Left (text (show rr))
+                         Left rr -> S.Left (PrettyError (text (show rr)))
                          Right stmts -> case rubyEvaluate scope ctx stmts of
                                             Right x -> S.Right x
-                                            Left rr -> S.Left rr
+                                            Left rr -> S.Left (PrettyError rr)
         hieradummy _ _ _ = return (S.Right (mempty :!: S.Nothing))
         getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
                                                Just x -> S.Right x
@@ -52,7 +52,7 @@ pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy template
 pureEval :: Facts -- ^ A list of facts that will be used during evaluation
          ->  HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level map
          -> InterpreterMonad a -- ^ The action to evaluate
-         -> (Either Doc a, InterpreterState, InterpreterWriter)
+         -> (Either PrettyError a, InterpreterState, InterpreterWriter)
 pureEval facts sttmap action = runIdentity (interpretMonad (pureReader sttmap) startingState action)
     where
         startingState = initialState facts
@@ -140,5 +140,5 @@ dummyFacts = HM.fromList $
         ]
 
 -- | A default evaluation function for arbitrary interpreter actions.
-dummyEval :: InterpreterMonad a -> Either Doc a
+dummyEval :: InterpreterMonad a -> Either PrettyError a
 dummyEval action = pureEval dummyFacts mempty action ^. _1

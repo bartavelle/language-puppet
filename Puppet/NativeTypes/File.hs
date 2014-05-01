@@ -47,7 +47,7 @@ validateMode :: PuppetTypeValidate
 validateMode res = do
     modestr <- case res ^. rattributes . at "mode" of
                   Just (PString s) -> return s
-                  Just x -> throwError ("Invalide mode type, should be a string " <+> pretty x)
+                  Just x -> throwError $ PrettyError ("Invalide mode type, should be a string " <+> pretty x)
                   Nothing -> throwError "Could not find mode!"
     when ((T.length modestr /= 3) && (T.length modestr /= 4)) (throwError "Invalid mode size")
     unless (T.all isDigit modestr) (throwError "The mode should only be made of digits")
@@ -61,11 +61,11 @@ validateSourceOrContent res = let
     source    = HM.member "source"  parammap
     content   = HM.member "content" parammap
     in if source && content
-        then Left "Source and content can't be specified at the same time"
+        then perror "Source and content can't be specified at the same time"
         else Right res
 
 checkSource :: T.Text -> PValue -> PuppetTypeValidate
 checkSource _ (PString x) res | "puppet://" `T.isPrefixOf` x = Right res
                               | "file://" `T.isPrefixOf` x = Right res
                               | otherwise = throwError "A source should start with either puppet:// or file://"
-checkSource _ x _ = throwError ("Expected a string, not" <+> pretty x)
+checkSource _ x _ = throwError $ PrettyError ("Expected a string, not" <+> pretty x)

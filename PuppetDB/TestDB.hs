@@ -39,10 +39,10 @@ instance ToJSON DBContent where
     toJSON (DBContent r f _) = object [("resources", toJSON r), ("facts", toJSON f)]
 
 -- | Initializes the test DB using a file to back its content
-loadTestDB :: FilePath -> IO (S.Either Doc (PuppetDBAPI IO))
+loadTestDB :: FilePath -> IO (S.Either PrettyError (PuppetDBAPI IO))
 loadTestDB fp =
     decodeFileEither fp >>= \case
-        Left (OtherParseException rr) -> return (S.Left (string (show rr)))
+        Left (OtherParseException rr) -> return (S.Left (PrettyError (string (show rr))))
         Left (InvalidYaml Nothing) -> baseError "Unknown error"
         Left (InvalidYaml (Just (YamlException s))) -> if take 21 s == "Yaml file not found: "
                                                           then newFile
@@ -51,7 +51,7 @@ loadTestDB fp =
         Left _ -> newFile
         Right x -> fmap S.Right (genDBAPI (x & backingFile ?~ fp ))
     where
-        baseError r = return $ S.Left $ "Could not parse" <+> string fp <> ":" <+> r
+        baseError r = return $ S.Left $ PrettyError $ "Could not parse" <+> string fp <> ":" <+> r
         newFile = S.Right <$> genDBAPI (newDB & backingFile ?~ fp )
 
 -- | Starts a new PuppetDB, without any backing file.
@@ -108,21 +108,21 @@ ncompare operation f a i v = case f a v of
                                                  _ -> False
                                  _ -> False
 
-mustWork :: IO () -> IO (S.Either Doc ())
+mustWork :: IO () -> IO (S.Either PrettyError ())
 mustWork a = a >> return (S.Right ())
 
-replCat :: DB -> WireCatalog -> IO (S.Either Doc ())
+replCat :: DB -> WireCatalog -> IO (S.Either PrettyError ())
 replCat db wc = mustWork $ atomically $ modifyTVar db (resources . at (wc ^. nodename) ?~ wc)
 
-replFacts :: DB -> [(Nodename, Facts)] -> IO (S.Either Doc ())
+replFacts :: DB -> [(Nodename, Facts)] -> IO (S.Either PrettyError ())
 replFacts db lst = mustWork $ atomically $ modifyTVar db $
                     facts %~ (\r -> foldl' (\curr (n,f) -> curr & at n ?~ f) r lst)
 
-deactivate :: DB -> Nodename -> IO (S.Either Doc ())
+deactivate :: DB -> Nodename -> IO (S.Either PrettyError ())
 deactivate db n = mustWork $ atomically $ modifyTVar db $
                     (resources . at n .~ Nothing) . (facts . at n .~ Nothing)
 
-getFcts :: DB -> Query FactField -> IO (S.Either Doc [PFactInfo])
+getFcts :: DB -> Query FactField -> IO (S.Either PrettyError [PFactInfo])
 getFcts db f = fmap (S.Right . filter (resolveQuery factQuery f) . toFactInfo) (readTVarIO db)
     where
         toFactInfo :: DBContent -> [PFactInfo]
@@ -153,25 +153,25 @@ resourceQuery RExported r = if r ^. rvirtuality == Exported
 resourceQuery RFile r = r ^. rpos . _1 . to sourceName . to T.pack . to EText
 resourceQuery RLine r = r ^. rpos . _1 . to sourceLine . to show . to T.pack . to EText
 
-getRes :: DB -> Query ResourceField -> IO (S.Either Doc [Resource])
+getRes :: DB -> Query ResourceField -> IO (S.Either PrettyError [Resource])
 getRes db f = fmap (S.Right . filter (resolveQuery resourceQuery f) . toResources) (readTVarIO db)
     where
         toResources :: DBContent -> [Resource]
         toResources = concatMap (V.toList . view wResources) .  HM.elems . view resources
 
-getResNode :: DB -> Nodename -> Query ResourceField -> IO (S.Either Doc [Resource])
+getResNode :: DB -> Nodename -> Query ResourceField -> IO (S.Either PrettyError [Resource])
 getResNode db nn f = do
     c <- readTVarIO db
     return $ case c ^. resources . at nn of
                  Just cnt -> S.Right $ filter (resolveQuery resourceQuery f) $ V.toList $ cnt ^. wResources
                  Nothing -> S.Left "Unknown node"
 
-commit :: DB -> IO (S.Either Doc ())
+commit :: DB -> IO (S.Either PrettyError ())
 commit db = do
     dbc <- atomically $ readTVar db
     case dbc ^. backingFile of
         Nothing -> return (S.Left "No backing file defined")
         Just bf -> fmap S.Right (encodeFile bf dbc) `catches` [ ]
 
-getNds :: DB -> Query NodeField -> IO (S.Either Doc [PNodeInfo])
+getNds :: DB -> Query NodeField -> IO (S.Either PrettyError [PNodeInfo])
 getNds _ _ = return (S.Left "getNds not implemented")

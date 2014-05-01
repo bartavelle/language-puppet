@@ -17,7 +17,7 @@ import qualified Data.Either.Strict as S
 import qualified Data.HashMap.Strict as HM
 
 -- TODO pre-triage stuff
-filterStatements :: TopLevelType -> T.Text -> V.Vector Statement -> IO (S.Either Doc Statement)
+filterStatements :: TopLevelType -> T.Text -> V.Vector Statement -> IO (S.Either PrettyError Statement)
 -- the most complicated case, node matching
 filterStatements TopNode ndename stmts =
     -- this operation should probably get cached
@@ -27,11 +27,11 @@ filterStatements TopNode ndename stmts =
         triage curstuff n@(Node  NodeDefault _  _ _) = curstuff & _4 ?~ n
         triage curstuff x = curstuff & _1 %~ (|> x)
         bsnodename = T.encodeUtf8 ndename
-        checkRegexp :: [Pair Regex Statement] -> ErrorT Doc IO (Maybe Statement)
+        checkRegexp :: [Pair Regex Statement] -> ErrorT PrettyError IO (Maybe Statement)
         checkRegexp [] = return Nothing
         checkRegexp ((regexp :!: s):xs) = do
             case execute' regexp bsnodename of
-                Left rr -> throwError ("Regexp match error:" <+> text (show rr))
+                Left rr -> throwError (PrettyError ("Regexp match error:" <+> text (show rr)))
                 Right Nothing -> checkRegexp xs
                 Right (Just _) -> return (Just s)
         strictEither (Left x) = S.Left x
@@ -42,7 +42,7 @@ filterStatements TopNode ndename stmts =
                 regexpMatchM <- checkRegexp (V.toList regexpmatches) -- match regexps
                 case regexpMatchM <|> defaultnode of -- check for regexp matches or use the default node
                     Just r -> return (TopContainer spurious r)
-                    Nothing -> throwError ("Couldn't find node" <+> ttext ndename)
+                    Nothing -> throwError (PrettyError ("Couldn't find node" <+> ttext ndename))
 filterStatements x ndename stmts =
     let (!spurious, !defines, !classes) = V.foldl' triage (V.empty, HM.empty, HM.empty) stmts
         triage curstuff n@(ClassDeclaration cname _ _ _ _) = curstuff & _3 . at cname ?~ n
@@ -56,7 +56,7 @@ filterStatements x ndename stmts =
             TopSpurious -> return (S.Left "Should not ask for a TopSpurious!!!")
             TopDefine -> case defines ^. at ndename of
                              Just n -> return (S.Right (tc n))
-                             Nothing -> return (S.Left ("Couldn't find define " <+> ttext ndename))
+                             Nothing -> return (S.Left (PrettyError ("Couldn't find define " <+> ttext ndename)))
             TopClass -> case classes ^. at ndename of
                             Just n -> return (S.Right (tc n))
-                            Nothing -> return (S.Left ("Couldn't find class " <+> ttext ndename))
+                            Nothing -> return (S.Left (PrettyError ("Couldn't find class " <+> ttext ndename)))

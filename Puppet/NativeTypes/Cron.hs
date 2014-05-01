@@ -43,7 +43,7 @@ vrange mi ma valuelist param res = case res ^. rattributes . at param of
     Just x                    -> vrange' mi ma valuelist param res x
     Nothing                   -> defaultvalue "*" param res
 
-vrange' :: Integer -> Integer -> [T.Text] -> T.Text -> Resource -> PValue -> Either Doc Resource
+vrange' :: Integer -> Integer -> [T.Text] -> T.Text -> Resource -> PValue -> Either PrettyError Resource
 vrange' mi ma valuelist param res y = case y of
     PString "*"      -> Right res
     PString "absent" -> Right res
@@ -51,7 +51,7 @@ vrange' mi ma valuelist param res y = case y of
     PString x -> if x `elem` valuelist
         then Right res
         else parseval x mi ma param res
-    x  -> Left $ "Parameter" <+> paramname param <+> "value should be a valid cron declaration and not" <+> pretty x
+    x  -> perror $ "Parameter" <+> paramname param <+> "value should be a valid cron declaration and not" <+> pretty x
 
 parseval :: T.Text -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 parseval resval mi ma pname res | "*/" `T.isPrefixOf` resval = checkint (T.drop 2 resval)  1 ma pname res
@@ -61,10 +61,10 @@ checkint :: T.Text -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 checkint st mi ma pname res =
     case text2Scientific st of
         Just n  -> checkint' n mi ma pname res
-        Nothing -> Left $ "Invalid value type for parameter" <+> paramname pname <+> ": " <+> red (ttext st)
+        Nothing -> perror $ "Invalid value type for parameter" <+> paramname pname <+> ": " <+> red (ttext st)
 
 checkint' :: Scientific -> Integer -> Integer -> T.Text -> PuppetTypeValidate
 checkint' i mi ma param res =
     if (i >= fromIntegral mi) && (i <= fromIntegral ma)
         then Right res
-        else Left $ "Parameter" <+> paramname param <+> "value is out of bound, should satisfy" <+> P.integer mi <+> "<=" <+> P.string (show i) <+> "<=" <+> P.integer ma
+        else perror $ "Parameter" <+> paramname param <+> "value is out of bound, should satisfy" <+> P.integer mi <+> "<=" <+> P.string (show i) <+> "<=" <+> P.integer ma

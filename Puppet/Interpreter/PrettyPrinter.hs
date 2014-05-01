@@ -130,7 +130,7 @@ instance Pretty (InterpreterInstr a) where
     pretty GetNodeName                 = pf "GetNodeName" []
     pretty (HieraQuery _ q _)          = pf "HieraQuery" [ttext q]
     pretty GetCurrentCallStack         = pf "GetCurrentCallStack" []
-    pretty (ErrorThrow rr)             = pf "ErrorThrow" [rr]
+    pretty (ErrorThrow rr)             = pf "ErrorThrow" [getError rr]
     pretty (ErrorCatch _ _)            = pf "ErrorCatch" []
     pretty (WriterTell t)              = pf "WriterTell" (map (pretty . view _2) t)
     pretty (WriterPass _)              = pf "WriterPass" []

@@ -165,32 +165,32 @@ hTestFileSources = do
     pdir <- view lPuppetdir
     forM_ files $ \(r,filesource) -> it ("should have a source for " ++ r ^. rid . iname . to T.unpack) $ do
         let
-            testFile :: FilePath -> ErrorT Doc IO ()
-            testFile fp = liftIO (fileExist fp) >>= (`unless` (throwError $ "Searched in" <+> string fp))
-            checkFile :: PValue -> ErrorT Doc IO ()
-            checkFile res@(PArray ar) = asum [checkFile x | x <- toList ar] <|> throwError ("Could not find the file in" <+> pretty res)
+            testFile :: FilePath -> ErrorT PrettyError IO ()
+            testFile fp = liftIO (fileExist fp) >>= (`unless` (throwError $ PrettyError $ "Searched in" <+> string fp))
+            checkFile :: PValue -> ErrorT PrettyError IO ()
+            checkFile res@(PArray ar) = asum [checkFile x | x <- toList ar] <|> throwError (PrettyError $ "Could not find the file in" <+> pretty res)
             checkFile (PString f) =
                 case (T.stripPrefix "puppet:///" f, T.stripPrefix "file:///" f) of
                     (Just stringdir, _) -> case T.splitOn "/" stringdir of
                                                ("modules":modulename:rest) -> testFile (pdir <> "/modules/" <> T.unpack modulename <> "/files/" <> T.unpack (T.intercalate "/" rest))
                                                ("files":rest) -> testFile (pdir <> "/files/" <> T.unpack (T.intercalate "/" rest))
                                                ("private":_) -> return ()
-                                               _ -> throwError ("Invalid file source:" <+> ttext f)
+                                               _ -> throwError (PrettyError $ "Invalid file source:" <+> ttext f)
                     (Nothing, Just _) -> return ()
-                    _ -> throwError ("The source does not start with puppet:///, but is" <+> ttext f)
-            checkFile x = throwError ("Source was not a string, but" <+> pretty x)
+                    _ -> throwError (PrettyError $ "The source does not start with puppet:///, but is" <+> ttext f)
+            checkFile x = throwError (PrettyError $ "Source was not a string, but" <+> pretty x)
         return $ do
             rs <- runErrorT (checkFile filesource)
             case rs of
                 Right () -> return ()
-                Left rr -> fail (show rr)
+                Left rr -> fail (show (getError rr))
 
 -- | Initializes a daemon made for running tests, using the specific test
 -- puppetDB
 testingDaemon :: PuppetDBAPI IO -- ^ Contains the puppetdb API functions
               -> FilePath -- ^ Path to the manifests
               -> (T.Text -> IO Facts) -- ^ The facter function
-              -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
+              -> IO (T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
 testingDaemon pdb pdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
     prefs <- genPreferences pdir
@@ -198,10 +198,10 @@ testingDaemon pdb pdir allFacts = do
     return (\nodname -> allFacts nodname >>= _dGetCatalog q nodname)
 
 -- | A default testing daemon.
-defaultDaemon :: FilePath -> IO (T.Text -> IO (S.Either Doc (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
+defaultDaemon :: FilePath -> IO (T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
 defaultDaemon pdir = do
     pdb <- getDefaultDB PDBTest >>= \case
-                S.Left x -> error (show x)
+                S.Left x -> error (show (getError x))
                 S.Right y -> return y
     testingDaemon pdb pdir (flip puppetDBFacts pdb)
 

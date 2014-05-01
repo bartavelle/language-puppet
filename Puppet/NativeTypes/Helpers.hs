@@ -25,6 +25,7 @@ module Puppet.NativeTypes.Helpers
     , faketype
     , defaulttype
     , runarray
+    , perror
     ) where
 
 import Puppet.PP hiding (string,integer)
@@ -46,6 +47,10 @@ type PuppetTypeName = T.Text
 paramname :: T.Text -> Doc
 paramname = red . ttext
 
+-- | Useful helper for buiding error messages
+perror :: Doc -> Either PrettyError Resource
+perror = Left . PrettyError
+
 faketype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 faketype tname = (tname, PuppetTypeMethods Right HS.empty)
 
@@ -62,7 +67,7 @@ checkParameterList :: HS.HashSet T.Text -> PuppetTypeValidate
 checkParameterList validparameters res | HS.null validparameters = Right res
                                        | otherwise = if HS.null setdiff
                                             then Right res
-                                            else Left $ "Unknown parameters: " <+> list (map paramname $ HS.toList setdiff)
+                                            else perror $ "Unknown parameters: " <+> list (map paramname $ HS.toList setdiff)
     where
         keyset = HS.fromList $ HM.keys (res ^. rattributes)
         setdiff = HS.difference keyset (metaparameters `HS.union` validparameters)
@@ -80,7 +85,7 @@ addDefaults res = Right (res & rattributes %~ newparams)
 runarray :: T.Text -> (T.Text -> PValue -> PuppetTypeValidate) -> PuppetTypeValidate
 runarray param func res = case res ^. rattributes . at param of
     Just (PArray x) -> V.foldM (flip (func param)) res x
-    Just x          -> Left $ "Parameter" <+> paramname param <+> "should be an array, not" <+> pretty x
+    Just x          -> perror $ "Parameter" <+> paramname param <+> "should be an array, not" <+> pretty x
     Nothing         -> Right res
 
 {-| This checks that a given parameter is a string. If it is a 'ResolvedInt' or
@@ -100,15 +105,15 @@ string' param rev res = case rev of
     PBoolean True  -> Right (res & rattributes . at param ?~ PString "true")
     PBoolean False -> Right (res & rattributes . at param ?~ PString "false")
     PNumber n      -> Right (res & rattributes . at param ?~ PString (scientific2text n))
-    x              -> Left $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
+    x              -> perror $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
 
 -- | Makes sure that the parameter, if defined, has a value among this list.
 values :: [T.Text] -> T.Text -> PuppetTypeValidate
 values valuelist param res = case res ^. rattributes . at param of
     Just (PString x) -> if x `elem` valuelist
         then Right res
-        else Left $ "Parameter" <+> paramname param <+> "value should be one of" <+> list (map ttext valuelist) <+> "and not" <+> ttext x
-    Just x  -> Left $ "Parameter" <+> paramname param <+> "value should be one of" <+> list (map ttext valuelist) <+> "and not" <+> pretty x
+        else perror $ "Parameter" <+> paramname param <+> "value should be one of" <+> list (map ttext valuelist) <+> "and not" <+> ttext x
+    Just x  -> perror $ "Parameter" <+> paramname param <+> "value should be one of" <+> list (map ttext valuelist) <+> "and not" <+> pretty x
     Nothing -> Right res
 
 -- | This fills the default values of unset parameters.
@@ -132,7 +137,7 @@ integers param = runarray param integer''
 integer'' :: T.Text -> PValue -> PuppetTypeValidate
 integer'' param val res = case val ^? _Integer of
     Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
-    _ -> Left $ "Parameter" <+> paramname param <+> "must be an integer"
+    _ -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
 
 -- | Copies the "name" value into the parameter if this is not set. It implies
 -- the `string` validator.
@@ -140,7 +145,7 @@ nameval :: T.Text -> PuppetTypeValidate
 nameval prm res = string prm res
                     >>= \r -> case r ^. rattributes . at prm of
                                   Just (PString al) -> Right (res & rid . iname .~ al)
-                                  Just x -> Left ("The alias must be a string, not" <+> pretty x)
+                                  Just x -> perror ("The alias must be a string, not" <+> pretty x)
                                   Nothing -> Right (r & rattributes . at prm ?~ PString (r ^. rid . iname))
 
 -- | Checks that a given parameter is set unless the resources "ensure" is set to absent
@@ -149,21 +154,21 @@ mandatoryIfNotAbsent param res = case res ^. rattributes . at param of
     Just _  -> Right res
     Nothing -> case res ^. rattributes . at "ensure" of
                    Just "absent" -> Right res
-                   _ -> Left $ "Parameter" <+> paramname param <+> "should be set."
+                   _ -> perror $ "Parameter" <+> paramname param <+> "should be set."
 
 -- | Checks that a given parameter is set.
 mandatory :: T.Text -> PuppetTypeValidate
 mandatory param res = case res ^. rattributes . at param of
     Just _  -> Right res
-    Nothing -> Left $ "Parameter" <+> paramname param <+> "should be set."
+    Nothing -> perror $ "Parameter" <+> paramname param <+> "should be set."
 
 -- | Helper that takes a list of stuff and will generate a validator.
 parameterFunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])] -> PuppetTypeValidate
 parameterFunctions argrules rs = foldM parameterFunctions' rs argrules
     where
-    parameterFunctions' :: Resource -> (T.Text, [T.Text -> PuppetTypeValidate]) -> Either Doc Resource
+    parameterFunctions' :: Resource -> (T.Text, [T.Text -> PuppetTypeValidate]) -> Either PrettyError Resource
     parameterFunctions' r (param, validationfunctions) = foldM (parameterFunctions'' param) r validationfunctions
-    parameterFunctions'' :: T.Text -> Resource -> (T.Text -> PuppetTypeValidate) -> Either Doc Resource
+    parameterFunctions'' :: T.Text -> Resource -> (T.Text -> PuppetTypeValidate) -> Either PrettyError Resource
     parameterFunctions'' param r validationfunction = validationfunction param r
 
 -- checks that a parameter is fully qualified
@@ -175,7 +180,7 @@ fullyQualified param res = case res ^. rattributes . at param of
 noTrailingSlash :: T.Text -> PuppetTypeValidate
 noTrailingSlash param res = case res ^. rattributes . at param of
      Just (PString x) -> if T.last x == '/'
-                                    then Left ("Parameter" <+> paramname param <+> "should not have a trailing slash")
+                                    then perror ("Parameter" <+> paramname param <+> "should not have a trailing slash")
                                     else Right res
      _ -> Right res
 
@@ -184,11 +189,11 @@ fullyQualifieds param = runarray param fullyQualified'
 
 fullyQualified' :: T.Text -> PValue -> PuppetTypeValidate
 fullyQualified' param path res = case path of
-    PString ("")    -> Left $ "Empty path for parameter" <+> paramname param
+    PString ("")    -> perror $ "Empty path for parameter" <+> paramname param
     PString p -> if T.head p == '/'
                             then Right res
-                            else Left $ "Path must be absolute, not" <+> ttext p <+> "for parameter" <+> paramname param
-    x                -> Left $ "SHOULD NOT HAPPEN: path is not a resolved string, but" <+> pretty x <+> "for parameter" <+> paramname param
+                            else perror $ "Path must be absolute, not" <+> ttext p <+> "for parameter" <+> paramname param
+    x                -> perror $ "SHOULD NOT HAPPEN: path is not a resolved string, but" <+> pretty x <+> "for parameter" <+> paramname param
 
 rarray :: T.Text -> PuppetTypeValidate
 rarray param res = case res ^. rattributes . at param of
@@ -202,8 +207,8 @@ ipaddr param res = case res ^. rattributes . at param of
     Just (PString ip) ->
         if checkipv4 ip 0
             then Right res
-            else Left $ "Invalid IP address for parameter" <+> paramname param
-    Just x -> Left $ "Parameter" <+> paramname param <+> "should be an IP address string, not" <+> pretty x
+            else perror $ "Invalid IP address for parameter" <+> paramname param
+    Just x -> perror $ "Parameter" <+> paramname param <+> "should be an IP address string, not" <+> pretty x
 
 checkipv4 :: T.Text -> Int -> Bool
 checkipv4 _  4 = False -- means that there are more than 4 groups
@@ -224,6 +229,6 @@ inrange mi ma param res =
         (Nothing, _)       -> Right res
         (_,Just v)  -> if (v >= fromIntegral mi) && (v <= fromIntegral ma)
                            then Right res
-                           else Left $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
-        (Just x,_)         -> Left $ "Parameter" <+> paramname param <+> "should be an integer, and not" <+> pretty x
+                           else perror $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
+        (Just x,_)         -> perror $ "Parameter" <+> paramname param <+> "should be an integer, and not" <+> pretty x
 
