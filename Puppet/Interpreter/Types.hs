@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveGeneric, TemplateHaskell, CPP, ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase, FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Puppet.Interpreter.Types where
 
 import Puppet.Parser.Types
