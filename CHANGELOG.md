@@ -6,6 +6,7 @@
 * `Num` and `Fractional` instances for `Expression`.
 * Numbers are now internally stored as numbers, just like the new parser does.
 * Add support for "structured facts".
+* New stdlib functions: `is_hash`, `has_key`, `size`, `values`.
 ## Bugs fixed
 * Puppetresources does not fail tests for file sources starting with `file://`.
 * Escaped characters were not properly handled in the parser.

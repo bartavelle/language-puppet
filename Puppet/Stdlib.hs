@@ -40,11 +40,14 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "is_array" isArray
                               , singleArgument "is_domain_name" isDomainName
                               , singleArgument "is_integer" isInteger
+                              , singleArgument "is_hash" isHash
                               , singleArgument "is_string" isString
                               , singleArgument "keys" keys
+                              , ("has_key", hasKey)
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("merge", merge)
                               , ("rstrip", stringArrayFunction T.stripEnd)
+                              , singleArgument "size" size
                               , singleArgument "str2bool" str2Bool
                               , ("strip", stringArrayFunction T.strip)
                               , ("upcase", stringArrayFunction T.toUpper)
@@ -54,6 +57,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("validate_hash", validateHash)
                               , ("validate_re", validateRe)
                               , ("validate_string", validateString)
+                              , singleArgument "values" pvalues
                               ]
 
 singleArgument :: T.Text -> (PValue -> InterpreterMonad PValue) -> (T.Text, [PValue] -> InterpreterMonad PValue )
@@ -204,6 +208,9 @@ isDomainName s = do
 isInteger :: PValue -> InterpreterMonad PValue
 isInteger = return . PBoolean . has _Integer
 
+isHash :: PValue -> InterpreterMonad PValue
+isHash = return . PBoolean . has _PHash
+
 isString :: PValue -> InterpreterMonad PValue
 isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
                                      (_, Just _) -> False
@@ -214,10 +221,22 @@ keys :: PValue -> InterpreterMonad PValue
 keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)
 keys x = throwPosError ("keys(): Expects a Hash, not" <+> pretty x)
 
+hasKey :: [PValue] -> InterpreterMonad PValue
+hasKey [PHash h, k] = do
+    k' <- resolvePValueString k
+    return (PBoolean (has (ix k') h))
+hasKey [a, _] = throwPosError ("has_key(): expected a Hash, not" <+> pretty a)
+hasKey _ = throwPosError ("has_key(): expected two arguments.")
+
 merge :: [PValue] -> InterpreterMonad PValue
 merge [PHash a, PHash b] = return (PHash (b `HM.union` a))
 merge [a,b] = throwPosError ("merge(): Expects two hashes, not" <+> pretty a <+> pretty b)
 merge _ = throwPosError "merge(): Expects two hashes"
+
+size :: PValue -> InterpreterMonad PValue
+size (PHash h) = return (_Integer # fromIntegral (HM.size h))
+size (PArray v) = return (_Integer # fromIntegral (V.length v))
+size x = throwPosError ("size(): Expects a hash, not" <+> pretty x)
 
 str2Bool :: PValue -> InterpreterMonad PValue
 str2Bool PUndef = return (PBoolean False)
@@ -274,3 +293,7 @@ validateRe _ = throwPosError "validate_re(): wrong number of arguments (#{args.l
 validateString :: [PValue] -> InterpreterMonad PValue
 validateString [] = throwPosError "validate_string(): wrong number of arguments, must be > 0"
 validateString x = mapM_ resolvePValueString x >> return PUndef
+
+pvalues :: PValue -> InterpreterMonad PValue
+pvalues (PHash h) = return $ PArray (V.fromList (h ^.. traverse))
+pvalues x = throwPosError ("values(): expected a hash, not" <+> pretty x)
