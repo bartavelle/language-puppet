@@ -616,6 +616,8 @@ loadClass rclassname loadedfrom params cincludetype = do
                     pushScope scopedesc
                     -- not done through loadvariable because of override
                     -- errors
+                    loadVariable "title" (PString classname)
+                    loadVariable "name" (PString classname)
                     loadParameters params classParams cp (S.Just classname)
                     curPos .= cp
                     res <- evaluateStatementsVector stmts

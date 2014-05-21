@@ -310,6 +310,9 @@ expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- htt
                   , [ Infix  ( operator' "=="  >> return Equal     ) AssocLeft
                     , Infix  ( operator' "!="  >> return Different ) AssocLeft
                     ]
+                  , [ Infix  ( operator' "=~"  >> return RegexMatch    ) AssocLeft
+                    , Infix  ( operator' "!~"  >> return NotRegexMatch ) AssocLeft
+                    ]
                   , [ Infix  ( operator' ">="  >> return MoreEqualThan ) AssocLeft
                     , Infix  ( operator' "<="  >> return LessEqualThan ) AssocLeft
                     , Infix  ( operator' ">"   >> return MoreThan      ) AssocLeft
@@ -317,9 +320,6 @@ expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- htt
                     ]
                   , [ Infix  ( reserved' "and" >> return And ) AssocLeft
                     , Infix  ( reserved' "or"  >> return Or  ) AssocLeft
-                    ]
-                  , [ Infix  ( operator' "=~"  >> return RegexMatch    ) AssocLeft
-                    , Infix  ( operator' "!~"  >> return NotRegexMatch ) AssocLeft
                     ]
                   ]
     where

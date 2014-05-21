@@ -1,4 +1,4 @@
-# v0.13.0 ()
+# v0.13.0 (2014/05/21)
 ## New featues
 * Hacky support for `scope.get_hash`.
 * New stuff from the new parser (adding hashes, arrays, etc.).
@@ -12,6 +12,9 @@
 * Escaped characters were not properly handled in the parser.
 * Properly catch division by 0 (!!!!).
 * Got rid of the orphan instances ... code is now a lot uglier.
+* Fixed settings of "title" and "name" in classes. The original puppet version
+  only seems to do this when we declare in define style :(
+* Fixed associativity priority between `=~` and `and`.
 
 # v0.12.3 (2014/03/13)
 ## New featues
