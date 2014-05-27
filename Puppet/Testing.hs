@@ -89,7 +89,7 @@ usersGroupsDefined = do
     let getResourceType t = c ^.. traverse . filtered (\r -> r ^. rid . itype == t && r ^. rattributes . at "ensure" /= Just "absent")
         users = getResourceType "user"
         groups = getResourceType "group"
-        knownUsers = HS.fromList $ map (view (rid . iname)) users ++ ["root","","syslog","mysql","puppet"]
+        knownUsers = HS.fromList $ map (view (rid . iname)) users ++ ["root","","syslog","mysql","puppet","vagrant","nginx"]
         knownGroups = HS.fromList $ map (view (rid . iname)) groups ++ ["root", "adm", "syslog", "mysql", "nagios","puppet",""]
         checkResource lensU lensG = mapM_ (checkResource' lensU lensG)
         checkResource' lensU lensG res = do
