@@ -104,7 +104,7 @@ fversion = return [("facterversion", "0.1"),("environment","test")]
 
 factUser :: IO [(String, String)]
 factUser = do
-    username <- getLoginName
+    username <- getEffectiveUserName
     return [("id",username)]
 
 factUName :: IO [(String, String)]
