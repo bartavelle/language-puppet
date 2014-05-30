@@ -1,7 +1,9 @@
 # v0.13.1 ()
 ## New features
+* Overhauled the dependency check system
 ## Bugs fixed
 * Added `vagrant`, `nagios`, `www-data`, `postgres` and `nginx` to the list of known users.
+* Fixed how resource relationships were resolved with notify and before.
 
 # v0.13.0 (2014/05/21)
 ## New features

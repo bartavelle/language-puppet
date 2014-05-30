@@ -147,3 +147,11 @@ instance Pretty (InterpreterInstr a) where
     pretty (ReadFile f)                = pf "ReadFile" (map ttext f)
     pretty (TraceEvent e)              = pf "TraceEvent" [string e]
 
+instance Pretty LinkInformation where
+    pretty (LinkInformation lsrc ldst ltype lpos) = pretty lsrc <+> plt <+> pretty ldst <+> showPPos lpos
+        where
+            plt = case ltype of
+                      RNotify    -> "~>"
+                      RRequire   -> "<-"
+                      RBefore    -> "->"
+                      RSubscribe -> "<~"
