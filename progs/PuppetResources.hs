@@ -388,15 +388,17 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                 parserShare = 100 * parsing / cataloging
                 templateShare = 100 * templating / cataloging
                 formatDouble = take 5 . show -- yeah, well ...
+                nbnodes = length topnodes
                 worstAndSum = (_1 %~ getSum)
                                     . (_2 %~ fmap swap . getMaximum)
                                     . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
-            putStr ("Tested " ++ show (length topnodes) ++ " nodes. ")
-            putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
-            when (prio <= LOG.INFO) $ do
-                putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
-                putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
-                putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
+            putStr ("Tested " ++ show nbnodes ++ " nodes. ")
+            unless (nbnodes == 0) $ do
+                putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
+                when (prio <= LOG.INFO) $ do
+                    putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
+                    putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
+                    putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
             return $ if testFailures > 0
                          then exitFailure
                          else exitSuccess
