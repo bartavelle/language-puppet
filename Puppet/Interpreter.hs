@@ -223,8 +223,7 @@ makeEdgeMap ct = do
     let checkResDef :: (RIdentifier, [LinkInformation]) -> InterpreterMonad (RIdentifier, RIdentifier, [RIdentifier])
         checkResDef (ri, lifs) = do
             let checkExists r msg = unless (defs & has (ix r)) (throwPosError msg)
-                errmsg = "Unknown resource" <+> pretty ri <+> "used in the following relationships:" <+> vcat prels
-                prels = [ pretty (li ^. linksrc) <+> "->" <+> pretty (li ^. linkdst) <+> showPPos (li ^. linkPos) | li <- lifs ]
+                errmsg = "Unknown resource" <+> pretty ri <+> "used in the following relationships:" <+> vcat (map pretty lifs)
             checkExists ri errmsg
             let genlnk :: LinkInformation -> InterpreterMonad RIdentifier
                 genlnk lif = do
@@ -536,6 +535,14 @@ expandDefine r = do
                          (x:_) -> x
     let curContType = ContDefine deftype defname (r ^. rpos)
     p <- use curPos
+    -- we add the relations of this define to the global list of relations
+    -- before dropping it, so that they are stored for the final
+    -- relationship resolving
+    let extr = do
+            (dstid, linkset) <- itoList (r ^. rrelations)
+            link <- toList linkset
+            return (LinkInformation (r ^. rid) dstid link p)
+    extraRelations <>= extr
     void $ enterScope SENormal curContType modulename p
     (spurious, dls) <- getstt TopDefine deftype
     let isImported (ContImported _) = True
