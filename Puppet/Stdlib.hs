@@ -46,6 +46,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("has_key", hasKey)
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("merge", merge)
+                              , ("pick", pick)
                               , ("rstrip", stringArrayFunction T.stripEnd)
                               , singleArgument "size" size
                               , singleArgument "str2bool" str2Bool
@@ -232,6 +233,12 @@ merge :: [PValue] -> InterpreterMonad PValue
 merge [PHash a, PHash b] = return (PHash (b `HM.union` a))
 merge [a,b] = throwPosError ("merge(): Expects two hashes, not" <+> pretty a <+> pretty b)
 merge _ = throwPosError "merge(): Expects two hashes"
+
+pick :: [PValue] -> InterpreterMonad PValue
+pick [] = throwPosError "pick(): must receive at least one non empty value"
+pick (a:as)
+    | a `elem` [PUndef, PString "", PString "undef"] = pick as
+    | otherwise = return a
 
 size :: PValue -> InterpreterMonad PValue
 size (PHash h) = return (_Integer # fromIntegral (HM.size h))
