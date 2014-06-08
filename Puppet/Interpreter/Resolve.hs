@@ -385,6 +385,7 @@ resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveF
         undefEmptyString x = x
 
 resolveFunction' :: T.Text -> [PValue] -> InterpreterMonad PValue
+resolveFunction' "defined" [PResourceReference "class" cn] = fmap (PBoolean . has (ix cn)) (use loadedClasses)
 resolveFunction' "defined" [PResourceReference rt rn] = fmap (PBoolean . has (ix (RIdentifier rt rn))) (use definedResources)
 resolveFunction' "defined" [ut] = do
     t <- resolvePValueString ut

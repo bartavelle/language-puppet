@@ -4,7 +4,8 @@
 ## Bugs fixed
 * Added `vagrant`, `nagios`, `www-data`, `postgres` and `nginx` to the list of known users.
 * Fixed how resource relationships were resolved with notify and before.
-* Fixed a problem where inheritance whould be used with "::" prefix
+* Fixed a problem where inheritance whould be used with "::" prefix.
+* The "defined" function now works with classes.
 
 # v0.13.0 (2014/05/21)
 ## New features
