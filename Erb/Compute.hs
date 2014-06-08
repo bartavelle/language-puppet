@@ -109,7 +109,7 @@ templateDaemon intr modpath templatepath qchan mvstats filecache = do
     templateDaemon intr modpath templatepath qchan mvstats filecache
 
 computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
-computeTemplate intr fileinfo curcontext variables mstats filecache = do
+computeTemplate intr fileinfo curcontext fvariables mstats filecache = do
     let (filename, ufilename) = case fileinfo of
                                     Left _ -> ("inline", "inline")
                                     Right x -> (x, T.unpack x)
@@ -117,6 +117,9 @@ computeTemplate intr fileinfo curcontext variables mstats filecache = do
             Left rr -> return (S.Left (showRubyError rr))
             Right x -> return x
         encapsulateError = _Left %~ TemplateParseError
+        variables = fvariables & traverse . scopeVariables . traverse . _1 . _1 %~ toStr
+        toStr (PNumber n) = PString (scientific2text n)
+        toStr x = x
     traceEventIO ("START template " ++ T.unpack filename)
     parsed <- case fileinfo of
                   Right _      -> measure mstats ("parsing - " <> filename) $ lazyQuery filecache ufilename $ fmap encapsulateError (parseErbFile ufilename)
