@@ -605,8 +605,8 @@ loadClass rclassname loadedfrom params cincludetype = do
                                          []    -> classname
                                          (x:_) -> x
                         secontext = case (inh, loadedfrom) of
-                                        (S.Just x,_) -> SEChild x
-                                        (_,S.Just x) -> SEParent x
+                                        (S.Just x,_) -> SEChild (dropInitialColons x)
+                                        (_,S.Just x) -> SEParent (dropInitialColons x)
                                         _ -> SENormal
                     void $ enterScope secontext scopedesc modulename p
                     classresource <- if cincludetype == IncludeStandard
