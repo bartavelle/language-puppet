@@ -29,11 +29,11 @@ import Text.Parsec.Pos
 import System.Environment
 import Data.FileCache
 
+import Control.Lens
 #ifdef HRUBY
 import qualified Foreign.Ruby as FR
 import Foreign.Ruby.Safe
 
-import Control.Lens
 import Data.Tuple.Strict
 
 #else

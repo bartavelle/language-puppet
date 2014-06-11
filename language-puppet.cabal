@@ -90,7 +90,7 @@ library
                         , vector               == 0.10.*
                         , parsec               == 3.1.*
                         , mtl                  == 2.1.*
-                        , lens                 >= 4       && < 5
+                        , lens                 >= 4       && < 4.2
                         , parsers              == 0.11.*
                         , ansi-wl-pprint       == 0.6.*
                         , unix                 >= 2.6     && < 2.8
