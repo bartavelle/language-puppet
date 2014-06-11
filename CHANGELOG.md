@@ -2,6 +2,7 @@
 ## New features
 * Overhauled the dependency check system
 * Added an option to skip the user and group checks
+* Added an option to ignore some modules
 ## Bugs fixed
 * Added `vagrant`, `nagios`, `www-data`, `postgres` and `nginx` to the list of known users.
 * Fixed how resource relationships were resolved with notify and before.

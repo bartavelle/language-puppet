@@ -104,6 +104,7 @@ module Main where
 
 import System.IO
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
 import qualified Data.Set as Set
 import qualified System.Log.Logger as LOG
 import qualified Data.ByteString.Lazy.Char8 as BSL
@@ -161,10 +162,10 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> IO (QueryFunc, MStats, MStats, MStats)
-initializedaemonWithPuppet prio pdbapi puppetdir hierapath overrideFacts = do
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> IO (QueryFunc, MStats, MStats, MStats)
+initializedaemonWithPuppet prio pdbapi puppetdir hierapath overrideFacts ignord = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel prio)
-    q <- fmap ((prefPDB .~ pdbapi) . (hieraPath .~ hierapath)) (genPreferences puppetdir) >>= initDaemon
+    q <- fmap ((prefPDB .~ pdbapi) . (hieraPath .~ hierapath) . (ignoredmodules .~ ignord)) (genPreferences puppetdir) >>= initDaemon
     let f ndename = fmap overrideFacts (puppetDBFacts ndename pdbapi)
             >>= _dGetCatalog q ndename
     return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
@@ -196,6 +197,7 @@ data CommandLine = CommandLine { _pdb            :: Maybe String
                                , _commitDB       :: Bool
                                , _checkExport    :: Bool
                                , _testusergroups :: Bool
+                               , _ignoredMods    :: HS.HashSet T.Text
                                } deriving Show
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
@@ -245,7 +247,13 @@ cmdlineParser = CommandLine <$> optional remotepdb
                             <*> commitdb
                             <*> checkExported
                             <*> tug
+                            <*> imods
     where
+        imods = HS.fromList . T.splitOn "," . T.pack <$>
+                    strOption (  long "ignoremodules"
+                              <> help "Specify a comma-separated list of modules to ignore"
+                              <> value ""
+                              )
         tug = switch (  long "nousergrouptest"
                      <> help "Disable the user and group tests"
                      )
@@ -342,10 +350,10 @@ instance (Ord a) => Monoid (Maximum a) where
 
 
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _ _ _ _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _ _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef docommit _ _) = do
+run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef docommit _ _ _) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> getError rr))
         checkError _ (S.Right x) = return x
         tnodename = T.pack ndename
@@ -359,7 +367,7 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
-    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides
+    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet prio pdbapi puppetdir hpath factsOverrides (_ignoredMods c)
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
@@ -418,7 +426,7 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
     exit
 
 computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
-computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _ _ checkExported disableugtest) tnodename = queryfunc tnodename >>= \case
+computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _ _ checkExported disableugtest _) tnodename = queryfunc tnodename >>= \case
     S.Left rr -> do
         if testOnly
             then putDoc ("Problem with" <+> ttext tnodename <+> ":" <+> getError rr </> mempty)

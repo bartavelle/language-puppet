@@ -66,7 +66,7 @@ showRubyError (Stack msg stk) = PrettyError $ dullred (string msg) </> dullyello
 showRubyError (WithOutput str _) = PrettyError $ dullred (string str)
 
 initTemplateDaemon :: RubyInterpreter -> (Preferences IO) -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
-initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _) mvstats = do
+initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _ _) mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
     let returnError rs = return $ \_ _ _ -> return (S.Left (showRubyError rs))

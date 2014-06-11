@@ -82,6 +82,7 @@ evalInstrGen rdr stt (a :>>= f) =
             GetCurrentCallStack          -> (rdr ^. ioMethods . imGetCurrentCallStack) >>= runC
             ReadFile fls                 -> strFail ((rdr ^. ioMethods . imReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
             TraceEvent e                 -> (rdr ^. ioMethods . imTraceEvent) e >>= runC
+            IsIgnoredModule m            -> runC (rdr ^. ignoredModules . contains m)
             CallLua c fname args         -> (rdr ^. ioMethods . imCallLua) c fname args >>= \case
                                                 Right x -> runC x
                                                 Left rr -> thpe (PrettyError (string rr))

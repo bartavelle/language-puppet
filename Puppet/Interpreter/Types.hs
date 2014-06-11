@@ -166,6 +166,7 @@ data InterpreterReader m = InterpreterReader { _nativeTypes             :: !(Con
                                              , _thisNodename            :: T.Text
                                              , _hieraQuery              :: HieraQueryFunc m
                                              , _ioMethods               :: ImpureMethods m
+                                             , _ignoredModules          :: HS.HashSet T.Text -- ^ The set of modules we will not include or whatsoever.
                                              }
 
 data ImpureMethods m = ImpureMethods { _imGetCurrentCallStack :: m [String]
@@ -183,6 +184,7 @@ data InterpreterInstr a where
     GetNodeName         :: InterpreterInstr T.Text
     HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Pair InterpreterWriter (S.Maybe PValue))
     GetCurrentCallStack :: InterpreterInstr [String]
+    IsIgnoredModule     :: T.Text -> InterpreterInstr Bool
     -- error
     ErrorThrow          :: PrettyError -> InterpreterInstr a
     ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a

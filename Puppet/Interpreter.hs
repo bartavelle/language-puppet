@@ -51,10 +51,11 @@ getCatalog :: Monad m
            -> Container ( [PValue] -> InterpreterMonad PValue )
            -> HieraQueryFunc m -- ^ Hiera query function
            -> ImpureMethods m
+           -> HS.HashSet T.Text -- ^ The set of ignored modules
            -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
-getCatalog convertMonad gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery im = do
+getCatalog convertMonad gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery im ignord = do
     -- nameThread ("Catalog " <> T.unpack ndename)
-    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery im
+    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery im ignord
         stt = initialState facts
     (output, _, warnings) <- convertMonad rdr stt (computeCatalog ndename)
     return (strictifyEither output :!: warnings)
@@ -560,7 +561,10 @@ expandDefine r = do
             -- errors
             loadParameters (r ^. rattributes) defineParams cp S.Nothing
             curPos .= cp
-            res <- evaluateStatementsVector stmts
+            imods <- singleton (IsIgnoredModule modulename)
+            res <- if imods
+                       then return mempty
+                       else evaluateStatementsVector stmts
             out <- finalize (spurious ++ res)
             when isImportedDefine popScope
             popScope
@@ -622,7 +626,10 @@ loadClass rclassname loadedfrom params cincludetype = do
                     loadVariable "name" (PString classname)
                     loadParameters params classParams cp (S.Just classname)
                     curPos .= cp
-                    res <- evaluateStatementsVector stmts
+                    imods <- singleton (IsIgnoredModule modulename)
+                    res <- if imods
+                               then return mempty
+                               else evaluateStatementsVector stmts
                     out <- finalize (classresource ++ spurious ++ inhstmts ++ res)
                     popScope
                     return out

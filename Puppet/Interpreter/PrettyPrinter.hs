@@ -146,6 +146,7 @@ instance Pretty (InterpreterInstr a) where
     pretty (PDBGetResourcesOfNode n q) = pf "PDBGetResourcesOfNode" [ttext n, showQuery q]
     pretty (ReadFile f)                = pf "ReadFile" (map ttext f)
     pretty (TraceEvent e)              = pf "TraceEvent" [string e]
+    pretty (IsIgnoredModule m)         = pf "IsIgnoredModule" [ttext m]
 
 instance Pretty LinkInformation where
     pretty (LinkInformation lsrc ldst ltype lpos) = pretty lsrc <+> plt <+> pretty ldst <+> showPPos lpos
