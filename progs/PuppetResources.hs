@@ -181,20 +181,21 @@ printContent filename catalog =
                            Just (PString c)  -> T.putStrLn c
                            Just x -> print x
 
-data CommandLine = CommandLine { _pdb          :: Maybe String
-                               , _showjson     :: Bool
-                               , _showContent  :: Bool
-                               , _resourceType :: Maybe T.Text
-                               , _resourceName :: Maybe T.Text
-                               , _puppetdir    :: FilePath
-                               , _nodename     :: Maybe String
-                               , _pdbfile      :: Maybe FilePath
-                               , _loglevel     :: LOG.Priority
-                               , _hieraFile    :: Maybe FilePath
-                               , _factsFile    :: Maybe FilePath
-                               , _factsDef     :: Maybe FilePath
-                               , _commitDB     :: Bool
-                               , _checkExport  :: Bool
+data CommandLine = CommandLine { _pdb            :: Maybe String
+                               , _showjson       :: Bool
+                               , _showContent    :: Bool
+                               , _resourceType   :: Maybe T.Text
+                               , _resourceName   :: Maybe T.Text
+                               , _puppetdir      :: FilePath
+                               , _nodename       :: Maybe String
+                               , _pdbfile        :: Maybe FilePath
+                               , _loglevel       :: LOG.Priority
+                               , _hieraFile      :: Maybe FilePath
+                               , _factsFile      :: Maybe FilePath
+                               , _factsDef       :: Maybe FilePath
+                               , _commitDB       :: Bool
+                               , _checkExport    :: Bool
+                               , _testusergroups :: Bool
                                } deriving Show
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
@@ -243,7 +244,11 @@ cmdlineParser = CommandLine <$> optional remotepdb
                             <*> optional fco
                             <*> commitdb
                             <*> checkExported
+                            <*> tug
     where
+        tug = switch (  long "nousergrouptest"
+                     <> help "Disable the user and group tests"
+                     )
         commitdb = switch (  long "commitdb"
                           <> help "Commit the computed catalogs in the puppetDB"
                           )
@@ -337,10 +342,10 @@ instance (Ord a) => Monoid (Maximum a) where
 
 
 run :: CommandLine -> IO ()
-run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _ _ _) = parseFile f >>= \case
+run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc (vcat (map pretty (V.toList s)))
-run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef docommit _) = do
+run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef docommit _ _) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> getError rr))
         checkError _ (S.Right x) = return x
         tnodename = T.pack ndename
@@ -413,7 +418,7 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
     exit
 
 computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
-computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _ _ checkExported) tnodename = queryfunc tnodename >>= \case
+computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson showcontent mrt mrn puppetdir _ _ _ _ _ _ _ checkExported disableugtest) tnodename = queryfunc tnodename >>= \case
     S.Left rr -> do
         if testOnly
             then putDoc ("Problem with" <+> ttext tnodename <+> ":" <+> getError rr </> mempty)
@@ -444,7 +449,7 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine _ showjson show
             _ -> do
                 catalog  <- filterCatalog rawcatalog
                 exported <- filterCatalog rawexported
-                r <- testCatalog tnodename puppetdir rawcatalog (basicTest >> usersGroupsDefined)
+                r <- testCatalog tnodename puppetdir rawcatalog (basicTest >> unless disableugtest usersGroupsDefined)
                 printFunc (pretty (HM.elems catalog))
                 unless (HM.null exported) $ do
                     printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
