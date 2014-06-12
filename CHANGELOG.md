@@ -1,4 +1,4 @@
-# v0.13.1 ()
+# v0.14.0 (2014/06/12)
 ## New features
 * Overhauled the dependency check system
 * Added an option to skip the user and group checks
