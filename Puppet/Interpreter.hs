@@ -555,17 +555,18 @@ expandDefine r = do
             curscp <- getScope
             when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
             pushScope curContType
-            loadVariable "title" (PString defname)
-            loadVariable "name" (PString defname)
-            -- not done through loadvariable because of override
-            -- errors
-            loadParameters (r ^. rattributes) defineParams cp S.Nothing
-            curPos .= cp
             imods <- singleton (IsIgnoredModule modulename)
-            res <- if imods
+            out <- if imods
                        then return mempty
-                       else evaluateStatementsVector stmts
-            out <- finalize (spurious ++ res)
+                       else do
+                            loadVariable "title" (PString defname)
+                            loadVariable "name" (PString defname)
+                            -- not done through loadvariable because of override
+                            -- errors
+                            loadParameters (r ^. rattributes) defineParams cp S.Nothing
+                            curPos .= cp
+                            res <- evaluateStatementsVector stmts
+                            finalize (spurious ++ res)
             when isImportedDefine popScope
             popScope
             return out
@@ -620,17 +621,16 @@ loadClass rclassname loadedfrom params cincludetype = do
                                              return [Resource (RIdentifier "class" classname) (HS.singleton classname) mempty mempty scp Normal mempty p fqdn]
                                          else return []
                     pushScope scopedesc
-                    -- not done through loadvariable because of override
-                    -- errors
-                    loadVariable "title" (PString classname)
-                    loadVariable "name" (PString classname)
-                    loadParameters params classParams cp (S.Just classname)
-                    curPos .= cp
                     imods <- singleton (IsIgnoredModule modulename)
-                    res <- if imods
+                    out <- if imods
                                then return mempty
-                               else evaluateStatementsVector stmts
-                    out <- finalize (classresource ++ spurious ++ inhstmts ++ res)
+                               else do
+                                    loadVariable "title" (PString classname)
+                                    loadVariable "name" (PString classname)
+                                    loadParameters params classParams cp (S.Just classname)
+                                    curPos .= cp
+                                    res <- evaluateStatementsVector stmts
+                                    finalize (classresource ++ spurious ++ inhstmts ++ res)
                     popScope
                     return out
                 _ -> throwPosError ("Internal error: we did not retrieve a ClassDeclaration, but had" <+> pretty cls)

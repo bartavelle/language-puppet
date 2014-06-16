@@ -1,3 +1,8 @@
+# v0.14.1 ()
+## New features
+## Bugs fixed
+* Better support for --ignoremodules.
+
 # v0.14.0 (2014/06/12)
 ## New features
 * Overhauled the dependency check system
