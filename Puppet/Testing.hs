@@ -21,6 +21,7 @@ module Puppet.Testing
     , lPuppetdir
     , withResource
     , withParameter
+    , withParameters
     , withFileContent
     ) where
 
@@ -140,6 +141,12 @@ withParameter prm r o = do
     case r ^. rattributes . at prm of
         Nothing -> H.expectationFailure ("Parameter " ++ T.unpack prm ++ " not found")
         Just v -> o v
+
+-- | Test a serie of parameters
+withParameters :: [(T.Text, PValue)] -- ^ The parameter names and values
+               -> Resource -- ^ The resource to test
+               -> H.Expectation
+withParameters prmlist r = forM_ prmlist $ \(nm, vl) -> withParameter nm r (`H.shouldBe` vl)
 
 -- | Retrieves a given file content, and runs a test on it. It works on the
 -- explicit "content" parameter, or can resolve the "source" parameter to
