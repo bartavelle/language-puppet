@@ -34,10 +34,14 @@ import Control.Applicative
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
 vmapM f = mapM f . toList
 
-getModulename :: T.Text -> T.Text
-getModulename t = case T.splitOn "::" t of
-                         [] -> t
-                         (x:_) -> x
+getModulename :: RIdentifier -> T.Text
+getModulename (RIdentifier t n) =
+    let gm x = case T.splitOn "::" x of
+                   [] -> x
+                   (y:_) -> y
+    in case t of
+           "class" -> gm n
+           _ -> gm t
 
 -- | This is the main function for computing catalogs. It returns the
 -- result of the compulation (either an error, or a tuple containing all
@@ -229,7 +233,7 @@ makeEdgeMap ct = do
     let checkResDef :: (RIdentifier, [LinkInformation]) -> InterpreterMonad (RIdentifier, RIdentifier, [RIdentifier])
         checkResDef (ri, lifs) = do
             let checkExists r msg = do
-                    let modulename = getModulename (r ^. itype)
+                    let modulename = getModulename r
                     ign <- singleton (IsIgnoredModule modulename)
                     unless ((defs & has (ix r)) || ign) (throwPosError msg)
                 errmsg = "Unknown resource" <+> pretty ri <+> "used in the following relationships:" <+> vcat (map pretty lifs)
@@ -539,7 +543,7 @@ expandDefine :: Resource -> InterpreterMonad [Resource]
 expandDefine r = do
     let deftype = dropInitialColons (r ^. rid . itype)
         defname = r ^. rid . iname
-        modulename = getModulename deftype
+        modulename = getModulename (r ^. rid)
     let curContType = ContDefine deftype defname (r ^. rpos)
     p <- use curPos
     -- we add the relations of this define to the global list of relations
@@ -612,7 +616,7 @@ loadClass rclassname loadedfrom params cincludetype = do
                                     S.Nothing     -> return []
                                     S.Just ihname -> loadClass ihname (S.Just classname) mempty IncludeStandard
                     let !scopedesc = ContClass classname
-                        modulename = getModulename classname
+                        modulename = getModulename (RIdentifier "class" classname)
                         secontext = case (inh, loadedfrom) of
                                         (S.Just x,_) -> SEChild (dropInitialColons x)
                                         (_,S.Just x) -> SEParent (dropInitialColons x)
