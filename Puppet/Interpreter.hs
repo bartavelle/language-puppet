@@ -34,6 +34,11 @@ import Control.Applicative
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
 vmapM f = mapM f . toList
 
+getModulename :: T.Text -> T.Text
+getModulename t = case T.splitOn "::" t of
+                         [] -> t
+                         (x:_) -> x
+
 -- | This is the main function for computing catalogs. It returns the
 -- result of the compulation (either an error, or a tuple containing all
 -- the resources, dependency map, exported resources, and defined resources
@@ -223,7 +228,10 @@ makeEdgeMap ct = do
     -- check that all resources are defined, and build graph
     let checkResDef :: (RIdentifier, [LinkInformation]) -> InterpreterMonad (RIdentifier, RIdentifier, [RIdentifier])
         checkResDef (ri, lifs) = do
-            let checkExists r msg = unless (defs & has (ix r)) (throwPosError msg)
+            let checkExists r msg = do
+                    let modulename = getModulename (r ^. itype)
+                    ign <- singleton (IsIgnoredModule modulename)
+                    unless ((defs & has (ix r)) || ign) (throwPosError msg)
                 errmsg = "Unknown resource" <+> pretty ri <+> "used in the following relationships:" <+> vcat (map pretty lifs)
             checkExists ri errmsg
             let genlnk :: LinkInformation -> InterpreterMonad RIdentifier
@@ -531,9 +539,7 @@ expandDefine :: Resource -> InterpreterMonad [Resource]
 expandDefine r = do
     let deftype = dropInitialColons (r ^. rid . itype)
         defname = r ^. rid . iname
-        modulename = case T.splitOn "::" deftype of
-                         [] -> deftype
-                         (x:_) -> x
+        modulename = getModulename deftype
     let curContType = ContDefine deftype defname (r ^. rpos)
     p <- use curPos
     -- we add the relations of this define to the global list of relations
@@ -606,9 +612,7 @@ loadClass rclassname loadedfrom params cincludetype = do
                                     S.Nothing     -> return []
                                     S.Just ihname -> loadClass ihname (S.Just classname) mempty IncludeStandard
                     let !scopedesc = ContClass classname
-                        modulename = case T.splitOn "::" classname of
-                                         []    -> classname
-                                         (x:_) -> x
+                        modulename = getModulename classname
                         secontext = case (inh, loadedfrom) of
                                         (S.Just x,_) -> SEChild (dropInitialColons x)
                                         (_,S.Just x) -> SEParent (dropInitialColons x)
