@@ -40,10 +40,7 @@ import Control.Monad.Operational
 import Control.Exception
 import Control.Concurrent.MVar (MVar)
 import qualified Scripting.Lua as Lua
-
-#ifdef HRUBY
 import Foreign.Ruby
-#endif
 
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
@@ -456,7 +453,6 @@ instance ToJSON PValue where
     toJSON (PHash x)                = Object (HM.map toJSON x)
     toJSON (PNumber n)              = Number n
 
-#ifdef HRUBY
 instance ToRuby PValue where
     toRuby = toRuby . toJSON
 instance FromRuby PValue where
@@ -465,7 +461,7 @@ instance FromRuby PValue where
             Just x  -> case fromJSON x of
                            Error _ -> return Nothing
                            Success suc -> return (Just suc)
-#endif
+
 eitherDocIO :: IO (S.Either PrettyError a) -> IO (S.Either PrettyError a)
 eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ PrettyError $ dullred $ text $ show (e :: SomeException))
     where

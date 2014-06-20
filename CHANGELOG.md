@@ -1,4 +1,6 @@
-# v0.14.1 ()
+# v1.0.0 ()
+## IMPORTANT
+Building without hruby is now unsupported.
 ## New features
 ## Bugs fixed
 * Better support for --ignoremodules.

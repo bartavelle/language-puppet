@@ -26,10 +26,7 @@ import Control.Lens
 import qualified Data.Either.Strict as S
 import Data.Tuple.Strict
 import Control.Exception
-
-#ifdef HRUBY
 import Foreign.Ruby.Safe
-#endif
 
 loggerName :: String
 loggerName = "Puppet.Daemon"
@@ -86,12 +83,8 @@ initDaemon prefs = do
     catalogStats  <- newStats
     pfilecache    <- newFileCache
     let getStatements = parseFunction prefs pfilecache parserStats
-#ifdef HRUBY
     intr          <- startRubyInterpreter
     getTemplate   <- initTemplateDaemon intr prefs templateStats
-#else
-    getTemplate   <- initTemplateDaemon prefs templateStats
-#endif
     hquery        <- case prefs ^. hieraPath of
                          Just p -> startHiera p >>= \case
                             Left _ -> return dummyHiera
