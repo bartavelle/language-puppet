@@ -306,5 +306,5 @@ validateString [] = throwPosError "validate_string(): wrong number of arguments,
 validateString x = mapM_ resolvePValueString x >> return PUndef
 
 pvalues :: PValue -> InterpreterMonad PValue
-pvalues (PHash h) = return $ PArray (V.fromList (h ^.. traverse)) -- 
+pvalues (PHash h) = return $ PArray (V.fromList (h ^.. traverse))
 pvalues x = throwPosError ("values(): expected a hash, not" <+> pretty x)
