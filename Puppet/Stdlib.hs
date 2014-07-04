@@ -179,9 +179,7 @@ deleteUndefValues (PHash h) = return $ PHash $ HM.filter (/= PUndef) h
 deleteUndefValues x = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
 
 _empty :: PValue -> InterpreterMonad PValue
-_empty a
-    | a `elem` [PUndef, PString "", PString "undef"] = return (PBoolean True)
-    | otherwise = return (PBoolean False)
+_empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PArray V.empty, PHash HM.empty] 
 
 flatten :: PValue -> InterpreterMonad PValue
 flatten r@(PArray _) = return $ PArray (flatten' r)
@@ -308,5 +306,5 @@ validateString [] = throwPosError "validate_string(): wrong number of arguments,
 validateString x = mapM_ resolvePValueString x >> return PUndef
 
 pvalues :: PValue -> InterpreterMonad PValue
-pvalues (PHash h) = return $ PArray (V.fromList (h ^.. traverse))
+pvalues (PHash h) = return $ PArray (V.fromList (h ^.. traverse)) -- 
 pvalues x = throwPosError ("values(): expected a hash, not" <+> pretty x)
