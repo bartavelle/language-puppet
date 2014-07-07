@@ -15,6 +15,7 @@ import System.Posix.Unistd (getSystemID, SystemID(..))
 import Data.List.Split (splitOn)
 import Data.List (intercalate,stripPrefix)
 import System.Environment
+import System.Directory (doesFileExist)
 import Data.Maybe (mapMaybe)
 
 storageunits :: [(String, Int)]
@@ -62,6 +63,40 @@ factNET = return [("ipaddress", "192.168.0.1")]
 
 factOS :: IO [(String, String)]
 factOS = do
+    islsb <- doesFileExist "/etc/lsb-release"
+    isdeb <- doesFileExist "/etc/debian_version"
+    case (islsb, isdeb) of
+        (True, _) -> factOSLSB
+        (_, True) -> factOSDebian
+        _ -> return []
+
+factOSDebian :: IO [(String, String)]
+factOSDebian = fmap (toV . head . lines) (readFile "/etc/debian_version")
+    where
+        toV v = [ ("lsbdistid"              , "Debian")
+                , ("operatingsystem"        , "Debian")
+                , ("lsbdistrelease"         , v)
+                , ("operatingsystemrelease" , v)
+                , ("lsbmajdistrelease"      , takeWhile (/='.') v)
+                , ("osfamily"               , "Debian")
+                , ("lsbdistcodename"        , codename v)
+                , ("lsbdistdescription"     , "Debian GNU/Linux " ++ v ++ " (" ++ codename v ++ ")")
+                ]
+        codename v | null v = "unknown"
+                   | h '7' = "wheezy"
+                   | h '6' = "squeeze"
+                   | h '5' = "lenny"
+                   | h '4' = "etch"
+                   | v == "3.1" = "sarge"
+                   | v == "3.0" = "woody"
+                   | v == "2.2" = "potato"
+                   | v == "2.1" = "slink"
+                   | v == "2.0" = "hamm"
+                   | otherwise = "unknown"
+            where h x = head v == x
+
+factOSLSB :: IO [(String, String)]
+factOSLSB = do
     lsb <- fmap (map (break (== '=')) . lines) (readFile "/etc/lsb-release")
     let getval st | null filterd = "?"
                   | otherwise = rvalue

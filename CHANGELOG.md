@@ -2,6 +2,7 @@
 ## IMPORTANT
 Building without hruby is now unsupported.
 ## New features
+* Support for Debian distribution detection in facter.
 ## Bugs fixed
 * Better support for --ignoremodules.
 
