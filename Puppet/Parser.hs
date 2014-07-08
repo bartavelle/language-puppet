@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections #-}
 module Puppet.Parser (puppetParser,expression,runMyParser) where
 
 import qualified Data.Text as T
@@ -29,7 +30,6 @@ import Text.Parsec.Pos (SourcePos,SourceName)
 import Text.Parser.LookAhead
 import Text.Parser.Token.Highlight
 import Text.Parsec.Error (ParseError)
-import Text.Parsec.Text ()
 import qualified Text.Parsec.Prim as PP
 import Text.Parsec.Text ()
 import Data.Scientific
@@ -69,7 +69,7 @@ variable = PValue . UVariableReference <$> variableReference
 stringLiteral' :: Parser T.Text
 stringLiteral' = char '\'' *> interior <* symbolic '\''
     where
-        interior = fmap (T.pack . concat) $ many (some (noneOf "'\\") <|> (char '\\' *> fmap escape anyChar))
+        interior = T.pack . concat <$> many (some (noneOf "'\\") <|> (char '\\' *> fmap escape anyChar))
         escape '\'' = "'"
         escape x = ['\\',x]
 
@@ -92,23 +92,21 @@ reserved = reserve identifierStyle
 
 variableName :: Parser T.Text
 variableName = do
-    let acceptablePart = fmap T.pack (ident identifierStyle)
+    let acceptablePart = T.pack <$> ident identifierStyle
     out <- qualif acceptablePart
     when (out == "string") (fail "The special variable $string should never be used")
     return out
 
 qualif :: Parser T.Text -> Parser T.Text
 qualif p = token $ do
-    header <- option "" (try (string "::"))
-    rest <- fmap (T.intercalate "::") (p `sepBy1` try (string "::"))
-    return (T.append (T.pack header) rest)
+    header <- T.pack <$> option "" (try (string "::"))
+    ( header <> ) . T.intercalate "::" <$> p `sepBy1` try (string "::")
 
 qualif1 :: Parser T.Text -> Parser T.Text
 qualif1 p = try $ do
     r <- qualif p
-    if "::" `T.isInfixOf` r
-        then return r
-        else fail "This parser is not qualified"
+    unless ("::" `T.isInfixOf` r) (fail "This parser is not qualified")
+    return r
 
 className :: Parser T.Text
 className = qualif moduleName
@@ -136,7 +134,7 @@ parameterName = moduleName
 
 -- this is not a token !
 inBraces :: Parser T.Text
-inBraces =  between (char '{') (char '}') (fmap T.pack (some (satisfy (/= '}'))))
+inBraces =  between (char '{') (char '}') (T.pack <$> some (satisfy (/= '}')))
 
 variableReference :: Parser T.Text
 variableReference = do
@@ -148,10 +146,10 @@ variableReference = do
     return v
 
 interpolableString :: Parser (V.Vector UValue)
-interpolableString = fmap V.fromList $ between (char '"') (symbolic '"') $
-    many (fmap UVariableReference interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (UString . T.singleton) (char '$'))
+interpolableString = V.fromList <$> between (char '"') (symbolic '"')
+     ( many (fmap UVariableReference interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (UString . T.singleton) (char '$')) )
     where
-        doubleQuotedStringContent = fmap (UString . T.pack . concat) $
+        doubleQuotedStringContent = UString . T.pack . concat <$>
             some ((char '\\' *> fmap stringEscape anyChar) <|> some (noneOf "\"\\$"))
         stringEscape :: Char -> String
         stringEscape 'n'  = "\n"
@@ -171,16 +169,15 @@ interpolableString = fmap V.fromList $ between (char '"') (symbolic '"') $
                      -- implementation, but considerably shorter.
                      --
                      -- This needs refactoring.
-                     _   -> fmap (T.pack . concat) (some (string "::" <|> some (satisfy variableAccept)))
+                     _   -> T.pack . concat <$> some (string "::" <|> some (satisfy variableAccept))
             when (v == "string") (fail "The special variable $string must not be used")
             return v
 
 regexp :: Parser T.Text
 regexp = do
     void (char '/')
-    v <- many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf "/\\") )
-    void $ symbolic '/'
-    return $! T.pack $! concat v
+    T.pack . concat <$> many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf "/\\") )
+        <* symbolic '/'
 
 puppetArray :: Parser UValue
 puppetArray = fmap (UArray . V.fromList) (brackets (expression `sepEndBy` comma)) <?> "Array"
@@ -188,15 +185,13 @@ puppetArray = fmap (UArray . V.fromList) (brackets (expression `sepEndBy` comma)
 puppetHash :: Parser UValue
 puppetHash = fmap (UHash . V.fromList) (braces (hashPart `sepEndBy` comma)) <?> "Hash"
     where
-        hashPart = do
-            -- a special case for "default" because of the ? selector ...
-            a <- expression
-            void $ operator "=>"
-            b <- expression
-            return (a :!: b)
+        hashPart = (:!:) <$> (expression <* operator "=>")
+                         <*> expression
 
 puppetBool :: Parser Bool
-puppetBool = (reserved "true" >> return True) <|> (reserved "false" >> return False) <?> "Boolean"
+puppetBool =  (reserved "true" >> return True)
+          <|> (reserved "false" >> return False)
+          <?> "Boolean"
 
 resourceReferenceRaw :: Parser (T.Text, [Expression])
 resourceReferenceRaw = do
@@ -207,9 +202,9 @@ resourceReferenceRaw = do
 resourceReference :: Parser UValue
 resourceReference = do
     (restype, resnames) <- resourceReferenceRaw
-    return $ case resnames of
-                 [x] -> UResourceReference restype x
-                 _   -> UResourceReference restype (PValue (array resnames))
+    return $ UResourceReference restype $ case resnames of
+                 [x] -> x
+                 _   -> PValue (array resnames)
 
 bareword :: Parser T.Text
 bareword = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Bare word"
@@ -360,15 +355,14 @@ nodeStmt = do
     return [Node n st inheritance (p :!: pe) | n <- ns]
 
 puppetClassParameters :: Parser (V.Vector (Pair T.Text (S.Maybe Expression)))
-puppetClassParameters = fmap V.fromList $ parens (var `sepEndBy` comma)
+puppetClassParameters = V.fromList <$> parens (var `sepEndBy` comma)
     where
         toStrictMaybe (Just x) = S.Just x
         toStrictMaybe Nothing  = S.Nothing
         var :: Parser (Pair T.Text (S.Maybe Expression))
-        var = do
-            vname <- variableReference
-            value <- fmap toStrictMaybe $ optional (symbolic '=' *> expression)
-            return $ vname :!: value
+        var = (:!:)
+                <$> variableReference
+                <*> (toStrictMaybe <$> optional (symbolic '=' *> expression))
 
 defineStmt :: Parser [Statement]
 defineStmt = do
@@ -421,7 +415,7 @@ caseCondition = do
             compares <- expression `sepBy1` comma
             void $ symbolic ':'
             stmts <- braces statementList
-            return [ (cmp, stmts) | cmp <- compares ]
+            return $ map (,stmts) compares
         condsToExpression e (x, stmts) = f x :!: stmts
             where f = case x of
                           (PValue (UBoolean _))  -> id
@@ -438,11 +432,11 @@ resourceGroup :: Parser [Statement]
 resourceGroup = do
     groups <- resourceGroup' `sepBy1` operator "->"
     let relations = do
-        (g1, g2) <- zip groups (tail groups)
-        ResourceDeclaration rt1 rn1 _ _ (_ :!: pe1) <- g1
-        ResourceDeclaration rt2 rn2 _ _ (ps2 :!: _) <- g2
-        return (Dependency (rt1 :!: rn1) (rt2 :!: rn2) (pe1 :!: ps2))
-    return $ concat groups ++ relations
+            (g1, g2) <- zip groups (tail groups)
+            ResourceDeclaration rt1 rn1 _ _ (_ :!: pe1) <- g1
+            ResourceDeclaration rt2 rn2 _ _ (ps2 :!: _) <- g2
+            return (Dependency (rt1 :!: rn1) (rt2 :!: rn2) (pe1 :!: ps2))
+    return $ concat groups <> relations
 
 resourceGroup' :: Parser [Statement]
 resourceGroup' = do
@@ -480,7 +474,7 @@ resourceDefaults p rnd = do
 
 resourceOverride :: Position -> T.Text -> [Expression] ->  Parser [Statement]
 resourceOverride p restype names = do
-    assignments <- fmap V.fromList $ braces (assignment `sepEndBy` comma)
+    assignments <- V.fromList <$> braces (assignment `sepEndBy` comma)
     pe <- getPosition
     return [ ResourceOverride restype n assignments (p :!: pe) | n <- names ]
 
@@ -489,14 +483,14 @@ searchExpression :: Parser SearchExpression
 searchExpression = parens searchExpression <|> check <|> combine
     where
         combine = do
-            e1 <- parens searchExpression <|> check
+            e1  <- parens searchExpression <|> check
             opr <- (operator "and" *> return AndSearch) <|> (operator "or" *> return OrSearch)
-            e2 <- searchExpression
+            e2  <- searchExpression
             return (opr e1 e2)
         check = do
             attrib <- parameterName
-            opr <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
-            term <- stringExpression
+            opr    <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
+            term   <- stringExpression
             return (opr attrib term)
 
 resourceCollection :: Position -> T.Text -> Parser [Statement]
@@ -519,12 +513,12 @@ classDefinition :: Parser [Statement]
 classDefinition = do
     p <- getPosition
     reserved "class"
-    classname <- className
-    params <- option V.empty puppetClassParameters
-    inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> className))
-    st <- braces statementList
-    pe <- getPosition
-    return [ ClassDeclaration classname  params inheritance st (p :!: pe) ]
+    x <- ClassDeclaration <$> className
+                          <*> option V.empty puppetClassParameters
+                          <*> option S.Nothing (fmap S.Just (reserved "inherits" *> className))
+                          <*> braces statementList
+                          <*> ( (p :!:) <$> getPosition )
+    return [x]
 
 mainFunctionCall :: Parser [Statement]
 mainFunctionCall = do
@@ -615,7 +609,7 @@ parseHFunction =   (reserved "each"   *> pure HFEach)
 parseHParams :: Parser BlockParameters
 parseHParams = between (symbolic '|') (symbolic '|') hp
     where
-        acceptablePart = fmap T.pack (ident identifierStyle)
+        acceptablePart = T.pack <$> ident identifierStyle
         hp = do
             vars <- (char '$' *> acceptablePart) `sepBy1` comma
             case vars of

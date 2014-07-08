@@ -5,6 +5,7 @@ import Puppet.Interpreter.Types
 import Puppet.Interpreter.PrettyPrinter(containerComma)
 import Puppet.Interpreter.Resolve
 import Puppet.Parser.Types
+import Puppet.Lens
 import Puppet.Parser.PrettyPrinter
 import Puppet.PP hiding ((<$>))
 import Puppet.NativeTypes
@@ -26,8 +27,8 @@ import qualified Data.Maybe.Strict as S
 import qualified Data.Graph as G
 import qualified Data.Tree as T
 import Data.Foldable (toList,foldl',Foldable,foldlM)
-import Data.Traversable (mapM,forM)
-import Control.Monad.Operational
+import Data.Traversable (mapM)
+import Control.Monad.Operational hiding (view)
 import Control.Applicative
 
 -- helpers
@@ -70,17 +71,13 @@ getCatalog convertMonad gtStatement gtTemplate pdbQuery ndename facts nTypes ext
     return (strictifyEither output :!: warnings)
 
 isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
-isParent _ (ContImport _ _) = return False -- no relationship through import
-isParent _ ContRoot         = return False
-isParent _ (ContImported _) = return False
-isParent _ (ContDefine _ _ _) = return False
-isParent cur (ContClass possibleparent) = do
-    preuse (scopes . ix cur . scopeParent) >>= \case
+isParent cur (ContClass possibleparent) = preuse (scopes . ix cur . scopeParent) >>= \case
         Nothing -> throwPosError ("Internal error: could not find scope" <+> ttext cur <+> "possible parent" <+> ttext possibleparent)
         Just S.Nothing -> return False
         Just (S.Just p) -> if p == possibleparent
                                then return True
                                else isParent p (ContClass possibleparent)
+isParent _ _ = return False
 
 finalize :: [Resource] -> InterpreterMonad [Resource]
 finalize rlist = do
@@ -88,17 +85,12 @@ finalize rlist = do
     scp  <- getScopeName
     defs <- use (scopes . ix scp . scopeDefaults)
     let getOver = use (scopes . ix scp . scopeOverrides) -- retrieves current overrides
-        addDefaults r = do
-            let thisresdefaults = defs ^. ix (r ^. rid . itype) . defValues
-            foldM (addAttribute CantReplace) r (itoList thisresdefaults)
-        addOverrides r = do
-            overs <- getOver
-            case overs ^. at (r ^. rid) of
-                Just x -> do
-                    scopes . ix scp . scopeOverrides . at (r ^. rid) .= Nothing
-                    addOverrides' r x
-                Nothing -> return r
+        addDefaults r = ifoldlM (addAttribute CantReplace) r thisresdefaults
+            where thisresdefaults = defs ^. ix (r ^. rid . itype) . defValues
+        addOverrides r = getOver >>= foldlM addOverrides' r
         addOverrides' r (ResRefOverride _ prms p) = do
+            -- we used this override, so we discard it
+            scopes . ix scp . scopeOverrides . at (r ^. rid) .= Nothing
             let forb = throwPosError ("Override of parameters of the following resource is forbidden in the current context:" </> pretty r <+>  showPPos p)
             s <- getScope
             overrideType <- case r ^. rscope of
@@ -109,7 +101,7 @@ finalize rlist = do
                                                 if i
                                                     then return Replace -- we can override what's defined in a parent
                                                     else forb
-            foldM (\cr a -> addAttribute overrideType cr a) r (HM.toList prms)
+            ifoldlM (addAttribute overrideType) r prms
     withDefaults <- mapM (addOverrides >=> addDefaults) rlist
     -- There might be some overrides that could not be applied. The only
     -- valid reason is that they override something in exported resources.
@@ -122,16 +114,14 @@ finalize rlist = do
                overrider r = do
                    -- we must define if we can override the value
                    let canOverride = CantOverride -- TODO check inheritance
-                   foldM (addAttribute canOverride) r (itoList resprms)
-    toList <$> getOver >>= mapM_ keepforlater
-    let expandableDefine (curstd, curdef) r = do
+                   ifoldlM (addAttribute canOverride) r resprms
+    void $ getOver >>= mapM keepforlater
+    let expandableDefine r = do
             n <- isNativeType (r ^. rid . itype)
-            return $! if n || (r ^. rvirtuality /= Normal)
-                          then (r : curstd, curdef)
-                          else (curstd, r : curdef)
-    (standard, defines) <- foldM expandableDefine ([], []) withDefaults
-    expanded <- mapM expandDefine defines
-    return $! standard ++ concat expanded
+            if n
+                then return [r]
+                else expandDefine r
+    join <$> mapM expandableDefine withDefaults
 
 popScope :: InterpreterMonad ()
 popScope = curScope %= tail
@@ -150,7 +140,7 @@ evalTopLevel (TopContainer tops s) = do
 evalTopLevel x = return ([], x)
 
 getstt :: TopLevelType -> T.Text -> InterpreterMonad ([Resource], Statement)
-getstt topleveltype toplevelname = do
+getstt topleveltype toplevelname =
     -- check if this is a known class (spurious or inner class)
     use (nestedDeclarations . at (topleveltype, toplevelname)) >>= \case
         Just x -> return ([], x) -- it is known !
@@ -318,9 +308,11 @@ evaluateStatement r@(ClassDeclaration cname _ _ _ _) =
        then nestedDeclarations . at (TopClass, cname) ?= r >> return []
        else do
            scp <- getScopeName
-           if scp == "::"
-               then nestedDeclarations . at (TopClass, cname) ?= r >> return []
-               else nestedDeclarations . at (TopClass, scp <> "::" <> cname) ?= r >> return []
+           let rcname = if scp == "::"
+                            then cname
+                            else scp <> "::" <> cname
+           nestedDeclarations . at (TopClass, rcname) ?= r
+           return []
 evaluateStatement r@(DefineDeclaration dname _ _ _) =
     if "::" `T.isInfixOf` dname
        then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
@@ -353,14 +345,12 @@ evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
             o <- finalize res
             popScope
             return o
-
         else return []
 evaluateStatement (Dependency (t1 :!: n1) (t2 :!: n2) p) = do
     curPos .= p
     rn1 <- resolveExpressionStrings n1
     rn2 <- resolveExpressionStrings n2
-    forM_ rn1 $ \an1 -> forM_ rn2 $ \an2 ->
-        extraRelations %= (LinkInformation (RIdentifier t1 an1) (RIdentifier t2 an2) RBefore p :)
+    extraRelations <>= [ LinkInformation (RIdentifier t1 an1) (RIdentifier t2 an2) RBefore p | an1 <- rn1, an2 <- rn2 ]
     return []
 evaluateStatement (ResourceDeclaration rt ern eargs virt p) = do
     curPos .= p
@@ -433,20 +423,19 @@ loadVariable varname varval = do
     variableDefined <- preuse (scopes . ix scp . scopeVariables . ix varname)
     case (scopeDefined, variableDefined) of
         (False, _) -> throwPosError ("Internal error: trying to save a variable in unknown scope" <+> ttext scp)
-        (_, Just (_ :!: pp :!: ctx)) -> do
-            isParent scp (curcont ^. cctype) >>= \case
+        (_, Just (_ :!: pp :!: ctx)) -> isParent scp (curcont ^. cctype) >>= \case
                 True -> do
-                    debug ("The variable"
-                          <+> pretty (UVariableReference varname)
-                          <+> "had been overriden because of some arbitrary inheritance rule that was set up to emulate puppet behaviour. It was defined at"
-                          <+> showPPos pp
-                          )
+                    debug("The variable"
+                         <+> pretty (UVariableReference varname)
+                         <+> "had been overriden because of some arbitrary inheritance rule that was set up to emulate puppet behaviour. It was defined at"
+                         <+> showPPos pp
+                         )
                     scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
                 False -> throwPosError ("Variable" <+> pretty (UVariableReference varname) <+> "already defined at" <+> showPPos pp
-                                </> "Context:" <+> pretty ctx
-                                </> "Value:" <+> pretty varval
-                                </> "Current scope:" <+> ttext scp
-                                )
+                            </> "Context:" <+> pretty ctx
+                            </> "Value:" <+> pretty varval
+                            </> "Current scope:" <+> ttext scp
+                            )
         _ -> scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
 
 -- | This function loads class and define parameters into scope. It checks
@@ -657,20 +646,20 @@ addRelationship _ notrr _ = throwPosError ("Expected a resource reference, not:"
 addTagResource :: Resource -> T.Text -> Resource
 addTagResource r rv = r & rtags . contains rv .~ True
 
-addAttribute :: OverrideType -> Resource -> (T.Text, PValue) -> InterpreterMonad Resource
-addAttribute _ r ("alias", v) = (\rv -> r & ralias . contains rv .~ True) <$> resolvePValueString v
-addAttribute _ r ("audit", _) = use curPos >>= \p -> warn ("Metaparameter audit ignored at" <+> showPPos p) >> return r
-addAttribute _ r ("noop", _) = use curPos >>= \p -> warn ("Metaparameter noop ignored at" <+> showPPos p) >> return r
-addAttribute _ r ("loglevel", _) = use curPos >>= \p -> warn ("Metaparameter loglevel ignored at" <+> showPPos p) >> return r
-addAttribute _ r ("schedule", _) = use curPos >>= \p -> warn ("Metaparameter schedule ignored at" <+> showPPos p) >> return r
-addAttribute _ r ("stage", _) = use curPos >>= \p -> warn ("Metaparameter stage ignored at" <+> showPPos p) >> return r
-addAttribute _ r ("tag", PArray v) = foldM (\cr cv -> addTagResource cr <$> resolvePValueString cv) r (toList v)
-addAttribute _ r ("tag", v) = addTagResource r <$> resolvePValueString v
-addAttribute _ r ("before", d) = addRelationship RBefore d r
-addAttribute _ r ("notify", d) = addRelationship RNotify d r
-addAttribute _ r ("require", d) = addRelationship RRequire d r
-addAttribute _ r ("subscribe", d) = addRelationship RSubscribe d r
-addAttribute b r (t,v) = case (r ^. rattributes . at t, b) of
+addAttribute :: OverrideType -> T.Text -> Resource -> PValue -> InterpreterMonad Resource
+addAttribute _ "alias"     r v = (\rv -> r & ralias . contains rv .~ True) <$> resolvePValueString v
+addAttribute _ "audit"     r _ = use curPos >>= \p -> warn ("Metaparameter audit ignored at" <+> showPPos p) >> return r
+addAttribute _ "noop"      r _ = use curPos >>= \p -> warn ("Metaparameter noop ignored at" <+> showPPos p) >> return r
+addAttribute _ "loglevel"  r _ = use curPos >>= \p -> warn ("Metaparameter loglevel ignored at" <+> showPPos p) >> return r
+addAttribute _ "schedule"  r _ = use curPos >>= \p -> warn ("Metaparameter schedule ignored at" <+> showPPos p) >> return r
+addAttribute _ "stage"     r _ = use curPos >>= \p -> warn ("Metaparameter stage ignored at" <+> showPPos p) >> return r
+addAttribute _ "tag"       r (PArray v) = foldM (\cr cv -> addTagResource cr <$> resolvePValueString cv) r (toList v)
+addAttribute _ "tag"       r v = addTagResource r <$> resolvePValueString v
+addAttribute _ "before"    r d = addRelationship RBefore d r
+addAttribute _ "notify"    r d = addRelationship RNotify d r
+addAttribute _ "require"   r d = addRelationship RRequire d r
+addAttribute _ "subscribe" r d = addRelationship RSubscribe d r
+addAttribute b t r v = case (r ^. rattributes . at t, b) of
                              (_, Replace)     -> return (r & rattributes . at t ?~ v)
                              (Nothing, _)     -> return (r & rattributes . at t ?~ v)
                              (_, CantReplace) -> return r
@@ -704,7 +693,7 @@ registerResource rt rn arg vrt p = do
     allScope <- use curScope
     fqdn <- singleton GetNodeName
     let baseresource = Resource (RIdentifier rt rn) (HS.singleton rn) mempty defaultRelation allScope vrt defaulttags p fqdn
-    r <- foldM (addAttribute CantOverride) baseresource (itoList arg)
+    r <- ifoldlM (addAttribute CantOverride) baseresource arg
     let resid = RIdentifier rt rn
     case rt of
         "class" -> {-# SCC "rrClass" #-} do
@@ -737,30 +726,31 @@ logWithModifier _ _ _ = throwPosError "This function takes a single argument"
 mainFunctionCall :: T.Text -> [PValue] -> InterpreterMonad [Resource]
 mainFunctionCall "showscope" _ = use curScope >>= warn . pretty >> return []
 -- The logging functions
-mainFunctionCall "alert" a   = logWithModifier ALERT        red         a
-mainFunctionCall "crit" a    = logWithModifier CRITICAL     red         a
-mainFunctionCall "debug" a   = logWithModifier DEBUG        dullwhite   a
-mainFunctionCall "emerg" a   = logWithModifier EMERGENCY    red         a
-mainFunctionCall "err" a     = logWithModifier ERROR        dullred     a
-mainFunctionCall "info" a    = logWithModifier INFO         green       a
-mainFunctionCall "notice" a  = logWithModifier NOTICE       white       a
+mainFunctionCall "alert"   a = logWithModifier ALERT        red         a
+mainFunctionCall "crit"    a = logWithModifier CRITICAL     red         a
+mainFunctionCall "debug"   a = logWithModifier DEBUG        dullwhite   a
+mainFunctionCall "emerg"   a = logWithModifier EMERGENCY    red         a
+mainFunctionCall "err"     a = logWithModifier ERROR        dullred     a
+mainFunctionCall "info"    a = logWithModifier INFO         green       a
+mainFunctionCall "notice"  a = logWithModifier NOTICE       white       a
 mainFunctionCall "warning" a = logWithModifier WARNING      dullyellow  a
-mainFunctionCall "include" includes =
-    fmap concat $ forM includes $ \e -> do
-        classname <- resolvePValueString e
-        loadClass classname S.Nothing mempty IncludeStandard
+mainFunctionCall "include" includes = concat <$> mapM doInclude includes
+    where doInclude e = do
+            classname <- resolvePValueString e
+            loadClass classname S.Nothing mempty IncludeStandard
 mainFunctionCall "create_resources" [rtype, hs] = mainFunctionCall "create_resources" [rtype, hs, PHash mempty]
 mainFunctionCall "create_resources" [PString rtype, PHash hs, PHash defs] = do
     p <- use curPos
-    let genRes (rname, PHash rargs) = registerResource rtype rname (rargs <> defs) Normal p
-        genRes (rname, x) = throwPosError ("create_resource(): the value corresponding to key" <+> ttext rname <+> "should be a hash, not" <+> pretty x)
-    concat <$> mapM genRes (itoList hs)
+    let genRes rname (PHash rargs) = registerResource rtype rname (rargs <> defs) Normal p
+        genRes rname x = throwPosError ("create_resource(): the value corresponding to key" <+> ttext rname <+> "should be a hash, not" <+> pretty x)
+    concat . HM.elems <$> itraverse genRes hs
 mainFunctionCall "create_resources" args = throwPosError ("create_resource(): expects between two and three arguments, of type [string,hash,hash], and not:" <+> pretty args)
 mainFunctionCall "realize" args = do
     p <- use curPos
     let realiz (PResourceReference rt rn) = resMod %= (ResourceModifier rt ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return p : )
         realiz x = throwPosError ("realize(): all arguments must be resource references, not" <+> pretty x)
-    mapM_ realiz args >> return []
+    mapM_ realiz args
+    return []
 mainFunctionCall "tag" args = do
     scp <- getScopeName
     let addTag x = scopes . ix scp . scopeExtraTags . contains x .= True
@@ -770,11 +760,9 @@ mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ttext <$> resolvePValueS
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
 mainFunctionCall "hiera_include" [x] = do
     ndname <- resolvePValueString x
-    classes <- runHiera ndname ArrayMerge >>= \case
-                    S.Just (PArray r) -> return (toList r)
-                    _ -> return []
+    classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname ArrayMerge
     p <- use curPos
-    curPos %= (_1 . lSourceName %~ (<> " [hiera_include call]"))
+    curPos . _1 . lSourceName <>= " [hiera_include call]"
     o <- mainFunctionCall "include" classes
     curPos .= p
     return o

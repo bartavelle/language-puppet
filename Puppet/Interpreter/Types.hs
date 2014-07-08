@@ -29,7 +29,6 @@ import GHC.Generics hiding (to)
 import qualified Data.Traversable as TR
 import qualified Data.ByteString as BS
 import System.Log.Logger
-import Data.List (foldl')
 import Control.Applicative hiding (empty)
 import Data.Time.Clock
 import GHC.Stack
@@ -41,6 +40,7 @@ import Control.Exception
 import Control.Concurrent.MVar (MVar)
 import qualified Scripting.Lua as Lua
 import Foreign.Ruby
+import qualified Data.Foldable as F
 
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
@@ -496,9 +496,9 @@ resourceRelations = concatMap expandSet . HM.toList . _rrelations
         expandSet (ri, lts) = [(ri, lt) | lt <- HS.toList lts]
 
 -- | helper for hashmap, in case we want another kind of map ..
-ifromList :: (Monoid m, At m) => [(Index m, IxValue m)] -> m
+ifromList :: (Monoid m, At m, F.Foldable f) => f (Index m, IxValue m) -> m
 {-# INLINE ifromList #-}
-ifromList = foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
+ifromList = F.foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
 
 ikeys :: (Eq k, Hashable k) => HM.HashMap k v -> HS.HashSet k
 {-# INLINE ikeys #-}
@@ -508,9 +508,9 @@ isingleton :: (Monoid b, At b) => Index b -> IxValue b -> b
 {-# INLINE isingleton #-}
 isingleton k v = mempty & at k ?~ v
 
-ifromListWith :: (Monoid m, At m) => (IxValue m -> IxValue m -> IxValue m) -> [(Index m, IxValue m)] -> m
+ifromListWith :: (Monoid m, At m, F.Foldable f) => (IxValue m -> IxValue m -> IxValue m) -> f (Index m, IxValue m) -> m
 {-# INLINE ifromListWith #-}
-ifromListWith f = foldl' (\curmap (k,v) -> iinsertWith f k v curmap) mempty
+ifromListWith f = F.foldl' (\curmap (k,v) -> iinsertWith f k v curmap) mempty
 
 iinsertWith :: At m => (IxValue m -> IxValue m -> IxValue m) -> Index m -> IxValue m -> m -> m
 {-# INLINE iinsertWith #-}
