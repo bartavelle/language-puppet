@@ -85,8 +85,7 @@ compileRE r = case compile' compBlank execBlank (T.encodeUtf8 r) of
 matchRE :: Regex -> T.Text -> InterpreterMonad Bool
 matchRE r t = case execute' r (T.encodeUtf8 t) of
                   Left rr -> throwPosError ("Could not match:" <+> string (show rr))
-                  Right Nothing -> return False
-                  Right (Just _) -> return True
+                  Right m -> return (has _Just m)
 
 puppetAbs :: PValue -> InterpreterMonad PValue
 puppetAbs y = case y ^? _Number of
@@ -148,9 +147,7 @@ puppetCount [PArray x, y] = return (_Integer # V.foldl' cnt 0 x)
 puppetCount _ = throwPosError "count(): expects 1 or 2 arguments"
 
 delete :: [PValue] -> InterpreterMonad PValue
-delete [PString x, y] = do
-    ty <- resolvePValueString y
-    return $ PString $ T.concat $ T.splitOn ty x
+delete [PString x, y] = fmap (PString . T.concat . (`T.splitOn` x)) (resolvePValueString y)
 delete [PArray r, z] = return $ PArray $ V.filter (/= z) r
 delete [PHash h, z] = do
    tz <- resolvePValueString z
@@ -189,8 +186,7 @@ getvar :: PValue -> InterpreterMonad PValue
 getvar = resolvePValueString >=> resolveVariable
 
 isArray :: PValue -> InterpreterMonad PValue
-isArray (PArray _) = return (PBoolean True)
-isArray _ = return (PBoolean False)
+isArray = return . PBoolean . has _PArray
 
 isDomainName :: PValue -> InterpreterMonad PValue
 isDomainName s = do

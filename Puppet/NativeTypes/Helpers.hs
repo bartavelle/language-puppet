@@ -41,6 +41,7 @@ import qualified Data.Text as T
 import Control.Lens
 import qualified Data.Vector as V
 import Data.Aeson.Lens (_Number,_Integer)
+import Data.Maybe (fromMaybe)
 
 type PuppetTypeName = T.Text
 
@@ -118,9 +119,7 @@ values valuelist param res = case res ^. rattributes . at param of
 
 -- | This fills the default values of unset parameters.
 defaultvalue :: T.Text -> T.Text -> PuppetTypeValidate
-defaultvalue value param res = case res ^. rattributes . at param of
-    Just _  -> Right res
-    Nothing -> Right $ res & rattributes . at param ?~ PString value
+defaultvalue value param = Right . over (rattributes . at param) (Just . fromMaybe (PString value))
 
 -- | Checks that a given parameter, if set, is a 'ResolvedInt'. If it is a
 -- 'PString' it will attempt to parse it.
