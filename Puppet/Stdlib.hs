@@ -34,6 +34,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("delete_at", deleteAt)
                               , singleArgument "delete_undef_values" deleteUndefValues
                               , ("downcase", stringArrayFunction T.toLower)
+                              , singleArgument "empty" _empty
                               , singleArgument "flatten" flatten
                               , singleArgument "getvar"  getvar
                               , ("getparam", const $ throwPosError "The getparam function is uncool and shall not be implemented in language-puppet")
@@ -173,6 +174,9 @@ deleteUndefValues :: PValue -> InterpreterMonad PValue
 deleteUndefValues (PArray r) = return $ PArray $ V.filter (/= PUndef) r
 deleteUndefValues (PHash h) = return $ PHash $ HM.filter (/= PUndef) h
 deleteUndefValues x = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
+
+_empty :: PValue -> InterpreterMonad PValue
+_empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PArray V.empty, PHash HM.empty] 
 
 flatten :: PValue -> InterpreterMonad PValue
 flatten r@(PArray _) = return $ PArray (flatten' r)
