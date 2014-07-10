@@ -11,6 +11,7 @@ import Puppet.Lens
 import Data.Char
 import Data.Monoid
 import Control.Monad
+import Data.Vector.Lens
 import Text.Regex.PCRE.ByteString.Utils
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
@@ -302,5 +303,5 @@ validateString [] = throwPosError "validate_string(): wrong number of arguments,
 validateString x = mapM_ resolvePValueString x >> return PUndef
 
 pvalues :: PValue -> InterpreterMonad PValue
-pvalues (PHash h) = return $ PArray (V.fromList (h ^.. traverse))
+pvalues (PHash h) = return $ PArray (toVectorOf traverse h)
 pvalues x = throwPosError ("values(): expected a hash, not" <+> pretty x)
