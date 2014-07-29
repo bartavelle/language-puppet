@@ -149,10 +149,4 @@ instance Pretty (InterpreterInstr a) where
     pretty (IsIgnoredModule m)         = pf "IsIgnoredModule" [ttext m]
 
 instance Pretty LinkInformation where
-    pretty (LinkInformation lsrc ldst ltype lpos) = pretty lsrc <+> plt <+> pretty ldst <+> showPPos lpos
-        where
-            plt = case ltype of
-                      RNotify    -> "~>"
-                      RRequire   -> "<-"
-                      RBefore    -> "->"
-                      RSubscribe -> "<~"
+    pretty (LinkInformation lsrc ldst ltype lpos) = pretty lsrc <+> pretty ltype <+> pretty ldst <+> showPPos lpos
