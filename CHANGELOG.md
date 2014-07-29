@@ -3,6 +3,7 @@
 Building without hruby is now unsupported.
 ## New features
 * Support for Debian distribution detection in facter.
+* Support for the "~>" operator.
 ## Bugs fixed
 * Better support for --ignoremodules.
 

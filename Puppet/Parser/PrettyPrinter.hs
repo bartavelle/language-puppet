@@ -111,6 +111,12 @@ instance Pretty SelectorCase where
     pretty SelectorDefault = dullmagenta (text "default")
     pretty (SelectorValue v) = pretty v
 
+instance Pretty LinkType where
+    pretty RNotify    = "~>"
+    pretty RRequire   = "<-"
+    pretty RBefore    = "->"
+    pretty RSubscribe = "<~"
+
 showPos :: Position -> Doc
 showPos p = green (char '#' <+> string (show p))
 
@@ -181,7 +187,7 @@ instance Pretty Statement where
             inheritance = case i of
                               S.Nothing -> empty
                               S.Just n -> empty <+> text "inherits" <+> pretty n
-    pretty (Dependency (st :!: sn) (dt :!: dn) p) = pretty (UResourceReference st sn) <+> text "->" <+> pretty (UResourceReference dt dn) <+> showPPos p
+    pretty (Dependency (  st :!: sn) (dt :!: dn) lt p) = pretty (UResourceReference st sn) <+> pretty lt <+> pretty (UResourceReference dt dn) <+> showPPos p
     pretty (TopContainer a b) = text "TopContainer:" <+> braces ( nest 2 (string "TOP" <$> braceStatements a <$> string "STATEMENT" <$> pretty b))
     pretty (ResourceCollection coltype restype search overrides p) = capitalize restype <> enc (pretty search) <+> overs
         where

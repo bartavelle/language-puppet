@@ -15,6 +15,7 @@ module Puppet.Parser.Types
    capitalizeRT,
    array,
    toBool,
+   rel2text,
    -- * Types
    -- ** Expressions
    Expression(..),
@@ -27,6 +28,7 @@ module Puppet.Parser.Types
    CollectorType(..),
    Virtuality(..),
    NodeDesc(..),
+   LinkType(..),
    -- ** Search Expressions
    SearchExpression(..),
    -- ** Statements
@@ -35,6 +37,7 @@ module Puppet.Parser.Types
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Data.Hashable
 import Data.Tuple.Strict
 import qualified Data.Maybe.Strict as S
 import GHC.Generics
@@ -43,6 +46,7 @@ import Text.Regex.PCRE.String
 import Control.Lens
 import Data.String
 import Data.Scientific
+import Data.Aeson
 
 import Text.Parsec.Pos
 
@@ -226,6 +230,27 @@ instance Eq NodeDesc where
     (==) (NodeMatch a _) (NodeMatch b _) = a == b
     (==) _ _ = False
 
+
+-- | Relationship link type.
+data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Eq,Generic)
+instance Hashable LinkType
+
+rel2text :: LinkType -> T.Text
+rel2text RNotify = "notify"
+rel2text RRequire = "require"
+rel2text RBefore = "before"
+rel2text RSubscribe = "subscribe"
+
+instance FromJSON LinkType where
+    parseJSON (String "require")   = return RRequire
+    parseJSON (String "notify")    = return RNotify
+    parseJSON (String "subscribe") = return RSubscribe
+    parseJSON (String "before")    = return RBefore
+    parseJSON _ = fail "invalid linktype"
+
+instance ToJSON LinkType where
+    toJSON = String . rel2text
+
 -- | All the possible statements
 data Statement
     = ResourceDeclaration !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !Virtuality !PPosition
@@ -239,7 +264,7 @@ data Statement
     | MainFunctionCall !T.Text !(V.Vector Expression) !PPosition
     | SHFunctionCall !HFunctionCall !PPosition -- ^ /Higher order function/ call.
     | ResourceCollection !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition -- ^ For all types of collectors.
-    | Dependency !(Pair T.Text Expression) !(Pair T.Text Expression) !PPosition
+    | Dependency !(Pair T.Text Expression) !(Pair T.Text Expression) !LinkType !PPosition
     | TopContainer !(V.Vector Statement) !Statement -- ^ This is a special statement that is used to include the expressions that are top level. This is certainly buggy, but probably just like the original implementation.
     deriving Eq
 

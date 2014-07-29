@@ -242,10 +242,6 @@ data RIdentifier = RIdentifier { _itype :: !T.Text
 
 instance Hashable RIdentifier
 
--- | Relationship link type.
-data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Eq,Generic)
-instance Hashable LinkType
-
 data ModifierType = ModifierCollector -- ^ For collectors, optional resources
                   | ModifierMustMatch -- ^ For stuff like realize
                   deriving Eq
@@ -527,12 +523,6 @@ fnull :: (Eq x, Monoid x) => x -> Bool
 {-# INLINE fnull #-}
 fnull = (== mempty)
 
-rel2text :: LinkType -> T.Text
-rel2text RNotify = "notify"
-rel2text RRequire = "require"
-rel2text RBefore = "before"
-rel2text RSubscribe = "subscribe"
-
 rid2text :: RIdentifier -> T.Text
 rid2text (RIdentifier t n) = capitalizeRT t `T.append` "[" `T.append` capn `T.append` "]"
     where
@@ -667,16 +657,6 @@ instance FromJSON ResourceField where
     parseJSON (String "file"    ) = pure RFile
     parseJSON (String "line"    ) = pure RLine
     parseJSON _ = fail "invalid field"
-
-instance FromJSON LinkType where
-    parseJSON (String "require")   = pure RRequire
-    parseJSON (String "notify")    = pure RNotify
-    parseJSON (String "subscribe") = pure RSubscribe
-    parseJSON (String "before")    = pure RBefore
-    parseJSON _ = fail "invalid linktype"
-
-instance ToJSON LinkType where
-    toJSON = String . rel2text
 
 instance FromJSON RIdentifier where
     parseJSON (Object v) = RIdentifier <$> v .: "type" <*> v .: "title"

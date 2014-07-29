@@ -10,6 +10,7 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Data.HashSet as HS
 import qualified Data.Maybe.Strict as S
+import qualified Data.Foldable as F
 import Data.Tuple.Strict hiding (fst,zip)
 import Text.Regex.PCRE.ByteString.Utils
 
@@ -428,15 +429,58 @@ caseCondition = do
     pe <- getPosition
     return [ ConditionalStatement (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) ]
 
-resourceGroup :: Parser [Statement]
-resourceGroup = do
-    groups <- resourceGroup' `sepBy1` operator "->"
+data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
+                     | EndOfChain a
+
+operatorChainStatement :: OperatorChain a -> a
+operatorChainStatement (OperatorChain a _ _) = a
+operatorChainStatement (EndOfChain x) = x
+
+zipChain :: OperatorChain a -> [ ( a, a, LinkType ) ]
+zipChain (OperatorChain a d nx) = (a, operatorChainStatement nx, d) : zipChain nx
+zipChain (EndOfChain _) = []
+
+depOperator :: Parser LinkType
+depOperator =   (operator "->" *> pure RBefore)
+            <|> (operator "~>" *> pure RNotify)
+
+-- | Used to parse chains of resource relations
+parseRelationships :: Parser a -> Parser (OperatorChain a)
+parseRelationships p = do
+    g <- p
+    o <- optional depOperator
+    case o of
+        Just o' -> OperatorChain g o' <$> parseRelationships p
+        Nothing -> pure (EndOfChain g)
+
+statementRelationships :: Parser [Statement] -> Parser [Statement]
+statementRelationships p = do
+    groups <- zipChain <$> parseRelationships p
     let relations = do
-            (g1, g2) <- zip groups (tail groups)
+            (g1, g2, lt) <- groups
             ResourceDeclaration rt1 rn1 _ _ (_ :!: pe1) <- g1
             ResourceDeclaration rt2 rn2 _ _ (ps2 :!: _) <- g2
-            return (Dependency (rt1 :!: rn1) (rt2 :!: rn2) (pe1 :!: ps2))
-    return $ concat groups <> relations
+            return (Dependency (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
+    return $ F.foldMap (view _1) groups <> relations
+
+startDepChains :: Position -> T.Text -> [Expression] -> Parser [Statement]
+startDepChains p restype resnames = do
+    d <- depOperator
+    groups <- zipChain . OperatorChain (restype, resnames) d <$> parseRelationships resourceReferenceRaw
+    pe <- getPosition
+    return $ do
+        ((rt, rns), (dt, dns), lt) <- groups
+        rn <- rns
+        dn <- dns
+        return (Dependency (rt :!: rn) (dt :!: dn) lt (p :!: pe))
+
+rrGroupRef :: Position -> T.Text -> Parser [Statement]
+rrGroupRef p restype = do
+    resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
+    startDepChains p restype resnames <|> resourceOverride p restype resnames
+
+resourceGroup :: Parser [Statement]
+resourceGroup = statementRelationships resourceGroup'
 
 resourceGroup' :: Parser [Statement]
 resourceGroup' = do
@@ -526,20 +570,6 @@ mainFunctionCall = do
     (fname, args) <- genFunctionCall True
     pe <- getPosition
     return [ MainFunctionCall fname args (p :!: pe) ]
-
-startDepChains :: Position -> T.Text -> [Expression] -> Parser [Statement]
-startDepChains p restype resnames = do
-    operator "->"
-    -- FIXME positions
-    nxts <- resourceReferenceRaw `sepBy` operator "->"
-    pe <- getPosition
-    let refs = (restype, resnames) : nxts
-    return [ Dependency (rt :!: rn) (dt :!: dn) (p :!: pe) | ((rt, rns), (dt,dns)) <- zip refs (tail refs), rn <- rns, dn <- dns ]
-
-rrGroupRef :: Position -> T.Text -> Parser [Statement]
-rrGroupRef p restype = do
-    resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
-    startDepChains p restype resnames <|> resourceOverride p restype resnames
 
 rrGroup :: Parser [Statement]
 rrGroup = do

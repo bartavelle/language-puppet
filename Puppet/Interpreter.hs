@@ -346,11 +346,11 @@ evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
             popScope
             return o
         else return []
-evaluateStatement (Dependency (t1 :!: n1) (t2 :!: n2) p) = do
+evaluateStatement (Dependency (t1 :!: n1) (t2 :!: n2) lt p) = do
     curPos .= p
     rn1 <- resolveExpressionStrings n1
     rn2 <- resolveExpressionStrings n2
-    extraRelations <>= [ LinkInformation (RIdentifier t1 an1) (RIdentifier t2 an2) RBefore p | an1 <- rn1, an2 <- rn2 ]
+    extraRelations <>= [ LinkInformation (RIdentifier t1 an1) (RIdentifier t2 an2) lt p | an1 <- rn1, an2 <- rn2 ]
     return []
 evaluateStatement (ResourceDeclaration rt ern eargs virt p) = do
     curPos .= p
