@@ -432,6 +432,10 @@ caseCondition = do
 data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
                      | EndOfChain a
 
+instance F.Foldable OperatorChain where
+    foldMap f (EndOfChain x) = f x
+    foldMap f (OperatorChain a _ nx) = f a <> F.foldMap f nx
+
 operatorChainStatement :: OperatorChain a -> a
 operatorChainStatement (OperatorChain a _ _) = a
 operatorChainStatement (EndOfChain x) = x
@@ -455,13 +459,13 @@ parseRelationships p = do
 
 statementRelationships :: Parser [Statement] -> Parser [Statement]
 statementRelationships p = do
-    groups <- zipChain <$> parseRelationships p
+    rels <- parseRelationships p
     let relations = do
-            (g1, g2, lt) <- groups
+            (g1, g2, lt) <- zipChain rels
             ResourceDeclaration rt1 rn1 _ _ (_ :!: pe1) <- g1
             ResourceDeclaration rt2 rn2 _ _ (ps2 :!: _) <- g2
             return (Dependency (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
-    return $ F.foldMap (view _1) groups <> relations
+    return $ mconcat (F.toList rels) <> relations
 
 startDepChains :: Position -> T.Text -> [Expression] -> Parser [Statement]
 startDepChains p restype resnames = do
