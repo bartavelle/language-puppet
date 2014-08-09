@@ -306,8 +306,8 @@ resolveValue (UInterpolable vals) = fmap (PString . mconcat) (mapM resolveValueS
 resolveValue (UResourceReference t e) = do
     r <- resolveExpressionStrings e
     case r of
-        [s] -> return (PResourceReference t s)
-        _   -> return (PArray (V.fromList (map (\s -> PResourceReference t s) r)))
+        [s] -> return (PResourceReference t (T.toLower s))
+        _   -> return (PArray (V.fromList (map (\s -> PResourceReference t (T.toLower s)) r)))
 resolveValue (UArray a) = fmap PArray (V.mapM resolveExpression a)
 resolveValue (UHash a) = fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
     where
