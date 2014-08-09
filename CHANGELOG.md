@@ -6,6 +6,7 @@ Building without hruby is now unsupported.
 * Support for the "~>" operator.
 ## Bugs fixed
 * Better support for --ignoremodules.
+* Fixed parsing of standalone `$` characters in strings.
 
 # v0.14.0 (2014/06/12)
 ## New features

@@ -162,7 +162,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
         stringEscape x    = ['\\',x]
         -- this is specialized because we can't be "tokenized" here
         variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
-        interpolableVariableReference = do
+        interpolableVariableReference = try $ do
             void (char '$')
             v <- lookAhead anyChar >>= \case
                      '{' -> inBraces
