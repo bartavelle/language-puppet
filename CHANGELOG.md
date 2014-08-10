@@ -5,6 +5,7 @@ Building without hruby is now unsupported.
 * Support for Debian distribution detection in facter.
 * Support for the "~>" operator.
 * Support for mixed-case resource references.
+* Added the `grep` function.
 ## Bugs fixed
 * Better support for --ignoremodules.
 * Fixed parsing of standalone `$` characters in strings.

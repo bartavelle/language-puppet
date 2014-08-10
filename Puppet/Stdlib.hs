@@ -13,6 +13,7 @@ import Data.Monoid
 import Control.Monad
 import Data.Vector.Lens
 import Text.Regex.PCRE.ByteString.Utils
+import Data.Traversable (for)
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
@@ -39,6 +40,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "flatten" flatten
                               , singleArgument "getvar"  getvar
                               , ("getparam", const $ throwPosError "The getparam function is uncool and shall not be implemented in language-puppet")
+                              , ("grep", _grep)
                               , singleArgument "is_array" isArray
                               , singleArgument "is_domain_name" isDomainName
                               , singleArgument "is_integer" isInteger
@@ -189,6 +191,17 @@ flatten x = throwPosError ("flatten(): Expects an Array, not" <+> pretty x)
 
 getvar :: PValue -> InterpreterMonad PValue
 getvar = resolvePValueString >=> resolveVariable
+
+_grep :: [PValue] -> InterpreterMonad PValue
+_grep [PArray vls, rawre] = do
+    regexp <- resolvePValueString rawre >>= compileRE
+    rvls <- for vls $ \v -> do
+       r <- resolvePValueString v
+       ismatched <- matchRE regexp r
+       return (r, ismatched)
+    return $ PArray $ (V.map (PString . fst) (V.filter snd rvls))
+_grep [x,_] = throwPosError ("grep(): The first argument must be an Array, not" <+> pretty x)
+_grep _ = throwPosError "grep(): Expected two arguments."
 
 isArray :: PValue -> InterpreterMonad PValue
 isArray = return . PBoolean . has _PArray
