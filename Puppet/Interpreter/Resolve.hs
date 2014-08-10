@@ -24,7 +24,8 @@ module Puppet.Interpreter.Resolve
       hfGenerateAssociations,
       hfSetvars,
       hfRestorevars,
-      toNumbers
+      toNumbers,
+      fixResourceName
     ) where
 
 import Puppet.PP
@@ -67,6 +68,14 @@ import Data.Scientific
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.
 type NumberPair = Pair Scientific Scientific
+
+-- | Converts class resource names to lowercase (fix for the jenkins
+-- plugin).
+fixResourceName :: T.Text -- ^ Resource type
+                -> T.Text -- ^ Resource name
+                -> T.Text
+fixResourceName "class" = T.toLower
+fixResourceName _       = id
 
 -- | A hiera helper function, that will throw all Hiera errors and log
 -- messages to the main monad.
@@ -307,7 +316,7 @@ resolveValue (UResourceReference t e) = do
     r <- resolveExpressionStrings e
     case r of
         [s] -> return (PResourceReference t (T.toLower s))
-        _   -> return (PArray (V.fromList (map (\s -> PResourceReference t (T.toLower s)) r)))
+        _   -> return (PArray (V.fromList (map (\s -> PResourceReference t (fixResourceName t s)) r)))
 resolveValue (UArray a) = fmap PArray (V.mapM resolveExpression a)
 resolveValue (UHash a) = fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
     where
