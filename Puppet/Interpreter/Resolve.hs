@@ -158,7 +158,7 @@ getVariable :: Container ScopeInformation -- ^ The whole scope data.
             -> Either Doc PValue
 getVariable scps scp fullvar = do
     (varscope, varname) <- case T.splitOn "::" fullvar of
-                               [] -> throwError "This doesn't make any sense in resolveVariable"
+                               [] -> Left "This doesn't make any sense in resolveVariable"
                                [vn] -> return (scp, vn) -- Non qualified variables
                                rst -> return (T.intercalate "::" (filter (not . T.null) (init rst)), last rst) -- qualified variables
     let extractVariable (varval :!: _ :!: _) = return varval
@@ -167,7 +167,7 @@ getVariable scps scp fullvar = do
         Nothing -> -- check top level scope
             case scps ^? ix "::" . scopeVariables . ix varname of
                 Just pp -> extractVariable pp
-                Nothing -> throwError ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ttext varscope <+> "or root")
+                Nothing -> Left ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ttext varscope <+> "or root")
 
 -- | A helper for numerical comparison functions.
 numberCompare :: Expression -> Expression -> (Scientific -> Scientific -> Bool) -> InterpreterMonad PValue
