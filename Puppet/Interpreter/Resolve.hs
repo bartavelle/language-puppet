@@ -39,7 +39,7 @@ import Puppet.Utils
 import Data.Version (parseVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
 
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Aeson hiding ((.=))
 import Data.CaseInsensitive  ( mk )
 import qualified Data.Vector as V
@@ -49,10 +49,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Control.Applicative hiding ((<$>))
 import Control.Monad
-import Control.Monad.Error
 import Data.Tuple.Strict as S
 import Control.Lens
-import Data.Maybe (mapMaybe)
 import Data.Aeson.Lens hiding (key)
 import qualified Data.Maybe.Strict as S
 import qualified Data.ByteString as BS
@@ -97,7 +95,7 @@ runHiera q t = do
     return o
 
 -- | The implementation of all hiera_* functions
-hieraCall :: HieraQueryType -> PValue -> (Maybe PValue) -> (Maybe PValue) -> InterpreterMonad PValue
+hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe PValue -> InterpreterMonad PValue
 hieraCall _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not yet supported"
 hieraCall qt q df _ = do
     qs <- resolvePValueString q
@@ -149,7 +147,7 @@ resolveVariable fullvar = do
 
 -- | A simple helper that checks if a given type is native or a define.
 isNativeType :: T.Text -> InterpreterMonad Bool
-isNativeType t = has (ix t) `fmap` (singleton GetNativeTypes)
+isNativeType t = has (ix t) `fmap` singleton GetNativeTypes
 
 -- | A pure function for resolving variables.
 getVariable :: Container ScopeInformation -- ^ The whole scope data.
@@ -285,7 +283,7 @@ resolveExpression (Division a b)       = do
     rb <- resolveExpressionNumber b
     case rb of
         0 -> throwPosError "Division by 0"
-        _ -> case ( (,) `fmap` preview _Integer ra <*> preview _Integer rb) of
+        _ -> case (,) `fmap` preview _Integer ra <*> preview _Integer rb of
                  Just (ia, ib) -> return $ PNumber $ fromIntegral (ia `div` ib)
                  _ -> return $ PNumber $ ra / rb
 resolveExpression (Multiplication a b) = binaryOperation a b (*)
@@ -316,7 +314,7 @@ resolveValue (UResourceReference t e) = do
     r <- resolveExpressionStrings e
     case r of
         [s] -> return (PResourceReference t (fixResourceName t s))
-        _   -> return (PArray (V.fromList (map (\s -> PResourceReference t (fixResourceName t s)) r)))
+        _   -> return (PArray (V.fromList (map (PResourceReference t . fixResourceName t) r)))
 resolveValue (UArray a) = fmap PArray (V.mapM resolveExpression a)
 resolveValue (UHash a) = fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
     where
@@ -400,7 +398,7 @@ resolveFunction' "defined" [ut] = do
     t <- resolvePValueString ut
     -- case 1, netsted thingie
     nestedStuff <- use nestedDeclarations
-    if (has (ix (TopDefine, t)) nestedStuff) || (has (ix (TopClass, t)) nestedStuff)
+    if has (ix (TopDefine, t)) nestedStuff || has (ix (TopClass, t)) nestedStuff
         then return (PBoolean True)
         else do -- case 2, loadeded class
             lc <- use loadedClasses
