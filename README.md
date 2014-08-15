@@ -17,6 +17,119 @@ It's as simple as :
     cabal update
     cabal sandbox init
     cabal install -j -p
-    
+
 There are also [binary packages](http://lpuppet.banquise.net/download/) available.
+
+# Puppetresources
+
+The `puppetresources` command is a command line utility that let you interactively compute catalogs on your local computer. It will then display them on screen, in a nice,
+user-friendly colored fashion. It is much faster than its ruby counterpart, and has been designed for giving assistance to the Puppet catalog writer. Here is a list of command line
+arguments :
+
+## `-p` or `--puppetdir`
+
+This is the only mandatory argument. It accepts a directory or file path as the argument. In the absence of `-o`, it will parse and display the puppet file given as a parameter.
+With `-o` it must point to the base of the puppet directory (the directory that contains the `modules` and `manifests` directories).
+
+## `-o` or `--node`
+
+This let you specify the name of the node you wish to compute the catalog for.
+
+If you use `allnodes` as the node name, it will compute the catalogs for all nodes that are specified in `site.pp` (this will not work for regexp-specified nodes). This is useful
+for writing automated tests, to check a change didn't break something.
+
+If you use `deadcode` as the node name, it will also compute the catalogs for all nodes, but will display the list of puppet files that have not been used, and that might be
+deprecated.
+
+You might want to run the program with `+RTS -N` with those two modes.
+
+## `-t` or `--type`
+
+Filters the resources of the resulting catalog by type, but specifying a regular expression. Only the resources whose types match the submitted regexp will be displayed.
+
+## `-n` or `--name`
+
+Filters the resources of the resulting catalog by name, but specifying a regular expression. Only the resources whose names match the submitted regexp will be displayed.
+
+## `-c` or `--showcontent`
+
+If `-n` is the exact name of a file defined in the catalog, this will display its content. This is mainly useful for debugging templates.
+
+## `--pdburl`
+
+Expects the url of a live PuppetDB.
+
+## `--pdbfile`
+
+Expects a path to a *fake* PuppetDB, represented as a YAML file on disk. This option is pretty slow but can be invaluable to test exported resources tricks.
+
+## `--hiera`
+
+Expects the path to the `hiera.yaml` file.
+
+## `--loglevel` or `-v`
+
+Expects a log level. Possible values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY.
+
+## `--ignoremodules`
+
+Expects a list of comma-separated modules. The interpreter will not try to evaluate the defined types and classes from this module. This is useful for using modules that use bad
+practices forbidden by `puppetresources`.
+
+## `--nousergrouptest`
+
+By default, `puppetresources` will check that all users and groups referenced by `cron`, `file`, etc. types are defined somewhere in the catalog (except for a list of widely
+available users, such as `root`). This flag disables these tests.
+
+## `--commitdb`
+
+When this flag is set, exported resources, catalogs and facts are saved in the PuppetDB. This is useful in conjunction with `--pdbfile`.
+
+## `--checkExported`
+
+When this flag is set, exported resources are saved in the PuppetDB. This is useful in conjunction with `--pdbfile`.
+
+## `-j` or `--JSON`
+
+Displays the catalog as a Puppet-compatible JSON file, that can then be used with `puppet apply`.
+
+## `--facts-override` and `--facts-defaults`
+
+Both options expect a path to a YAML file defining facts. The first option will override the facts that are collected locally, while the second will merely provide default values
+for them.
+
+# pdbQuery
+
+The `pdbQuery` command is used to work with different implementations of PuppetDB (the official one with its HTTP API, the file-based backend and dummy ones). Its main use is to
+export data from production PuppetDB to a file in order to debug some issue with `puppetresources`. Here is a list of command line arguments :
+
+## `-l` or `--location`
+
+The URL of the PuppetDB when working with a remote PuppetDB, a file path when working with the file-based test implementation.
+
+## `-t` or `--pdbtype`
+
+The type of PuppetDB to work with:
+
+* dummy: a dummy PuppetDB.
+* remote: a "real" PuppetDB, accessed by its HTTP API.
+* test: a file-based backend emulating a PuppetDB.
+
+## Commands
+
+### `dumpfacts`
+
+Dump all facts, and store them in `/tmp/allfacts.yaml`.
+
+### `nodes`
+
+Dump all nodes
+
+### `snapshot`
+
+Create a test DB from the current DB
+
+### `addfacts`
+
+Adds facts to the test DB for the given node name, if they are not already defined.
 
