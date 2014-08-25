@@ -35,7 +35,7 @@ With `-o` it must point to the base of the puppet directory (the directory that 
 
 This let you specify the name of the node you wish to compute the catalog for.
 
-If you use `allnodes` as the node name, it will compute the catalogs for all nodes that are specified in `site.pp` (this will not work for regexp-specified nodes). This is useful
+If you use `allnodes` as the node name, it will compute the catalogs for all nodes that are specified in `site.pp` (this will not work for regexp-specified or the default nodes). This is useful
 for writing automated tests, to check a change didn't break something.
 
 If you use `deadcode` as the node name, it will also compute the catalogs for all nodes, but will display the list of puppet files that have not been used, and that might be
