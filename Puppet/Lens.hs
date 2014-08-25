@@ -103,7 +103,7 @@ _PResolveValue = prism toU toP
 _PParse :: Prism' T.Text (V.Vector Statement)
 _PParse = prism dspl prs
     where
-        prs i = case runMyParser (puppetParser <* eof) "dummy" i of
+        prs i = case runPParser (puppetParser <* eof) "dummy" i of
                 Left _  -> Left i
                 Right x -> Right x
         dspl = T.pack . displayNocolor . ppStatements

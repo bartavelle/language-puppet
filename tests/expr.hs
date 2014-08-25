@@ -21,7 +21,7 @@ testcases =
 
 main :: IO ()
 main = do
-    let testres = map (\(a,b) -> (runMyParser (expression <* eof) "tests" a, b)) testcases
+    let testres = map (\(a,b) -> (runPParser (expression <* eof) "tests" a, b)) testcases
         isFailure (Left x, _) = Just (show x)
         isFailure (Right x, e) = if x == e
                                      then Nothing
