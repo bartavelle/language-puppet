@@ -3,7 +3,11 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
-module Puppet.Parser (puppetParser,expression,runMyParser) where
+module Puppet.Parser (
+    expression
+  , puppetParser
+  , runPParser
+) where
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -16,7 +20,6 @@ import Text.Regex.PCRE.ByteString.Utils
 
 import Data.Char
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Applicative
 import Control.Lens hiding (noneOf)
 
@@ -35,26 +38,23 @@ import qualified Text.Parsec.Prim as PP
 import Text.Parsec.Text ()
 import Data.Scientific
 
-newtype ParserT m a = ParserT { unParser :: m a }
-                   deriving (Functor, Applicative, Alternative)
+newtype Parser a = ParserT { unParser :: PP.ParsecT T.Text () Identity a}
+                 deriving (Functor, Applicative, Alternative)
 
-deriving instance Monad m => Monad (ParserT m)
-deriving instance MonadIO m => MonadIO (ParserT m)
-deriving instance (Monad m, Parsing m) => Parsing (ParserT m)
-deriving instance (Monad m, CharParsing m) => CharParsing (ParserT m)
-deriving instance (Monad m, LookAheadParsing m) => LookAheadParsing (ParserT m)
-
-type Parser = ParserT (PP.ParsecT T.Text () Identity)
+deriving instance Monad Parser
+deriving instance Parsing Parser
+deriving instance CharParsing Parser
+deriving instance LookAheadParsing Parser
 
 getPosition :: Parser SourcePos
 getPosition = ParserT PP.getPosition
 
-runMyParser :: Parser a -> SourceName -> T.Text -> Either ParseError a
-runMyParser (ParserT p) = PP.runP p ()
+runPParser :: Parser a -> SourceName -> T.Text -> Either ParseError a
+runPParser (ParserT p) = PP.parse p
 
 type OP = PP.ParsecT T.Text () Identity
 
-instance (CharParsing m, Monad m) => TokenParsing (ParserT m) where
+instance TokenParsing Parser where
     someSpace = skipMany (simpleSpace <|> oneLineComment <|> multiLineComment)
       where
         simpleSpace = skipSome (satisfy isSpace)
@@ -660,4 +660,3 @@ hfunctionCall = do
                   <*> parseHParams
                   <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
                   <*> fmap toStrict (optional expression) <* symbolic '}'
-

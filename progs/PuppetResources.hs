@@ -70,7 +70,7 @@ initializedaemonWithPuppet prio pdbapi puppetdir hierapath overrideFacts ignord 
     return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
-parseFile fp = fmap (runMyParser puppetParser fp) (T.readFile fp)
+parseFile fp = fmap (runPParser puppetParser fp) (T.readFile fp)
 
 printContent :: T.Text -> FinalCatalog -> IO ()
 printContent filename catalog =

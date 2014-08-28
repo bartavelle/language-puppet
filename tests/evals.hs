@@ -25,7 +25,7 @@ pureTests = [ "4 + 2 == 6"
 main :: IO ()
 main = do
     let check :: T.Text -> Either String ()
-        check t = case runMyParser (expression <* eof) "dummy" t of
+        check t = case runPParser (expression <* eof) "dummy" t of
                       Left rr -> Left (T.unpack t ++ " -> " ++ show rr)
                       Right e -> case dummyEval (resolveExpression e) of
                                      Right (PBoolean True) -> Right ()
