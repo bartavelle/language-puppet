@@ -329,7 +329,7 @@ expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- htt
 stringExpression :: Parser Expression
 stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variable <|> fmap PValue literalValue
 
-variableAssignment :: Parser [Statement]
+variableAssignment :: Parser VarAss
 variableAssignment = do
     p <- getPosition
     v <- variableReference
@@ -337,9 +337,9 @@ variableAssignment = do
     e <- expression
     when (T.all isDigit v) (fail "Can't assign fully numeric variables")
     pe <- getPosition
-    return [VariableAssignment (VarAss v e (p :!: pe))]
+    return (VarAss v e (p :!: pe))
 
-nodeStmt :: Parser [Statement]
+nodeStmt :: Parser [Nd]
 nodeStmt = do
     p <- getPosition
     reserved "node"
@@ -353,7 +353,7 @@ nodeStmt = do
     inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
     st <- braces statementList
     pe <- getPosition
-    return [Node (Nd n st inheritance (p :!: pe)) | n <- ns]
+    return [Nd n st inheritance (p :!: pe) | n <- ns]
 
 puppetClassParameters :: Parser (V.Vector (Pair T.Text (S.Maybe Expression)))
 puppetClassParameters = V.fromList <$> parens (var `sepEndBy` comma)
@@ -365,7 +365,7 @@ puppetClassParameters = V.fromList <$> parens (var `sepEndBy` comma)
                 <$> variableReference
                 <*> (toStrictMaybe <$> optional (symbolic '=' *> expression))
 
-defineStmt :: Parser [Statement]
+defineStmt :: Parser DefineDec
 defineStmt = do
     p <- getPosition
     reserved "define"
@@ -374,20 +374,20 @@ defineStmt = do
     params <- option V.empty puppetClassParameters
     st <- braces statementList
     pe <- getPosition
-    return [DefineDeclaration (DefineDec name params st (p :!: pe))]
+    return (DefineDec name params st (p :!: pe))
 
 puppetIfStyleCondition :: Parser (Pair Expression (V.Vector Statement))
 puppetIfStyleCondition = (:!:) <$> expression <*> braces statementList
 
-unlessCondition :: Parser [Statement]
+unlessCondition :: Parser CondStatement
 unlessCondition = do
     p <- getPosition
     reserved "unless"
     (cond :!: stmts) <- puppetIfStyleCondition
     pe <- getPosition
-    return [ConditionalStatement (CondStatement (V.singleton (Not cond :!: stmts)) (p :!: pe))]
+    return (CondStatement (V.singleton (Not cond :!: stmts)) (p :!: pe))
 
-ifCondition :: Parser [Statement]
+ifCondition :: Parser CondStatement
 ifCondition = do
     p <- getPosition
     reserved "if"
@@ -398,9 +398,9 @@ ifCondition = do
                  then []
                  else [PValue (UBoolean True) :!: elsecond]
     pe <- getPosition
-    return [ ConditionalStatement (CondStatement (V.fromList (maincond : others ++ ec)) (p :!: pe)) ]
+    return (CondStatement (V.fromList (maincond : others ++ ec)) (p :!: pe))
 
-caseCondition :: Parser [Statement]
+caseCondition :: Parser CondStatement
 caseCondition = do
     let puppetRegexpCase = do
             reg <- termRegexp
@@ -427,7 +427,7 @@ caseCondition = do
     expr1 <- expression
     condlist <- braces (some (puppetRegexpCase <|> defaultCase <|> puppetCase))
     pe <- getPosition
-    return [ ConditionalStatement (CondStatement (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) ) ]
+    return (CondStatement (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) )
 
 data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
                      | EndOfChain a
@@ -481,7 +481,7 @@ startDepChains p restype resnames = do
 rrGroupRef :: Position -> T.Text -> Parser [Statement]
 rrGroupRef p restype = do
     resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
-    fmap (map Dependency) (startDepChains p restype resnames) <|> resourceOverride p restype resnames
+    fmap (map Dependency) (startDepChains p restype resnames) <|> fmap (map ResourceOverride) (resourceOverride p restype resnames)
 
 resourceGroup :: Parser [Statement]
 resourceGroup = statementRelationships resourceGroup'
@@ -513,18 +513,18 @@ assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
         bw = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Assignment key"
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
 
-resourceDefaults :: Position -> T.Text -> Parser [Statement]
+resourceDefaults :: Position -> T.Text -> Parser DefaultDec
 resourceDefaults p rnd = do
     let assignmentList = V.fromList <$> assignment `sepEndBy1` comma
     asl <- braces assignmentList
     pe <- getPosition
-    return [DefaultDeclaration (DefaultDec rnd asl (p :!: pe))]
+    return (DefaultDec rnd asl (p :!: pe))
 
-resourceOverride :: Position -> T.Text -> [Expression] ->  Parser [Statement]
+resourceOverride :: Position -> T.Text -> [Expression] ->  Parser [ResOver]
 resourceOverride p restype names = do
     assignments <- V.fromList <$> braces (assignment `sepEndBy` comma)
     pe <- getPosition
-    return [ ResourceOverride (ResOver restype n assignments (p :!: pe)) | n <- names ]
+    return [ ResOver restype n assignments (p :!: pe) | n <- names ]
 
 -- TODO
 searchExpression :: Parser SearchExpression
@@ -541,7 +541,7 @@ searchExpression = parens searchExpression <|> check <|> combine
             term   <- stringExpression
             return (opr attrib term)
 
-resourceCollection :: Position -> T.Text -> Parser [Statement]
+resourceCollection :: Position -> T.Text -> Parser RColl
 resourceCollection p restype = do
     openchev <- some (char '<')
     when (length openchev > 2) (fail "Too many brackets")
@@ -555,25 +555,24 @@ resourceCollection p restype = do
                             then Collector
                             else ExportedCollector
     pe <- getPosition
-    return [ ResourceCollection (RColl collectortype restype e (V.fromList overrides) (p :!: pe) ) ]
+    return (RColl collectortype restype e (V.fromList overrides) (p :!: pe) )
 
-classDefinition :: Parser [Statement]
+classDefinition :: Parser ClassDecl
 classDefinition = do
     p <- getPosition
     reserved "class"
-    x <- ClassDecl <$> className
-                   <*> option V.empty puppetClassParameters
-                   <*> option S.Nothing (fmap S.Just (reserved "inherits" *> className))
-                   <*> braces statementList
-                   <*> ( (p :!:) <$> getPosition )
-    return [ClassDeclaration x]
+    ClassDecl <$> className
+              <*> option V.empty puppetClassParameters
+              <*> option S.Nothing (fmap S.Just (reserved "inherits" *> className))
+              <*> braces statementList
+              <*> ( (p :!:) <$> getPosition )
 
-mainFunctionCall :: Parser [Statement]
+mainFunctionCall :: Parser MFC
 mainFunctionCall = do
     p <- getPosition
     (fname, args) <- genFunctionCall True
     pe <- getPosition
-    return [ MainFunctionCall (MFC fname args (p :!: pe)) ]
+    return (MFC fname args (p :!: pe))
 
 rrGroup :: Parser [Statement]
 rrGroup = do
@@ -581,16 +580,19 @@ rrGroup = do
     restype  <- resourceNameRef
     lookAhead anyChar >>= \case
         '[' -> rrGroupRef p restype <?> "What comes after a resource reference"
-        _   -> resourceDefaults p restype <|> resourceCollection p restype <?> "What comes after a resource type"
+        _   -> lst <$> (  (DefaultDeclaration <$> resourceDefaults p restype)
+                      <|> (ResourceCollection <$> resourceCollection p restype)
+                      <?> "What comes after a resource type"
+                       )
 
-mainHFunctionCall :: Parser [Statement]
+mainHFunctionCall :: Parser SFC
 mainHFunctionCall = do
     p <- getPosition
     fc <- try hfunctionCall
     pe <- getPosition
-    return [SHFunctionCall (SFC fc (p :!: pe))]
+    return (SFC fc (p :!: pe))
 
-dotCall :: Parser [Statement]
+dotCall :: Parser SFC
 dotCall = do
     p <- getPosition
     ex <- expression
@@ -604,22 +606,25 @@ dotCall = do
                   return hf
               _ -> fail "A method chained by dots."
     unless (hf ^. hftype == HFEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
-    return [SHFunctionCall (SFC hf (p :!: pe))]
+    return (SFC hf (p :!: pe))
+
+lst :: a -> [a]
+lst = (:[])
 
 statement :: Parser [Statement]
 statement =
-        try dotCall
-    <|> variableAssignment
-    <|> nodeStmt
-    <|> defineStmt
-    <|> unlessCondition
-    <|> ifCondition
-    <|> caseCondition
+        try (lst . SHFunctionCall <$> dotCall)
+    <|> (lst . VariableAssignment <$> variableAssignment)
+    <|> (map Node <$> nodeStmt)
+    <|> (lst . DefineDeclaration <$> defineStmt)
+    <|> (lst . ConditionalStatement <$> unlessCondition)
+    <|> (lst . ConditionalStatement <$> ifCondition)
+    <|> (lst . ConditionalStatement <$> caseCondition)
     <|> resourceGroup
     <|> rrGroup
-    <|> classDefinition
-    <|> mainHFunctionCall
-    <|> mainFunctionCall
+    <|> (lst . ClassDeclaration <$> classDefinition)
+    <|> (lst . SHFunctionCall <$> mainHFunctionCall)
+    <|> (lst . MainFunctionCall <$> mainFunctionCall)
     <?> "Statement"
 
 
