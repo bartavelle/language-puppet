@@ -1,4 +1,4 @@
-# v1.0.0 ()
+# v1.0.0 (2014/08/31)
 ## IMPORTANT
 Building without hruby is now unsupported.
 ## New features
