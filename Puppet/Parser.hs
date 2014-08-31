@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -140,7 +139,7 @@ inBraces =  between (char '{') (char '}') (T.pack <$> some (satisfy (/= '}')))
 variableReference :: Parser T.Text
 variableReference = do
     void (char '$')
-    v <- lookAhead anyChar >>= \case
+    v <- lookAhead anyChar >>= \c -> case c of
          '{' -> inBraces
          _   -> variableName
     when (v == "string") (fail "The special variable $string must not be used")
@@ -164,7 +163,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
         variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
         interpolableVariableReference = try $ do
             void (char '$')
-            v <- lookAhead anyChar >>= \case
+            v <- lookAhead anyChar >>= \c -> case c of
                      '{' -> inBraces
                      -- This is not as robust as the "qualif"
                      -- implementation, but considerably shorter.
@@ -237,7 +236,7 @@ functionCall = do
 literalValue :: Parser UValue
 literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
     where
-        numericalvalue = integerOrDouble >>= \case
+        numericalvalue = integerOrDouble >>= \i -> case i of
             Left x -> return (fromIntegral x)
             Right y -> return (fromFloatDigits y)
 
@@ -457,35 +456,6 @@ parseRelationships p = do
         Just o' -> OperatorChain g o' <$> parseRelationships p
         Nothing -> pure (EndOfChain g)
 
-statementRelationships :: Parser [ResDec] -> Parser [Statement]
-statementRelationships p = do
-    rels <- parseRelationships p
-    let relations = do
-            (g1, g2, lt) <- zipChain rels
-            ResDec rt1 rn1 _ _ (_ :!: pe1) <- g1
-            ResDec rt2 rn2 _ _ (ps2 :!: _) <- g2
-            return (Dep (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
-    return $ map ResourceDeclaration (mconcat (F.toList rels)) <> map Dependency relations
-
-startDepChains :: Position -> T.Text -> [Expression] -> Parser [Dep]
-startDepChains p restype resnames = do
-    d <- depOperator
-    groups <- zipChain . OperatorChain (restype, resnames) d <$> parseRelationships resourceReferenceRaw
-    pe <- getPosition
-    return $ do
-        ((rt, rns), (dt, dns), lt) <- groups
-        rn <- rns
-        dn <- dns
-        return (Dep (rt :!: rn) (dt :!: dn) lt (p :!: pe))
-
-rrGroupRef :: Position -> T.Text -> Parser [Statement]
-rrGroupRef p restype = do
-    resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
-    fmap (map Dependency) (startDepChains p restype resnames) <|> fmap (map ResourceOverride) (resourceOverride p restype resnames)
-
-resourceGroup :: Parser [Statement]
-resourceGroup = statementRelationships resourceGroup'
-
 resourceGroup' :: Parser [ResDec]
 resourceGroup' = do
     let resourceName = token stringExpression
@@ -512,19 +482,6 @@ assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
     where
         bw = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Assignment key"
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
-
-resourceDefaults :: Position -> T.Text -> Parser DefaultDec
-resourceDefaults p rnd = do
-    let assignmentList = V.fromList <$> assignment `sepEndBy1` comma
-    asl <- braces assignmentList
-    pe <- getPosition
-    return (DefaultDec rnd asl (p :!: pe))
-
-resourceOverride :: Position -> T.Text -> [Expression] ->  Parser [ResOver]
-resourceOverride p restype names = do
-    assignments <- V.fromList <$> braces (assignment `sepEndBy` comma)
-    pe <- getPosition
-    return [ ResOver restype n assignments (p :!: pe) | n <- names ]
 
 -- TODO
 searchExpression :: Parser SearchExpression
@@ -574,17 +531,6 @@ mainFunctionCall = do
     pe <- getPosition
     return (MFC fname args (p :!: pe))
 
-rrGroup :: Parser [Statement]
-rrGroup = do
-    p <- getPosition
-    restype  <- resourceNameRef
-    lookAhead anyChar >>= \case
-        '[' -> rrGroupRef p restype <?> "What comes after a resource reference"
-        _   -> lst <$> (  (DefaultDeclaration <$> resourceDefaults p restype)
-                      <|> (ResourceCollection <$> resourceCollection p restype)
-                      <?> "What comes after a resource type"
-                       )
-
 mainHFunctionCall :: Parser SFC
 mainHFunctionCall = do
     p <- getPosition
@@ -611,17 +557,73 @@ dotCall = do
 lst :: a -> [a]
 lst = (:[])
 
+data ChainableStuff = ChainResColl RColl
+                    | ChainResDecl ResDec
+                    | ChainResRefr T.Text [Expression] PPosition
+
+resourceDefaults :: Parser DefaultDec
+resourceDefaults = do
+    p <- getPosition
+    rnd  <- resourceNameRef
+    let assignmentList = V.fromList <$> assignment `sepEndBy1` comma
+    asl <- braces assignmentList
+    pe <- getPosition
+    return (DefaultDec rnd asl (p :!: pe))
+
+resourceOverride :: Parser [ResOver]
+resourceOverride = do
+    p <- getPosition
+    restype  <- resourceNameRef
+    names <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
+    assignments <- V.fromList <$> braces (assignment `sepEndBy` comma)
+    pe <- getPosition
+    return [ ResOver restype n assignments (p :!: pe) | n <- names ]
+
+extractResRef :: ChainableStuff -> [(T.Text, Expression, PPosition)]
+extractResRef (ChainResColl _) = []
+extractResRef (ChainResDecl (ResDec rt rn _ _ pp)) = [(rt,rn,pp)]
+extractResRef (ChainResRefr rt rns pp) = [(rt,rn,pp) | rn <- rns]
+
+extractChainStatement :: ChainableStuff -> [Statement]
+extractChainStatement (ChainResColl r) = [ResourceCollection r]
+extractChainStatement (ChainResDecl d) = [ResourceDeclaration d]
+extractChainStatement ChainResRefr{} = []
+
+chainableStuff :: Parser [Statement]
+chainableStuff = do
+    let withresname = do
+            p <- getPosition
+            restype  <- resourceNameRef
+            lookAhead anyChar >>= \x -> case x of
+                '[' -> do
+                    resnames <- brackets (expression `sepBy1` comma)
+                    pe <- getPosition
+                    pure (ChainResRefr restype resnames (p :!: pe))
+                _ -> ChainResColl <$> resourceCollection p restype
+    chain <- parseRelationships ((lst <$> withresname) <|> (map ChainResDecl <$> resourceGroup'))
+    let relations = do
+            (g1, g2, lt) <- zipChain chain
+            (rt1, rn1, _   :!: pe1) <- concatMap extractResRef g1
+            (rt2, rn2, ps2 :!: _  ) <- concatMap extractResRef g2
+            return (Dep (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
+    return $ map Dependency relations <> (chain ^.. folded . folded . to extractChainStatement . folded)
+
 statement :: Parser [Statement]
 statement =
-        try (lst . SHFunctionCall <$> dotCall)
+        (lst . SHFunctionCall <$> try dotCall)
     <|> (lst . VariableAssignment <$> variableAssignment)
     <|> (map Node <$> nodeStmt)
     <|> (lst . DefineDeclaration <$> defineStmt)
     <|> (lst . ConditionalStatement <$> unlessCondition)
     <|> (lst . ConditionalStatement <$> ifCondition)
     <|> (lst . ConditionalStatement <$> caseCondition)
+    <|> (lst . DefaultDeclaration <$> try resourceDefaults)
+    <|> (map ResourceOverride <$> try resourceOverride)
+    <|> chainableStuff
+    {-
     <|> resourceGroup
     <|> rrGroup
+    -}
     <|> (lst . ClassDeclaration <$> classDefinition)
     <|> (lst . SHFunctionCall <$> mainHFunctionCall)
     <|> (lst . MainFunctionCall <$> mainFunctionCall)
