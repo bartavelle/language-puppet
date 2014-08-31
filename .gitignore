@@ -3,6 +3,7 @@
 /Main.hs
 /Main
 /puppetresources-*.tar.gz
+/puppetresources_*
 /Erb/Compute_stub.h
 /.cabal-sandbox
 /cabal.sandbox.config
