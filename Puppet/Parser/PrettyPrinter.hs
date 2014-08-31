@@ -153,8 +153,8 @@ instance Pretty NodeDesc where
     pretty (NodeMatch m r) = pretty (URegexp m r)
 
 instance Pretty Statement where
-    pretty (SHFunctionCall c p) = pretty c <+> showPPos p
-    pretty (ConditionalStatement conds p)
+    pretty (SHFunctionCall (SFC c p)) = pretty c <+> showPPos p
+    pretty (ConditionalStatement (CondStatement conds p))
         | V.null conds = empty
         | otherwise = text "if" <+> pretty firstcond <+> showPPos p <+> braceStatements firststts <$> vcat (map rendernexts xs)
         where
@@ -162,34 +162,34 @@ instance Pretty Statement where
             rendernexts (PValue (UBoolean True) :!: st) = text "else" <+> braceStatements st
             rendernexts (c :!: st) | V.null st = empty
                                    | otherwise = text "elsif" <+> pretty c <+> braceStatements st
-    pretty (MainFunctionCall funcname args p) = showFunc funcname args <+> showPPos p
-    pretty (DefaultDeclaration rtype defaults p) = capitalize rtype <+> nest 2 (char '{' <+> showPPos p <$> showAss defaults) <$> char '}'
-    pretty (ResourceOverride rtype rnames overs p) = pretty (UResourceReference rtype rnames) <+> nest 2 (char '{' <+> showPPos p <$> showAss overs) <$> char '}'
-    pretty (ResourceDeclaration rtype rname args virt p) = nest 2 (red vrt <> dullgreen (text (T.unpack rtype)) <+> char '{' <+> showPPos p
-                                                                <$> nest 2 (pretty rname <> char ':' <$> showAss args))
-                                                                <$> char '}'
+    pretty (MainFunctionCall (MFC funcname args p)) = showFunc funcname args <+> showPPos p
+    pretty (DefaultDeclaration (DefaultDec rtype defaults p)) = capitalize rtype <+> nest 2 (char '{' <+> showPPos p <$> showAss defaults) <$> char '}'
+    pretty (ResourceOverride (ResOver rtype rnames overs p)) = pretty (UResourceReference rtype rnames) <+> nest 2 (char '{' <+> showPPos p <$> showAss overs) <$> char '}'
+    pretty (ResourceDeclaration (ResDec rtype rname args virt p)) = nest 2 (red vrt <> dullgreen (text (T.unpack rtype)) <+> char '{' <+> showPPos p
+                                                                           <$> nest 2 (pretty rname <> char ':' <$> showAss args))
+                                                                           <$> char '}'
         where
             vrt = case virt of
                       Normal -> empty
                       Virtual -> char '@'
                       Exported -> text "@@"
                       ExportedRealized -> text "!!"
-    pretty (DefineDeclaration cname args stts p) = dullyellow (text "define") <+> dullgreen (ttext cname) <> showArgs args <+> showPPos p <$> braceStatements stts
-    pretty (ClassDeclaration cname args inherit stts p) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname)) <> showArgs args <> inheritance <+> showPPos p
+    pretty (DefineDeclaration (DefineDec cname args stts p)) = dullyellow (text "define") <+> dullgreen (ttext cname) <> showArgs args <+> showPPos p <$> braceStatements stts
+    pretty (ClassDeclaration (ClassDecl cname args inherit stts p)) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname)) <> showArgs args <> inheritance <+> showPPos p
                                                                <$> braceStatements stts
         where
             inheritance = case inherit of
                               S.Nothing -> empty
                               S.Just x -> empty <+> text "inherits" <+> text (T.unpack x)
-    pretty (VariableAssignment a b p) = dullblue (char '$' <> text (T.unpack a)) <+> char '=' <+> pretty b <+> showPPos p
-    pretty (Node nodename stmts i p) = dullyellow (text "node") <+> pretty nodename <> inheritance <+> showPPos p <$> braceStatements stmts
+    pretty (VariableAssignment (VarAss a b p)) = dullblue (char '$' <> text (T.unpack a)) <+> char '=' <+> pretty b <+> showPPos p
+    pretty (Node (Nd nodename stmts i p)) = dullyellow (text "node") <+> pretty nodename <> inheritance <+> showPPos p <$> braceStatements stmts
         where
             inheritance = case i of
                               S.Nothing -> empty
                               S.Just n -> empty <+> text "inherits" <+> pretty n
-    pretty (Dependency (  st :!: sn) (dt :!: dn) lt p) = pretty (UResourceReference st sn) <+> pretty lt <+> pretty (UResourceReference dt dn) <+> showPPos p
+    pretty (Dependency (Dep (st :!: sn) (dt :!: dn) lt p)) = pretty (UResourceReference st sn) <+> pretty lt <+> pretty (UResourceReference dt dn) <+> showPPos p
     pretty (TopContainer a b) = text "TopContainer:" <+> braces ( nest 2 (string "TOP" <$> braceStatements a <$> string "STATEMENT" <$> pretty b))
-    pretty (ResourceCollection coltype restype search overrides p) = capitalize restype <> enc (pretty search) <+> overs
+    pretty (ResourceCollection (RColl coltype restype search overrides p)) = capitalize restype <> enc (pretty search) <+> overs
         where
             overs | V.null overrides = showPPos p
                   | otherwise = nest 2 (char '{' <+> showPPos p <$> showAss overrides) <$> char '}'

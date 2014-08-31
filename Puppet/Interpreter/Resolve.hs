@@ -614,7 +614,7 @@ transformPureHf hf =
                 if V.null statements
                     then throwPosError ("The statement block must not be empty" <+> pretty hf)
                     else case V.last statements of
-                             (MainFunctionCall fn args _) ->
+                             (MainFunctionCall (MFC fn args _)) ->
                                 let expr = PValue (UFunctionCall fn args)
                                 in  return (hf & hfstatements %~ V.init
                                                & hfexpression .~ S.Just expr

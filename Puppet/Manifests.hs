@@ -22,14 +22,14 @@ filterStatements :: TopLevelType -> T.Text -> V.Vector Statement -> IO (S.Either
 filterStatements TopNode ndename stmts =
     -- this operation should probably get cached
     let (!spurious, !directnodes, !regexpmatches, !defaultnode) = V.foldl' triage (V.empty, HM.empty, V.empty, Nothing) stmts
-        triage curstuff n@(Node (NodeName !nm) _ _ _) = curstuff & _2 . at nm ?~ n
-        triage curstuff n@(Node (NodeMatch _ !rg) _ _ _) = curstuff & _3 %~ (|> (rg :!: n))
-        triage curstuff n@(Node  NodeDefault _  _ _) = curstuff & _4 ?~ n
+        triage curstuff n@(Node (Nd (NodeName !nm) _ _ _)) = curstuff & _2 . at nm ?~ n
+        triage curstuff n@(Node (Nd (NodeMatch _ !rg) _ _ _)) = curstuff & _3 %~ (|> (rg :!: n))
+        triage curstuff n@(Node (Nd  NodeDefault _  _ _)) = curstuff & _4 ?~ n
         triage curstuff x = curstuff & _1 %~ (|> x)
         bsnodename = T.encodeUtf8 ndename
         checkRegexp :: [Pair Regex Statement] -> ErrorT PrettyError IO (Maybe Statement)
         checkRegexp [] = return Nothing
-        checkRegexp ((regexp :!: s):xs) = do
+        checkRegexp ((regexp :!: s):xs) =
             case execute' regexp bsnodename of
                 Left rr -> throwError (PrettyError ("Regexp match error:" <+> text (show rr)))
                 Right Nothing -> checkRegexp xs
@@ -45,8 +45,8 @@ filterStatements TopNode ndename stmts =
                     Nothing -> throwError (PrettyError ("Couldn't find node" <+> ttext ndename))
 filterStatements x ndename stmts =
     let (!spurious, !defines, !classes) = V.foldl' triage (V.empty, HM.empty, HM.empty) stmts
-        triage curstuff n@(ClassDeclaration cname _ _ _ _) = curstuff & _3 . at cname ?~ n
-        triage curstuff n@(DefineDeclaration cname _ _ _) = curstuff & _2 . at cname ?~ n
+        triage curstuff n@(ClassDeclaration (ClassDecl cname _ _ _ _)) = curstuff & _3 . at cname ?~ n
+        triage curstuff n@(DefineDeclaration (DefineDec cname _ _ _)) = curstuff & _2 . at cname ?~ n
         triage curstuff n = curstuff & _1 %~ (|> n)
         tc n = if V.null spurious
                    then n

@@ -32,8 +32,21 @@ module Puppet.Parser.Types
    -- ** Search Expressions
    SearchExpression(..),
    -- ** Statements
-   Statement(..)
+   Statement(..),
+   ResDec(..),
+   DefaultDec(..),
+   ResOver(..),
+   CondStatement(..),
+   ClassDecl(..),
+   DefineDec(..),
+   Nd(..),
+   VarAss(..),
+   MFC(..),
+   SFC(..),
+   RColl(..),
+   Dep(..)
    ) where
+
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -251,20 +264,33 @@ instance FromJSON LinkType where
 instance ToJSON LinkType where
     toJSON = String . rel2text
 
+data ResDec        = ResDec !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !Virtuality !PPosition deriving Eq
+data DefaultDec    = DefaultDec !T.Text !(V.Vector (Pair T.Text Expression)) !PPosition deriving Eq
+data ResOver       = ResOver !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !PPosition deriving Eq
+data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving Eq -- ^ All types of conditional statements are stored that way (@case@, @if@, etc.)
+data ClassDecl     = ClassDecl !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition deriving Eq
+data DefineDec     = DefineDec !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving Eq
+data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving Eq
+data VarAss        = VarAss !T.Text !Expression !PPosition deriving Eq
+data MFC           = MFC !T.Text !(V.Vector Expression) !PPosition deriving Eq
+data SFC           = SFC !HFunctionCall !PPosition deriving Eq -- ^ /Higher order function/ call.
+data RColl         = RColl !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition deriving Eq -- ^ For all types of collectors.
+data Dep           = Dep !(Pair T.Text Expression) !(Pair T.Text Expression) !LinkType !PPosition deriving Eq
+
 -- | All the possible statements
 data Statement
-    = ResourceDeclaration !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !Virtuality !PPosition
-    | DefaultDeclaration !T.Text !(V.Vector (Pair T.Text Expression)) !PPosition
-    | ResourceOverride !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !PPosition
-    | ConditionalStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition -- ^ All types of conditional statements are stored that way (@case@, @if@, etc.)
-    | ClassDeclaration !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition
-    | DefineDeclaration !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition
-    | Node !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition
-    | VariableAssignment !T.Text !Expression !PPosition
-    | MainFunctionCall !T.Text !(V.Vector Expression) !PPosition
-    | SHFunctionCall !HFunctionCall !PPosition -- ^ /Higher order function/ call.
-    | ResourceCollection !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition -- ^ For all types of collectors.
-    | Dependency !(Pair T.Text Expression) !(Pair T.Text Expression) !LinkType !PPosition
+    = ResourceDeclaration !ResDec
+    | DefaultDeclaration !DefaultDec
+    | ResourceOverride !ResOver
+    | ConditionalStatement !CondStatement
+    | ClassDeclaration !ClassDecl
+    | DefineDeclaration !DefineDec
+    | Node !Nd
+    | VariableAssignment !VarAss
+    | MainFunctionCall !MFC
+    | SHFunctionCall !SFC
+    | ResourceCollection !RColl
+    | Dependency !Dep
     | TopContainer !(V.Vector Statement) !Statement -- ^ This is a special statement that is used to include the expressions that are top level. This is certainly buggy, but probably just like the original implementation.
     deriving Eq
 

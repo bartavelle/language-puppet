@@ -28,6 +28,19 @@ module Puppet.Lens
  , _Dependency
  , _TopContainer
  , _Statements
+ -- * More primitive prisms for 'Statement's
+ , _ResourceDeclaration'
+ , _DefaultDeclaration'
+ , _ResourceOverride'
+ , _ConditionalStatement'
+ , _ClassDeclaration'
+ , _DefineDeclaration'
+ , _Node'
+ , _VariableAssignment'
+ , _MainFunctionCall'
+ , _SHFunctionCall'
+ , _ResourceCollection'
+ , _Dependency'
  -- * Lenses and Prisms for 'Expression's
  , _Equal
  , _Different
@@ -69,13 +82,105 @@ import Puppet.Parser.PrettyPrinter (ppStatements)
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
+import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict hiding (uncurry)
 import Text.Parser.Combinators (eof)
 
 -- Prisms
 makePrisms ''PValue
-makePrisms ''Statement
+--makePrisms ''Statement
 makePrisms ''Expression
+
+makePrisms ''ResDec
+makePrisms ''DefaultDec
+makePrisms ''ResOver
+makePrisms ''CondStatement
+makePrisms ''ClassDecl
+makePrisms ''DefineDec
+makePrisms ''Nd
+makePrisms ''VarAss
+makePrisms ''MFC
+makePrisms ''SFC
+makePrisms ''RColl
+makePrisms ''Dep
+
+_ResourceDeclaration' :: Prism' Statement ResDec
+_ResourceDeclaration' = prism ResourceDeclaration $ \x -> case x of
+                                                              ResourceDeclaration a -> Right a
+                                                              _ -> Left x
+_DefaultDeclaration' :: Prism' Statement DefaultDec
+_DefaultDeclaration' = prism DefaultDeclaration $ \x -> case x of
+                                                            DefaultDeclaration a -> Right a
+                                                            _ -> Left x
+_ResourceOverride' :: Prism' Statement ResOver
+_ResourceOverride' = prism ResourceOverride $ \x -> case x of
+                                                        ResourceOverride a -> Right a
+                                                        _ -> Left x
+_ConditionalStatement' :: Prism' Statement CondStatement
+_ConditionalStatement' = prism ConditionalStatement $ \x -> case x of
+                                                                ConditionalStatement a -> Right a
+                                                                _ -> Left x
+_ClassDeclaration' :: Prism' Statement ClassDecl
+_ClassDeclaration' = prism ClassDeclaration $ \x -> case x of
+                                                        ClassDeclaration a -> Right a
+                                                        _ -> Left x
+_DefineDeclaration' :: Prism' Statement DefineDec
+_DefineDeclaration' = prism DefineDeclaration $ \x -> case x of
+                                                          DefineDeclaration a -> Right a
+                                                          _ -> Left x
+_Node' :: Prism' Statement Nd
+_Node' = prism Node $ \x -> case x of
+                                Node a -> Right a
+                                _ -> Left x
+_VariableAssignment' :: Prism' Statement VarAss
+_VariableAssignment' = prism VariableAssignment $ \x -> case x of
+                                                            VariableAssignment a -> Right a
+                                                            _ -> Left x
+_MainFunctionCall' :: Prism' Statement MFC
+_MainFunctionCall' = prism MainFunctionCall $ \x -> case x of
+                                                        MainFunctionCall a -> Right a
+                                                        _ -> Left x
+_SHFunctionCall' :: Prism' Statement SFC
+_SHFunctionCall' = prism SHFunctionCall $ \x -> case x of
+                                                    SHFunctionCall a -> Right a
+                                                    _ -> Left x
+_ResourceCollection' :: Prism' Statement RColl
+_ResourceCollection' = prism ResourceCollection $ \x -> case x of
+                                                            ResourceCollection a -> Right a
+                                                            _ -> Left x
+_Dependency' :: Prism' Statement Dep
+_Dependency' = prism Dependency $ \x -> case x of
+                                            Dependency a -> Right a
+                                            _ -> Left x
+_TopContainer :: Prism' Statement (V.Vector Statement, Statement)
+_TopContainer = prism (uncurry TopContainer) $ \x -> case x of
+                                                         TopContainer vs s -> Right (vs,s)
+                                                         _ -> Left x
+
+_ResourceDeclaration :: Prism' Statement (T.Text, Expression, V.Vector (Pair T.Text Expression), Virtuality, PPosition)
+_ResourceDeclaration = _ResourceDeclaration' . _ResDec
+_DefaultDeclaration :: Prism' Statement (T.Text, V.Vector (Pair T.Text Expression), PPosition)
+_DefaultDeclaration = _DefaultDeclaration' . _DefaultDec
+_ResourceOverride :: Prism' Statement (T.Text, Expression, V.Vector (Pair T.Text Expression), PPosition)
+_ResourceOverride = _ResourceOverride' . _ResOver
+_ConditionalStatement :: Prism' Statement (V.Vector (Pair Expression (V.Vector Statement)), PPosition)
+_ConditionalStatement = _ConditionalStatement' . _CondStatement
+_ClassDeclaration :: Prism' Statement (T.Text, V.Vector (Pair T.Text (S.Maybe Expression)), S.Maybe T.Text, V.Vector Statement, PPosition)
+_ClassDeclaration = _ClassDeclaration' . _ClassDecl
+_DefineDeclaration :: Prism' Statement (T.Text, V.Vector (Pair T.Text (S.Maybe Expression)), V.Vector Statement, PPosition)
+_DefineDeclaration = _DefineDeclaration' . _DefineDec
+_Node :: Prism' Statement (NodeDesc, V.Vector Statement, S.Maybe NodeDesc, PPosition)
+_Node = _Node' . _Nd
+_VariableAssignment :: Prism' Statement (T.Text, Expression, PPosition)
+_VariableAssignment = _VariableAssignment' . _VarAss
+_MainFunctionCall :: Prism' Statement (T.Text, V.Vector Expression, PPosition)
+_MainFunctionCall = _MainFunctionCall' . _MFC
+_SHFunctionCall :: Prism' Statement (HFunctionCall, PPosition)
+_SHFunctionCall = _SHFunctionCall' . _SFC
+_ResourceCollection :: Prism' Statement (CollectorType, T.Text, SearchExpression, V.Vector (Pair T.Text Expression), PPosition)
+_ResourceCollection = _ResourceCollection' . _RColl
+_Dependency :: Prism' Statement (Pair T.Text Expression, Pair T.Text Expression, LinkType, PPosition)
+_Dependency = _Dependency' . _Dep
 
 -- | Incomplete
 _PResolveExpression :: Prism' Expression PValue
@@ -114,16 +219,16 @@ _Statements :: Lens' Statement [Statement]
 _Statements = lens (V.toList . sget) (\s v -> sset s (V.fromList v))
     where
         sget :: Statement -> V.Vector Statement
-        sget (ClassDeclaration _ _ _ s _) = s
-        sget (DefineDeclaration _ _ s _) = s
-        sget (Node _ s _ _) = s
+        sget (ClassDeclaration (ClassDecl _ _ _ s _)) = s
+        sget (DefineDeclaration (DefineDec _ _ s _)) = s
+        sget (Node (Nd _ s _ _)) = s
         sget (TopContainer s _) = s
-        sget (SHFunctionCall (HFunctionCall _ _ _ s _) _) = s
+        sget (SHFunctionCall (SFC (HFunctionCall _ _ _ s _) _)) = s
         sget _ = V.empty
         sset :: Statement -> V.Vector Statement -> Statement
-        sset (ClassDeclaration n args inh _ p) s = ClassDeclaration n args inh s p
-        sset (Node ns _ nd' p) s = Node ns s nd' p
-        sset (DefineDeclaration n args _ p) s = DefineDeclaration n args s p
+        sset (ClassDeclaration (ClassDecl n args inh _ p)) s = ClassDeclaration (ClassDecl n args inh s p)
+        sset (Node (Nd ns _ nd' p)) s = Node (Nd ns s nd' p)
+        sset (DefineDeclaration (DefineDec n args _ p)) s = DefineDeclaration (DefineDec n args s p)
         sset (TopContainer _ p) s = TopContainer s p
-        sset (SHFunctionCall (HFunctionCall t e pr _ e2) p) s = SHFunctionCall (HFunctionCall t e pr s e2) p
+        sset (SHFunctionCall (SFC (HFunctionCall t e pr _ e2) p)) s = SHFunctionCall (SFC (HFunctionCall t e pr s e2) p)
         sset x _ = x

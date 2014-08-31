@@ -337,7 +337,7 @@ variableAssignment = do
     e <- expression
     when (T.all isDigit v) (fail "Can't assign fully numeric variables")
     pe <- getPosition
-    return [VariableAssignment v e (p :!: pe)]
+    return [VariableAssignment (VarAss v e (p :!: pe))]
 
 nodeStmt :: Parser [Statement]
 nodeStmt = do
@@ -353,7 +353,7 @@ nodeStmt = do
     inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
     st <- braces statementList
     pe <- getPosition
-    return [Node n st inheritance (p :!: pe) | n <- ns]
+    return [Node (Nd n st inheritance (p :!: pe)) | n <- ns]
 
 puppetClassParameters :: Parser (V.Vector (Pair T.Text (S.Maybe Expression)))
 puppetClassParameters = V.fromList <$> parens (var `sepEndBy` comma)
@@ -374,7 +374,7 @@ defineStmt = do
     params <- option V.empty puppetClassParameters
     st <- braces statementList
     pe <- getPosition
-    return [DefineDeclaration name params st (p :!: pe)]
+    return [DefineDeclaration (DefineDec name params st (p :!: pe))]
 
 puppetIfStyleCondition :: Parser (Pair Expression (V.Vector Statement))
 puppetIfStyleCondition = (:!:) <$> expression <*> braces statementList
@@ -385,7 +385,7 @@ unlessCondition = do
     reserved "unless"
     (cond :!: stmts) <- puppetIfStyleCondition
     pe <- getPosition
-    return [ConditionalStatement (V.singleton (Not cond :!: stmts)) (p :!: pe)]
+    return [ConditionalStatement (CondStatement (V.singleton (Not cond :!: stmts)) (p :!: pe))]
 
 ifCondition :: Parser [Statement]
 ifCondition = do
@@ -398,7 +398,7 @@ ifCondition = do
                  then []
                  else [PValue (UBoolean True) :!: elsecond]
     pe <- getPosition
-    return [ ConditionalStatement (V.fromList (maincond : others ++ ec)) (p :!: pe) ]
+    return [ ConditionalStatement (CondStatement (V.fromList (maincond : others ++ ec)) (p :!: pe)) ]
 
 caseCondition :: Parser [Statement]
 caseCondition = do
@@ -427,7 +427,7 @@ caseCondition = do
     expr1 <- expression
     condlist <- braces (some (puppetRegexpCase <|> defaultCase <|> puppetCase))
     pe <- getPosition
-    return [ ConditionalStatement (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) ]
+    return [ ConditionalStatement (CondStatement (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) ) ]
 
 data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
                      | EndOfChain a
@@ -457,17 +457,17 @@ parseRelationships p = do
         Just o' -> OperatorChain g o' <$> parseRelationships p
         Nothing -> pure (EndOfChain g)
 
-statementRelationships :: Parser [Statement] -> Parser [Statement]
+statementRelationships :: Parser [ResDec] -> Parser [Statement]
 statementRelationships p = do
     rels <- parseRelationships p
     let relations = do
             (g1, g2, lt) <- zipChain rels
-            ResourceDeclaration rt1 rn1 _ _ (_ :!: pe1) <- g1
-            ResourceDeclaration rt2 rn2 _ _ (ps2 :!: _) <- g2
-            return (Dependency (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
-    return $ mconcat (F.toList rels) <> relations
+            ResDec rt1 rn1 _ _ (_ :!: pe1) <- g1
+            ResDec rt2 rn2 _ _ (ps2 :!: _) <- g2
+            return (Dep (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
+    return $ map ResourceDeclaration (mconcat (F.toList rels)) <> map Dependency relations
 
-startDepChains :: Position -> T.Text -> [Expression] -> Parser [Statement]
+startDepChains :: Position -> T.Text -> [Expression] -> Parser [Dep]
 startDepChains p restype resnames = do
     d <- depOperator
     groups <- zipChain . OperatorChain (restype, resnames) d <$> parseRelationships resourceReferenceRaw
@@ -476,17 +476,17 @@ startDepChains p restype resnames = do
         ((rt, rns), (dt, dns), lt) <- groups
         rn <- rns
         dn <- dns
-        return (Dependency (rt :!: rn) (dt :!: dn) lt (p :!: pe))
+        return (Dep (rt :!: rn) (dt :!: dn) lt (p :!: pe))
 
 rrGroupRef :: Position -> T.Text -> Parser [Statement]
 rrGroupRef p restype = do
     resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
-    startDepChains p restype resnames <|> resourceOverride p restype resnames
+    fmap (map Dependency) (startDepChains p restype resnames) <|> resourceOverride p restype resnames
 
 resourceGroup :: Parser [Statement]
 resourceGroup = statementRelationships resourceGroup'
 
-resourceGroup' :: Parser [Statement]
+resourceGroup' :: Parser [ResDec]
 resourceGroup' = do
     let resourceName = token stringExpression
         resourceDeclaration = do
@@ -505,7 +505,7 @@ resourceGroup' = do
                       "@"  -> return Virtual
                       "@@" -> return Exported
                       _    -> fail "Invalid virtuality"
-    return [ ResourceDeclaration rtype rname conts virtuality pos | (rname, conts, pos) <- concat x ]
+    return [ ResDec rtype rname conts virtuality pos | (rname, conts, pos) <- concat x ]
 
 assignment :: Parser (Pair T.Text Expression)
 assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
@@ -518,13 +518,13 @@ resourceDefaults p rnd = do
     let assignmentList = V.fromList <$> assignment `sepEndBy1` comma
     asl <- braces assignmentList
     pe <- getPosition
-    return [DefaultDeclaration rnd asl (p :!: pe)]
+    return [DefaultDeclaration (DefaultDec rnd asl (p :!: pe))]
 
 resourceOverride :: Position -> T.Text -> [Expression] ->  Parser [Statement]
 resourceOverride p restype names = do
     assignments <- V.fromList <$> braces (assignment `sepEndBy` comma)
     pe <- getPosition
-    return [ ResourceOverride restype n assignments (p :!: pe) | n <- names ]
+    return [ ResourceOverride (ResOver restype n assignments (p :!: pe)) | n <- names ]
 
 -- TODO
 searchExpression :: Parser SearchExpression
@@ -555,25 +555,25 @@ resourceCollection p restype = do
                             then Collector
                             else ExportedCollector
     pe <- getPosition
-    return [ ResourceCollection collectortype restype e (V.fromList overrides) (p :!: pe) ]
+    return [ ResourceCollection (RColl collectortype restype e (V.fromList overrides) (p :!: pe) ) ]
 
 classDefinition :: Parser [Statement]
 classDefinition = do
     p <- getPosition
     reserved "class"
-    x <- ClassDeclaration <$> className
-                          <*> option V.empty puppetClassParameters
-                          <*> option S.Nothing (fmap S.Just (reserved "inherits" *> className))
-                          <*> braces statementList
-                          <*> ( (p :!:) <$> getPosition )
-    return [x]
+    x <- ClassDecl <$> className
+                   <*> option V.empty puppetClassParameters
+                   <*> option S.Nothing (fmap S.Just (reserved "inherits" *> className))
+                   <*> braces statementList
+                   <*> ( (p :!:) <$> getPosition )
+    return [ClassDeclaration x]
 
 mainFunctionCall :: Parser [Statement]
 mainFunctionCall = do
     p <- getPosition
     (fname, args) <- genFunctionCall True
     pe <- getPosition
-    return [ MainFunctionCall fname args (p :!: pe) ]
+    return [ MainFunctionCall (MFC fname args (p :!: pe)) ]
 
 rrGroup :: Parser [Statement]
 rrGroup = do
@@ -588,7 +588,7 @@ mainHFunctionCall = do
     p <- getPosition
     fc <- try hfunctionCall
     pe <- getPosition
-    return [SHFunctionCall fc (p :!: pe)]
+    return [SHFunctionCall (SFC fc (p :!: pe))]
 
 dotCall :: Parser [Statement]
 dotCall = do
@@ -604,7 +604,7 @@ dotCall = do
                   return hf
               _ -> fail "A method chained by dots."
     unless (hf ^. hftype == HFEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
-    return [SHFunctionCall hf (p :!: pe)]
+    return [SHFunctionCall (SFC hf (p :!: pe))]
 
 statement :: Parser [Statement]
 statement =

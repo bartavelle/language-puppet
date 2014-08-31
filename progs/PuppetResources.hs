@@ -222,7 +222,7 @@ findDeadCode puppetdir catalogs allfiles = do
         putDoc ("The following" <+> int (length parseFailed) <+> "files could not be parsed:" </> indent 4 (vcat (map (string . show) parseFailed)))
         putStrLn ""
     let getSubStatements s@(ResourceDeclaration{}) = [s]
-        getSubStatements (ConditionalStatement conds _) = conds ^.. traverse . _2 . tgt
+        getSubStatements (ConditionalStatement (CondStatement conds _)) = conds ^.. traverse . _2 . tgt
         getSubStatements s@(ClassDeclaration{}) = extractPrism s
         getSubStatements s@(DefineDeclaration{}) = extractPrism s
         getSubStatements s@(Node{}) = extractPrism s
@@ -233,7 +233,7 @@ findDeadCode puppetdir catalogs allfiles = do
         extractPrism s = s ^.. _Statements . traverse . to getSubStatements . traverse
         allResources = parseSucceeded ^.. folded . folded . to getSubStatements . folded
         deadResources = filter isDead allResources
-        isDead (ResourceDeclaration _ _ _ _ pp) = not $ Set.member pp allpositions
+        isDead (ResourceDeclaration (ResDec _ _ _ _ pp)) = not $ Set.member pp allpositions
         isDead _ = True
     unless (null deadResources) $ do
         putDoc ("The following" <+> int (length deadResources) <+> "resource declarations are not used:" </> indent 4 (vcat (map pretty deadResources)))
@@ -279,7 +279,7 @@ run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath f
                                                                                           Left rr -> error (show rr)
                                                                                           Right x -> return x
             let topnodes = mapMaybe getNodeName (V.toList allstmts)
-                getNodeName (Node (NodeName n) _ _ _) = Just n
+                getNodeName (Node (Nd (NodeName n) _ _ _)) = Just n
                 getNodeName _ = Nothing
             cats <- parallel (map (computeCatalogs True queryfunc pdbapi printFunc c) topnodes)
             -- the the parsing statistics, so that we known which files

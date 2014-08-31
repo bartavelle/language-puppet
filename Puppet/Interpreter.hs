@@ -146,9 +146,15 @@ getstt topleveltype toplevelname =
         Just x -> return ([], x) -- it is known !
         Nothing -> singleton (GetStatement topleveltype toplevelname) >>= evalTopLevel
 
+extractPrism :: Prism' a b -> Doc -> a -> InterpreterMonad b
+extractPrism p t a = case preview p a of
+                         Just b -> return b
+                         Nothing -> throwPosError ("Could not extract prism in " <> t)
+
 computeCatalog :: T.Text -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog, [Resource])
 computeCatalog ndename = do
-    (restop, node) <- getstt TopNode ndename
+    (restop, node') <- getstt TopNode ndename
+    node <- extractPrism _Node' "computeCatalog" node'
     let finalStep [] = return []
         finalStep allres = do
             -- collect stuff and apply thingies
@@ -281,13 +287,12 @@ realize rs = do
     resMod .= []
     return result
 
-evaluateNode :: Statement -> InterpreterMonad [Resource]
-evaluateNode (Node _ stmts inheritance p) = do
+evaluateNode :: Nd -> InterpreterMonad [Resource]
+evaluateNode (Nd _ stmts inheritance p) = do
     curPos .= p
     pushScope ContRoot
     unless (S.isNothing inheritance) $ throwPosError "Node inheritance is not handled yet, and will probably never be"
     vmapM evaluateStatement stmts >>= finalize . concat
-evaluateNode x = throwPosError ("Asked for a node evaluation, but got this instead:" </> pretty x)
 
 evaluateStatementsVector :: Foldable f => f Statement -> InterpreterMonad [Resource]
 evaluateStatementsVector = fmap concat . vmapM evaluateStatement
@@ -303,7 +308,7 @@ fromArgumentList = foldM insertArgument mempty
                 Nothing -> return (curmap & at k ?~ v)
 
 evaluateStatement :: Statement -> InterpreterMonad [Resource]
-evaluateStatement r@(ClassDeclaration cname _ _ _ _) =
+evaluateStatement r@(ClassDeclaration (ClassDecl cname _ _ _ _)) =
     if "::" `T.isInfixOf` cname
        then nestedDeclarations . at (TopClass, cname) ?= r >> return []
        else do
@@ -313,7 +318,7 @@ evaluateStatement r@(ClassDeclaration cname _ _ _ _) =
                             else scp <> "::" <> cname
            nestedDeclarations . at (TopClass, rcname) ?= r
            return []
-evaluateStatement r@(DefineDeclaration dname _ _ _) =
+evaluateStatement r@(DefineDeclaration (DefineDec dname _ _ _)) =
     if "::" `T.isInfixOf` dname
        then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
        else do
@@ -321,7 +326,7 @@ evaluateStatement r@(DefineDeclaration dname _ _ _) =
            if scp == "::"
                then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
                else nestedDeclarations . at (TopDefine, scp <> "::" <> dname) ?= r >> return []
-evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
+evaluateStatement r@(ResourceCollection (RColl e resType searchExp mods p)) = do
     curPos .= p
     unless (fnull mods || e == Collector) (throwPosError ("It doesnt seem possible to amend attributes with an exported resource collector:" </> pretty r))
     rsearch <- resolveSearchExpression searchExp
@@ -346,26 +351,26 @@ evaluateStatement r@(ResourceCollection e resType searchExp mods p) = do
             popScope
             return o
         else return []
-evaluateStatement (Dependency (t1 :!: n1) (t2 :!: n2) lt p) = do
+evaluateStatement (Dependency (Dep (t1 :!: n1) (t2 :!: n2) lt p)) = do
     curPos .= p
     rn1 <- map (fixResourceName t1) <$> resolveExpressionStrings n1
     rn2 <- map (fixResourceName t2) <$> resolveExpressionStrings n2
     extraRelations <>= [ LinkInformation (RIdentifier t1 an1) (RIdentifier t2 an2) lt p | an1 <- rn1, an2 <- rn2 ]
     return []
-evaluateStatement (ResourceDeclaration rt ern eargs virt p) = do
+evaluateStatement (ResourceDeclaration (ResDec rt ern eargs virt p)) = do
     curPos .= p
     resnames <- resolveExpressionStrings ern
     args <- vmapM resolveArgument eargs >>= fromArgumentList
     concat <$> mapM (\n -> registerResource rt n args virt p) resnames
-evaluateStatement (MainFunctionCall funcname funcargs p) = do
+evaluateStatement (MainFunctionCall (MFC funcname funcargs p)) = do
     curPos .= p
     vmapM resolveExpression funcargs >>= mainFunctionCall funcname
-evaluateStatement (VariableAssignment varname varexpr p) = do
+evaluateStatement (VariableAssignment (VarAss varname varexpr p)) = do
     curPos .= p
     varval <- resolveExpression varexpr
     loadVariable varname varval
     return []
-evaluateStatement (ConditionalStatement conds p) = do
+evaluateStatement (ConditionalStatement (CondStatement conds p)) = do
     curPos .= p
     let checkCond [] = return []
         checkCond ((e :!: stmts) : xs) = do
@@ -374,7 +379,7 @@ evaluateStatement (ConditionalStatement conds p) = do
                 then evaluateStatementsVector stmts
                 else checkCond xs
     checkCond (toList conds)
-evaluateStatement (DefaultDeclaration resType decls p) = do
+evaluateStatement (DefaultDeclaration (DefaultDec resType decls p)) = do
     curPos .= p
     let resolveDefaultValue (prm :!: v) = (prm :!:) <$> resolveExpression v
     rdecls <- vmapM resolveDefaultValue decls >>= fromArgumentList
@@ -391,7 +396,7 @@ evaluateStatement (DefaultDeclaration resType decls p) = do
                        then throwPosError ("Defaults for resource" <+> ttext resType <+> "already declared at" <+> showPPos (de ^. defPos))
                        else addDefaults (mergedDefaults de)
     return []
-evaluateStatement (ResourceOverride rt urn eargs p) = do
+evaluateStatement (ResourceOverride (ResOver rt urn eargs p)) = do
     curPos .= p
     raassignements <- vmapM resolveArgument eargs >>= fromArgumentList
     rn <- resolveExpressionString urn
@@ -407,7 +412,7 @@ evaluateStatement (ResourceOverride rt urn eargs p) = do
                             Nothing -> return raassignements
     scopes . ix scp . scopeOverrides . at rident ?= ResRefOverride rident withAssignements p
     return []
-evaluateStatement (SHFunctionCall c p) = curPos .= p >> evaluateHFC c
+evaluateStatement (SHFunctionCall (SFC c p)) = curPos .= p >> evaluateHFC c
 evaluateStatement r = throwError (PrettyError ("Do not know how to evaluate this statement:" </> pretty r))
 
 -----------------------------------------------------------
@@ -544,12 +549,13 @@ expandDefine r = do
             return (LinkInformation (r ^. rid) dstid link p)
     extraRelations <>= extr
     void $ enterScope SENormal curContType modulename p
-    (spurious, dls) <- getstt TopDefine deftype
+    (spurious, dls') <- getstt TopDefine deftype
+    dls <- extractPrism _DefineDeclaration' "expandDefine" dls'
     let isImported (ContImported _) = True
         isImported _ = False
     isImportedDefine <- isImported <$> getScope
     case dls of
-        (DefineDeclaration _ defineParams stmts cp) -> do
+        (DefineDec _ defineParams stmts cp) -> do
             curPos .= r ^. rpos
             curscp <- getScope
             when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
@@ -569,7 +575,6 @@ expandDefine r = do
             when isImportedDefine popScope
             popScope
             return out
-        _ -> throwPosError ("Internal error: we did not retrieve a DefineDeclaration, but had" <+> pretty dls)
 
 
 loadClass :: T.Text
@@ -596,9 +601,10 @@ loadClass rclassname loadedfrom params cincludetype = do
             loadedClasses . at classname ?= (cincludetype :!: p)
             -- load the actual class, note we are not changing the current position
             -- right now
-            (spurious, cls) <- getstt TopClass classname
+            (spurious, cls') <- getstt TopClass classname
+            cls <- extractPrism _ClassDeclaration' "loadClass" cls'
             case cls of
-                (ClassDeclaration _ classParams inh stmts cp) -> do
+                (ClassDecl _ classParams inh stmts cp) -> do
                     -- check if we need to define a resource representing the class
                     -- This will be the case for the first standard include
                     inhstmts <- case inh of
@@ -630,7 +636,6 @@ loadClass rclassname loadedfrom params cincludetype = do
                                     finalize (classresource ++ spurious ++ inhstmts ++ res)
                     popScope
                     return out
-                _ -> throwPosError ("Internal error: we did not retrieve a ClassDeclaration, but had" <+> pretty cls)
 -----------------------------------------------------------
 -- Resource stuff
 -----------------------------------------------------------
@@ -769,7 +774,7 @@ mainFunctionCall "hiera_include" [x] = do
 mainFunctionCall "hiera_include" _ = throwPosError "hiera_include(): This function takes a single argument"
 mainFunctionCall fname args = do
     p <- use curPos
-    let representation = MainFunctionCall fname mempty p
+    let representation = MainFunctionCall (MFC fname mempty p)
     rs <- singleton (ExternalFunction fname args)
     unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs </> pretty representation)
     return []
