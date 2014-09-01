@@ -600,7 +600,7 @@ chainableStuff = do
                     pe <- getPosition
                     pure (ChainResRefr restype resnames (p :!: pe))
                 _ -> ChainResColl <$> resourceCollection p restype
-    chain <- parseRelationships ((lst <$> withresname) <|> (map ChainResDecl <$> resourceGroup'))
+    chain <- parseRelationships ((lst <$> try withresname) <|> (map ChainResDecl <$> resourceGroup'))
     let relations = do
             (g1, g2, lt) <- zipChain chain
             (rt1, rn1, _   :!: pe1) <- concatMap extractResRef g1
