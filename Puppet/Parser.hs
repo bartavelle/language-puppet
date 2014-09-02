@@ -554,9 +554,6 @@ dotCall = do
     unless (hf ^. hftype == HFEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
     return (SFC hf (p :!: pe))
 
-lst :: a -> [a]
-lst = (:[])
-
 data ChainableStuff = ChainResColl RColl
                     | ChainResDecl ResDec
                     | ChainResRefr T.Text [Expression] PPosition
@@ -600,7 +597,7 @@ chainableStuff = do
                     pe <- getPosition
                     pure (ChainResRefr restype resnames (p :!: pe))
                 _ -> ChainResColl <$> resourceCollection p restype
-    chain <- parseRelationships ((lst <$> try withresname) <|> (map ChainResDecl <$> resourceGroup'))
+    chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resourceGroup'
     let relations = do
             (g1, g2, lt) <- zipChain chain
             (rt1, rn1, _   :!: pe1) <- concatMap extractResRef g1
@@ -610,23 +607,23 @@ chainableStuff = do
 
 statement :: Parser [Statement]
 statement =
-        (lst . SHFunctionCall <$> try dotCall)
-    <|> (lst . VariableAssignment <$> variableAssignment)
+        (pure . SHFunctionCall <$> try dotCall)
+    <|> (pure . VariableAssignment <$> variableAssignment)
     <|> (map Node <$> nodeStmt)
-    <|> (lst . DefineDeclaration <$> defineStmt)
-    <|> (lst . ConditionalStatement <$> unlessCondition)
-    <|> (lst . ConditionalStatement <$> ifCondition)
-    <|> (lst . ConditionalStatement <$> caseCondition)
-    <|> (lst . DefaultDeclaration <$> try resourceDefaults)
+    <|> (pure . DefineDeclaration <$> defineStmt)
+    <|> (pure . ConditionalStatement <$> unlessCondition)
+    <|> (pure . ConditionalStatement <$> ifCondition)
+    <|> (pure . ConditionalStatement <$> caseCondition)
+    <|> (pure . DefaultDeclaration <$> try resourceDefaults)
     <|> (map ResourceOverride <$> try resourceOverride)
     <|> chainableStuff
     {-
     <|> resourceGroup
     <|> rrGroup
     -}
-    <|> (lst . ClassDeclaration <$> classDefinition)
-    <|> (lst . SHFunctionCall <$> mainHFunctionCall)
-    <|> (lst . MainFunctionCall <$> mainFunctionCall)
+    <|> (pure . ClassDeclaration <$> classDefinition)
+    <|> (pure . SHFunctionCall <$> mainHFunctionCall)
+    <|> (pure . MainFunctionCall <$> mainFunctionCall)
     <?> "Statement"
 
 
