@@ -39,6 +39,36 @@ class Scope
     def to_hash
         vl('~g~e~t_h~a~s~h~')
     end
+
+    def function_versioncmp(args)
+        version_a = args[0]
+        version_b = args[1]
+        vre = /[-.]|\d+|[^-.\d]+/
+            ax = version_a.scan(vre)
+        bx = version_b.scan(vre)
+
+        while (ax.length>0 && bx.length>0)
+            a = ax.shift
+            b = bx.shift
+
+            if( a == b )                 then next
+            elsif (a == '-' && b == '-') then next
+            elsif (a == '-')             then return -1
+            elsif (b == '-')             then return 1
+            elsif (a == '.' && b == '.') then next
+            elsif (a == '.' )            then return -1
+            elsif (b == '.' )            then return 1
+            elsif (a =~ /^\d+$/ && b =~ /^\d+$/) then
+                if( a =~ /^0/ or b =~ /^0/ ) then
+                    return a.to_s.upcase <=> b.to_s.upcase
+                end
+                return a.to_i <=> b.to_i
+            else
+                return a.upcase <=> b.upcase
+            end
+        end
+        version_a <=> version_b;
+    end
 end
 
 class ErbBinding
