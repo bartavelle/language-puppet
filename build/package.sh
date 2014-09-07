@@ -10,7 +10,7 @@ rm -rf puppetresources-$VERSION && \
 mkdir puppetresources-$VERSION && \
 cabal configure -p && \
 cabal build && \
-cp dist/build/puppetresources/puppetresources dist/build/pdbquery/pdbquery ../language-puppet/ruby/calcerb.rb puppetresources-$VERSION && \
+cp dist/build/puppetresources/puppetresources dist/build/pdbquery/pdbquery ../language-puppet/ruby/hrubyerb.rb puppetresources-$VERSION && \
 fakeroot tar cfvz puppetresources-$VERSION.tar.gz puppetresources-$VERSION
 
 rm -rf puppetresources-$VERSION

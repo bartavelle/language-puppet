@@ -16,7 +16,6 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 Data-Files:
-  ruby/calcerb.rb
   ruby/hrubyerb.rb
 
 source-repository head
