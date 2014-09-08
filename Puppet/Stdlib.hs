@@ -234,8 +234,7 @@ isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
                                      _           -> False
 
 isBool :: PValue -> InterpreterMonad PValue
-isBool (PBoolean _) = return $ PBoolean True
-isBool _ = return $ PBoolean False
+isBool = return . PBoolean . has _PBoolean
 
 keys :: PValue -> InterpreterMonad PValue
 keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)
