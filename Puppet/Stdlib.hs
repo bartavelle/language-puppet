@@ -44,6 +44,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "is_array" isArray
                               , singleArgument "is_domain_name" isDomainName
                               , singleArgument "is_integer" isInteger
+                              , singleArgument "is_bool" isBool
                               , singleArgument "is_hash" isHash
                               , singleArgument "is_string" isString
                               , singleArgument "keys" keys
@@ -179,7 +180,7 @@ deleteUndefValues (PHash h) = return $ PHash $ HM.filter (/= PUndef) h
 deleteUndefValues x = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
 
 _empty :: PValue -> InterpreterMonad PValue
-_empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PArray V.empty, PHash HM.empty] 
+_empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PArray V.empty, PHash HM.empty]
 
 flatten :: PValue -> InterpreterMonad PValue
 flatten r@(PArray _) = return $ PArray (flatten' r)
@@ -231,6 +232,9 @@ isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
                                      (_, Just _) -> False
                                      (Just _, _) -> True
                                      _           -> False
+
+isBool :: PValue -> InterpreterMonad PValue
+isBool = return . PBoolean . has _PBoolean
 
 keys :: PValue -> InterpreterMonad PValue
 keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)
