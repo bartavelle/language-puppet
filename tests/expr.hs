@@ -16,7 +16,7 @@ testcases :: [(T.Text, Expression)]
 testcases =
     [ ("5 + 3 * 2", 5 + 3 * 2)
     , ("5+2 == 7", Equal (5 + 2) 7)
-    , ("include(foo::bar)",  PValue (UFunctionCall "include" (V.singleton "foo::bar") ))
+    , ("include(foo::bar)",  Terminal (UFunctionCall "include" (V.singleton "foo::bar") ))
     ]
 
 main :: IO ()

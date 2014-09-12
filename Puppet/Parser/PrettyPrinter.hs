@@ -55,7 +55,7 @@ instance Pretty Expression where
     pretty (ConditionalValue a b) = parens (pretty a <+> text "?" <+> hashComma b)
     pretty (Negate a)             = text "-" <+> parens (pretty a)
     pretty (Not a)                = text "!" <+> parens (pretty a)
-    pretty (PValue a)             = pretty a
+    pretty (Terminal a)           = pretty a
     pretty (FunctionApplication e1 e2) = parens (pretty e1) <> text "." <> pretty e2
 
 instance Pretty HigherFuncType where
@@ -159,7 +159,7 @@ instance Pretty Statement where
         | otherwise = text "if" <+> pretty firstcond <+> showPPos p <+> braceStatements firststts <$> vcat (map rendernexts xs)
         where
             ( (firstcond :!: firststts) : xs ) = V.toList conds
-            rendernexts (PValue (UBoolean True) :!: st) = text "else" <+> braceStatements st
+            rendernexts (Terminal (UBoolean True) :!: st) = text "else" <+> braceStatements st
             rendernexts (c :!: st) | V.null st = empty
                                    | otherwise = text "elsif" <+> pretty c <+> braceStatements st
     pretty (MainFunctionCall (MFC funcname args p)) = showFunc funcname args <+> showPPos p
@@ -199,4 +199,3 @@ instance Pretty Statement where
 
 ppStatements :: V.Vector Statement -> Doc
 ppStatements = vcat . map pretty . V.toList
-

@@ -742,4 +742,3 @@ initialState facts = InterpreterState baseVars initialclass mempty [ContRoot] du
 
 dummypos :: PPosition
 dummypos = initialPPos "dummy"
-

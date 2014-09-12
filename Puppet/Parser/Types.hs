@@ -187,14 +187,14 @@ data Expression
     | Negate !Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression)) -- ^ All conditionals are stored in this format.
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
-    | PValue !UValue
+    | Terminal !UValue
     deriving Eq
 
 instance Num Expression where
     (+) = Addition
     (-) = Substraction
     (*) = Multiplication
-    fromInteger = PValue . UNumber . fromInteger
+    fromInteger = Terminal . UNumber . fromInteger
     abs x = ConditionalValue (MoreEqualThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: x, SelectorDefault :!: negate x])
     signum x = ConditionalValue (MoreThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: 1, SelectorDefault :!:
                                                            ConditionalValue (Equal x 0) (V.fromList [SelectorValue (UBoolean True) :!: 0, SelectorDefault :!: (-1)])
@@ -203,10 +203,10 @@ instance Num Expression where
 instance Fractional Expression where
     (/) = Division
     recip x = 1 / x
-    fromRational = PValue . UNumber . fromRational
+    fromRational = Terminal . UNumber . fromRational
 
 instance IsString Expression where
-    fromString = PValue . fromString
+    fromString = Terminal . fromString
 
 data SearchExpression
     = EqualitySearch !T.Text !Expression
@@ -295,4 +295,3 @@ data Statement
     deriving Eq
 
 makeClassy ''HFunctionCall
-
