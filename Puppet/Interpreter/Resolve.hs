@@ -190,7 +190,7 @@ puppetEquality ra rb =
 -- | The main resolution function : turns an 'Expression' into a 'PValue',
 -- if possible.
 resolveExpression :: Expression -> InterpreterMonad PValue
-resolveExpression (PValue v) = resolveValue v
+resolveExpression (Terminal v) = resolveValue v
 resolveExpression (Not e) = fmap (PBoolean . not . pValue2Bool) (resolveExpression e)
 resolveExpression (And a b) = do
     ra <- fmap pValue2Bool (resolveExpression a)
@@ -210,7 +210,7 @@ resolveExpression (LessThan a b) = numberCompare a b (<)
 resolveExpression (MoreThan a b) = numberCompare a b (>)
 resolveExpression (LessEqualThan a b) = numberCompare a b (<=)
 resolveExpression (MoreEqualThan a b) = numberCompare a b (>=)
-resolveExpression (RegexMatch a v@(PValue (URegexp _ rv))) = do
+resolveExpression (RegexMatch a v@(Terminal (URegexp _ rv))) = do
     ra <- fmap T.encodeUtf8 (resolveExpressionString a)
     case execute' rv ra of
         Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> string rr)
@@ -295,7 +295,7 @@ resolveExpression (LeftShift a b) = do
     case (ra, rb) of
         (PArray ha, v) -> return (PArray (V.snoc ha v))
         _ -> integerOperation a b (\x -> shiftL x . fromIntegral)
-resolveExpression a@(FunctionApplication e (PValue (UHFunctionCall hf))) = do
+resolveExpression a@(FunctionApplication e (Terminal (UHFunctionCall hf))) = do
     unless (S.isNothing (hf ^. hfexpr)) (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
     resolveValue (UHFunctionCall (hf & hfexpr .~ S.Just e))
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
@@ -615,7 +615,7 @@ transformPureHf hf =
                     then throwPosError ("The statement block must not be empty" <+> pretty hf)
                     else case V.last statements of
                              (MainFunctionCall (MFC fn args _)) ->
-                                let expr = PValue (UFunctionCall fn args)
+                                let expr = Terminal (UFunctionCall fn args)
                                 in  return (hf & hfstatements %~ V.init
                                                & hfexpression .~ S.Just expr
                                            , expr)
@@ -647,4 +647,3 @@ evaluateHFCPure hf' = do
                 PHash  hh -> return $ PHash  $ HM.fromList $ map Prelude.fst   $ filter Prelude.snd $ Prelude.zip (HM.toList hh) res
                 x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
         x -> throwPosError ("This type of function is not supported yet by language-puppet!" <+> pretty x)
-

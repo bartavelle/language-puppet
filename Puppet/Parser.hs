@@ -64,7 +64,7 @@ instance TokenParsing Parser where
                     <|> (oneOf "*/" >> inComment)
 
 variable :: Parser Expression
-variable = PValue . UVariableReference <$> variableReference
+variable = Terminal . UVariableReference <$> variableReference
 
 stringLiteral' :: Parser T.Text
 stringLiteral' = char '\'' *> interior <* symbolic '\''
@@ -204,7 +204,7 @@ resourceReference = do
     (restype, resnames) <- resourceReferenceRaw
     return $ UResourceReference restype $ case resnames of
                  [x] -> x
-                 _   -> PValue (array resnames)
+                 _   -> Terminal (array resnames)
 
 bareword :: Parser T.Text
 bareword = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Bare word"
@@ -218,7 +218,7 @@ genFunctionCall nonparens = do
     -- this is a hack. Contrary to what the documentation says,
     -- a "bareword" can perfectly be a qualified name :
     -- include foo::bar
-    let argsc sep e = (fmap (PValue . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
+    let argsc sep e = (fmap (Terminal . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
         expressionF = ParserT (buildExpressionParser expressionTable (unParser (token terminalF)) <?> "function expression")
         withparens = parens (argsc sepEndBy expression)
@@ -243,16 +243,16 @@ literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> 
 -- this is a hack for functions :(
 terminalG :: Parser Expression -> Parser Expression
 terminalG g = parens expression
-         <|> fmap (PValue . UInterpolable) interpolableString
-         <|> (reserved "undef" *> return (PValue UUndef))
-         <|> fmap PValue termRegexp
+         <|> fmap (Terminal . UInterpolable) interpolableString
+         <|> (reserved "undef" *> return (Terminal UUndef))
+         <|> fmap Terminal termRegexp
          <|> variable
-         <|> fmap PValue puppetArray
-         <|> fmap PValue puppetHash
-         <|> fmap (PValue . UBoolean) puppetBool
-         <|> fmap PValue resourceReference
+         <|> fmap Terminal puppetArray
+         <|> fmap Terminal puppetHash
+         <|> fmap (Terminal . UBoolean) puppetBool
+         <|> fmap Terminal resourceReference
          <|> g
-         <|> fmap PValue literalValue
+         <|> fmap Terminal literalValue
 
 compileRegexp :: T.Text -> Parser Regex
 compileRegexp p = case compile' compBlank execBlank (T.encodeUtf8 p) of
@@ -265,7 +265,7 @@ termRegexp = do
     URegexp <$> pure r <*> compileRegexp r
 
 terminal :: Parser Expression
-terminal = terminalG (fmap PValue (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
+terminal = terminalG (fmap Terminal (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
 
 expression :: Parser Expression
 expression = condExpression
@@ -326,7 +326,7 @@ expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- htt
         reserved' = unParser . reserved
 
 stringExpression :: Parser Expression
-stringExpression = fmap (PValue . UInterpolable) interpolableString <|> (reserved "undef" *> return (PValue UUndef)) <|> fmap (PValue . UBoolean) puppetBool <|> variable <|> fmap PValue literalValue
+stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reserved "undef" *> return (Terminal UUndef)) <|> fmap (Terminal . UBoolean) puppetBool <|> variable <|> fmap Terminal literalValue
 
 variableAssignment :: Parser VarAss
 variableAssignment = do
@@ -395,7 +395,7 @@ ifCondition = do
     elsecond <- option V.empty (reserved "else" *> braces statementList)
     let ec = if V.null elsecond
                  then []
-                 else [PValue (UBoolean True) :!: elsecond]
+                 else [Terminal (UBoolean True) :!: elsecond]
     pe <- getPosition
     return (CondStatement (V.fromList (maincond : others ++ ec)) (p :!: pe))
 
@@ -405,12 +405,12 @@ caseCondition = do
             reg <- termRegexp
             void $ symbolic ':'
             stmts <- braces statementList
-            return [ (PValue reg, stmts) ]
+            return [ (Terminal reg, stmts) ]
         defaultCase = do
             try (reserved "default")
             void $ symbolic ':'
             stmts <- braces statementList
-            return [ (PValue (UBoolean True), stmts) ]
+            return [ (Terminal (UBoolean True), stmts) ]
         puppetCase = do
             compares <- expression `sepBy1` comma
             void $ symbolic ':'
@@ -418,9 +418,9 @@ caseCondition = do
             return $ map (,stmts) compares
         condsToExpression e (x, stmts) = f x :!: stmts
             where f = case x of
-                          (PValue (UBoolean _))  -> id
-                          (PValue (URegexp _ _)) -> RegexMatch e
-                          _                      -> Equal e
+                          (Terminal (UBoolean _))  -> id
+                          (Terminal (URegexp _ _)) -> RegexMatch e
+                          _                        -> Equal e
     p <- getPosition
     reserved "case"
     expr1 <- expression
@@ -544,10 +544,10 @@ dotCall = do
     ex <- expression
     pe <- getPosition
     hf <- case ex of
-              FunctionApplication e (PValue (UHFunctionCall hf)) -> do
+              FunctionApplication e (Terminal (UHFunctionCall hf)) -> do
                   unless (S.isNothing (hf ^. hfexpr)) (fail "Can't call a function with . and ()")
                   return (hf & hfexpr .~ S.Just e)
-              PValue (UHFunctionCall hf) -> do
+              Terminal (UHFunctionCall hf) -> do
                   when (S.isNothing (hf ^. hfexpr)) (fail "This function needs data to operate on")
                   return hf
               _ -> fail "A method chained by dots."
@@ -651,9 +651,9 @@ parseHParams = between (symbolic '|') (symbolic '|') hp
         hp = do
             vars <- (char '$' *> acceptablePart) `sepBy1` comma
             case vars of
-                [a] -> return (BPSingle a)
+                [a]   -> return (BPSingle a)
                 [a,b] -> return (BPPair a b)
-                _ -> fail "Invalid number of variables between the pipes"
+                _     -> fail "Invalid number of variables between the pipes"
 
 hfunctionCall :: Parser HFunctionCall
 hfunctionCall = do

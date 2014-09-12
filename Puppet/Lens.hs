@@ -65,7 +65,7 @@ module Puppet.Lens
  , _Negate
  , _ConditionalValue
  , _FunctionApplication
- , _PValue
+ , _Terminal
  ) where
 
 import Control.Lens
@@ -189,7 +189,7 @@ _PResolveExpression = prism reinject extract
         extract e = case dummyEval (resolveExpression e) of
                         Right x -> Right x
                         Left _  -> Left e
-        reinject  = PValue . review _PResolveValue
+        reinject  = Terminal . review _PResolveValue
 
 _PResolveValue :: Prism' UValue PValue
 _PResolveValue = prism toU toP
@@ -201,9 +201,9 @@ _PResolveValue = prism toU toP
         toU (PNumber x) = UNumber x
         toU PUndef = UUndef
         toU (PString s) = UString s
-        toU (PResourceReference t n) = UResourceReference t (PValue (UString n))
-        toU (PArray r) = UArray (fmap (PValue . toU) r)
-        toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (PValue (UString k) :!: PValue (toU v))) $ HM.toList h)
+        toU (PResourceReference t n) = UResourceReference t (Terminal (UString n))
+        toU (PArray r) = UArray (fmap (Terminal . toU) r)
+        toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (Terminal (UString k) :!: Terminal (toU v))) $ HM.toList h)
 
 _PParse :: Prism' T.Text (V.Vector Statement)
 _PParse = prism dspl prs
