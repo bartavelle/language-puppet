@@ -25,6 +25,7 @@ module Puppet.Parser.Types
    HFunctionCall(..),
    HasHFunctionCall(..),
    BlockParameters(..),
+   CompRegex(..),
    CollectorType(..),
    Virtuality(..),
    NodeDesc(..),
@@ -48,20 +49,22 @@ module Puppet.Parser.Types
    ) where
 
 
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import Data.Hashable
-import Data.Tuple.Strict
-import qualified Data.Maybe.Strict as S
-import GHC.Generics
-import Data.Char (toUpper)
-import Text.Regex.PCRE.String
-import Control.Lens
-import Data.String
-import Data.Scientific
-import Data.Aeson
+import           Control.Lens
 
-import Text.Parsec.Pos
+import           Data.Aeson
+import           Data.Char (toUpper)
+import           Data.Hashable
+import qualified Data.Maybe.Strict as S
+import           Data.Scientific
+import           Data.String
+import qualified Data.Text as T
+import           Data.Tuple.Strict
+import qualified Data.Vector as V
+
+import           GHC.Generics
+import           Text.Regex.PCRE.String
+
+import           Text.Parsec.Pos
 
 -- | Properly capitalizes resource types
 capitalizeRT :: T.Text -> T.Text
@@ -104,13 +107,13 @@ data HigherFuncType = HFEach
                     | HFReduce
                     | HFFilter
                     | HFSlice
-                    deriving Eq
+                    deriving (Eq, Show)
 
 -- | Currently only two types of block parameters are supported, single
 -- values and pairs.
 data BlockParameters = BPSingle !T.Text -- ^ @|k|@
                      | BPPair   !T.Text !T.Text -- ^ @|k,v|@
-                     deriving Eq
+                     deriving (Eq, Show)
 
 -- The description of the /higher level function/ call.
 data HFunctionCall = HFunctionCall { _hftype       :: !HigherFuncType
@@ -119,7 +122,11 @@ data HFunctionCall = HFunctionCall { _hftype       :: !HigherFuncType
                                    , _hfstatements :: !(V.Vector Statement)
                                    , _hfexpression :: !(S.Maybe Expression)
                                    }
-                   deriving Eq
+                   deriving (Eq, Show)
+
+newtype CompRegex = CompRegex Regex
+instance Show CompRegex where
+  show _ = "CompRegex"
 
 -- | An unresolved value, typically the parser's output.
 data UValue
@@ -130,11 +137,13 @@ data UValue
     | UResourceReference !T.Text !Expression -- ^ A Resource[reference]
     | UArray !(V.Vector Expression)
     | UHash !(V.Vector (Pair Expression Expression))
-    | URegexp !T.Text !Regex -- ^ The regular expression compilation is performed during parsing.
+    | URegexp !T.Text !CompRegex -- ^ The regular expression compilation is performed during parsing.
     | UVariableReference !T.Text
     | UFunctionCall !T.Text !(V.Vector Expression)
     | UHFunctionCall !HFunctionCall
     | UNumber Scientific
+    deriving (Show)
+
 
 instance IsString UValue where
     fromString = UString . T.pack
@@ -160,7 +169,7 @@ array = UArray . V.fromList
 
 data SelectorCase = SelectorValue UValue
                   | SelectorDefault
-                  deriving (Eq)
+                  deriving (Eq, Show)
 
 -- | The 'Expression's
 data Expression
@@ -188,7 +197,7 @@ data Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression)) -- ^ All conditionals are stored in this format.
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
     | Terminal !UValue
-    deriving Eq
+    deriving (Eq, Show)
 
 instance Num Expression where
     (+) = Addition
@@ -214,10 +223,10 @@ data SearchExpression
     | AndSearch !SearchExpression !SearchExpression
     | OrSearch !SearchExpression !SearchExpression
     | AlwaysTrue
-    deriving Eq
+    deriving (Eq, Show)
 
 data CollectorType = Collector | ExportedCollector
-    deriving (Eq)
+    deriving (Eq, Show)
 
 -- | Tries to turn an unresolved value into a 'Bool' without any context.
 toBool :: UValue -> Bool
@@ -231,11 +240,12 @@ data Virtuality = Normal -- ^ Normal resource, that will be included in the cata
                 | Virtual -- ^ Type for virtual resources
                 | Exported -- ^ Type for exported resources
                 | ExportedRealized -- ^ These are resources that are exported AND included in the catalog
-    deriving (Generic, Eq)
+    deriving (Generic, Eq, Show)
 
 data NodeDesc = NodeName !T.Text
-              | NodeMatch !T.Text !Regex
+              | NodeMatch !T.Text !CompRegex
               | NodeDefault
+              deriving Show
 
 instance Eq NodeDesc where
     (==) (NodeName a) (NodeName b) = a == b
@@ -264,18 +274,18 @@ instance FromJSON LinkType where
 instance ToJSON LinkType where
     toJSON = String . rel2text
 
-data ResDec        = ResDec !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !Virtuality !PPosition deriving Eq
-data DefaultDec    = DefaultDec !T.Text !(V.Vector (Pair T.Text Expression)) !PPosition deriving Eq
-data ResOver       = ResOver !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !PPosition deriving Eq
-data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving Eq -- ^ All types of conditional statements are stored that way (@case@, @if@, etc.)
-data ClassDecl     = ClassDecl !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition deriving Eq
-data DefineDec     = DefineDec !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving Eq
-data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving Eq
-data VarAss        = VarAss !T.Text !Expression !PPosition deriving Eq
-data MFC           = MFC !T.Text !(V.Vector Expression) !PPosition deriving Eq
-data SFC           = SFC !HFunctionCall !PPosition deriving Eq -- ^ /Higher order function/ call.
-data RColl         = RColl !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition deriving Eq -- ^ For all types of collectors.
-data Dep           = Dep !(Pair T.Text Expression) !(Pair T.Text Expression) !LinkType !PPosition deriving Eq
+data ResDec        = ResDec !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !Virtuality !PPosition deriving (Eq, Show)
+data DefaultDec    = DefaultDec !T.Text !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
+data ResOver       = ResOver !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
+data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show) -- ^ All types of conditional statements are stored that way (@case@, @if@, etc.)
+data ClassDecl     = ClassDecl !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data DefineDec     = DefineDec !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
+data VarAss        = VarAss !T.Text !Expression !PPosition deriving (Eq, Show)
+data MFC           = MFC !T.Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
+data SFC           = SFC !HFunctionCall !PPosition deriving (Eq, Show) -- ^ /Higher order function/ call.
+data RColl         = RColl !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show) -- ^ For all types of collectors.
+data Dep           = Dep !(Pair T.Text Expression) !(Pair T.Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
 -- | All the possible statements
 data Statement
@@ -292,6 +302,6 @@ data Statement
     | ResourceCollection !RColl
     | Dependency !Dep
     | TopContainer !(V.Vector Statement) !Statement -- ^ This is a special statement that is used to include the expressions that are top level. This is certainly buggy, but probably just like the original implementation.
-    deriving Eq
+    deriving (Eq, Show)
 
 makeClassy ''HFunctionCall
