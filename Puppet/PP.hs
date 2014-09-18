@@ -32,5 +32,3 @@ displayNocolor = flip displayS "" . dropEffects . renderPretty 0.4 180
         dropEffects (SText v t d) = SText v t (dropEffects d)
         dropEffects (SChar c d) = SChar c (dropEffects d)
         dropEffects x = x
-
-

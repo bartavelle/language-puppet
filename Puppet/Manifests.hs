@@ -27,9 +27,9 @@ filterStatements TopNode ndename stmts =
         triage curstuff n@(Node (Nd  NodeDefault _  _ _)) = curstuff & _4 ?~ n
         triage curstuff x = curstuff & _1 %~ (|> x)
         bsnodename = T.encodeUtf8 ndename
-        checkRegexp :: [Pair Regex Statement] -> ErrorT PrettyError IO (Maybe Statement)
+        checkRegexp :: [Pair CompRegex Statement] -> ErrorT PrettyError IO (Maybe Statement)
         checkRegexp [] = return Nothing
-        checkRegexp ((regexp :!: s):xs) =
+        checkRegexp ((CompRegex(regexp) :!: s):xs) =
             case execute' regexp bsnodename of
                 Left rr -> throwError (PrettyError ("Regexp match error:" <+> text (show rr)))
                 Right Nothing -> checkRegexp xs

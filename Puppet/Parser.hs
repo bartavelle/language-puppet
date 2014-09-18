@@ -14,28 +14,28 @@ import qualified Data.Vector as V
 import qualified Data.HashSet as HS
 import qualified Data.Maybe.Strict as S
 import qualified Data.Foldable as F
-import Data.Tuple.Strict hiding (fst,zip)
-import Text.Regex.PCRE.ByteString.Utils
+import           Data.Tuple.Strict hiding (fst,zip)
+import           Text.Regex.PCRE.ByteString.Utils
 
-import Data.Char
-import Control.Monad
-import Control.Applicative
-import Control.Lens hiding (noneOf)
+import           Data.Char
+import           Control.Monad
+import           Control.Applicative
+import           Control.Lens hiding (noneOf)
 
-import Puppet.Parser.Types
-import Puppet.Utils
+import           Puppet.Parser.Types
+import           Puppet.Utils
 
-import Text.Parsec.Expr
-import Text.Parser.Token hiding (stringLiteral')
-import Text.Parser.Combinators
-import Text.Parser.Char
-import Text.Parsec.Pos (SourcePos,SourceName)
-import Text.Parser.LookAhead
-import Text.Parser.Token.Highlight
-import Text.Parsec.Error (ParseError)
+import           Data.Scientific
+import           Text.Parsec.Error (ParseError)
+import           Text.Parsec.Expr
+import           Text.Parsec.Pos (SourcePos,SourceName)
 import qualified Text.Parsec.Prim as PP
-import Text.Parsec.Text ()
-import Data.Scientific
+import           Text.Parsec.Text ()
+import           Text.Parser.Char
+import           Text.Parser.Combinators
+import           Text.Parser.LookAhead
+import           Text.Parser.Token hiding (stringLiteral')
+import           Text.Parser.Token.Highlight
 
 newtype Parser a = ParserT { unParser :: PP.ParsecT T.Text () Identity a}
                  deriving (Functor, Applicative, Alternative)
@@ -254,9 +254,9 @@ terminalG g = parens expression
          <|> g
          <|> fmap Terminal literalValue
 
-compileRegexp :: T.Text -> Parser Regex
+compileRegexp :: T.Text -> Parser CompRegex
 compileRegexp p = case compile' compBlank execBlank (T.encodeUtf8 p) of
-    Right r -> return r
+    Right r -> return $ CompRegex r
     Left ms -> fail ("Can't parse regexp /" ++ T.unpack p ++ "/ : " ++ show ms)
 
 termRegexp :: Parser UValue

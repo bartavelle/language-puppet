@@ -1,51 +1,51 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
-import System.IO
+import           Control.Concurrent.ParallelIO (parallel)
+import           Control.Lens as L
+import           Control.Monad
+import           Data.Aeson (encode)
+import qualified Data.ByteString.Lazy.Char8 as BSL
+import           Data.Either (partitionEithers)
+import qualified Data.Either.Strict as S
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
+import           Data.List (isInfixOf)
+import           Data.Maybe (mapMaybe)
+import           Data.Monoid hiding (First)
 import qualified Data.Set as Set
-import qualified System.Log.Logger as LOG
-import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Data.Monoid hiding (First)
-import qualified Text.Parsec as P
+import           Data.Text.Strict.Lens
+import           Data.Tuple (swap)
 import qualified Data.Vector as V
-import qualified Data.Either.Strict as S
-import Options.Applicative as O hiding ((&))
-import Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
-import Control.Monad
-import Text.Regex.PCRE.String
-import Data.Text.Strict.Lens
-import Data.Aeson (encode)
-import Data.Yaml (decodeFileEither)
-import Control.Lens as L
-import Control.Concurrent.ParallelIO (parallel)
-import Data.Maybe (mapMaybe)
+import           Data.Yaml (decodeFileEither)
+import           Options.Applicative as O hiding ((&))
+import           Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
+import           System.Exit (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob as G
-import Data.Either (partitionEithers)
-import Data.List (isInfixOf)
+import           System.IO
+import qualified System.Log.Logger as LOG
 import qualified Test.Hspec.Runner as H
-import System.Exit (exitFailure, exitSuccess)
-import Data.Tuple (swap)
+import qualified Text.Parsec as P
+import           Text.Regex.PCRE.String
 
-import Facter
+import           Facter
 
-import Puppet.PP hiding ((<$>))
-import Puppet.Preferences
-import Puppet.Daemon
-import Puppet.Interpreter.Types
-import Puppet.Parser.Types
-import Puppet.Parser
-import Puppet.Parser.PrettyPrinter()
-import Puppet.Interpreter.PrettyPrinter()
-import PuppetDB.Remote
-import PuppetDB.Dummy
-import PuppetDB.TestDB
-import PuppetDB.Common
-import Puppet.Testing
-import Puppet.Stats
+import           Puppet.PP hiding ((<$>))
+import           Puppet.Preferences
+import           Puppet.Daemon
+import           Puppet.Interpreter.Types
+import           Puppet.Parser.Types
+import           Puppet.Parser
+import           Puppet.Parser.PrettyPrinter(ppStatements)
+import           Puppet.Interpreter.PrettyPrinter()
+import           PuppetDB.Remote
+import           PuppetDB.Dummy
+import           PuppetDB.TestDB
+import           PuppetDB.Common
+import           Puppet.Testing
+import           Puppet.Stats
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
@@ -251,7 +251,8 @@ instance (Ord a) => Monoid (Maximum a) where
 run :: CommandLine -> IO ()
 run (CommandLine _ _ _ _ _ f Nothing _ _ _ _ _ _ _ _ _) = parseFile f >>= \case
             Left rr -> error ("parse error:" ++ show rr)
-            Right s -> putDoc (vcat (map pretty (V.toList s)))
+            Right s -> putDoc $ ppStatements s
+
 run c@(CommandLine puppeturl _ _ _ _ puppetdir (Just ndename) mpdbf prio hpath fcts fdef docommit _ _ _) = do
     let checkError r (S.Left rr) = error (show (red r <> ":" <+> getError rr))
         checkError _ (S.Right x) = return x
