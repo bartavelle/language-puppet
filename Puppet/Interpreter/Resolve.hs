@@ -210,7 +210,7 @@ resolveExpression (LessThan a b) = numberCompare a b (<)
 resolveExpression (MoreThan a b) = numberCompare a b (>)
 resolveExpression (LessEqualThan a b) = numberCompare a b (<=)
 resolveExpression (MoreEqualThan a b) = numberCompare a b (>=)
-resolveExpression (RegexMatch a v@(Terminal (URegexp _ (CompRegex rv)))) = do
+resolveExpression (RegexMatch a v@(Terminal (URegexp (CompRegex _ rv)))) = do
     ra <- fmap T.encodeUtf8 (resolveExpressionString a)
     case execute' rv ra of
         Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> string rr)
@@ -258,7 +258,7 @@ resolveExpression stmt@(ConditionalValue e conds) = do
     rese <- resolveExpression e
     let checkCond [] = throwPosError ("The selector didn't match anything for input" <+> pretty rese </> pretty stmt)
         checkCond ((SelectorDefault :!: ce) : _) = resolveExpression ce
-        checkCond ((SelectorValue v@(URegexp _ (CompRegex rg)) :!: ce) : xs) = do
+        checkCond ((SelectorValue v@(URegexp (CompRegex _ rg)) :!: ce) : xs) = do
             rs <- fmap T.encodeUtf8 (resolvePValueString rese)
             case execute' rg rs of
                 Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> string rr)
@@ -305,7 +305,7 @@ resolveExpression x = throwPosError ("Don't know how to resolve this expression:
 -- a 'PValue'
 resolveValue :: UValue -> InterpreterMonad PValue
 resolveValue (UNumber n) = return (PNumber n)
-resolveValue n@(URegexp _ _) = throwPosError ("Regular expressions are not allowed in this context: " <+> pretty n)
+resolveValue n@(URegexp _) = throwPosError ("Regular expressions are not allowed in this context: " <+> pretty n)
 resolveValue (UBoolean x) = return (PBoolean x)
 resolveValue (UString x) = return (PString x)
 resolveValue UUndef = return PUndef

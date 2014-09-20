@@ -245,7 +245,7 @@ terminalG :: Parser Expression -> Parser Expression
 terminalG g = parens expression
          <|> fmap (Terminal . UInterpolable) interpolableString
          <|> (reserved "undef" *> return (Terminal UUndef))
-         <|> fmap Terminal termRegexp
+         <|> fmap (Terminal . URegexp) termRegexp
          <|> variable
          <|> fmap Terminal puppetArray
          <|> fmap Terminal puppetHash
@@ -256,13 +256,11 @@ terminalG g = parens expression
 
 compileRegexp :: T.Text -> Parser CompRegex
 compileRegexp p = case compile' compBlank execBlank (T.encodeUtf8 p) of
-    Right r -> return $ CompRegex r
+    Right r -> return $ CompRegex p r
     Left ms -> fail ("Can't parse regexp /" ++ T.unpack p ++ "/ : " ++ show ms)
 
-termRegexp :: Parser UValue
-termRegexp = do
-    r <- regexp
-    URegexp <$> pure r <*> compileRegexp r
+termRegexp :: Parser CompRegex
+termRegexp = regexp >>= compileRegexp
 
 terminal :: Parser Expression
 terminal = terminalG (fmap Terminal (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
@@ -280,7 +278,7 @@ expression = condExpression
                                                  <|> fmap UBoolean puppetBool
                                                  <|> literalValue
                                                  <|> fmap UInterpolable interpolableString
-                                                 <|> termRegexp)
+                                                 <|> (URegexp <$> termRegexp))
                 void $ symbol "=>"
                 e <- expression
                 return (c :!: e)
@@ -342,13 +340,11 @@ nodeStmt :: Parser [Nd]
 nodeStmt = do
     p <- getPosition
     reserved "node"
-    let nm (URegexp nn nr) = return (NodeMatch nn nr)
-        nm _ = fail "? can't happen, termRegexp didn't return a URegexp ?"
-        toString (UString s) = s
+    let toString (UString s) = s
         toString (UNumber n) = scientific2text n
         toString _ = error "Can't happen at nodeStmt"
         nodename = (reserved "default" >> return NodeDefault) <|> fmap (NodeName . toString) literalValue
-    ns <- ((termRegexp >>= nm) <|> nodename) `sepBy1` comma
+    ns <- (fmap NodeMatch termRegexp <|> nodename) `sepBy1` comma
     inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
     st <- braces statementList
     pe <- getPosition
@@ -405,7 +401,7 @@ caseCondition = do
             reg <- termRegexp
             void $ symbolic ':'
             stmts <- braces statementList
-            return [ (Terminal reg, stmts) ]
+            return [ (Terminal (URegexp reg), stmts) ]
         defaultCase = do
             try (reserved "default")
             void $ symbolic ':'
@@ -418,9 +414,9 @@ caseCondition = do
             return $ map (,stmts) compares
         condsToExpression e (x, stmts) = f x :!: stmts
             where f = case x of
-                          (Terminal (UBoolean _))  -> id
-                          (Terminal (URegexp _ _)) -> RegexMatch e
-                          _                        -> Equal e
+                          (Terminal (UBoolean _))-> id
+                          (Terminal (URegexp _)) -> RegexMatch e
+                          _                      -> Equal e
     p <- getPosition
     reserved "case"
     expr1 <- expression

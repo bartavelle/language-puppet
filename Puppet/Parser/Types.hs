@@ -124,9 +124,11 @@ data HFunctionCall = HFunctionCall { _hftype       :: !HigherFuncType
                                    }
                    deriving (Eq, Show)
 
-newtype CompRegex = CompRegex Regex
+data CompRegex = CompRegex !T.Text !Regex
 instance Show CompRegex where
-  show _ = "CompRegex"
+  show (CompRegex t _) = show t
+instance Eq CompRegex where
+    (CompRegex a _) == (CompRegex b _) = a == b
 
 -- | An unresolved value, typically the parser's output.
 data UValue
@@ -137,31 +139,16 @@ data UValue
     | UResourceReference !T.Text !Expression -- ^ A Resource[reference]
     | UArray !(V.Vector Expression)
     | UHash !(V.Vector (Pair Expression Expression))
-    | URegexp !T.Text !CompRegex -- ^ The regular expression compilation is performed during parsing.
+    | URegexp !CompRegex -- ^ The regular expression compilation is performed during parsing.
     | UVariableReference !T.Text
     | UFunctionCall !T.Text !(V.Vector Expression)
     | UHFunctionCall !HFunctionCall
     | UNumber Scientific
-    deriving (Show)
+    deriving (Show, Eq)
 
 
 instance IsString UValue where
     fromString = UString . T.pack
-
--- The Eq instance is manual, because of the 'Regex' comparison problem
-instance Eq UValue where
-    (==) (UBoolean a)               (UBoolean b)                = a == b
-    (==) (UString a)                (UString b)                 = a == b
-    (==) (UInterpolable a)          (UInterpolable b)           = a == b
-    (==) UUndef                     UUndef                      = True
-    (==) (UResourceReference a1 a2) (UResourceReference b1 b2)  = (a1 == b1) && (a2 == b2)
-    (==) (UArray a)                 (UArray b)                  = a == b
-    (==) (UHash a)                  (UHash b)                   = a == b
-    (==) (URegexp a _)              (URegexp b _)               = a == b
-    (==) (UVariableReference a)     (UVariableReference b)      = a == b
-    (==) (UFunctionCall a1 a2)      (UFunctionCall b1 b2)       = (a1 == b1) && (a2 == b2)
-    (==) (UNumber a)                (UNumber b)                 = a == b
-    (==) _ _ = False
 
 -- | A helper function for writing 'array's.
 array :: [Expression] -> UValue
@@ -243,16 +230,9 @@ data Virtuality = Normal -- ^ Normal resource, that will be included in the cata
     deriving (Generic, Eq, Show)
 
 data NodeDesc = NodeName !T.Text
-              | NodeMatch !T.Text !CompRegex
+              | NodeMatch !CompRegex
               | NodeDefault
-              deriving Show
-
-instance Eq NodeDesc where
-    (==) (NodeName a) (NodeName b) = a == b
-    (==) NodeDefault NodeDefault = True
-    (==) (NodeMatch a _) (NodeMatch b _) = a == b
-    (==) _ _ = False
-
+              deriving (Show, Eq)
 
 -- | Relationship link type.
 data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Eq,Generic)

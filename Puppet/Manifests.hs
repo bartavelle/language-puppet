@@ -23,13 +23,13 @@ filterStatements TopNode ndename stmts =
     -- this operation should probably get cached
     let (!spurious, !directnodes, !regexpmatches, !defaultnode) = V.foldl' triage (V.empty, HM.empty, V.empty, Nothing) stmts
         triage curstuff n@(Node (Nd (NodeName !nm) _ _ _)) = curstuff & _2 . at nm ?~ n
-        triage curstuff n@(Node (Nd (NodeMatch _ !rg) _ _ _)) = curstuff & _3 %~ (|> (rg :!: n))
+        triage curstuff n@(Node (Nd (NodeMatch (CompRegex _ !rg)) _ _ _)) = curstuff & _3 %~ (|> (rg :!: n))
         triage curstuff n@(Node (Nd  NodeDefault _  _ _)) = curstuff & _4 ?~ n
         triage curstuff x = curstuff & _1 %~ (|> x)
         bsnodename = T.encodeUtf8 ndename
-        checkRegexp :: [Pair CompRegex Statement] -> ErrorT PrettyError IO (Maybe Statement)
+        checkRegexp :: [Pair Regex Statement] -> ErrorT PrettyError IO (Maybe Statement)
         checkRegexp [] = return Nothing
-        checkRegexp ((CompRegex(regexp) :!: s):xs) =
+        checkRegexp ((regexp  :!: s):xs) =
             case execute' regexp bsnodename of
                 Left rr -> throwError (PrettyError ("Regexp match error:" <+> text (show rr)))
                 Right Nothing -> checkRegexp xs

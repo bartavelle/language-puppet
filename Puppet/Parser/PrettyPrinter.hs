@@ -93,7 +93,7 @@ instance Pretty UValue where
     pretty (UResourceReference t n) = capitalize t <> brackets (pretty n)
     pretty (UArray v) = list (map pretty (V.toList v))
     pretty (UHash g) = hashComma g
-    pretty (URegexp r _) = char '/' <> text (T.unpack r) <> char '/'
+    pretty (URegexp (CompRegex r _)) = char '/' <> text (T.unpack r) <> char '/'
     pretty (UVariableReference v) = dullblue (char '$' <> text (T.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
     pretty (UHFunctionCall c) = pretty c
@@ -150,7 +150,7 @@ braceStatements stts = nest 2 (char '{' <$> ppStatements stts) <$> char '}'
 instance Pretty NodeDesc where
     pretty NodeDefault     = dullmagenta (text "default")
     pretty (NodeName n)    = pretty (UString n)
-    pretty (NodeMatch m r) = pretty (URegexp m r)
+    pretty (NodeMatch r)   = pretty (URegexp r)
 
 instance Pretty Statement where
     pretty (SHFunctionCall (SFC c p)) = pretty c <+> showPPos p
