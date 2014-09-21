@@ -187,7 +187,7 @@ cmdlineParser = CommandLine <$> optional remotepdb
                           <> help "Path to the Hiera configuration file (default hiera.yaml)"
                           <> value "hiera.yaml"
                           )
-        priority = option (  long "loglevel"
+        priority = option auto (  long "loglevel"
                           <> short 'v'
                           <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
                           <> value LOG.WARNING
