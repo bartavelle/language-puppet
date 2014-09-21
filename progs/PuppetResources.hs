@@ -20,7 +20,7 @@ import           Data.Text.Strict.Lens
 import           Data.Tuple (swap)
 import qualified Data.Vector as V
 import           Data.Yaml (decodeFileEither)
-import           Options.Applicative as O hiding ((&))
+import           Options.Applicative as O
 import           Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
 import           System.Exit (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob as G

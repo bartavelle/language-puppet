@@ -7,7 +7,7 @@ import PuppetDB.TestDB
 import PuppetDB.Remote
 import Facter
 
-import Options.Applicative as O hiding ((&))
+import Options.Applicative as O
 import Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
 import qualified Data.Text as T
 import Data.Monoid
