@@ -7,7 +7,7 @@ import PuppetDB.TestDB
 import PuppetDB.Remote
 import Facter
 
-import Options.Applicative as O hiding ((&))
+import Options.Applicative as O
 import Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
 import qualified Data.Text as T
 import Data.Monoid
@@ -55,7 +55,7 @@ cmdlineParser = CommandLine <$> optional pl <*> pt <*> cmd
                        <> short 'l'
                        <> help "Location of the PuppetDB, a file for type 'test' or an URL for type 'remote'"
                        )
-        pt = option (  long "pdbtype"
+        pt = option auto (  long "pdbtype"
                     <> short 't'
                     <> value PDBTest
                     <> help "PuppetDB types : test, remote, dummy"
