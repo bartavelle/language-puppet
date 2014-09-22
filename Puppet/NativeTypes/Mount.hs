@@ -2,15 +2,11 @@ module Puppet.NativeTypes.Mount (nativeMount) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import Control.Monad.Error
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
 nativeMount :: (PuppetTypeName, PuppetTypeMethods)
-nativeMount = ("mount", PuppetTypeMethods validateMount parameterset)
-
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
+nativeMount = ("mount", ptypemethods parameterfunctions return)
 
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
@@ -27,7 +23,3 @@ parameterfunctions =
     ,("remounts"    , [string, values ["true","false"]])
     ,("target"      , [string, fullyQualified])
     ]
-
-validateMount :: PuppetTypeValidate
-validateMount = defaultValidate parameterset >=> parameterFunctions parameterfunctions
-

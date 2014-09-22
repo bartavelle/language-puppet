@@ -9,11 +9,10 @@ import qualified Data.Text as T
 import Control.Lens
 
 nativeFile :: (PuppetTypeName, PuppetTypeMethods)
-nativeFile = ("file", PuppetTypeMethods validateFile parameterset)
+nativeFile = ("file", ptypemethods parameterfunctions (validateSourceOrContent >=> validateMode))
+
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
 
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
@@ -38,9 +37,6 @@ parameterfunctions =
     ,("target"      , [string])
     ,("source"      , [rarray, strings, flip runarray checkSource])
     ]
-
-validateFile :: PuppetTypeValidate
-validateFile = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateSourceOrContent >=> validateMode
 
 validateMode :: PuppetTypeValidate
 validateMode res = do

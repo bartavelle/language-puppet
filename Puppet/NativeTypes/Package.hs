@@ -12,7 +12,7 @@ import GHC.Generics
 import Data.Hashable
 
 nativePackage :: (PuppetTypeName, PuppetTypeMethods)
-nativePackage = ("package", PuppetTypeMethods validatePackage parameterset)
+nativePackage = ("package", ptypemethods parameterfunctions (getFeature >=> checkFeatures))
 
 data PackagingFeatures = Holdable | InstallOptions | Installable | Purgeable | UninstallOptions | Uninstallable | Upgradeable | Versionable deriving (Show, Eq, Generic)
 
@@ -54,8 +54,7 @@ isFeatureSupported = HM.fromList [ ("aix", HS.fromList [Installable, Uninstallab
                                   , ("yum", HS.fromList [Installable, Purgeable, Uninstallable, Upgradeable, Versionable])
                                   , ("zypper", HS.fromList [Installable, Uninstallable, Upgradeable, Versionable])
                                   ]
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
+
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("adminfile"        , [string, fullyQualified])
@@ -107,8 +106,3 @@ checkFeatures =
                                    _ -> Right (s, res)
         decap :: (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError Resource
         decap = Right . snd
-
-validatePackage :: PuppetTypeValidate
-validatePackage = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> getFeature >=> checkFeatures
-
-

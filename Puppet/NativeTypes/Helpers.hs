@@ -4,6 +4,7 @@ native types.
 module Puppet.NativeTypes.Helpers
     ( module Puppet.PP
     , ipaddr
+    , ptypemethods
     , paramname
     , rarray
     , string
@@ -53,6 +54,13 @@ paramname = red . ttext
 -- | Useful helper for buiding error messages
 perror :: Doc -> Either PrettyError Resource
 perror = Left . PrettyError
+
+ptypemethods :: [(T.Text, [T.Text -> PuppetTypeValidate])] -> PuppetTypeValidate -> PuppetTypeMethods
+ptypemethods def extraV =
+  let params = fromKeys def
+  in PuppetTypeMethods (defaultValidate params >=> parameterFunctions def >=> extraV)  params
+  where
+    fromKeys = HS.fromList . map fst
 
 faketype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 faketype tname = (tname, PuppetTypeMethods Right HS.empty)
@@ -112,6 +120,8 @@ string' param rev res = case rev of
     PBoolean False -> Right (res & rattributes . at param ?~ PString "false")
     PNumber n      -> Right (res & rattributes . at param ?~ PString (scientific2text n))
     x              -> perror $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
+
+
 
 -- | Makes sure that the parameter, if defined, has a value among this list.
 values :: [T.Text] -> T.Text -> PuppetTypeValidate

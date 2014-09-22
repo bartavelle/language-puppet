@@ -11,7 +11,7 @@ import qualified Data.Vector as V
 import Data.Scientific
 
 nativeCron :: (PuppetTypeName, PuppetTypeMethods)
-nativeCron = ("cron", PuppetTypeMethods validateCron parameterset)
+nativeCron = ("cron", ptypemethods parameterfunctions return )
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterset :: HS.HashSet T.Text
@@ -34,8 +34,6 @@ parameterfunctions =
     ,("weekday"             , [vrange 0 7 ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]])
     ]
 
-validateCron :: PuppetTypeValidate
-validateCron = defaultValidate parameterset >=> parameterFunctions parameterfunctions
 
 vrange :: Integer -> Integer -> [T.Text] -> T.Text -> PuppetTypeValidate
 vrange mi ma valuelist param res = case res ^. rattributes . at param of
