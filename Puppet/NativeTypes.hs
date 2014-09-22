@@ -1,21 +1,26 @@
 {-| This module holds the /native/ Puppet resource types. -}
-module Puppet.NativeTypes (baseNativeTypes,validateNativeType) where
+module Puppet.NativeTypes (
+    baseNativeTypes
+  , validateNativeType
+) where
 
-import Puppet.NativeTypes.Helpers
-import Puppet.NativeTypes.File
-import Puppet.NativeTypes.Cron
-import Puppet.NativeTypes.Exec
-import Puppet.NativeTypes.Group
-import Puppet.NativeTypes.Host
-import Puppet.NativeTypes.Mount
-import Puppet.NativeTypes.Package
-import Puppet.NativeTypes.User
-import Puppet.NativeTypes.ZoneRecord
-import Puppet.NativeTypes.SshSecure
-import Puppet.Interpreter.Types
+import           Control.Lens
+import           Control.Monad.Operational
 import qualified Data.HashMap.Strict as HM
-import Control.Lens
-import Control.Monad.Operational
+
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Concat
+import           Puppet.NativeTypes.Cron
+import           Puppet.NativeTypes.Exec
+import           Puppet.NativeTypes.File
+import           Puppet.NativeTypes.Group
+import           Puppet.NativeTypes.Helpers
+import           Puppet.NativeTypes.Host
+import           Puppet.NativeTypes.Mount
+import           Puppet.NativeTypes.Package
+import           Puppet.NativeTypes.SshSecure
+import           Puppet.NativeTypes.User
+import           Puppet.NativeTypes.ZoneRecord
 
 fakeTypes :: [(PuppetTypeName, PuppetTypeMethods)]
 fakeTypes = map faketype ["class"]
@@ -36,10 +41,9 @@ baseNativeTypes = HM.fromList
     : nativePackage
     : nativeUser
     : nativeSshSecure
-    : fakeTypes ++ defaultTypes)
+    : fakeTypes ++ concatTypes ++ defaultTypes)
 
--- | Contrary to the previous iteration, this will let non native types
--- pass
+-- | Contrary to the previous iteration, this will let non native types pass.
 validateNativeType :: Resource -> InterpreterMonad Resource
 validateNativeType r = do
     tps <- singleton GetNativeTypes
@@ -48,4 +52,3 @@ validateNativeType r = do
                       Right nr -> return nr
                       Left err -> throwPosError ("Invalid resource" <+> pretty r </> getError err)
         Nothing -> return r
-
