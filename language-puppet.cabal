@@ -62,6 +62,7 @@ library
                        , Paths_language_puppet
                        , Puppet.Manifests
                        , Puppet.NativeTypes.ZoneRecord
+                       , Puppet.NativeTypes.Concat
                        , Puppet.NativeTypes.Cron
                        , Puppet.NativeTypes.Exec
                        , Puppet.NativeTypes.Group

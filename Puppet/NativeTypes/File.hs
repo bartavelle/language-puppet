@@ -3,7 +3,6 @@ module Puppet.NativeTypes.File (nativeFile) where
 import Puppet.NativeTypes.Helpers
 import Control.Monad.Error
 import Puppet.Interpreter.Types
-import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import Data.Char (isDigit)
 import qualified Data.Text as T
@@ -55,14 +54,6 @@ validateMode res = do
         then return $ res & rattributes . at "mode" ?~ PString (T.cons '0' modestr)
         else return res
 
-validateSourceOrContent :: PuppetTypeValidate
-validateSourceOrContent res = let
-    parammap =  res ^. rattributes
-    source    = HM.member "source"  parammap
-    content   = HM.member "content" parammap
-    in if source && content
-        then perror "Source and content can't be specified at the same time"
-        else Right res
 
 checkSource :: T.Text -> PValue -> PuppetTypeValidate
 checkSource _ (PString x) res | "puppet://" `T.isPrefixOf` x = Right res

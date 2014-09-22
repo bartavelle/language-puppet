@@ -13,6 +13,7 @@ module Puppet.NativeTypes.Helpers
     , fullyQualifieds
     , values
     , defaultvalue
+    , concattype
     , nameval
     , defaultValidate
     , PuppetTypeName
@@ -26,6 +27,7 @@ module Puppet.NativeTypes.Helpers
     , defaulttype
     , runarray
     , perror
+    , validateSourceOrContent
     ) where
 
 import Puppet.PP hiding (string,integer)
@@ -54,6 +56,9 @@ perror = Left . PrettyError
 
 faketype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 faketype tname = (tname, PuppetTypeMethods Right HS.empty)
+
+concattype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
+concattype tname = (tname, PuppetTypeMethods (defaultValidate HS.empty) HS.empty)
 
 defaulttype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 defaulttype tname = (tname, PuppetTypeMethods (defaultValidate HS.empty) HS.empty)
@@ -231,3 +236,11 @@ inrange mi ma param res =
                            else perror $ "Parameter" <+> paramname param P.<> "'s value should be between" <+> P.integer mi <+> "and" <+> P.integer ma
         (Just x,_)         -> perror $ "Parameter" <+> paramname param <+> "should be an integer, and not" <+> pretty x
 
+validateSourceOrContent :: PuppetTypeValidate
+validateSourceOrContent res = let
+    parammap =  res ^. rattributes
+    source    = HM.member "source"  parammap
+    content   = HM.member "content" parammap
+    in if source && content
+        then perror "Source and content can't be specified at the same time"
+        else Right res
