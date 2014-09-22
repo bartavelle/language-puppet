@@ -2,9 +2,7 @@ module Puppet.NativeTypes.Cron (nativeCron) where
 
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Puppet.NativeTypes.Helpers
-import Control.Monad.Error
 import Puppet.Interpreter.Types
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 import qualified Data.Vector as V
@@ -14,9 +12,6 @@ nativeCron :: (PuppetTypeName, PuppetTypeMethods)
 nativeCron = ("cron", ptypemethods parameterfunctions return )
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
-
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("ensure"              , [defaultvalue "present", string, values ["present","absent"]])

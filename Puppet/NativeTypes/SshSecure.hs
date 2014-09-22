@@ -3,7 +3,6 @@ module Puppet.NativeTypes.SshSecure (nativeSshSecure) where
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import Control.Monad.Error
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 

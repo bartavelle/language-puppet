@@ -2,7 +2,6 @@ module Puppet.NativeTypes.Exec (nativeExec) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 
