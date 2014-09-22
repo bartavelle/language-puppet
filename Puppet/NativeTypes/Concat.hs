@@ -1,4 +1,7 @@
-module Puppet.NativeTypes.Concat (concatTypes) where
+module Puppet.NativeTypes.Concat (
+    nativeConcat
+  , nativeConcatFragment
+) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
@@ -6,10 +9,11 @@ import Control.Monad.Error
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
-concatTypes :: [(PuppetTypeName, PuppetTypeMethods)]
-concatTypes = [ (T.pack "concat", PuppetTypeMethods validateConcat concatparams)
-              , (T.pack "concat::fragment", PuppetTypeMethods validateFragment fragmentparams)
-              ]
+nativeConcat :: (PuppetTypeName, PuppetTypeMethods)
+nativeConcat = ("concat", PuppetTypeMethods validateConcat concatparams)
+
+nativeConcatFragment :: (PuppetTypeName, PuppetTypeMethods)
+nativeConcatFragment = ("concat::fragment", PuppetTypeMethods validateFragment fragmentparams)
 
 concatparams :: HS.HashSet T.Text
 concatparams = HS.fromList $ map fst concatparamdef

@@ -41,7 +41,9 @@ baseNativeTypes = HM.fromList
     : nativePackage
     : nativeUser
     : nativeSshSecure
-    : fakeTypes ++ concatTypes ++ defaultTypes)
+    : nativeConcat
+    : nativeConcatFragment
+    : fakeTypes ++ defaultTypes)
 
 -- | Contrary to the previous iteration, this will let non native types pass.
 validateNativeType :: Resource -> InterpreterMonad Resource
