@@ -131,10 +131,5 @@ Adds facts to the test DB for the given node name, if they are not already defin
 
 == Unsupported Puppet idioms or features
 
-getparam::
-This function is not implemented. See #55
-+
-As a consequence a community module such as `puppetlabs-concat` won't be resolved successfully. You need to ignore it using the `--ignoremodules` option if your catalog uses it directly or indirectly.
-
 custom ruby functions::
 Currently the only way to support your custom ruby functions is to rewrite them in Lua.
