@@ -2,18 +2,13 @@ module Puppet.NativeTypes.Exec (nativeExec) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import Control.Monad.Error
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 
 nativeExec :: (PuppetTypeName, PuppetTypeMethods)
-nativeExec = ("exec", PuppetTypeMethods validateExec parameterset)
+nativeExec = ("exec", ptypemethods parameterfunctions fullyQualifiedOrPath)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
-
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("command"     , [nameval])
@@ -34,9 +29,6 @@ parameterfunctions =
     ,("unless"      , [string])
     ,("user"        , [string])
     ]
-
-validateExec :: PuppetTypeValidate
-validateExec = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> fullyQualifiedOrPath
 
 fullyQualifiedOrPath :: PuppetTypeValidate
 fullyQualifiedOrPath res = case (res ^. rattributes . at "path", res ^. rattributes . at "command") of

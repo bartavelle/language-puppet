@@ -3,17 +3,13 @@ module Puppet.NativeTypes.SshSecure (nativeSshSecure) where
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import Control.Monad.Error
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 
 nativeSshSecure :: (PuppetTypeName, PuppetTypeMethods)
-nativeSshSecure = ("ssh_authorized_key_secure", PuppetTypeMethods validateSshSecure parameterset)
+nativeSshSecure = ("ssh_authorized_key_secure", ptypemethods parameterfunctions (userOrTarget >=> keyIfPresent))
 
 -- Autorequires: If Puppet is managing the user or user that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
-
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("type"    , [string, defaultvalue "ssh-rsa", values ["rsa","dsa","ssh-rsa","ssh-dss"]])
@@ -35,7 +31,3 @@ keyIfPresent res = case (res ^. rattributes . at "key", res ^. rattributes . at 
                        (Just _, Just "present") -> Right res
                        (_, Just "absent")       -> Right res
                        _ -> Left "Parameter key is mandatory when the resource is present"
-
-validateSshSecure :: PuppetTypeValidate
-validateSshSecure = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> userOrTarget >=> keyIfPresent
-

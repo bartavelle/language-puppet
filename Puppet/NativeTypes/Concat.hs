@@ -5,24 +5,16 @@ module Puppet.NativeTypes.Concat (
 
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import Control.Monad.Error
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
 nativeConcat :: (PuppetTypeName, PuppetTypeMethods)
-nativeConcat = ("concat", PuppetTypeMethods validateConcat concatparams)
+nativeConcat = ("concat", ptypemethods concatparamfunctions return)
 
 nativeConcatFragment :: (PuppetTypeName, PuppetTypeMethods)
-nativeConcatFragment = ("concat::fragment", PuppetTypeMethods validateFragment fragmentparams)
+nativeConcatFragment = ("concat::fragment", ptypemethods fragmentparamfunctions validateSourceOrContent)
 
-concatparams :: HS.HashSet T.Text
-concatparams = HS.fromList $ map fst concatparamdef
-
-fragmentparams :: HS.HashSet T.Text
-fragmentparams = HS.fromList $ map fst fragmentparamdef
-
-concatparamdef :: [(T.Text, [T.Text -> PuppetTypeValidate])]
-concatparamdef =
+concatparamfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+concatparamfunctions =
     [("name"                , [nameval])
     ,("ensure"              , [defaultvalue "present", string, values ["present","absent"]])
     ,("path"                , [string])
@@ -39,8 +31,8 @@ concatparamdef =
     -- ,("gnu"                 , [string])
     ]
 
-fragmentparamdef :: [(T.Text, [T.Text -> PuppetTypeValidate])]
-fragmentparamdef =
+fragmentparamfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+fragmentparamfunctions =
     [("name"                , [nameval])
     ,("target"              , [string, mandatory])
     ,("content"             , [string])
@@ -54,9 +46,3 @@ fragmentparamdef =
    -- ,("group"               , [string])
    -- ,("backup"              , [string])
     ]
-
-validateConcat :: PuppetTypeValidate
-validateConcat = defaultValidate concatparams >=> parameterFunctions concatparamdef
-
-validateFragment :: PuppetTypeValidate
-validateFragment = defaultValidate fragmentparams >=> parameterFunctions fragmentparamdef >=> validateSourceOrContent

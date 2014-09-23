@@ -3,17 +3,13 @@ module Puppet.NativeTypes.ZoneRecord (nativeZoneRecord) where
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import Control.Monad.Error
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Control.Lens
 
 nativeZoneRecord :: (PuppetTypeName, PuppetTypeMethods)
-nativeZoneRecord = ("zone_record", PuppetTypeMethods validateZoneRecord parameterset)
+nativeZoneRecord = ("zone_record", ptypemethods parameterfunctions validateMandatories)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
-
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("name"                , [nameval])
@@ -32,9 +28,6 @@ parameterfunctions =
     ,("min_ttl"             , [string])
     ,("email"               , [string])
     ]
-
-validateZoneRecord :: PuppetTypeValidate
-validateZoneRecord = defaultValidate parameterset >=> parameterFunctions parameterfunctions >=> validateMandatories
 
 validateMandatories :: PuppetTypeValidate
 validateMandatories res = case res ^. rattributes . at "rtype" of

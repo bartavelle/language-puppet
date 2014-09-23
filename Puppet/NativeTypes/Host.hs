@@ -1,21 +1,16 @@
 module Puppet.NativeTypes.Host (nativeHost) where
 
 import Puppet.NativeTypes.Helpers
-import Control.Monad.Error
 import Puppet.Interpreter.Types
-import qualified Data.HashSet as HS
 import Data.Char (isAlphaNum)
 import qualified Data.Text as T
 import Control.Lens
 import qualified Data.Vector as V
 
 nativeHost :: (PuppetTypeName, PuppetTypeMethods)
-nativeHost = ("host", PuppetTypeMethods validateHost parameterset)
+nativeHost = ("host", ptypemethods parameterfunctions return)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
-
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("comment"      , [string, values ["true","false"]])
@@ -26,9 +21,6 @@ parameterfunctions =
     ,("provider"     , [string, values ["parsed"]])
     ,("target"       , [string, fullyQualified])
     ]
-
-validateHost :: PuppetTypeValidate
-validateHost = defaultValidate parameterset >=> parameterFunctions parameterfunctions
 
 checkhostname :: T.Text -> PuppetTypeValidate
 checkhostname param res = case res ^. rattributes . at param of
@@ -52,4 +44,3 @@ checkhostname'' prm res prt =
     in if T.null cur || (T.head cur == '-') || not (T.all (\x -> isAlphaNum x || (x=='-')) cur)
             then perror $ "Invalid hostname part for parameter" <+> paramname prm
             else nextfunc
-

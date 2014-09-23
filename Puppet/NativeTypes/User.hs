@@ -2,16 +2,12 @@ module Puppet.NativeTypes.User (nativeUser) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import Control.Monad.Error
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
 nativeUser :: (PuppetTypeName, PuppetTypeMethods)
-nativeUser = ("user", PuppetTypeMethods validateUser parameterset)
+nativeUser = ("user", ptypemethods parameterfunctions return)
 
 -- Autorequires: If Puppet is managing the user or user that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterset :: HS.HashSet T.Text
-parameterset = HS.fromList $ map fst parameterfunctions
 parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
 parameterfunctions =
     [("allowdupe"               , [string, defaultvalue "false", values ["true","false"]])
@@ -46,7 +42,3 @@ parameterfunctions =
     ,("system"                  , [string, defaultvalue "false", values ["true","false"]])
     ,("uid"                     , [integer])
     ]
-
-validateUser :: PuppetTypeValidate
-validateUser = defaultValidate parameterset >=> parameterFunctions parameterfunctions
-
