@@ -47,6 +47,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "is_bool" isBool
                               , singleArgument "is_hash" isHash
                               , singleArgument "is_string" isString
+                              , ("join", puppetJoin)
                               , singleArgument "keys" keys
                               , ("has_key", hasKey)
                               , ("lstrip", stringArrayFunction T.stripStart)
@@ -236,6 +237,13 @@ isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
 isBool :: PValue -> InterpreterMonad PValue
 isBool = return . PBoolean . has _PBoolean
 
+puppetJoin :: [PValue] -> InterpreterMonad PValue
+puppetJoin [PArray rr, PString interc] = do
+    rrt <- mapM resolvePValueString (V.toList rr)
+    return (PString (T.intercalate interc rrt))
+puppetJoin [_,_] = throwPosError "join(): expected an array of strings, and a string"
+puppetJoin _ = throwPosError "join(): expected two arguments"
+
 keys :: PValue -> InterpreterMonad PValue
 keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)
 keys x = throwPosError ("keys(): Expects a Hash, not" <+> pretty x)
@@ -245,7 +253,7 @@ hasKey [PHash h, k] = do
     k' <- resolvePValueString k
     return (PBoolean (has (ix k') h))
 hasKey [a, _] = throwPosError ("has_key(): expected a Hash, not" <+> pretty a)
-hasKey _ = throwPosError ("has_key(): expected two arguments.")
+hasKey _ = throwPosError "has_key(): expected two arguments."
 
 merge :: [PValue] -> InterpreterMonad PValue
 merge [PHash a, PHash b] = return (PHash (b `HM.union` a))

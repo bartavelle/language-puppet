@@ -1,3 +1,7 @@
+# v1.0.1 ()
+## New features
+* Support for the `join` function.
+
 # v1.0.0 (2014/08/31)
 ## IMPORTANT
 Building without hruby is now unsupported.
