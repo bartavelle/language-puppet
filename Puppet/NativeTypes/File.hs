@@ -3,7 +3,6 @@ module Puppet.NativeTypes.File (nativeFile) where
 import Puppet.NativeTypes.Helpers
 import Control.Monad.Error
 import Puppet.Interpreter.Types
-import qualified Data.HashSet as HS
 import Data.Char (isDigit)
 import qualified Data.Text as T
 import Control.Lens
