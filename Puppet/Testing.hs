@@ -200,8 +200,8 @@ testingDaemon :: PuppetDBAPI IO -- ^ Contains the puppetdb API functions
               -> IO (T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource])))
 testingDaemon pdb pdir allFacts = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel LOG.WARNING)
-    prefs <- genPreferences pdir
-    q <- initDaemon (prefs { _prefPDB = pdb })
+    prefs <- setupPreferences pdir (prefPDB.~pdb)
+    q <- initDaemon prefs
     return (\nodname -> allFacts nodname >>= _dGetCatalog q nodname)
 
 -- | A default testing daemon.
@@ -211,4 +211,3 @@ defaultDaemon pdir = do
                 S.Left x -> error (show (getError x))
                 S.Right y -> return y
     testingDaemon pdb pdir (flip puppetDBFacts pdb)
-

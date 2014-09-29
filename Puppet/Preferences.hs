@@ -2,7 +2,18 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Puppet.Preferences where
+module Puppet.Preferences (
+    setupPreferences
+  , Preferences(Preferences)
+  , manifestPath
+  , modulesPath
+  , templatesPath
+  , prefPDB
+  , natTypes
+  , prefExtFuncs
+  , hieraPath
+  , ignoredmodules
+) where
 
 import Puppet.Utils
 import Puppet.Interpreter.Types
@@ -39,3 +50,9 @@ genPreferences basedir = do
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     let loadedTypes = HM.fromList (map defaulttype typenames)
     return $ Preferences manifestdir modulesdir templatedir dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just (basedir <> "/hiera.yaml")) mempty
+
+-- | Setup preferences from external/custom params
+setupPreferences :: FilePath -> (Preferences IO -> Preferences IO) -> IO (Preferences IO)
+setupPreferences basedir k =
+  -- use lens composition
+  fmap k (genPreferences basedir)

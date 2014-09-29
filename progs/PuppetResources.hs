@@ -60,11 +60,10 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> IO (QueryFunc, MStats, MStats, MStats)
-initializedaemonWithPuppet prio pdbapi puppetdir hierapath overrideFacts ignord = do
-    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel prio)
-    q <- fmap ((prefPDB .~ pdbapi) . (hieraPath .~ hierapath) . (ignoredmodules .~ ignord)) (genPreferences puppetdir) >>= initDaemon
-    let f ndename = fmap overrideFacts (puppetDBFacts ndename pdbapi)
-            >>= _dGetCatalog q ndename
+initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod = do
+    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel loglevel)
+    q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod))
+    let f node = fmap overrideFacts (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
