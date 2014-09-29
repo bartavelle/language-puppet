@@ -22,7 +22,6 @@ import           Data.Tuple (swap)
 import qualified Data.Vector as V
 import           Data.Yaml (decodeFileEither)
 import           Options.Applicative as O
-import           Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
 import           System.Exit (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob as G
 import           System.IO
@@ -51,6 +50,87 @@ import           Puppet.Stats
 
 type QueryFunc = T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
+data Options = Options { _pdb            :: Maybe String
+                       , _showjson       :: Bool
+                       , _showContent    :: Bool
+                       , _resourceType   :: Maybe T.Text
+                       , _resourceName   :: Maybe T.Text
+                       , _puppetdir      :: FilePath
+                       , _nodename       :: Maybe T.Text
+                       , _pdbfile        :: Maybe FilePath
+                       , _loglevel       :: LOG.Priority
+                       , _hieraFile      :: Maybe FilePath
+                       , _factsFile      :: Maybe FilePath
+                       , _factsDef       :: Maybe FilePath
+                       , _commitDB       :: Bool
+                       , _checkExport    :: Bool
+                       , _testusergroups :: Bool
+                       , _ignoredMods    :: HS.HashSet T.Text
+                       } deriving Show
+
+options :: Parser Options
+options = Options
+    <$> optional (strOption
+       (  long "pdburl"
+       <> help "URL of the puppetdb (ie. http://localhost:8080/)."))
+   <*> switch
+       (  long "JSON"
+       <> short 'j'
+       <> help "Shows the output as a JSON document (useful for full catalog views)")
+   <*> switch
+       (  long "showcontent"
+       <> short 'c'
+       <> help "When specifying a file resource, only output its content (useful for testing templates)")
+   <*> optional (T.pack <$> strOption
+       (  long "type"
+       <> short 't'
+       <> help "Filter the output by resource type (accepts a regular expression, ie '^file$')"))
+   <*> optional (T.pack <$> strOption
+       (  long "name"
+       <> short 'n'
+       <> help "Filter the output by resource name (accepts a regular expression)"))
+   <*> strOption
+       (  long "puppetdir"
+       <> short 'p'
+       <> help "Puppet directory")
+   <*> optional (T.pack <$> strOption
+       (  long "node"
+       <> short 'o'
+       <> help "Node name. Using 'allnodes' enables a special mode where all nodes present in site.pp are tried. \
+              \ Run with +RTS -N. Using 'deadcode' will do the same, but will print warnings about code that's not being used."))
+   <*> optional (strOption
+       (  long "pdbfile"
+       <> help "Path to the testing PuppetDB file."))
+   <*> option auto
+       (  long "loglevel"
+       <> short 'v'
+       <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
+       <> value LOG.WARNING)
+   <*> optional (strOption
+       (  long "hiera"
+       <> help "Path to the Hiera configuration file (default hiera.yaml)"
+       <> value "hiera.yaml"))
+   <*> optional (strOption
+       (  long "facts-override"
+       <> help "Path to a Yaml file containing a list of 'facts' that will override locally resolved facts"))
+   <*> optional (strOption
+       (  long "facts-defaults"
+       <> help "Path to a Yaml file containing a list of 'facts' that will be used as defaults"))
+   <*> switch
+       (  long "commitdb"
+       <> help "Commit the computed catalogs in the puppetDB")
+   <*> switch
+       (  long "checkExported"
+       <> help "Save exported resources in the puppetDB")
+   <*>  switch
+       (  long "nousergrouptest"
+       <> help "Disable the user and group tests")
+   <*> (HS.fromList . T.splitOn "," . T.pack <$>
+       strOption
+       (  long "ignoremodules"
+       <> help "Specify a comma-separated list of modules to ignore"
+       <> value ""))
+
 checkError :: Doc -> S.Either PrettyError a -> IO a
 checkError r (S.Left rr) = error (show (red r <> ": " <+> getError rr))
 checkError _ (S.Right x) = return x
@@ -77,24 +157,6 @@ printContent filename catalog =
                            Nothing -> error "This file has no content"
                            Just (PString c)  -> T.putStrLn c
                            Just x -> print x
-
-data CommandLine = CommandLine { _pdb            :: Maybe String
-                               , _showjson       :: Bool
-                               , _showContent    :: Bool
-                               , _resourceType   :: Maybe T.Text
-                               , _resourceName   :: Maybe T.Text
-                               , _puppetdir      :: FilePath
-                               , _nodename       :: Maybe T.Text
-                               , _pdbfile        :: Maybe FilePath
-                               , _loglevel       :: LOG.Priority
-                               , _hieraFile      :: Maybe FilePath
-                               , _factsFile      :: Maybe FilePath
-                               , _factsDef       :: Maybe FilePath
-                               , _commitDB       :: Bool
-                               , _checkExport    :: Bool
-                               , _testusergroups :: Bool
-                               , _ignoredMods    :: HS.HashSet T.Text
-                               } deriving Show
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
 prepareForPuppetApply w =
@@ -127,74 +189,6 @@ prepareForPuppetApply w =
        . (wEdges     .~ correctEdges)
        $ w
 
-cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional remotepdb
-                            <*> sj
-                            <*> sc
-                            <*> optional (T.pack <$> rt)
-                            <*> optional (T.pack <$> rn)
-                            <*> pdir
-                            <*> optional (T.pack <$> nn)
-                            <*> optional pdbfile
-                            <*> priority
-                            <*> optional hiera
-                            <*> optional fcts
-                            <*> optional fco
-                            <*> commitdb
-                            <*> checkExported
-                            <*> tug
-                            <*> imods
-    where
-        imods = HS.fromList . T.splitOn "," . T.pack <$>
-                    strOption (  long "ignoremodules"
-                              <> help "Specify a comma-separated list of modules to ignore"
-                              <> value ""
-                              )
-        tug = switch (  long "nousergrouptest"
-                     <> help "Disable the user and group tests"
-                     )
-        commitdb = switch (  long "commitdb"
-                          <> help "Commit the computed catalogs in the puppetDB"
-                          )
-        checkExported = switch (  long "checkExported"
-                               <> help "Save exported resources in the puppetDB")
-        sc = switch (  long "showcontent"
-                    <> short 'c'
-                    <> help "When specifying a file resource, only output its content (useful for testing templates)")
-        sj = switch (  long "JSON"
-                    <> short 'j'
-                    <> help "Shows the output as a JSON document (useful for full catalog views)")
-        remotepdb = strOption (  long "pdburl"
-                              <> help "URL of the puppetdb (ie. http://localhost:8080/).")
-        rt = strOption (  long "type"
-                       <> short 't'
-                       <> help "Filter the output by resource type (accepts a regular expression, ie '^file$')")
-        rn = strOption (  long "name"
-                       <> short 'n'
-                       <> help "Filter the output by resource name (accepts a regular expression)")
-        pdir = strOption (  long "puppetdir"
-                         <> short 'p'
-                         <> help "Puppet directory")
-        nn   = strOption (  long "node"
-                         <> short 'o'
-                         <> help "Node name. Using 'allnodes' enables a special mode where all nodes present in site.pp are tried. Run with +RTS -N. Using 'deadcode' will do the same, but will print warnings about code that's not being used.")
-        pdbfile = strOption (  long "pdbfile"
-                            <> help "Path to the testing PuppetDB file.")
-        hiera = strOption (  long "hiera"
-                          <> help "Path to the Hiera configuration file (default hiera.yaml)"
-                          <> value "hiera.yaml"
-                          )
-        priority = option auto (  long "loglevel"
-                          <> short 'v'
-                          <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
-                          <> value LOG.WARNING
-                          )
-        fcts = strOption (  long "facts-override"
-                         <> help "Path to a Yaml file containing a list of 'facts' that will override locally resolved facts"
-                         )
-        fco = strOption  (  long "facts-defaults"
-                         <> help "Path to a Yaml file containing a list of 'facts' that will be used as defaults"
-                         )
 
 loadFactsOverrides :: FilePath -> IO Facts
 loadFactsOverrides fp = decodeFileEither fp >>= \case
@@ -245,12 +239,12 @@ instance (Ord a) => Monoid (Maximum a) where
     mappend (Maximum (Just a1)) (Maximum (Just a2)) = Maximum (Just (max a1 a2))
 
 
-run :: CommandLine -> IO ()
-run (CommandLine {_nodename = Nothing, _puppetdir}) = parseFile _puppetdir >>= \case
+run :: Options -> IO ()
+run (Options {_nodename = Nothing, _puppetdir}) = parseFile _puppetdir >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc $ ppStatements s
 
-run c@(CommandLine {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsFile, _factsDef, _commitDB}) = do
+run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsFile, _factsDef, _commitDB}) = do
     pdbapi <- case (_pdb, _pdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -319,54 +313,52 @@ run c@(CommandLine {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel
     when _commitDB $ void $ commitDB pdbapi
     exit
 
-computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> CommandLine -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
-computeCatalogs testOnly queryfunc pdbapi printFunc (CommandLine {_showjson, _showContent, _resourceType, _resourceName, _puppetdir, _checkExport, _testusergroups}) node =
-  queryfunc node >>= \case
-    S.Left rr -> do
-        if testOnly
-            then putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
-            else putDoc (getError rr) >> putStrLn "" >> error "error!"
-        return (Nothing, Just (H.Summary 1 1))
-    S.Right (rawcatalog,m,rawexported,knownRes) -> do
-        let wireCatalog = generateWireCatalog node (rawcatalog <> rawexported) m
-        when _checkExport $ void $ replaceCatalog pdbapi wireCatalog
-        let cmpMatch Nothing _ curcat = return curcat
-            cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
-                Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
-                Right rec -> fmap HM.fromList $ filterM (filterResource lns rec) (HM.toList curcat)
-            filterResource lns rec v = execute rec (v ^. lns) >>= \case
-                                            Left rr -> error ("Error when applying regexp: " ++ show rr)
-                                            Right Nothing -> return False
-                                            _ -> return True
-            filterCatalog = cmpMatch _resourceType (_1 . itype . unpacked) >=> cmpMatch _resourceName (_1 . iname . unpacked)
-        testResult <- case (testOnly, _showContent, _showjson) of
-            (True, _, _) -> Just `fmap` testCatalog node _puppetdir rawcatalog basicTest
-            (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog)) >> return Nothing
-            (_, True, _) -> do
-                catalog  <- filterCatalog rawcatalog
-                unless (_resourceType == Just "file" || _resourceType == Nothing) (error $ "Show content only works for file, not for " ++ show _resourceType)
-                case _resourceName of
-                    Just f -> printContent f catalog
-                    Nothing -> error "You should supply a resource name when using showcontent"
-                return Nothing
-            _ -> do
-                catalog  <- filterCatalog rawcatalog
-                exported <- filterCatalog rawexported
-                r <- testCatalog node _puppetdir rawcatalog (basicTest >> unless _testusergroups usersGroupsDefined)
-                printFunc (pretty (HM.elems catalog))
-                unless (HM.null exported) $ do
-                    printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
-                    printFunc (pretty (HM.elems exported))
-                return (Just r)
-        return (Just (rawcatalog <> rawexported, knownRes), testResult)
+computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> Options -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
+computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showContent, _resourceType, _resourceName, _puppetdir, _checkExport, _testusergroups}) node =
+    queryfunc node >>= \case
+      S.Left rr -> do
+          if testOnly
+              then putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
+              else putDoc (getError rr) >> putStrLn "" >> error "error!"
+          return (Nothing, Just (H.Summary 1 1))
+      S.Right (rawcatalog,m,rawexported,knownRes) -> do
+          let wireCatalog = generateWireCatalog node (rawcatalog <> rawexported) m
+          when _checkExport $ void $ replaceCatalog pdbapi wireCatalog
+          let cmpMatch Nothing _ curcat = return curcat
+              cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
+                  Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
+                  Right rec -> fmap HM.fromList $ filterM (filterResource lns rec) (HM.toList curcat)
+              filterResource lns rec v = execute rec (v ^. lns) >>= \case
+                                              Left rr -> error ("Error when applying regexp: " ++ show rr)
+                                              Right Nothing -> return False
+                                              _ -> return True
+              filterCatalog = cmpMatch _resourceType (_1 . itype . unpacked) >=> cmpMatch _resourceName (_1 . iname . unpacked)
+          testResult <- case (testOnly, _showContent, _showjson) of
+              (True, _, _) -> Just `fmap` testCatalog node _puppetdir rawcatalog basicTest
+              (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog)) >> return Nothing
+              (_, True, _) -> do
+                  catalog  <- filterCatalog rawcatalog
+                  unless (_resourceType == Just "file" || _resourceType == Nothing) (error $ "Show content only works for file, not for " ++ show _resourceType)
+                  case _resourceName of
+                      Just f -> printContent f catalog
+                      Nothing -> error "You should supply a resource name when using showcontent"
+                  return Nothing
+              _ -> do
+                  catalog  <- filterCatalog rawcatalog
+                  exported <- filterCatalog rawexported
+                  r <- testCatalog node _puppetdir rawcatalog (basicTest >> unless _testusergroups usersGroupsDefined)
+                  printFunc (pretty (HM.elems catalog))
+                  unless (HM.null exported) $ do
+                      printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
+                      printFunc (pretty (HM.elems exported))
+                  return (Just r)
+          return (Just (rawcatalog <> rawexported, knownRes), testResult)
 
 main :: IO ()
-main = execParser pinfo >>= run
+main = execParser opts >>= run
     where
-        pinfo :: ParserInfo CommandLine
-        pinfo = ParserInfo (helper <*> cmdlineParser)
-                           True
-                           (stringChunk "A useful program for parsing puppet files, generating and inspecting catalogs")
-                           (stringChunk "puppetresources - a useful utility for dealing with Puppet")
-                           (Chunk Nothing)
-                           3 True
+        opts :: ParserInfo Options
+        opts = info (helper <*> options)
+                (fullDesc
+                 <> progDesc "A program for parsing puppet files, generating and inspecting catalogs"
+                 <> header "puppetresources - a development tool for Puppet")
