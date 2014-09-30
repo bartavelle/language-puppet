@@ -52,6 +52,7 @@ genPreferences basedir = do
     return $ Preferences manifestdir modulesdir templatedir dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just (basedir <> "/hiera.yaml")) mempty
 
 -- | Setup preferences from external/custom params
+-- k is set through lenses (ie: hieraPath.~mypath)
 setupPreferences :: FilePath -> (Preferences IO -> Preferences IO) -> IO (Preferences IO)
 setupPreferences basedir k =
   -- use lens composition
