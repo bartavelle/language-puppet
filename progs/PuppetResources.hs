@@ -3,7 +3,7 @@
 module Main where
 
 import           Control.Concurrent.ParallelIO (parallel)
-import           Control.Lens as L
+import           Control.Lens
 import           Control.Monad
 import           Data.Aeson (encode)
 import qualified Data.ByteString.Lazy.Char8 as BSL
@@ -21,7 +21,7 @@ import           Data.Text.Strict.Lens
 import           Data.Tuple (swap)
 import qualified Data.Vector as V
 import           Data.Yaml (decodeFileEither)
-import           Options.Applicative as O
+import           Options.Applicative
 import           System.Exit (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob as G
 import           System.IO
@@ -306,7 +306,7 @@ run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _h
         else do
             r <- computeCatalogs False queryfunc pdbapi printFunc c node
             return $ case snd r of
-                         Just s -> if (H.summaryFailures s > 0)
+                         Just s  -> if (H.summaryFailures s > 0)
                                        then exitFailure
                                        else exitSuccess
                          Nothing -> exitSuccess
@@ -321,12 +321,12 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
               then putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
               else putDoc (getError rr) >> putStrLn "" >> error "error!"
           return (Nothing, Just (H.Summary 1 1))
-      S.Right (rawcatalog,m,rawexported,knownRes) -> do
+      S.Right (rawcatalog, m, rawexported, knownRes) -> do
           let wireCatalog = generateWireCatalog node (rawcatalog <> rawexported) m
           when _checkExport $ void $ replaceCatalog pdbapi wireCatalog
           let cmpMatch Nothing _ curcat = return curcat
               cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
-                  Left rr -> error ("Error compiling regexp 're': "  ++ show rr)
+                  Left rr   -> error ("Error compiling regexp 're': "  ++ show rr)
                   Right rec -> fmap HM.fromList $ filterM (filterResource lns rec) (HM.toList curcat)
               filterResource lns rec v = execute rec (v ^. lns) >>= \case
                                               Left rr -> error ("Error when applying regexp: " ++ show rr)
@@ -340,7 +340,7 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
                   catalog  <- filterCatalog rawcatalog
                   unless (_resourceType == Just "file" || _resourceType == Nothing) (error $ "Show content only works for file, not for " ++ show _resourceType)
                   case _resourceName of
-                      Just f -> printContent f catalog
+                      Just f  -> printContent f catalog
                       Nothing -> error "You should supply a resource name when using showcontent"
                   return Nothing
               _ -> do
@@ -361,4 +361,5 @@ main = execParser opts >>= run
         opts = info (helper <*> options)
                 (fullDesc
                  <> progDesc "A program for parsing puppet files, generating and inspecting catalogs"
-                 <> header "puppetresources - a development tool for Puppet")
+                 <> header "puppetresources - a development tool for Puppet"
+                 <> failureCode 3)
