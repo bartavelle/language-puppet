@@ -1,29 +1,28 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
-import Puppet.Interpreter.Types
-import PuppetDB.Common
-import PuppetDB.TestDB
-import PuppetDB.Remote
-import Facter
+import           Puppet.Interpreter.Types
+import           PuppetDB.Common
+import           PuppetDB.TestDB
+import           PuppetDB.Remote
+import           Facter
 
-import Options.Applicative as O
-import Options.Applicative.Help.Chunk (stringChunk,Chunk(..))
-import qualified Data.Text as T
-import Data.Monoid
-import Data.Yaml hiding (Parser)
+import           Control.Lens
+import           Control.Monad (forM_,unless)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Either.Strict as S
-import Control.Lens
 import qualified Data.HashMap.Strict as HM
-import Control.Monad (forM_,unless)
+import           Data.List (foldl')
+import           Data.Monoid
+import qualified Data.Text as T
 import qualified Data.Vector as V
-import Data.List (foldl')
+import           Data.Yaml hiding (Parser)
+import           Options.Applicative as O
 
-data CommandLine = CommandLine { _pdbloc :: Maybe FilePath
-                               , _pdbtype :: PDBType
-                               , _pdbcmd :: Command
-                               }
+data Options = Options { _pdbloc :: Maybe FilePath
+                       , _pdbtype :: PDBType
+                       , _pdbcmd :: Command
+                       }
 
 data Command = DumpFacts
              | DumpNodes
@@ -32,6 +31,28 @@ data Command = DumpFacts
              | DumpResources T.Text
              | CreateTestDB FilePath
              | AddFacts T.Text
+
+options :: Parser Options
+options = Options
+    <$> optional (strOption
+        (  long "location"
+        <> short 'l'
+        <> help "Location of the PuppetDB, a file for type 'test' or an URL for type 'remote'"))
+    <*> option auto
+        (  long "pdbtype"
+        <> short 't'
+        <> value PDBTest
+        <> help "PuppetDB types : test, remote, dummy")
+    <*> cmd
+    where
+        cmd = subparser (  command "dumpfacts" (info (pure DumpFacts)(progDesc "Dump all facts, store in /tmp/allfacts.yaml" <> failureCode 4))
+                        <> command "editfact"  (info factedit (progDesc "Edit a fact corresponding to a node" <> failureCode 7 ))
+                        <> command "dumpres"   (info resourcesparser (progDesc "Dump resources" <> failureCode 5))
+                        <> command "delnode"   (info delnodeparser   (progDesc "Deactivate node" <> failureCode 6))
+                        <> command "nodes"     (info (pure DumpNodes)(progDesc "Dump all nodes" <> failureCode 8))
+                        <> command "snapshot"  (info createtestdb    (progDesc "Create a test DB from the current DB" <> failureCode 10))
+                        <> command "addfacts"  (info addfacts        (progDesc "Adds facts to the test DB for the given node name, if they are not already defined" <> failureCode 11))
+                        )
 
 factedit :: Parser Command
 factedit = EditFact <$> O.argument (Just . T.pack) mempty <*> O.argument (Just . T.pack) mempty
@@ -48,27 +69,6 @@ createtestdb = CreateTestDB <$> O.argument Just mempty
 addfacts :: Parser Command
 addfacts = AddFacts <$> O.argument (Just . T.pack) mempty
 
-cmdlineParser :: Parser CommandLine
-cmdlineParser = CommandLine <$> optional pl <*> pt <*> cmd
-    where
-        pl = strOption (  long "location"
-                       <> short 'l'
-                       <> help "Location of the PuppetDB, a file for type 'test' or an URL for type 'remote'"
-                       )
-        pt = option auto (  long "pdbtype"
-                    <> short 't'
-                    <> value PDBTest
-                    <> help "PuppetDB types : test, remote, dummy"
-                    )
-        ec = Chunk Nothing
-        cmd = subparser (  command "dumpfacts" (ParserInfo (pure DumpFacts) True (stringChunk "Dump all facts") (stringChunk "Dump all facts, and store them in /tmp/allfacts.yaml") ec 4 True)
-                        <> command "editfact"  (ParserInfo factedit         True (stringChunk "Edit a fact corresponding to a node") ec ec 7 True)
-                        <> command "dumpres"   (ParserInfo resourcesparser  True (stringChunk "Dump resources") (stringChunk "Dump resources") ec 5 True)
-                        <> command "delnode"   (ParserInfo delnodeparser    True (stringChunk "Deactivate node")(stringChunk "Deactivate node") ec 6 True)
-                        <> command "nodes"     (ParserInfo (pure DumpNodes) True (stringChunk "Dump all nodes") (stringChunk "Dump all nodes") ec 8 True)
-                        <> command "snapshot"  (ParserInfo createtestdb     True (stringChunk "Create a test DB from the current DB") ec ec 10 True)
-                        <> command "addfacts"  (ParserInfo addfacts         True (stringChunk "Adds facts to the test DB for the given node name, if they are not already defined") ec ec 11 True)
-                        )
 
 display :: (Show r, ToJSON a) => String -> S.Either r a -> IO ()
 display s (S.Left rr) = error (s <> " " <> show rr)
@@ -78,7 +78,7 @@ checkError :: (Show r) => String -> S.Either r a -> IO a
 checkError s (S.Left rr) = error (s <> " " <> show rr)
 checkError _ (S.Right a) = return a
 
-run :: CommandLine -> IO ()
+run :: Options -> IO ()
 run cmdl = do
     epdbapi <- case (_pdbloc cmdl, _pdbtype cmdl) of
                    (Just l, PDBRemote) -> pdbConnect (T.pack l)
@@ -121,7 +121,11 @@ run cmdl = do
         _ -> error "Not yet implemented"
 
 main :: IO ()
-main = execParser pinfo >>= run
+main = execParser opts >>= run
     where
-        pinfo :: ParserInfo CommandLine
-        pinfo = ParserInfo (helper <*> cmdlineParser) True (stringChunk "A program to work with PuppetDB implementations") (stringChunk "pdbQuery - work with PuppetDB implementations") (Chunk Nothing) 3 True
+        opts :: ParserInfo Options
+        opts = info (helper <*> options)
+                (fullDesc
+                 <> progDesc "A program to work with PuppetDB implementations"
+                 <> header "pdbQuery - work with PuppetDB implementations"
+                 <> failureCode 3)
