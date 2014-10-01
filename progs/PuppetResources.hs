@@ -50,22 +50,22 @@ import           Puppet.Stats
 
 type QueryFunc = T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
-data Options = Options { _pdb            :: Maybe String
-                       , _showjson       :: Bool
-                       , _showContent    :: Bool
-                       , _resourceType   :: Maybe T.Text
-                       , _resourceName   :: Maybe T.Text
-                       , _puppetdir      :: FilePath
-                       , _nodename       :: Maybe T.Text
-                       , _pdbfile        :: Maybe FilePath
-                       , _loglevel       :: LOG.Priority
-                       , _hieraFile      :: Maybe FilePath
-                       , _factsFile      :: Maybe FilePath
-                       , _factsDef       :: Maybe FilePath
-                       , _commitDB       :: Bool
-                       , _checkExport    :: Bool
-                       , _testusergroups :: Bool
-                       , _ignoredMods    :: HS.HashSet T.Text
+data Options = Options { _pdb             :: Maybe String
+                       , _showjson        :: Bool
+                       , _showContent     :: Bool
+                       , _resourceType    :: Maybe T.Text
+                       , _resourceName    :: Maybe T.Text
+                       , _puppetdir       :: FilePath
+                       , _nodename        :: Maybe T.Text
+                       , _pdbfile         :: Maybe FilePath
+                       , _loglevel        :: LOG.Priority
+                       , _hieraFile       :: Maybe FilePath
+                       , _factsOverr      :: Maybe FilePath
+                       , _factsDefault    :: Maybe FilePath
+                       , _commitDB        :: Bool
+                       , _checkExport     :: Bool
+                       , _nousergrouptest :: Bool
+                       , _ignoredMods     :: HS.HashSet T.Text
                        } deriving Show
 
 options :: Parser Options
@@ -244,13 +244,13 @@ run (Options {_nodename = Nothing, _puppetdir}) = parseFile _puppetdir >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc $ ppStatements s
 
-run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsFile, _factsDef, _commitDB}) = do
+run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB}) = do
     pdbapi <- case (_pdb, _pdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
                   (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    !factsOverrides <- case (_factsFile, _factsDef) of
+    !factsOverrides <- case (_factsOverr, _factsDefault) of
                            (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
@@ -314,7 +314,7 @@ run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _h
     exit
 
 computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> Options -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
-computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showContent, _resourceType, _resourceName, _puppetdir, _checkExport, _testusergroups}) node =
+computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showContent, _resourceType, _resourceName, _puppetdir, _checkExport, _nousergrouptest}) node =
     queryfunc node >>= \case
       S.Left rr -> do
           if testOnly
@@ -346,7 +346,7 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
                       Nothing -> error "You should supply a resource name when using showcontent"
                   return Nothing
               _ -> do
-                  r <- testCatalog node _puppetdir rawcatalog (basicTest >> unless _testusergroups usersGroupsDefined)
+                  r <- testCatalog node _puppetdir rawcatalog (basicTest >> unless _nousergrouptest usersGroupsDefined)
                   printFunc (pretty (HM.elems catalog))
                   unless (HM.null exported) $ do
                       printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
