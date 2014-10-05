@@ -333,8 +333,9 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
               filterCatalog = cmpMatch _resourceType (_1 . itype . unpacked) >=> cmpMatch _resourceName (_1 . iname . unpacked)
           catalog  <- filterCatalog rawcatalog
           exported <- filterCatalog rawexported
-          let wireCatalog = generateWireCatalog node (catalog <> exported) m
-          when _checkExport $ void $ replaceCatalog pdbapi wireCatalog
+          let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) m
+              rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) m
+          when _checkExport $ void $ replaceCatalog pdbapi rawWireCatalog
           testResult <- case (testOnly, _showContent, _showjson) of
               (True, _, _) -> Just `fmap` testCatalog node _puppetdir rawcatalog basicTest
               (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog)) >> return Nothing
