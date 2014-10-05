@@ -221,7 +221,7 @@ findDeadCode puppetdir catalogs allfiles = do
         getSubStatements (TopContainer v s) = getSubStatements s ++ v ^.. tgt
         getSubStatements _ = []
         tgt = folded . to getSubStatements . folded
-        extractPrism s = s ^.. _Statements . traverse . to getSubStatements . traverse
+        extractPrism = toListOf (_Statements . traverse . to getSubStatements . traverse)
         allResources = parseSucceeded ^.. folded . folded . to getSubStatements . folded
         deadResources = filter isDead allResources
         isDead (ResourceDeclaration (ResDec _ _ _ _ pp)) = not $ Set.member pp allpositions
@@ -322,8 +322,6 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
               else putDoc (getError rr) >> putStrLn "" >> error "error!"
           return (Nothing, Just (H.Summary 1 1))
       S.Right (rawcatalog, m, rawexported, knownRes) -> do
-          let wireCatalog = generateWireCatalog node (rawcatalog <> rawexported) m
-          when _checkExport $ void $ replaceCatalog pdbapi wireCatalog
           let cmpMatch Nothing _ curcat = return curcat
               cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
                   Left rr   -> error ("Error compiling regexp 're': "  ++ show rr)
@@ -333,19 +331,20 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
                                               Right Nothing -> return False
                                               _ -> return True
               filterCatalog = cmpMatch _resourceType (_1 . itype . unpacked) >=> cmpMatch _resourceName (_1 . iname . unpacked)
+          catalog  <- filterCatalog rawcatalog
+          exported <- filterCatalog rawexported
+          let wireCatalog = generateWireCatalog node (catalog <> exported) m
+          when _checkExport $ void $ replaceCatalog pdbapi wireCatalog
           testResult <- case (testOnly, _showContent, _showjson) of
               (True, _, _) -> Just `fmap` testCatalog node _puppetdir rawcatalog basicTest
               (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog)) >> return Nothing
               (_, True, _) -> do
-                  catalog  <- filterCatalog rawcatalog
                   unless (_resourceType == Just "file" || _resourceType == Nothing) (error $ "Show content only works for file, not for " ++ show _resourceType)
                   case _resourceName of
                       Just f  -> printContent f catalog
                       Nothing -> error "You should supply a resource name when using showcontent"
                   return Nothing
               _ -> do
-                  catalog  <- filterCatalog rawcatalog
-                  exported <- filterCatalog rawexported
                   r <- testCatalog node _puppetdir rawcatalog (basicTest >> unless _testusergroups usersGroupsDefined)
                   printFunc (pretty (HM.elems catalog))
                   unless (HM.null exported) $ do
