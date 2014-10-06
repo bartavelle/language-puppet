@@ -1,44 +1,50 @@
-{-# LANGUAGE LambdaCase, TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
+{-# LANGUAGE LambdaCase, TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, NamedFieldPuns #-}
+
 {- | This module runs a Hiera server that caches Hiera data. There is
 a huge caveat : only the data files are watched for changes, not the main configuration file.
 
 A minor bug is that interpolation will not work for inputs containing the % character when it isn't used for interpolation.
 -}
-module Hiera.Server (startHiera,dummyHiera,HieraQueryFunc) where
+module Hiera.Server (
+    startHiera
+  , dummyHiera
+    -- re-export from Puppet.Interpreter.Types
+  , HieraQueryFunc
+) where
 
-import qualified Data.FileCache as F
-import qualified Data.Yaml as Y
+import           Control.Applicative
+import           Control.Exception
+import           Control.Lens
+import           Control.Monad.Writer.Strict
+import           Data.Aeson (FromJSON,Value(..),(.:?),(.!=))
 import qualified Data.Aeson as A
-import Data.Aeson (FromJSON,Value(..),(.:?),(.!=))
-import qualified Data.Either.Strict as S
-import qualified Data.Maybe.Strict as S
-import qualified Data.Text as T
+import           Data.Aeson.Lens
 import qualified Data.Attoparsec.Text as AT
 import qualified Data.ByteString.Lazy as BS
-import qualified Data.Vector as V
-import qualified Data.List as L
+import qualified Data.Either.Strict as S
+import qualified Data.FileCache as F
 import qualified Data.HashMap.Strict as HM
-import Data.Tuple.Strict
-import Control.Monad.Writer.Strict
+import qualified Data.List as L
+import qualified Data.Maybe.Strict as S
+import qualified Data.Text as T
+import           Data.Tuple.Strict
+import qualified Data.Vector as V
+import qualified Data.Yaml as Y
+import           System.FilePath.Lens (directory)
 
-import Control.Applicative
-import Control.Lens
-import Data.Aeson.Lens
-import System.FilePath.Lens (directory)
-import Control.Exception
+import           Puppet.PP hiding ((<$>))
+import           Puppet.Interpreter.Types
+import           Puppet.Utils (strictifyEither)
 
-import Puppet.PP hiding ((<$>))
-import Puppet.Interpreter.Types
-import Puppet.Utils (strictifyEither)
+data ConfigFile = ConfigFile
+    { _backends :: [Backend]
+    , _hierarchy :: [InterpolableHieraString]
+    , _basedir :: FilePath
+    } deriving (Show)
 
-data HieraConfig = HieraConfig { _hieraconfigBackends  :: [HieraBackend]
-                               , _hieraconfigHierarchy :: [InterpolableHieraString]
-                               , _hieraconfigBasedir   :: FilePath
-                               } deriving Show
-
-data HieraBackend = YamlBackend FilePath
-                  | JsonBackend FilePath
-                  deriving Show
+data Backend = YamlBackend FilePath
+             | JsonBackend FilePath
+             deriving Show
 
 newtype InterpolableHieraString = InterpolableHieraString [HieraStringPart]
                                   deriving Show
@@ -52,9 +58,9 @@ instance Pretty HieraStringPart where
     pretty (HVariable v) = dullred (string "%{" <> ttext v <> string "}")
     prettyList = mconcat . map pretty
 
-type HieraCache = F.FileCacheR String Y.Value
+type Cache = F.FileCacheR String Y.Value
 
-makeFields ''HieraConfig
+makeClassy ''ConfigFile
 
 instance FromJSON InterpolableHieraString where
     parseJSON (String s) = case parseInterpolableString s of
@@ -62,27 +68,26 @@ instance FromJSON InterpolableHieraString where
                                Left rr -> fail rr
     parseJSON _ = fail "Invalid value type"
 
-instance FromJSON HieraConfig where
+instance FromJSON ConfigFile where
     parseJSON (Object v) = do
-        let genBackend :: T.Text -> Y.Parser HieraBackend
-            genBackend backendname = do
-                (backendConstructor, skey) <- case backendname of
+        let genBackend :: T.Text -> Y.Parser Backend
+            genBackend name = do
+                (backendConstructor, skey) <- case name of
                                                   "yaml" -> return (YamlBackend, ":yaml")
                                                   "json" -> return (JsonBackend, ":json")
-                                                  _ -> fail ("Unknown backend " ++ T.unpack backendname)
+                                                  _      -> fail ("Unknown backend " ++ T.unpack name)
                 datadir <- case (Object v) ^? key skey . key ":datadir" of
-                                  Just (String dtdir) -> return dtdir
+                                  Just (String dir)   -> return dir
                                   Just _              -> fail ":datadir should be a string"
                                   Nothing             -> return "/etc/puppet/hieradata"
                 return (backendConstructor (T.unpack datadir))
-        HieraConfig
+        ConfigFile
             <$> (v .:? ":backends" .!= ["yaml"] >>= mapM genBackend)
             <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HString "common"]])
             <*> pure "/etc/puppet/hieradata"
     parseJSON _ = fail "Not a valid Hiera configuration"
 
--- | An attoparsec parser that turns text into parts that are ready for
--- interpolation
+-- | An attoparsec parser that turns text into parts that are ready for interpolation
 interpolableString :: AT.Parser [HieraStringPart]
 interpolableString = AT.many1 (fmap HString rawPart <|> fmap HVariable interpPart)
     where
@@ -96,16 +101,16 @@ parseInterpolableString t = AT.parseOnly interpolableString t
 -- a querying function. The 'Nil' output is explicitely given as a Maybe
 -- type.
 startHiera :: FilePath -> IO (Either String (HieraQueryFunc IO))
-startHiera hieraconfig = Y.decodeFileEither hieraconfig >>= \case
-    Left ex -> return (Left (show ex))
+startHiera fp = Y.decodeFileEither fp >>= \case
+    Left ex   -> return (Left (show ex))
     Right cfg -> do
-        let ncfg = cfg & basedir .~ (hieraconfig ^. directory) <> "/"
+        let ncfg = cfg & basedir .~ (fp ^. directory) <> "/"
         cache <- F.newFileCache
         return (Right (query ncfg cache))
 
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: Monad m => HieraQueryFunc m
-dummyHiera _ _ _ = return (S.Right ([] :!: S.Nothing))
+dummyHiera _ _ _ = return $ S.Right ([] :!: S.Nothing)
 
 -- | The combinator for "normal" queries
 queryCombinator :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
@@ -151,9 +156,9 @@ interpolatePValue _ x = x
 
 type LogWriter = WriterT InterpreterWriter IO
 
-query :: HieraConfig -> HieraCache -> HieraQueryFunc IO
-query (HieraConfig b h bd) cache vars hquery qtype = do
-    fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' h))) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
+query :: ConfigFile -> Cache -> HieraQueryFunc IO
+query (ConfigFile {_backends, _hierarchy, _basedir}) cache vars hquery qtype = do
+    fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' _hierarchy))) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
     where
         prepout (a,s) = s :!: a
         varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))
@@ -164,9 +169,9 @@ query (HieraConfig b h bd) cache vars hquery qtype = do
         query' :: InterpolableHieraString -> LogWriter (S.Maybe PValue)
         query' (InterpolableHieraString strs) =
             case resolveInterpolable vars strs of
-                Just s -> sequencerFunction (map (query'' s) b)
+                Just s  -> sequencerFunction (map (query'' s) _backends)
                 Nothing -> warn ("Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
-        query'' :: T.Text -> HieraBackend -> LogWriter (S.Maybe PValue)
+        query'' :: T.Text -> Backend -> LogWriter (S.Maybe PValue)
         query'' hieraname backend = do
             let (decodefunction, datadir, extension) = case backend of
                                                 (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
@@ -175,12 +180,12 @@ query (HieraConfig b h bd) cache vars hquery qtype = do
                     where
                         mbd = case datadir of
                                   '/' : _ -> mempty
-                                  _ -> bd
+                                  _       -> _basedir
                 mfromJSON :: Maybe Value -> LogWriter (S.Maybe PValue)
                 mfromJSON Nothing = return S.Nothing
                 mfromJSON (Just v) = case A.fromJSON v of
                                          A.Success a -> return (S.Just (interpolatePValue vars a))
-                                         _ -> warn ("Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return S.Nothing
+                                         _           -> warn ("Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return S.Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
                 S.Left r -> do
