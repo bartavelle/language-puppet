@@ -2,44 +2,44 @@
 {-# LANGUAGE GADTs #-}
 module Puppet.Interpreter.Types where
 
-import Puppet.Parser.Types
-import Puppet.Stats
-import Puppet.Parser.PrettyPrinter
-import Text.Parsec.Pos
+import           Puppet.Parser.Types
+import           Puppet.Stats
+import           Puppet.Parser.PrettyPrinter
+import           Text.Parsec.Pos
 
-import Data.Aeson as A
-import Text.PrettyPrint.ANSI.Leijen hiding ((<$>),rational)
+import           Data.Aeson as A
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>),rational)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
-import Data.Tuple.Strict
-import Control.Monad.State.Strict
-import Control.Monad.Error
-import Control.Monad.Writer.Class
-import Data.Monoid hiding ((<>))
-import Control.Lens
-import Data.Aeson.Lens
-import Data.String (IsString(..))
+import           Data.Tuple.Strict
+import           Control.Monad.State.Strict
+import           Control.Monad.Error
+import           Control.Monad.Writer.Class
+import           Data.Monoid hiding ((<>))
+import           Control.Lens
+import           Data.Aeson.Lens
+import           Data.String (IsString(..))
 import qualified Data.Either.Strict as S
 import qualified Data.Maybe.Strict as S
-import Data.Hashable
-import GHC.Generics hiding (to)
+import           Data.Hashable
+import           GHC.Generics hiding (to)
 import qualified Data.Traversable as TR
 import qualified Data.ByteString as BS
-import System.Log.Logger
-import Control.Applicative hiding (empty)
-import Data.Time.Clock
-import GHC.Stack
-import Data.Maybe (fromMaybe)
-import Data.Attoparsec.Text (parseOnly,rational)
-import Data.Scientific
-import Control.Monad.Operational
-import Control.Exception
-import Control.Concurrent.MVar (MVar)
+import           System.Log.Logger
+import           Control.Applicative hiding (empty)
+import           Data.Time.Clock
+import           GHC.Stack
+import           Data.Maybe (fromMaybe)
+import           Data.Attoparsec.Text (parseOnly,rational)
+import           Data.Scientific
+import           Control.Monad.Operational
+import           Control.Exception
+import           Control.Concurrent.MVar (MVar)
 import qualified Scripting.Lua as Lua
-import Foreign.Ruby
+import           Foreign.Ruby
 import qualified Data.Foldable as F
 
 metaparameters :: HS.HashSet T.Text
@@ -77,13 +77,12 @@ type HieraQueryFunc m = Container T.Text -- ^ All the variables that Hiera can i
                      -> HieraQueryType
                      -> m (S.Either PrettyError (Pair InterpreterWriter (S.Maybe PValue)))
 
-data RSearchExpression
-    = REqualitySearch !T.Text !PValue
-    | RNonEqualitySearch !T.Text !PValue
-    | RAndSearch !RSearchExpression !RSearchExpression
-    | ROrSearch !RSearchExpression !RSearchExpression
-    | RAlwaysTrue
-    deriving Eq
+data RSearchExpression = REqualitySearch !T.Text !PValue
+                       | RNonEqualitySearch !T.Text !PValue
+                       | RAndSearch !RSearchExpression !RSearchExpression
+                       | ROrSearch !RSearchExpression !RSearchExpression
+                       | RAlwaysTrue
+                       deriving Eq
 
 instance IsString PValue where
     fromString = PString . T.pack
@@ -113,64 +112,69 @@ data TopLevelType
 
 instance Hashable TopLevelType
 
-data ResDefaults = ResDefaults { _defType     :: !T.Text
-                               , _defSrcScope :: !T.Text
-                               , _defValues   :: !(Container PValue)
-                               , _defPos      :: !PPosition
-                               }
+data ResDefaults = ResDefaults
+    { _defType :: !T.Text
+    , _defSrcScope :: !T.Text
+    , _defValues :: !(Container PValue)
+    , _defPos :: !PPosition
+    }
 
 data CurContainerDesc = ContRoot -- ^ Contained at node or root level
                       | ContClass !T.Text -- ^ Contained in a class
                       | ContDefine !T.Text !T.Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
                       | ContImported !CurContainerDesc -- ^ Dummy container for imported resources, so that we know we must update the nodename
                       | ContImport !Nodename !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
-    deriving (Eq, Generic, Ord)
+                      deriving (Eq, Generic, Ord)
 
-data CurContainer = CurContainer { _cctype :: !CurContainerDesc
-                                 , _cctags :: !(HS.HashSet T.Text)
-                                 }
-                                 deriving Eq
+data CurContainer = CurContainer
+    { _cctype :: !CurContainerDesc
+    , _cctags :: !(HS.HashSet T.Text)
+    } deriving (Eq)
 
-data ResRefOverride = ResRefOverride { _rrid     :: !RIdentifier
-                                     , _rrparams :: !(Container PValue)
-                                     , _rrpos    :: !PPosition
-                                     }
-                                     deriving Eq
+data ResRefOverride = ResRefOverride
+    { _rrid :: !RIdentifier
+    , _rrparams :: !(Container PValue)
+    , _rrpos :: !PPosition
+    } deriving (Eq)
 
-data ScopeInformation = ScopeInformation { _scopeVariables :: !(Container (Pair (Pair PValue PPosition) CurContainerDesc))
-                                         , _scopeDefaults  :: !(Container ResDefaults)
-                                         , _scopeExtraTags :: !(HS.HashSet T.Text)
-                                         , _scopeContainer :: !CurContainer
-                                         , _scopeOverrides :: !(HM.HashMap RIdentifier ResRefOverride)
-                                         , _scopeParent    :: !(S.Maybe T.Text)
-                                         }
+data ScopeInformation = ScopeInformation
+    { _scopeVariables :: !(Container (Pair (Pair PValue PPosition) CurContainerDesc))
+    , _scopeDefaults :: !(Container ResDefaults)
+    , _scopeExtraTags :: !(HS.HashSet T.Text)
+    , _scopeContainer :: !CurContainer
+    , _scopeOverrides :: !(HM.HashMap RIdentifier ResRefOverride)
+    , _scopeParent :: !(S.Maybe T.Text)
+    }
 
-data InterpreterState = InterpreterState { _scopes             :: !(Container ScopeInformation)
-                                         , _loadedClasses      :: !(Container (Pair ClassIncludeType PPosition))
-                                         , _definedResources   :: !(HM.HashMap RIdentifier Resource)
-                                         , _curScope           :: ![CurContainerDesc]
-                                         , _curPos             :: !PPosition
-                                         , _nestedDeclarations :: !(HM.HashMap (TopLevelType, T.Text) Statement)
-                                         , _extraRelations     :: ![LinkInformation]
-                                         , _resMod             :: ![ResourceModifier]
-                                         }
+data InterpreterState = InterpreterState
+    { _scopes :: !(Container ScopeInformation)
+    , _loadedClasses :: !(Container (Pair ClassIncludeType PPosition))
+    , _definedResources :: !(HM.HashMap RIdentifier Resource)
+    , _curScope :: ![CurContainerDesc]
+    , _curPos :: !PPosition
+    , _nestedDeclarations :: !(HM.HashMap (TopLevelType,T.Text) Statement)
+    , _extraRelations :: ![LinkInformation]
+    , _resMod :: ![ResourceModifier]
+    }
 
-data InterpreterReader m = InterpreterReader { _nativeTypes             :: !(Container PuppetTypeMethods)
-                                             , _getStatement            :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
-                                             , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> m (S.Either PrettyError T.Text)
-                                             , _pdbAPI                  :: PuppetDBAPI m
-                                             , _externalFunctions       :: Container ( [PValue] -> InterpreterMonad PValue )
-                                             , _thisNodename            :: T.Text
-                                             , _hieraQuery              :: HieraQueryFunc m
-                                             , _ioMethods               :: ImpureMethods m
-                                             , _ignoredModules          :: HS.HashSet T.Text -- ^ The set of modules we will not include or whatsoever.
-                                             }
+data InterpreterReader m = InterpreterReader
+    { _nativeTypes :: !(Container PuppetTypeMethods)
+    , _getStatement :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
+    , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> m (S.Either PrettyError T.Text)
+    , _pdbAPI :: PuppetDBAPI m
+    , _externalFunctions :: Container ([PValue] -> InterpreterMonad PValue)
+    , _thisNodename :: T.Text
+    , _hieraQuery :: HieraQueryFunc m
+    , _ioMethods :: ImpureMethods m
+    , _ignoredModules :: HS.HashSet T.Text -- ^ The set of modules we will not include or whatsoever.
+    }
 
-data ImpureMethods m = ImpureMethods { _imGetCurrentCallStack :: m [String]
-                                     , _imReadFile            :: [T.Text] -> m (Either String T.Text)
-                                     , _imTraceEvent          :: String -> m ()
-                                     , _imCallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> m (Either String PValue)
-                                     }
+data ImpureMethods m = ImpureMethods
+    { _imGetCurrentCallStack :: m [String]
+    , _imReadFile :: [T.Text] -> m (Either String T.Text)
+    , _imTraceEvent :: String -> m ()
+    , _imCallLua :: MVar Lua.LuaState -> T.Text -> [PValue] -> m (Either String PValue)
+    }
 
 data InterpreterInstr a where
     -- Utility for using what's in "InterpreterReader"
@@ -236,9 +240,10 @@ instance Error PrettyError where
     noMsg = PrettyError empty
     strMsg = PrettyError . text
 
-data RIdentifier = RIdentifier { _itype :: !T.Text
-                               , _iname :: !T.Text
-                               } deriving(Show, Eq, Generic, Ord)
+data RIdentifier = RIdentifier
+    { _itype :: !T.Text
+    , _iname :: !T.Text
+    } deriving (Show,Eq,Generic,Ord)
 
 instance Hashable RIdentifier
 
@@ -255,19 +260,22 @@ data ResourceCollectorType = RealizeVirtual
                            | DontRealize
                            deriving Eq
 
-data ResourceModifier = ResourceModifier { _rmResType      :: !T.Text
-                                         , _rmModifierType :: !ModifierType
-                                         , _rmType         :: !ResourceCollectorType
-                                         , _rmSearch       :: !RSearchExpression
-                                         , _rmMutation     :: !(Resource -> InterpreterMonad Resource)
-                                         , _rmDeclaration  :: !PPosition
-                                         }
 
-data LinkInformation = LinkInformation { _linksrc  :: !RIdentifier
-                                       , _linkdst  :: !RIdentifier
-                                       , _linkType :: !LinkType
-                                       , _linkPos  :: !PPosition
-                                       }
+data ResourceModifier = ResourceModifier
+    { _rmResType :: !T.Text
+    , _rmModifierType :: !ModifierType
+    , _rmType :: !ResourceCollectorType
+    , _rmSearch :: !RSearchExpression
+    , _rmMutation :: !(Resource -> InterpreterMonad Resource)
+    , _rmDeclaration :: !PPosition
+    }
+
+data LinkInformation = LinkInformation
+    { _linksrc :: !RIdentifier
+    , _linkdst :: !RIdentifier
+    , _linkType :: !LinkType
+    , _linkPos :: !PPosition
+    }
 
 type EdgeMap = HM.HashMap RIdentifier [LinkInformation]
 
@@ -298,44 +306,51 @@ data PuppetTypeMethods = PuppetTypeMethods
 
 type FinalCatalog = HM.HashMap RIdentifier Resource
 
-data DaemonMethods = DaemonMethods { _dGetCatalog    :: T.Text -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource])) -- ^ The most important function, computing catalogs. Given a node name and a list of facts, it returns the result of the catalog compilation : either an error, or a tuple containing all the resources in this catalog, the dependency map, the exported resources, and a list of known resources, that might not be up to date, but are here for code coverage tests.
-                                   , _dParserStats   :: MStats
-                                   , _dCatalogStats  :: MStats
-                                   , _dTemplateStats :: MStats
-                                   }
+data DaemonMethods = DaemonMethods
+    { -- | The most important function, computing catalogs.
+      -- Given a node name and a list of facts, it returns the result of the catalog compilation : either an error, or a tuple containing all the resources in this catalog, the dependency map, the exported resources, and a list of known resources, that might not be up to date, but are here for code coverage tests.
+      _dGetCatalog    :: T.Text -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+    , _dParserStats   :: MStats
+    , _dCatalogStats  :: MStats
+    , _dTemplateStats :: MStats
+    }
 
 data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType
 
 -- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
-data WireCatalog = WireCatalog { _wirecatalogNodename        :: !Nodename
-                               , _wirecatalogWVersion        :: !T.Text
-                               , _wirecatalogWEdges          :: !(V.Vector PuppetEdge)
-                               , _wirecatalogWResources      :: !(V.Vector Resource)
-                               , _wirecatalogTransactionUUID :: !T.Text
-                               }
+data WireCatalog = WireCatalog
+    { _wirecatalogNodename :: !Nodename
+    , _wirecatalogWVersion :: !T.Text
+    , _wirecatalogWEdges :: !(V.Vector PuppetEdge)
+    , _wirecatalogWResources :: !(V.Vector Resource)
+    , _wirecatalogTransactionUUID :: !T.Text
+    }
 
-data PFactInfo = PFactInfo { _pfactinfoNodename :: !T.Text
-                           , _pfactinfoFactname :: !T.Text
-                           , _pfactinfoFactval  :: !PValue
-                           }
+data PFactInfo = PFactInfo
+    { _pfactinfoNodename :: !T.Text
+    , _pfactinfoFactname :: !T.Text
+    , _pfactinfoFactval :: !PValue
+    }
 
-data PNodeInfo = PNodeInfo { _pnodeinfoNodename    :: !Nodename
-                           , _pnodeinfoDeactivated :: !Bool
-                           , _pnodeinfoCatalogT    :: !(S.Maybe UTCTime)
-                           , _pnodeinfoFactsT      :: !(S.Maybe UTCTime)
-                           , _pnodeinfoReportT     :: !(S.Maybe UTCTime)
-                           }
+data PNodeInfo = PNodeInfo
+    { _pnodeinfoNodename :: !Nodename
+    , _pnodeinfoDeactivated :: !Bool
+    , _pnodeinfoCatalogT :: !(S.Maybe UTCTime)
+    , _pnodeinfoFactsT :: !(S.Maybe UTCTime)
+    , _pnodeinfoReportT :: !(S.Maybe UTCTime)
+    }
 
-data PuppetDBAPI m = PuppetDBAPI { pdbInformation   :: m Doc
-                                 , replaceCatalog   :: WireCatalog         -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
-                                 , replaceFacts     :: [(Nodename, Facts)] -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
-                                 , deactivateNode   :: Nodename            -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-                                 , getFacts         :: Query FactField     -> m (S.Either PrettyError [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
-                                 , getResources     :: Query ResourceField -> m (S.Either PrettyError [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
-                                 , getNodes         :: Query NodeField     -> m (S.Either PrettyError [PNodeInfo])
-                                 , commitDB         ::                        m (S.Either PrettyError ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
-                                 , getResourcesOfNode :: Nodename -> Query ResourceField -> m (S.Either PrettyError [Resource])
-                                 }
+data PuppetDBAPI m = PuppetDBAPI
+    { pdbInformation   :: m Doc
+    , replaceCatalog   :: WireCatalog         -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+    , replaceFacts     :: [(Nodename, Facts)] -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+    , deactivateNode   :: Nodename            -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+    , getFacts         :: Query FactField     -> m (S.Either PrettyError [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+    , getResources     :: Query ResourceField -> m (S.Either PrettyError [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+    , getNodes         :: Query NodeField     -> m (S.Either PrettyError [PNodeInfo])
+    , commitDB         ::                        m (S.Either PrettyError ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
+    , getResourcesOfNode :: Nodename -> Query ResourceField -> m (S.Either PrettyError [Resource])
+    }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
 data Query a = QEqual a T.Text
@@ -350,7 +365,9 @@ data Query a = QEqual a T.Text
              | QEmpty
 
 -- | Fields for the fact endpoint
-data FactField = FName | FValue | FCertname
+data FactField = FName
+               | FValue
+               | FCertname
 
 -- | Fields for the node endpoint
 data NodeField = NName | NFact T.Text
