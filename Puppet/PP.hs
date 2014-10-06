@@ -1,9 +1,10 @@
 module Puppet.PP
-    ( module Text.PrettyPrint.ANSI.Leijen
-    , ttext
+    ( ttext
     , tshow
     , pshow
     , displayNocolor
+      -- * Re-exports
+    , module Text.PrettyPrint.ANSI.Leijen
     ) where
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
