@@ -50,23 +50,24 @@ import           Puppet.Stats
 
 type QueryFunc = T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
-data Options = Options { _pdb             :: Maybe String
-                       , _showjson        :: Bool
-                       , _showContent     :: Bool
-                       , _resourceType    :: Maybe T.Text
-                       , _resourceName    :: Maybe T.Text
-                       , _puppetdir       :: FilePath
-                       , _nodename        :: Maybe T.Text
-                       , _pdbfile         :: Maybe FilePath
-                       , _loglevel        :: LOG.Priority
-                       , _hieraFile       :: Maybe FilePath
-                       , _factsOverr      :: Maybe FilePath
-                       , _factsDefault    :: Maybe FilePath
-                       , _commitDB        :: Bool
-                       , _checkExport     :: Bool
-                       , _nousergrouptest :: Bool
-                       , _ignoredMods     :: HS.HashSet T.Text
-                       } deriving Show
+data Options = Options
+    { _pdb :: Maybe String
+    , _showjson :: Bool
+    , _showContent :: Bool
+    , _resourceType :: Maybe T.Text
+    , _resourceName :: Maybe T.Text
+    , _puppetdir :: FilePath
+    , _nodename :: Maybe T.Text
+    , _pdbfile :: Maybe FilePath
+    , _loglevel :: LOG.Priority
+    , _hieraFile :: Maybe FilePath
+    , _factsOverr :: Maybe FilePath
+    , _factsDefault :: Maybe FilePath
+    , _commitDB :: Bool
+    , _checkExport :: Bool
+    , _nousergrouptest :: Bool
+    , _ignoredMods :: HS.HashSet T.Text
+    } deriving (Show)
 
 options :: Parser Options
 options = Options
@@ -244,7 +245,7 @@ run (Options {_nodename = Nothing, _puppetdir}) = parseFile _puppetdir >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc $ ppStatements s
 
-run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB}) = do
+run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB, _ignoredMods}) = do
     pdbapi <- case (_pdb, _pdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -255,7 +256,7 @@ run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _h
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
-    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides (_ignoredMods c)
+    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides _ignoredMods
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
@@ -270,7 +271,7 @@ run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _h
             let topnodes = mapMaybe getNodeName (V.toList allstmts)
                 getNodeName (Node (Nd (NodeName n) _ _ _)) = Just n
                 getNodeName _ = Nothing
-            cats <- parallel (map (computeCatalogs True queryfunc pdbapi printFunc c) topnodes)
+            cats <- parallel (map (computeCatalogs True queryfunc pdbapi printFunc cmd) topnodes)
             -- the the parsing statistics, so that we known which files
             -- were parsed
             pStats <- getStats mPStats
@@ -304,7 +305,7 @@ run c@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _h
                          then exitFailure
                          else exitSuccess
         else do
-            r <- computeCatalogs False queryfunc pdbapi printFunc c node
+            r <- computeCatalogs False queryfunc pdbapi printFunc cmd node
             return $ case snd r of
                          Just s  -> if (H.summaryFailures s > 0)
                                        then exitFailure
