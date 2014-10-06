@@ -86,9 +86,9 @@ initDaemon prefs = do
     intr          <- startRubyInterpreter
     getTemplate   <- initTemplateDaemon intr prefs templateStats
     hquery        <- case prefs ^. hieraPath of
-                         Just p -> startHiera p >>= \case
-                            Left _ -> return dummyHiera
-                            Right x -> return x
+                         Just p  -> startHiera p >>= \case
+                            Left err -> error err
+                            Right x  -> return x
                          Nothing -> return dummyHiera
     luacontainer <- initLuaMaster (T.pack (prefs ^. modulesPath))
     let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
