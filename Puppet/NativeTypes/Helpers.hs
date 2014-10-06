@@ -72,7 +72,8 @@ defaulttype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 defaulttype tname = (tname, PuppetTypeMethods (defaultValidate HS.empty) HS.empty)
 
 {-| Validate resources given a list of valid parameters:
-    * checks that no unknown parameters have been set (except metaparameters)
+
+      * checks that no unknown parameters have been set (except metaparameters)
 -}
 defaultValidate :: HS.HashSet T.Text -> PuppetTypeValidate
 defaultValidate validparameters = checkParameterList validparameters >=> addDefaults
