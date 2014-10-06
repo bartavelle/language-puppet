@@ -62,8 +62,8 @@ import           Data.Tuple.Strict
 import qualified Data.Vector as V
 
 import           GHC.Generics
-import           Text.Regex.PCRE.String
 
+import           Text.Regex.PCRE.String
 import           Text.Parsec.Pos
 
 -- | Properly capitalizes resource types
@@ -116,13 +116,13 @@ data BlockParameters = BPSingle !T.Text -- ^ @|k|@
                      deriving (Eq, Show)
 
 -- The description of the /higher level function/ call.
-data HFunctionCall = HFunctionCall { _hftype       :: !HigherFuncType
-                                   , _hfexpr       :: !(S.Maybe Expression)
-                                   , _hfparams     :: !BlockParameters
-                                   , _hfstatements :: !(V.Vector Statement)
-                                   , _hfexpression :: !(S.Maybe Expression)
-                                   }
-                   deriving (Eq, Show)
+data HFunctionCall = HFunctionCall
+    { _hftype :: !HigherFuncType
+    , _hfexpr :: !(S.Maybe Expression)
+    , _hfparams :: !BlockParameters
+    , _hfstatements :: !(V.Vector Statement)
+    , _hfexpression :: !(S.Maybe Expression)
+    } deriving (Eq,Show)
 
 data CompRegex = CompRegex !T.Text !Regex
 instance Show CompRegex where
@@ -257,14 +257,17 @@ instance ToJSON LinkType where
 data ResDec        = ResDec !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !Virtuality !PPosition deriving (Eq, Show)
 data DefaultDec    = DefaultDec !T.Text !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
 data ResOver       = ResOver !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
-data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show) -- ^ All types of conditional statements are stored that way (@case@, @if@, etc.)
+-- | All types of conditional statements are stored that way (@case@, @if@, etc.)
+data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
 data ClassDecl     = ClassDecl !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 data DefineDec     = DefineDec !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
 data VarAss        = VarAss !T.Text !Expression !PPosition deriving (Eq, Show)
 data MFC           = MFC !T.Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
-data SFC           = SFC !HFunctionCall !PPosition deriving (Eq, Show) -- ^ /Higher order function/ call.
-data RColl         = RColl !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show) -- ^ For all types of collectors.
+-- | /Higher order function/ call.
+data SFC           = SFC !HFunctionCall !PPosition deriving (Eq, Show)
+-- | For all types of collectors.
+data RColl         = RColl !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
 data Dep           = Dep !(Pair T.Text Expression) !(Pair T.Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
 -- | All the possible statements
