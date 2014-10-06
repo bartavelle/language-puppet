@@ -79,47 +79,46 @@ library
   ghc-prof-options:    -auto-all -caf-all
   -- other-modules:
   build-depends:       base >=4.6 && < 4.8
-                        , hruby >= 0.2.5 && <0.3
+                        , aeson                >= 0.7     && < 0.9
+                        , ansi-wl-pprint       == 0.6.*
+                        , attoparsec           >= 0.11    && < 0.13
+                        , base16-bytestring    == 0.1.*
                         , bytestring
-                        , strict-base-types    >= 0.2.2
+                        , case-insensitive     == 1.2.*
+                        , containers           == 0.5.*
+                        , cryptohash           >= 0.10    && < 0.12
+                        , directory            == 1.2.*
+                        , filecache            >= 0.2.5   && < 0.3
                         , hashable             == 1.2.*
-                        , unordered-containers == 0.2.*
-                        , text                 >= 0.11
-                        , vector               == 0.10.*
-                        , parsec               == 3.1.*
-                        , mtl                  == 2.1.*
+                        , hruby >= 0.2.5 && <0.3
+                        , hslogger             == 1.2.*
+                        , hslua                >= 0.3.10  && < 0.4
+                        , hspec                >= 1.9.0   && < 2.0.0
+                        , http-conduit         >= 2.1     && < 2.2
+                        , http-types           == 0.8.*
+                        , iconv                == 0.4.*
                         , lens                 >= 4.4     && < 4.5
                         , lens-aeson           >= 1.0
-                        , parsers              >= 0.11    && < 0.13
-                        , ansi-wl-pprint       == 0.6.*
-                        , unix                 >= 2.6     && < 2.8
-                        , aeson                >= 0.7     && < 0.9
                         , luautils             >= 0.1.3   && < 0.1.4
-                        , hslua                >= 0.3.10  && < 0.4
-                        , transformers         == 0.3.*
-                        , hslogger             == 1.2.*
-                        , time                 == 1.4.*
-                        , filecache            >= 0.2.5   && < 0.3
-                        , regex-pcre-builtin   >= 0.94.4
+                        , mtl                  == 2.1.*
+                        , operational
+                        , parsec               == 3.1.*
+                        , parsers              >= 0.11    && < 0.13
                         , pcre-utils           >= 0.1.4   && < 0.2
                         , process              >= 1.1     && < 1.3
-                        , iconv                == 0.4.*
-                        , http-types           == 0.8.*
-                        , http-conduit         >= 2.1     && < 2.2
-                        , attoparsec           >= 0.11    && < 0.13
-                        , case-insensitive     == 1.2.*
-                        , cryptohash           >= 0.10    && < 0.12
-                        , base16-bytestring    == 0.1.*
-                        , containers           == 0.5.*
-                        , stm                  == 2.4.*
-                        , hspec                >= 1.9.0   && < 2.0.0
-                        , yaml                 >= 0.8.8   && < 0.9
-                        , stateWriter          >= 0.2.1   && < 0.3
-                        , split                == 0.2.*
+                        , regex-pcre-builtin   >= 0.94.4
                         , scientific           >= 0.2   && < 0.4
-                        , directory            == 1.2.*
-                        , operational
-
+                        , split                == 0.2.*
+                        , stateWriter          >= 0.2.1   && < 0.3
+                        , stm                  == 2.4.*
+                        , strict-base-types    >= 0.2.2
+                        , text                 >= 0.11
+                        , time                 == 1.4.*
+                        , transformers         == 0.3.*
+                        , unix                 >= 2.6     && < 2.8
+                        , unordered-containers == 0.2.*
+                        , vector               == 0.10.*
+                        , yaml                 >= 0.8.8   && < 0.9
 Test-Suite test-evals
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
