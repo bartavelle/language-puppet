@@ -411,17 +411,14 @@ class MonadStack m where
 instance MonadStack InterpreterMonad where
     getCallStack = singleton GetCurrentCallStack
 
-tpe :: (MonadStack m, MonadError PrettyError m, MonadState InterpreterState m) => Doc -> m b
-tpe s = do
-    p <- use (curPos . _1)
-    stack <- getCallStack
-    let dstack = if null stack
-                     then mempty
-                     else mempty </> string (renderStack stack)
-    throwError (PrettyError (s <+> "at" <+> showPos p <> dstack))
-
 instance MonadThrowPos InterpreterMonad where
-    throwPosError = tpe
+    throwPosError s = do
+        p <- use (curPos . _1)
+        stack <- getCallStack
+        let dstack = if null stack
+                         then mempty
+                         else mempty </> string (renderStack stack)
+        throwError (PrettyError (s <+> "at" <+> showPos p <> dstack))
 
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINE getCurContainer #-}
