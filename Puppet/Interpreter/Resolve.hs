@@ -126,8 +126,7 @@ binaryOperation :: Expression -- ^ left operand
                 -> InterpreterMonad PValue
 binaryOperation a b opr = ((PNumber .) . opr) `fmap` resolveExpressionNumber a <*> resolveExpressionNumber b
 
--- | Just like 'binaryOperation', but for operations that only work on
--- integers.
+-- Just like 'binaryOperation', but for operations that only work on integers.
 integerOperation :: Expression -> Expression -> (Integer -> Integer -> Integer) -> InterpreterMonad PValue
 integerOperation a b opr = do
     ra <- resolveExpressionNumber a

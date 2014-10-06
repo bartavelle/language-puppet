@@ -71,12 +71,12 @@ concattype tname = (tname, PuppetTypeMethods (defaultValidate HS.empty) HS.empty
 defaulttype :: PuppetTypeName -> (PuppetTypeName, PuppetTypeMethods)
 defaulttype tname = (tname, PuppetTypeMethods (defaultValidate HS.empty) HS.empty)
 
-{-| This helper will validate resources given a list of fields. It will run
-'checkParameterList' and then 'addDefaults'. -}
+{-| Validate resources given a list of valid parameters:
+    * checks that no unknown parameters have been set (except metaparameters)
+-}
 defaultValidate :: HS.HashSet T.Text -> PuppetTypeValidate
 defaultValidate validparameters = checkParameterList validparameters >=> addDefaults
 
--- | This validator checks that no unknown parameters have been set (except metaparameters)
 checkParameterList :: HS.HashSet T.Text -> PuppetTypeValidate
 checkParameterList validparameters res | HS.null validparameters = Right res
                                        | otherwise = if HS.null setdiff
