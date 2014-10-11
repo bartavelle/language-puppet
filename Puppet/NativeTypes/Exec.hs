@@ -5,11 +5,11 @@ import Puppet.Interpreter.Types
 import qualified Data.Text as T
 import Control.Lens
 
-nativeExec :: (PuppetTypeName, PuppetTypeMethods)
+nativeExec :: (NativeTypeName, NativeTypeMethods)
 nativeExec = ("exec", ptypemethods parameterfunctions fullyQualifiedOrPath)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("command"     , [nameval])
     ,("creates"     , [rarray, strings, fullyQualifieds])
@@ -30,7 +30,7 @@ parameterfunctions =
     ,("user"        , [string])
     ]
 
-fullyQualifiedOrPath :: PuppetTypeValidate
+fullyQualifiedOrPath :: NativeTypeValidate
 fullyQualifiedOrPath res = case (res ^. rattributes . at "path", res ^. rattributes . at "command") of
                                (Nothing, Just (PString x)) -> if T.head x == '/'
                                                                        then Right res

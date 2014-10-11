@@ -11,7 +11,7 @@ import Control.Lens
 import GHC.Generics
 import Data.Hashable
 
-nativePackage :: (PuppetTypeName, PuppetTypeMethods)
+nativePackage :: (NativeTypeName, NativeTypeMethods)
 nativePackage = ("package", ptypemethods parameterfunctions (getFeature >=> checkFeatures))
 
 data PackagingFeatures = Holdable | InstallOptions | Installable | Purgeable | UninstallOptions | Uninstallable | Upgradeable | Versionable deriving (Show, Eq, Generic)
@@ -55,7 +55,7 @@ isFeatureSupported = HM.fromList [ ("aix", HS.fromList [Installable, Uninstallab
                                   , ("zypper", HS.fromList [Installable, Uninstallable, Upgradeable, Versionable])
                                   ]
 
-parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("adminfile"        , [string, fullyQualified])
     ,("allowcdrom"       , [string, values ["true","false"]])

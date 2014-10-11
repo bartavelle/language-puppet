@@ -4,10 +4,10 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import qualified Data.Text as T
 
-nativeMount :: (PuppetTypeName, PuppetTypeMethods)
+nativeMount :: (NativeTypeName, NativeTypeMethods)
 nativeMount = ("mount", ptypemethods parameterfunctions return)
 
-parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("atboot"      , [string, values ["true","false"]])
     ,("blockdevice" , [string])

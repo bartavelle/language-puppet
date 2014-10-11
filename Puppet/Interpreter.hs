@@ -57,7 +57,7 @@ getCatalog :: Monad m
            -> PuppetDBAPI m
            -> T.Text -- ^ Node name
            -> Facts -- ^ Facts ...
-           -> Container PuppetTypeMethods -- ^ List of native types
+           -> Container NativeTypeMethods -- ^ List of native types
            -> Container ( [PValue] -> InterpreterMonad PValue )
            -> HieraQueryFunc m -- ^ Hiera query function
            -> ImpureMethods m
