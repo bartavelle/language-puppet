@@ -39,7 +39,6 @@ import           Puppet.Utils (strictifyEither)
 data ConfigFile = ConfigFile
     { _backends :: [Backend]
     , _hierarchy :: [InterpolableHieraString]
-    , _basedir :: FilePath
     } deriving (Show)
 
 data Backend = YamlBackend FilePath
@@ -84,7 +83,6 @@ instance FromJSON ConfigFile where
         ConfigFile
             <$> (v .:? ":backends" .!= ["yaml"] >>= mapM genBackend)
             <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HString "common"]])
-            <*> pure "/etc/puppet/hieradata"
     parseJSON _ = fail "Not a valid Hiera configuration"
 
 -- | An attoparsec parser that turns text into parts that are ready for interpolation
@@ -104,9 +102,8 @@ startHiera :: FilePath -> IO (Either String (HieraQueryFunc IO))
 startHiera fp = Y.decodeFileEither fp >>= \case
     Left ex   -> return (Left (show ex))
     Right cfg -> do
-        let ncfg = cfg & basedir .~ (fp ^. directory) <> "/"
         cache <- F.newFileCache
-        return (Right (query ncfg cache))
+        return (Right (query cfg fp cache))
 
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: Monad m => HieraQueryFunc m
@@ -156,8 +153,8 @@ interpolatePValue _ x = x
 
 type LogWriter = WriterT InterpreterWriter IO
 
-query :: ConfigFile -> Cache -> HieraQueryFunc IO
-query (ConfigFile {_backends, _hierarchy, _basedir}) cache vars hquery qtype = do
+query :: ConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
+query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype = do
     fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' _hierarchy))) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
     where
         prepout (a,s) = s :!: a
@@ -176,11 +173,11 @@ query (ConfigFile {_backends, _hierarchy, _basedir}) cache vars hquery qtype = d
             let (decodefunction, datadir, extension) = case backend of
                                                 (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
                                                 (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
-                filename = mbd <> datadir <> "/" <> T.unpack hieraname <> extension
+                filename = basedir <> datadir <> "/" <> T.unpack hieraname <> extension
                     where
-                        mbd = case datadir of
+                      basedir = case datadir of
                                   '/' : _ -> mempty
-                                  _       -> _basedir
+                                  _       -> fp^.directory <> "/"
                 mfromJSON :: Maybe Value -> LogWriter (S.Maybe PValue)
                 mfromJSON Nothing = return S.Nothing
                 mfromJSON (Just v) = case A.fromJSON v of
