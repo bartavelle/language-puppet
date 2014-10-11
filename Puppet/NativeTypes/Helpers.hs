@@ -4,7 +4,8 @@ native types.
 module Puppet.NativeTypes.Helpers
     ( module Puppet.PP
     , ipaddr
-    , ptypemethods
+    -- smart constructor for NativeTypeMethods
+    , nativetypemethods
     , paramname
     , rarray
     , string
@@ -55,8 +56,8 @@ paramname = red . ttext
 perror :: Doc -> Either PrettyError Resource
 perror = Left . PrettyError
 
-ptypemethods :: [(T.Text, [T.Text -> NativeTypeValidate])] -> NativeTypeValidate -> NativeTypeMethods
-ptypemethods def extraV =
+nativetypemethods :: [(T.Text, [T.Text -> NativeTypeValidate])] -> NativeTypeValidate -> NativeTypeMethods
+nativetypemethods def extraV =
   let params = fromKeys def
   in NativeTypeMethods (defaultValidate params >=> parameterFunctions def >=> extraV)  params
   where

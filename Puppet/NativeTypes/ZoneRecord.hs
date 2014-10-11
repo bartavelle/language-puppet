@@ -7,7 +7,7 @@ import qualified Data.Text as T
 import Control.Lens
 
 nativeZoneRecord :: (NativeTypeName, NativeTypeMethods)
-nativeZoneRecord = ("zone_record", ptypemethods parameterfunctions validateMandatories)
+nativeZoneRecord = ("zone_record", nativetypemethods parameterfunctions validateMandatories)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]

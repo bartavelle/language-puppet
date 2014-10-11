@@ -9,7 +9,7 @@ import qualified Data.Vector as V
 import Data.Scientific
 
 nativeCron :: (NativeTypeName, NativeTypeMethods)
-nativeCron = ("cron", ptypemethods parameterfunctions return )
+nativeCron = ("cron", nativetypemethods parameterfunctions return )
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]

@@ -5,7 +5,7 @@ import Puppet.Interpreter.Types
 import qualified Data.Text as T
 
 nativeMount :: (NativeTypeName, NativeTypeMethods)
-nativeMount = ("mount", ptypemethods parameterfunctions return)
+nativeMount = ("mount", nativetypemethods parameterfunctions return)
 
 parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =

@@ -7,7 +7,7 @@ import qualified Data.Text as T
 import Control.Lens
 
 nativeSshSecure :: (NativeTypeName, NativeTypeMethods)
-nativeSshSecure = ("ssh_authorized_key_secure", ptypemethods parameterfunctions (userOrTarget >=> keyIfPresent))
+nativeSshSecure = ("ssh_authorized_key_secure", nativetypemethods parameterfunctions (userOrTarget >=> keyIfPresent))
 
 -- Autorequires: If Puppet is managing the user or user that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]

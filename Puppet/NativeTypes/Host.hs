@@ -8,7 +8,7 @@ import Control.Lens
 import qualified Data.Vector as V
 
 nativeHost :: (NativeTypeName, NativeTypeMethods)
-nativeHost = ("host", ptypemethods parameterfunctions return)
+nativeHost = ("host", nativetypemethods parameterfunctions return)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]

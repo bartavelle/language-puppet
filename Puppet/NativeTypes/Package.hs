@@ -12,7 +12,7 @@ import GHC.Generics
 import Data.Hashable
 
 nativePackage :: (NativeTypeName, NativeTypeMethods)
-nativePackage = ("package", ptypemethods parameterfunctions (getFeature >=> checkFeatures))
+nativePackage = ("package", nativetypemethods parameterfunctions (getFeature >=> checkFeatures))
 
 data PackagingFeatures = Holdable | InstallOptions | Installable | Purgeable | UninstallOptions | Uninstallable | Upgradeable | Versionable deriving (Show, Eq, Generic)
 

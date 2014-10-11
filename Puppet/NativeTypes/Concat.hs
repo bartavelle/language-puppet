@@ -8,10 +8,10 @@ import Puppet.Interpreter.Types
 import qualified Data.Text as T
 
 nativeConcat :: (NativeTypeName, NativeTypeMethods)
-nativeConcat = ("concat", ptypemethods concatparamfunctions return)
+nativeConcat = ("concat", nativetypemethods concatparamfunctions return)
 
 nativeConcatFragment :: (NativeTypeName, NativeTypeMethods)
-nativeConcatFragment = ("concat::fragment", ptypemethods fragmentparamfunctions validateSourceOrContent)
+nativeConcatFragment = ("concat::fragment", nativetypemethods fragmentparamfunctions validateSourceOrContent)
 
 concatparamfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 concatparamfunctions =

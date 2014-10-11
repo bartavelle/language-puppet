@@ -6,7 +6,7 @@ import qualified Data.Text as T
 import Control.Lens
 
 nativeExec :: (NativeTypeName, NativeTypeMethods)
-nativeExec = ("exec", ptypemethods parameterfunctions fullyQualifiedOrPath)
+nativeExec = ("exec", nativetypemethods parameterfunctions fullyQualifiedOrPath)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]

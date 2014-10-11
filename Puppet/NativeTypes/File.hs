@@ -8,7 +8,7 @@ import qualified Data.Text as T
 import Control.Lens
 
 nativeFile :: (NativeTypeName, NativeTypeMethods)
-nativeFile = ("file", ptypemethods parameterfunctions (validateSourceOrContent >=> validateMode))
+nativeFile = ("file", nativetypemethods parameterfunctions (validateSourceOrContent >=> validateMode))
 
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
