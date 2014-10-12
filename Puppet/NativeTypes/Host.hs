@@ -7,11 +7,11 @@ import qualified Data.Text as T
 import Control.Lens
 import qualified Data.Vector as V
 
-nativeHost :: (PuppetTypeName, PuppetTypeMethods)
+nativeHost :: (NativeTypeName, NativeTypeMethods)
 nativeHost = ("host", ptypemethods parameterfunctions return)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("comment"      , [string, values ["true","false"]])
     ,("ensure"       , [defaultvalue "present", string, values ["present","absent"]])
@@ -22,7 +22,7 @@ parameterfunctions =
     ,("target"       , [string, fullyQualified])
     ]
 
-checkhostname :: T.Text -> PuppetTypeValidate
+checkhostname :: T.Text -> NativeTypeValidate
 checkhostname param res = case res ^. rattributes . at param of
     Nothing            -> Right res
     Just (PArray xs)   -> V.foldM (checkhostname' param) res xs

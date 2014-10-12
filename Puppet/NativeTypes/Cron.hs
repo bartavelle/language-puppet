@@ -8,11 +8,11 @@ import Control.Lens
 import qualified Data.Vector as V
 import Data.Scientific
 
-nativeCron :: (PuppetTypeName, PuppetTypeMethods)
+nativeCron :: (NativeTypeName, NativeTypeMethods)
 nativeCron = ("cron", ptypemethods parameterfunctions return )
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("ensure"              , [defaultvalue "present", string, values ["present","absent"]])
     ,("command"             , [string, mandatoryIfNotAbsent])
@@ -30,7 +30,7 @@ parameterfunctions =
     ]
 
 
-vrange :: Integer -> Integer -> [T.Text] -> T.Text -> PuppetTypeValidate
+vrange :: Integer -> Integer -> [T.Text] -> T.Text -> NativeTypeValidate
 vrange mi ma valuelist param res = case res ^. rattributes . at param of
     Just (PArray xs) -> V.foldM (vrange' mi ma valuelist param) res xs
     Just x                    -> vrange' mi ma valuelist param res x
@@ -46,17 +46,17 @@ vrange' mi ma valuelist param res y = case y of
         else parseval x mi ma param res
     x  -> perror $ "Parameter" <+> paramname param <+> "value should be a valid cron declaration and not" <+> pretty x
 
-parseval :: T.Text -> Integer -> Integer -> T.Text -> PuppetTypeValidate
+parseval :: T.Text -> Integer -> Integer -> T.Text -> NativeTypeValidate
 parseval resval mi ma pname res | "*/" `T.isPrefixOf` resval = checkint (T.drop 2 resval)  1 ma pname res
                                 | otherwise                  = checkint resval            mi ma pname res
 
-checkint :: T.Text -> Integer -> Integer -> T.Text -> PuppetTypeValidate
+checkint :: T.Text -> Integer -> Integer -> T.Text -> NativeTypeValidate
 checkint st mi ma pname res =
     case text2Scientific st of
         Just n  -> checkint' n mi ma pname res
         Nothing -> perror $ "Invalid value type for parameter" <+> paramname pname <+> ": " <+> red (ttext st)
 
-checkint' :: Scientific -> Integer -> Integer -> T.Text -> PuppetTypeValidate
+checkint' :: Scientific -> Integer -> Integer -> T.Text -> NativeTypeValidate
 checkint' i mi ma param res =
     if (i >= fromIntegral mi) && (i <= fromIntegral ma)
         then Right res

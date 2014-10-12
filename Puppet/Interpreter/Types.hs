@@ -5,42 +5,42 @@ module Puppet.Interpreter.Types where
 import           Puppet.Parser.Types
 import           Puppet.Stats
 import           Puppet.Parser.PrettyPrinter
-import           Text.Parsec.Pos
 
+import           Control.Applicative hiding (empty)
+import           Control.Concurrent.MVar (MVar)
+import           Control.Exception
+import           Control.Lens
+import           Control.Monad.Error
+import           Control.Monad.Operational
+import           Control.Monad.State.Strict
+import           Control.Monad.Writer.Class
 import           Data.Aeson as A
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>),rational)
+import           Data.Aeson.Lens
+import           Data.Attoparsec.Text (parseOnly, rational)
+import qualified Data.ByteString as BS
+import qualified Data.Either.Strict as S
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
+import           Data.Hashable
+import           Data.Maybe (fromMaybe)
+import qualified Data.Maybe.Strict as S
+import           Data.Monoid hiding ((<>))
+import           Data.Scientific
+import           Data.String (IsString(..))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Vector as V
-import           Data.Tuple.Strict
-import           Control.Monad.State.Strict
-import           Control.Monad.Error
-import           Control.Monad.Writer.Class
-import           Data.Monoid hiding ((<>))
-import           Control.Lens
-import           Data.Aeson.Lens
-import           Data.String (IsString(..))
-import qualified Data.Either.Strict as S
-import qualified Data.Maybe.Strict as S
-import           Data.Hashable
-import           GHC.Generics hiding (to)
-import qualified Data.Traversable as TR
-import qualified Data.ByteString as BS
-import           System.Log.Logger
-import           Control.Applicative hiding (empty)
 import           Data.Time.Clock
-import           GHC.Stack
-import           Data.Maybe (fromMaybe)
-import           Data.Attoparsec.Text (parseOnly,rational)
-import           Data.Scientific
-import           Control.Monad.Operational
-import           Control.Exception
-import           Control.Concurrent.MVar (MVar)
-import qualified Scripting.Lua as Lua
+import qualified Data.Traversable as TR
+import           Data.Tuple.Strict
+import qualified Data.Vector as V
 import           Foreign.Ruby
-import qualified Data.Foldable as F
+import           GHC.Generics hiding (to)
+import           GHC.Stack
+import qualified Scripting.Lua as Lua
+import           System.Log.Logger
+import           Text.Parsec.Pos
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), rational)
 
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
@@ -158,7 +158,7 @@ data InterpreterState = InterpreterState
     }
 
 data InterpreterReader m = InterpreterReader
-    { _nativeTypes :: !(Container PuppetTypeMethods)
+    { _nativeTypes :: !(Container NativeTypeMethods)
     , _getStatement :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
     , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> m (S.Either PrettyError T.Text)
     , _pdbAPI :: PuppetDBAPI m
@@ -178,7 +178,7 @@ data ImpureMethods m = ImpureMethods
 
 data InterpreterInstr a where
     -- Utility for using what's in "InterpreterReader"
-    GetNativeTypes      :: InterpreterInstr (Container PuppetTypeMethods)
+    GetNativeTypes      :: InterpreterInstr (Container NativeTypeMethods)
     GetStatement        :: TopLevelType -> T.Text -> InterpreterInstr Statement
     ComputeTemplate     :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> InterpreterInstr T.Text
     ExternalFunction    :: T.Text -> [PValue] -> InterpreterInstr PValue
@@ -295,12 +295,11 @@ data Resource = Resource
     }
     deriving Eq
 
--- |This is a function type than can be bound. It is the type of all
--- subsequent validators.
-type PuppetTypeValidate = Resource -> Either PrettyError Resource
+type NativeTypeValidate = Resource -> Either PrettyError Resource
 
-data PuppetTypeMethods = PuppetTypeMethods
-    { _puppetValidate :: PuppetTypeValidate
+-- | Attributes (and providers) of a puppet resource type bundled with validation rules
+data NativeTypeMethods = NativeTypeMethods
+    { _puppetValidate :: NativeTypeValidate
     , _puppetFields   :: HS.HashSet T.Text
     }
 
@@ -388,7 +387,7 @@ makeClassy ''LinkInformation
 makeClassy ''ResDefaults
 makeClassy ''ResourceModifier
 makeClassy ''DaemonMethods
-makeClassy ''PuppetTypeMethods
+makeClassy ''NativeTypeMethods
 makeClassy ''ScopeInformation
 makeClassy ''Resource
 makeClassy ''InterpreterState

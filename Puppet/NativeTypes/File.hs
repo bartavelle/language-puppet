@@ -7,13 +7,13 @@ import Data.Char (isDigit)
 import qualified Data.Text as T
 import Control.Lens
 
-nativeFile :: (PuppetTypeName, PuppetTypeMethods)
+nativeFile :: (NativeTypeName, NativeTypeMethods)
 nativeFile = ("file", ptypemethods parameterfunctions (validateSourceOrContent >=> validateMode))
 
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 
-parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("backup"      , [string])
     ,("checksum"    , [values ["md5", "md5lite", "mtime", "ctime", "none"]])
@@ -37,7 +37,7 @@ parameterfunctions =
     ,("source"      , [rarray, strings, flip runarray checkSource])
     ]
 
-validateMode :: PuppetTypeValidate
+validateMode :: NativeTypeValidate
 validateMode res = do
     modestr <- case res ^. rattributes . at "mode" of
                   Just (PString s) -> return s
@@ -50,7 +50,7 @@ validateMode res = do
         else return res
 
 
-checkSource :: T.Text -> PValue -> PuppetTypeValidate
+checkSource :: T.Text -> PValue -> NativeTypeValidate
 checkSource _ (PString x) res | "puppet://" `T.isPrefixOf` x = Right res
                               | "file://" `T.isPrefixOf` x = Right res
                               | otherwise = throwError "A source should start with either puppet:// or file://"

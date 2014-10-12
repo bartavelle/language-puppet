@@ -6,11 +6,11 @@ import Control.Monad.Error
 import qualified Data.Text as T
 import Control.Lens
 
-nativeZoneRecord :: (PuppetTypeName, PuppetTypeMethods)
+nativeZoneRecord :: (NativeTypeName, NativeTypeMethods)
 nativeZoneRecord = ("zone_record", ptypemethods parameterfunctions validateMandatories)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("name"                , [nameval])
     ,("owner"               , [string])
@@ -29,7 +29,7 @@ parameterfunctions =
     ,("email"               , [string])
     ]
 
-validateMandatories :: PuppetTypeValidate
+validateMandatories :: NativeTypeValidate
 validateMandatories res = case res ^. rattributes . at "rtype" of
     Nothing              -> perror "The rtype parameter is mandatory."
     Just (PString "SOA") -> foldM (flip mandatory) res ["nsname", "email", "serial", "slave_refresh", "slave_retry", "slave_expiration", "min_ttl"]

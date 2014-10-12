@@ -7,13 +7,13 @@ import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
 import qualified Data.Text as T
 
-nativeConcat :: (PuppetTypeName, PuppetTypeMethods)
+nativeConcat :: (NativeTypeName, NativeTypeMethods)
 nativeConcat = ("concat", ptypemethods concatparamfunctions return)
 
-nativeConcatFragment :: (PuppetTypeName, PuppetTypeMethods)
+nativeConcatFragment :: (NativeTypeName, NativeTypeMethods)
 nativeConcatFragment = ("concat::fragment", ptypemethods fragmentparamfunctions validateSourceOrContent)
 
-concatparamfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+concatparamfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 concatparamfunctions =
     [("name"                , [nameval])
     ,("ensure"              , [defaultvalue "present", string, values ["present","absent"]])
@@ -31,7 +31,7 @@ concatparamfunctions =
     -- ,("gnu"                 , [string])
     ]
 
-fragmentparamfunctions :: [(T.Text, [T.Text -> PuppetTypeValidate])]
+fragmentparamfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 fragmentparamfunctions =
     [("name"                , [nameval])
     ,("target"              , [string, mandatory])

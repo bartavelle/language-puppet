@@ -33,7 +33,7 @@ data Preferences m = Preferences
     , _modulesPath     :: FilePath -- ^ The path to the modules.
     , _templatesPath   :: FilePath -- ^ The path to the template.
     , _prefPDB         :: PuppetDBAPI m
-    , _natTypes        :: Container PuppetTypeMethods -- ^ The list of native types.
+    , _natTypes        :: Container NativeTypeMethods -- ^ The list of native types.
     , _prefExtFuncs    :: Container ( [PValue] -> InterpreterMonad PValue )
     , _hieraPath       :: Maybe FilePath
     , _ignoredmodules  :: HS.HashSet T.Text -- ^ The set of ignored modules
