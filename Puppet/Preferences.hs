@@ -4,15 +4,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Puppet.Preferences (
     setupPreferences
+  , HasPreferences(..)
   , Preferences(Preferences)
-  , manifestPath
-  , modulesPath
-  , templatesPath
-  , prefPDB
-  , natTypes
-  , prefExtFuncs
-  , hieraPath
-  , ignoredmodules
 ) where
 
 import Puppet.Utils
