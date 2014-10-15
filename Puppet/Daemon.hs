@@ -1,44 +1,44 @@
 {-# LANGUAGE LambdaCase, CPP #-}
-module Puppet.Daemon (initDaemon, logDebug, logInfo, logWarning, logError) where
+module Puppet.Daemon (initDaemon) where
 
-import Puppet.Parser
-import Puppet.Utils
-import Puppet.Preferences
-import Puppet.Stats
-import Puppet.Interpreter.Types
-import Puppet.Parser.Types
-import Puppet.Manifests
-import Puppet.Interpreter
-import Puppet.Interpreter.IO
-import Puppet.Plugins
-import Puppet.PP
-import Hiera.Server
-import Erb.Compute
-
-import Data.FileCache
-import qualified System.Log.Logger as LOG
+import           Control.Exception
+import           Control.Lens
+import qualified Data.Either.Strict as S
+import           Data.FileCache
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import           Data.Tuple.Strict
 import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as HM
-import Debug.Trace
-import Control.Lens
-import qualified Data.Either.Strict as S
-import Data.Tuple.Strict
-import Control.Exception
-import Foreign.Ruby.Safe
+import           Debug.Trace
+import           Erb.Compute
+import           Foreign.Ruby.Safe
+import           Hiera.Server
+import qualified System.Log.Logger as LOG
+
+import           Puppet.Interpreter
+import           Puppet.Interpreter.IO
+import           Puppet.Interpreter.Types
+import           Puppet.Manifests
+import           Puppet.PP
+import           Puppet.Parser
+import           Puppet.Parser.Types
+import           Puppet.Plugins
+import           Puppet.Preferences
+import           Puppet.Stats
+import           Puppet.Utils
 
 loggerName :: String
 loggerName = "Puppet.Daemon"
 
 logDebug :: T.Text -> IO ()
 logDebug   = LOG.debugM   loggerName . T.unpack
-logInfo :: T.Text -> IO ()
-logInfo    = LOG.infoM    loggerName . T.unpack
-logWarning :: T.Text -> IO ()
-logWarning = LOG.warningM loggerName . T.unpack
-logError :: T.Text -> IO ()
-logError   = LOG.errorM   loggerName . T.unpack
+-- logInfo :: T.Text -> IO ()
+-- logInfo    = LOG.infoM    loggerName . T.unpack
+-- logWarning :: T.Text -> IO ()
+-- logWarning = LOG.warningM loggerName . T.unpack
+-- logError :: T.Text -> IO ()
+-- logError   = LOG.errorM   loggerName . T.unpack
 
 {-| This is a high level function, that will initialize the parsing and
 interpretation infrastructure from the 'Prefs' structure, and will return a
@@ -59,19 +59,13 @@ tunnel :
 
 > ssh -L 8080:localhost:8080 puppet.host
 
-Known bugs :
+Canveats :
 
 * It might be buggy when top level statements that are not class\/define\/nodes
 are altered, or when files loaded with require are changed.
 
-* The catalog is not computed exactly the same way Puppet does. Take a look at
-"Puppet.Interpreter.Catalog" for a list of differences.
-
-* Parsing incompatibilities are listed in "Puppet.DSL.Parser".
-
-* There might be race conditions because file status are checked before they
-are opened. This means the program might end with an exception when the file
-is nonexistent. This will need fixing.
+* The catalog is not computed exactly the same way Puppet does. Some good practices are enforced.
+As an example querying a dictionary with a non existent key returns undef in puppet, whereas it throws an error with language-puppet.
 
 -}
 initDaemon :: Preferences IO -> IO DaemonMethods
@@ -86,9 +80,7 @@ initDaemon prefs = do
     intr          <- startRubyInterpreter
     getTemplate   <- initTemplateDaemon intr prefs templateStats
     hquery        <- case prefs ^. hieraPath of
-                         Just p  -> startHiera p >>= \case
-                            Left err -> error err
-                            Right x  -> return x
+                         Just p  -> fmap (either error id) $ startHiera p
                          Nothing -> return dummyHiera
     luacontainer <- initLuaMaster (T.pack (prefs ^. modulesPath))
     let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
