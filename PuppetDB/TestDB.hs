@@ -23,10 +23,11 @@ import Puppet.Interpreter.Types
 import Puppet.PP hiding ((<$>))
 import Puppet.Lens
 
-data DBContent = DBContent { _dbcontentResources   :: Container WireCatalog
-                           , _dbcontentFacts       :: Container Facts
-                           , _dbcontentBackingFile :: Maybe FilePath
-                           }
+data DBContent = DBContent
+    { _dbcontentResources :: Container WireCatalog
+    , _dbcontentFacts :: Container Facts
+    , _dbcontentBackingFile :: Maybe FilePath
+    }
 makeFields ''DBContent
 
 type DB = TVar DBContent
