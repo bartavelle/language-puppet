@@ -37,6 +37,7 @@ options = Options
     <$> optional (strOption
         (  long "location"
         <> short 'l'
+        <> metavar "FILE|URL"
         <> help "Location of the PuppetDB, a file for type 'test' or an URL for type 'remote'"))
     <*> option auto
         (  long "pdbtype"
@@ -55,19 +56,19 @@ options = Options
                         )
 
 factedit :: Parser Command
-factedit = EditFact <$> O.argument (Just . T.pack) mempty <*> O.argument (Just . T.pack) mempty
+factedit = EditFact <$> O.argument auto mempty <*> O.argument auto mempty
 
 resourcesparser :: Parser Command
-resourcesparser = DumpResources <$> O.argument (Just . T.pack) mempty
+resourcesparser = DumpResources <$> O.argument auto mempty
 
 delnodeparser :: Parser Command
-delnodeparser = DeactivateNode <$> O.argument (Just . T.pack) mempty
+delnodeparser = DeactivateNode <$> O.argument auto mempty
 
 createtestdb :: Parser Command
-createtestdb = CreateTestDB <$> O.argument Just mempty
+createtestdb = CreateTestDB <$> O.argument auto mempty
 
 addfacts :: Parser Command
-addfacts = AddFacts <$> O.argument (Just . T.pack) mempty
+addfacts = AddFacts <$> O.argument auto mempty
 
 
 display :: (Show r, ToJSON a) => String -> S.Either r a -> IO ()

@@ -167,7 +167,7 @@ executable puppetresources
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded -with-rtsopts "-A2M" -eventlog
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.10,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9
+  build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9
   main-is:             PuppetResources.hs
 
 executable pdbquery
@@ -175,5 +175,5 @@ executable pdbquery
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,optparse-applicative >= 0.10,text,yaml,bytestring,strict-base-types,lens,unordered-containers,vector
+  build-depends:       language-puppet,base,optparse-applicative >= 0.11,text,yaml,bytestring,strict-base-types,lens,unordered-containers,vector
   main-is:             pdbQuery.hs
