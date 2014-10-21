@@ -63,17 +63,17 @@ type PSpecM = ReaderT TestEnv HC.SpecM
 type PSpec = PSpecM ()
 
 testCatalog ::  Nodename -> FilePath -> FinalCatalog -> PSpec -> IO H.Summary
-testCatalog nd pdir catlg test = H.hspecWith (H.defaultConfig { H.configFormatter = H.silent { H.failedFormatter = fform } })
+testCatalog nd pdir catlg test = H.hspecWithResult (H.defaultConfig { H.configFormatter = Just H.silent { H.failedFormatter = fform } })
                                              (describeCatalog nd pdir catlg test)
     where
         fform = do
             failures <- H.getFailMessages
-            forM_ failures $ \(H.FailureRecord path reason) -> do
+            forM_ failures $ \(H.FailureRecord _ path reason) -> do
                 H.write ("[" ++ T.unpack nd ++ "] ")
                 H.writeLine (snd path)
                 let err = either (("uncaught exception: " ++) . H.formatException) id reason
                 H.withFailColor $ unless (null err) $ H.writeLine err
-            unless (null failures) H.newParagraph
+            unless (null failures) (H.writeLine "")
 
 describeCatalog :: Nodename -> FilePath -> FinalCatalog -> PSpec -> H.Spec
 describeCatalog nd pdir catlg test = H.describe (T.unpack nd) $ runReaderT test (TestEnv catlg (pdir <> "/modules") pdir)
