@@ -132,24 +132,18 @@ genericModuleName isReference = do
 parameterName :: Parser T.Text
 parameterName = moduleName
 
--- this is not a token !
-inBraces :: Parser T.Text
-inBraces =  between (char '{') (char '}') (T.pack <$> some (satisfy (/= '}')))
-
 variableReference :: Parser T.Text
 variableReference = do
     void (char '$')
-    v <- lookAhead anyChar >>= \c -> case c of
-         '{' -> inBraces
-         _   -> variableName
+    v <- variableName
     when (v == "string") (fail "The special variable $string must not be used")
     return v
 
-interpolableString :: Parser (V.Vector UValue)
+interpolableString :: Parser (V.Vector Expression)
 interpolableString = V.fromList <$> between (char '"') (symbolic '"')
-     ( many (fmap UVariableReference interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (UString . T.singleton) (char '$')) )
+     ( many (interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (Terminal . UString . T.singleton) (char '$')) )
     where
-        doubleQuotedStringContent = UString . T.pack . concat <$>
+        doubleQuotedStringContent = Terminal . UString . T.pack . concat <$>
             some ((char '\\' *> fmap stringEscape anyChar) <|> some (noneOf "\"\\$"))
         stringEscape :: Char -> String
         stringEscape 'n'  = "\n"
@@ -161,17 +155,23 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
         stringEscape x    = ['\\',x]
         -- this is specialized because we can't be "tokenized" here
         variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
-        interpolableVariableReference = try $ do
-            void (char '$')
-            v <- lookAhead anyChar >>= \c -> case c of
-                     '{' -> inBraces
-                     -- This is not as robust as the "qualif"
-                     -- implementation, but considerably shorter.
-                     --
-                     -- This needs refactoring.
-                     _   -> T.pack . concat <$> some (string "::" <|> some (satisfy variableAccept))
+        rvariableName = do
+            v <- T.pack . concat <$> some (string "::" <|> some (satisfy variableAccept))
             when (v == "string") (fail "The special variable $string must not be used")
             return v
+        rvariable = Terminal . UVariableReference <$> rvariableName
+        simpleIndexing = Lookup <$> rvariable <*> between (symbolic '[') (symbolic ']') expression
+        interpolableVariableReference = try $ do
+            void (char '$')
+            lookAhead anyChar >>= \c -> case c of
+                 '{' -> between (symbolic '{') (char '}') (   try simpleIndexing
+                                                          <|> rvariable
+                                                          )
+                 -- This is not as robust as the "qualif"
+                 -- implementation, but considerably shorter.
+                 --
+                 -- This needs refactoring.
+                 _   -> rvariable
 
 regexp :: Parser T.Text
 regexp = do

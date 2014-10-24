@@ -134,7 +134,7 @@ instance Eq CompRegex where
 data UValue
     = UBoolean !Bool -- ^ Special tokens generated when parsing the @true@ or @false@ literals.
     | UString !T.Text -- ^ Raw string.
-    | UInterpolable !(V.Vector UValue) -- ^ A string that might contain variable references. The type should be refined at one point.
+    | UInterpolable !(V.Vector Expression) -- ^ A string that might contain variable references. The type should be refined at one point.
     | UUndef -- ^ Special token that is generated when parsing the @undef@ literal.
     | UResourceReference !T.Text !Expression -- ^ A Resource[reference]
     | UArray !(V.Vector Expression)

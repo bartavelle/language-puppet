@@ -308,7 +308,7 @@ resolveValue n@(URegexp _) = throwPosError ("Regular expressions are not allowed
 resolveValue (UBoolean x) = return (PBoolean x)
 resolveValue (UString x) = return (PString x)
 resolveValue UUndef = return PUndef
-resolveValue (UInterpolable vals) = fmap (PString . mconcat) (mapM resolveValueString (V.toList vals))
+resolveValue (UInterpolable vals) = fmap (PString . mconcat) (mapM resolveExpressionString (V.toList vals))
 resolveValue (UResourceReference t e) = do
     r <- resolveExpressionStrings e
     case r of

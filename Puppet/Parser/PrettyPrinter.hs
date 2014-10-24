@@ -86,8 +86,9 @@ instance Pretty UValue where
     pretty (UNumber n) = cyan (ttext (scientific2text n))
     pretty (UInterpolable v) = char '"' <> hcat (map specific (V.toList v)) <> char '"'
         where
-            specific (UString s) = dullcyan (ttext (stringEscape s))
-            specific (UVariableReference vr) = dullblue (text "${" <> text (T.unpack vr) <> char '}')
+            specific (Terminal (UString s)) = dullcyan (ttext (stringEscape s))
+            specific (Terminal (UVariableReference vr)) = dullblue (text "${" <> text (T.unpack vr) <> char '}')
+            specific (Lookup (Terminal (UVariableReference vr)) (Terminal x)) = dullblue (text "${" <> text (T.unpack vr) <> char '[' <> pretty x <> "]}")
             specific x = bold (red (pretty x))
     pretty UUndef = dullmagenta (text "undef")
     pretty (UResourceReference t n) = capitalize t <> brackets (pretty n)
