@@ -93,7 +93,7 @@ library
                         , hruby >= 0.2.5 && <0.3
                         , hslogger             == 1.2.*
                         , hslua                >= 0.3.10  && < 0.4
-                        , hspec                >= 1.12     && < 1.13
+                        , hspec                >= 1.9     && < 1.12
                         , http-conduit         >= 2.1     && < 2.2
                         , http-types           == 0.8.*
                         , iconv                == 0.4.*
