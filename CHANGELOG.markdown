@@ -1,4 +1,4 @@
-# v1.0.1 ()
+# v1.0.1 (2014/11/13)
 ## New features
 * Support for the `join` function.
 * Support for filtering json puppetresources output (fix issue #64)
@@ -9,7 +9,7 @@
 
 ## Bugs fixed
 * Fix array value extrapolation in string (issue #35)
-* ${var} without quotes will now be rejected by the parser (issue #78) 
+* ${var} without quotes will now be rejected by the parser (issue #78)
 
 ## Various
 * `README` moved to asciidoc (Pierre Radermecker)
