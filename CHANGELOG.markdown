@@ -5,10 +5,12 @@
 * Support for `cmpversion` in the templates.
 * The various chaining modes have been implemented.
 * Support for the `is_bool` function (Pierre Radermecker)
-* Support for `concat` and `concat::fragment` (Pierre Radermecker)  
+* Support for `concat` and `concat::fragment` (Pierre Radermecker)
+
 ## Bugs fixed
 * Fix array value extrapolation in string (issue #35)
-* ${var} without quotes will now be rejected by the parser (issue #78)  
+* ${var} without quotes will now be rejected by the parser (issue #78) 
+
 ## Various
 * `README` moved to asciidoc (Pierre Radermecker)
 
