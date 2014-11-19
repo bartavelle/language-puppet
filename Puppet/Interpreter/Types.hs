@@ -218,6 +218,9 @@ type InterpreterWriter = [InterpreterLog]
 warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
 warn d = tell [WARNING :!: d]
 
+notice :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
+notice d = tell [NOTICE :!: d]
+
 debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
 debug d = tell [DEBUG :!: d]
 

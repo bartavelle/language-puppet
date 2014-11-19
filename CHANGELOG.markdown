@@ -1,3 +1,11 @@
+# v1.0.2 ()
+## New features
+
+## Bugs fixed
+
+## Various
+* Hiera config interpolation logs decrease from WARN to NOTICE
+
 # v1.0.1 (2014/11/13)
 ## New features
 * Support for the `join` function.

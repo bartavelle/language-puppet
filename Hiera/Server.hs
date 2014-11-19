@@ -167,7 +167,7 @@ query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype = do
         query' (InterpolableHieraString strs) =
             case resolveInterpolable vars strs of
                 Just s  -> sequencerFunction (map (query'' s) _backends)
-                Nothing -> warn ("Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
+                Nothing -> notice ("Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
         query'' :: T.Text -> Backend -> LogWriter (S.Maybe PValue)
         query'' hieraname backend = do
             let (decodefunction, datadir, extension) = case backend of
