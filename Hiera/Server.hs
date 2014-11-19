@@ -8,7 +8,7 @@ A minor bug is that interpolation will not work for inputs containing the % char
 module Hiera.Server (
     startHiera
   , dummyHiera
-    -- re-export from Puppet.Interpreter.Types
+    -- * Re-export (query API)
   , HieraQueryFunc
 ) where
 
@@ -139,11 +139,11 @@ interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveI
                              Nothing -> t
 
 resolveInterpolable :: Container T.Text -> [HieraStringPart] -> Maybe T.Text
-resolveInterpolable vars = fmap T.concat . mapM (resolveInterpolablePart vars)
-
-resolveInterpolablePart :: Container T.Text -> HieraStringPart -> Maybe T.Text
-resolveInterpolablePart _ (HString x) = Just x
-resolveInterpolablePart vars (HVariable v) = vars ^. at v
+resolveInterpolable vars = fmap T.concat . mapM resolvePart
+  where
+    resolvePart :: HieraStringPart -> Maybe T.Text
+    resolvePart (HString x) = Just x
+    resolvePart (HVariable v) = vars ^. at v
 
 interpolatePValue :: Container T.Text -> PValue -> PValue
 interpolatePValue v (PHash h) = PHash . HM.fromList . map ( (_1 %~ interpolateText v) . (_2 %~ interpolatePValue v) ) . HM.toList $ h
