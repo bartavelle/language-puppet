@@ -461,8 +461,8 @@ loadParameters params classParams defaultPos wHiera = do
                 loadHieraParam curprms paramname = do
                     v <- runHiera (classname <> "::" <> paramname) Priority
                     case v of
-                        S.Nothing -> return curprms
-                        S.Just vl -> return (curprms & at paramname ?~ vl)
+                        Nothing -> return curprms
+                        Just vl -> return (curprms & at paramname ?~ vl)
             foldM loadHieraParam params (toList unsetParams)
         S.Nothing -> return params
     -- pass 2 : we check that everything is right

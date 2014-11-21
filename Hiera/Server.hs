@@ -12,7 +12,6 @@ module Hiera.Server (
   , HieraQueryFunc
 ) where
 
-
 import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
@@ -26,7 +25,6 @@ import qualified Data.Either.Strict as S
 import qualified Data.FileCache as F
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as L
-import qualified Data.Maybe.Strict as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Data.Yaml as Y
@@ -111,31 +109,22 @@ startHiera fp = Y.decodeFileEither fp >>= \case
 
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: Monad m => HieraQueryFunc m
-dummyHiera _ _ _ = return $ S.Right S.Nothing
+dummyHiera _ _ _ = return $ S.Right Nothing
 
 -- | The combinator for "normal" queries
-queryCombinator :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
-queryCombinator [] = return S.Nothing
-queryCombinator (x:xs) = x >>= \case
-    v@(S.Just _) -> return v
-    S.Nothing -> queryCombinator xs
-
--- | The combinator for hiera_array
-queryCombinatorArray :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
-queryCombinatorArray = fmap rejoin . sequence
+queryCombinator :: HieraQueryType -> [IO (Maybe PValue)] -> IO (Maybe PValue)
+queryCombinator Priority = L.foldl' (liftA2 mplus) (pure mzero)
+queryCombinator ArrayMerge  = fmap rejoin . sequence
     where
-        rejoin = S.Just . PArray . V.concat . map toA
-        toA S.Nothing = V.empty
-        toA (S.Just (PArray r)) = r
-        toA (S.Just a) = V.singleton a
-
--- | The combinator for hiera_hash
-queryCombinatorHash :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
-queryCombinatorHash = fmap (S.Just . PHash . mconcat . map toH) . sequence
+        rejoin = Just . PArray . V.concat . map toA
+        toA Nothing = V.empty
+        toA (Just (PArray r)) = r
+        toA (Just a) = V.singleton a
+queryCombinator HashMerge = fmap (Just . PHash . mconcat . map toH) . sequence
     where
-        toH S.Nothing = mempty
-        toH (S.Just (PHash h)) = h
-        toH _ = throw (ErrorCall "The hiera value was not a hash")
+        toH Nothing = mempty
+        toH (Just (PHash h)) = h
+        toH _ = error "The hiera value was not a hash"
 
 interpolateText :: Container T.Text -> T.Text -> T.Text
 interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveInterpolable vars of
@@ -157,19 +146,15 @@ interpolatePValue _ x = x
 
 query :: ConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
 query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
-    fmap S.Right (sequencerFunction (map query' _hierarchy)) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
+    fmap S.Right (queryCombinator qtype (map query' _hierarchy)) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
     where
         varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))
-        sequencerFunction = case qtype of
-                                Priority   -> queryCombinator
-                                ArrayMerge -> queryCombinatorArray
-                                HashMerge  -> queryCombinatorHash
-        query' :: InterpolableHieraString -> IO (S.Maybe PValue)
+        query' :: InterpolableHieraString -> IO (Maybe PValue)
         query' (InterpolableHieraString strs) =
             case resolveInterpolable vars strs of
-                Just s  -> sequencerFunction (map (query'' s) _backends)
-                Nothing -> LOG.noticeM loggerName (show $ "Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
-        query'' :: T.Text -> Backend -> IO (S.Maybe PValue)
+                Just s  -> queryCombinator qtype (map (query'' s) _backends)
+                Nothing -> LOG.noticeM loggerName (show $ "Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return Nothing
+        query'' :: T.Text -> Backend -> IO (Maybe PValue)
         query'' hieraname backend = do
             let (decodefunction, datadir, extension) = case backend of
                                                 (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
@@ -179,11 +164,11 @@ query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
                       basedir = case datadir of
                                   '/' : _ -> mempty
                                   _       -> fp^.directory <> "/"
-                mfromJSON :: Maybe Value -> IO (S.Maybe PValue)
-                mfromJSON Nothing = return S.Nothing
+                mfromJSON :: Maybe Value -> IO (Maybe PValue)
+                mfromJSON Nothing = return Nothing
                 mfromJSON (Just v) = case A.fromJSON v of
-                                         A.Success a -> return (S.Just (interpolatePValue vars a))
-                                         _           -> LOG.warningM loggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return S.Nothing
+                                         A.Success a -> return (Just (interpolatePValue vars a))
+                                         _           -> LOG.warningM loggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
                 S.Left r -> do
@@ -191,5 +176,5 @@ query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
                     if "Yaml file not found: " `L.isInfixOf` r
                         then LOG.debugM loggerName (show errs)
                         else LOG.warningM loggerName (show errs)
-                    return S.Nothing
+                    return Nothing
                 S.Right x -> mfromJSON (x ^? key hquery)

@@ -77,7 +77,7 @@ fixResourceName _       = id
 
 -- | A hiera helper function, that will throw all Hiera errors and log
 -- messages to the main monad.
-runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (S.Maybe PValue)
+runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (Maybe PValue)
 runHiera q t = do
     -- We need to merge the current scope with the top level scope
     scps <- use scopes
@@ -100,8 +100,8 @@ hieraCall qt q df _ = do
     qs <- resolvePValueString q
     o <- runHiera qs qt
     case o of
-        S.Just p  -> return p
-        S.Nothing -> case df of
+        Just p  -> return p
+        Nothing -> case df of
                          Just d -> return d
                          Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
