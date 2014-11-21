@@ -143,6 +143,7 @@ hackish as it will generate facts from the local computer !
 initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> IO (QueryFunc, MStats, MStats, MStats)
 initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel loglevel)
+    LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel loglevel)
     q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod))
     let f node = fmap overrideFacts (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)

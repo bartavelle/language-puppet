@@ -34,7 +34,7 @@ impurePure = ImpureMethods (return []) (const (return (Left "Can't read file")))
 -- templates, and that can include only the supplied top level statements.
 pureReader :: HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level statement map
            -> InterpreterReader Identity
-pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty
+pureReader sttmap = undefined --InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty
     where
         templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
         templatedummy (Left cnt) ctx scope =

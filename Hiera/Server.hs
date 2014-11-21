@@ -12,6 +12,7 @@ module Hiera.Server (
   , HieraQueryFunc
 ) where
 
+
 import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
@@ -27,14 +28,17 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.List as L
 import qualified Data.Maybe.Strict as S
 import qualified Data.Text as T
-import           Data.Tuple.Strict
 import qualified Data.Vector as V
 import qualified Data.Yaml as Y
 import           System.FilePath.Lens (directory)
+import qualified System.Log.Logger as LOG
 
 import           Puppet.PP hiding ((<$>))
 import           Puppet.Interpreter.Types
 import           Puppet.Utils (strictifyEither)
+
+loggerName :: String
+loggerName = "Hiera.Server"
 
 data ConfigFile = ConfigFile
     { _backends :: [Backend]
@@ -93,7 +97,7 @@ interpolableString = AT.many1 (fmap HString rawPart <|> fmap HVariable interpPar
         interpPart = AT.string "%{" *> AT.takeWhile1 (/= '}') <* AT.char '}'
 
 parseInterpolableString :: T.Text -> Either String [HieraStringPart]
-parseInterpolableString t = AT.parseOnly interpolableString t
+parseInterpolableString = AT.parseOnly interpolableString
 
 -- | The only method you'll ever need. It runs a Hiera server and gives you
 -- a querying function. The 'Nil' output is explicitely given as a Maybe
@@ -107,17 +111,17 @@ startHiera fp = Y.decodeFileEither fp >>= \case
 
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: Monad m => HieraQueryFunc m
-dummyHiera _ _ _ = return $ S.Right ([] :!: S.Nothing)
+dummyHiera _ _ _ = return $ S.Right S.Nothing
 
 -- | The combinator for "normal" queries
-queryCombinator :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
+queryCombinator :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
 queryCombinator [] = return S.Nothing
 queryCombinator (x:xs) = x >>= \case
     v@(S.Just _) -> return v
     S.Nothing -> queryCombinator xs
 
 -- | The combinator for hiera_array
-queryCombinatorArray :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
+queryCombinatorArray :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
 queryCombinatorArray = fmap rejoin . sequence
     where
         rejoin = S.Just . PArray . V.concat . map toA
@@ -126,7 +130,7 @@ queryCombinatorArray = fmap rejoin . sequence
         toA (S.Just a) = V.singleton a
 
 -- | The combinator for hiera_hash
-queryCombinatorHash :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
+queryCombinatorHash :: [IO (S.Maybe PValue)] -> IO (S.Maybe PValue)
 queryCombinatorHash = fmap (S.Just . PHash . mconcat . map toH) . sequence
     where
         toH S.Nothing = mempty
@@ -151,24 +155,21 @@ interpolatePValue v (PArray r) = PArray (fmap (interpolatePValue v) r)
 interpolatePValue v (PString t) = PString (interpolateText v t)
 interpolatePValue _ x = x
 
-type LogWriter = WriterT InterpreterWriter IO
-
 query :: ConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
-query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype = do
-    fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' _hierarchy))) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
+query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
+    fmap S.Right (sequencerFunction (map query' _hierarchy)) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
     where
-        prepout (a,s) = s :!: a
         varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))
         sequencerFunction = case qtype of
                                 Priority   -> queryCombinator
                                 ArrayMerge -> queryCombinatorArray
                                 HashMerge  -> queryCombinatorHash
-        query' :: InterpolableHieraString -> LogWriter (S.Maybe PValue)
+        query' :: InterpolableHieraString -> IO (S.Maybe PValue)
         query' (InterpolableHieraString strs) =
             case resolveInterpolable vars strs of
                 Just s  -> sequencerFunction (map (query'' s) _backends)
-                Nothing -> notice ("Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
-        query'' :: T.Text -> Backend -> LogWriter (S.Maybe PValue)
+                Nothing -> LOG.noticeM loggerName (show $ "Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
+        query'' :: T.Text -> Backend -> IO (S.Maybe PValue)
         query'' hieraname backend = do
             let (decodefunction, datadir, extension) = case backend of
                                                 (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
@@ -178,17 +179,17 @@ query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype = do
                       basedir = case datadir of
                                   '/' : _ -> mempty
                                   _       -> fp^.directory <> "/"
-                mfromJSON :: Maybe Value -> LogWriter (S.Maybe PValue)
+                mfromJSON :: Maybe Value -> IO (S.Maybe PValue)
                 mfromJSON Nothing = return S.Nothing
                 mfromJSON (Just v) = case A.fromJSON v of
                                          A.Success a -> return (S.Just (interpolatePValue vars a))
-                                         _           -> warn ("Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return S.Nothing
+                                         _           -> LOG.warningM loggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return S.Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
                 S.Left r -> do
                     let errs = "Hiera: error when reading file " <> string filename <+> string r
                     if "Yaml file not found: " `L.isInfixOf` r
-                        then debug errs
-                        else warn errs
+                        then LOG.debugM loggerName (show errs)
+                        else LOG.warningM loggerName (show errs)
                     return S.Nothing
                 S.Right x -> mfromJSON (x ^? key hquery)
