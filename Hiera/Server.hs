@@ -1,4 +1,9 @@
-{-# LANGUAGE LambdaCase, TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, NamedFieldPuns #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE NamedFieldPuns         #-}
+{-# LANGUAGE TemplateHaskell        #-}
 
 {- | This module runs a Hiera server that caches Hiera data. There is
 a huge caveat : only the data files are watched for changes, not the main configuration file.
@@ -16,30 +21,30 @@ import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad.Writer.Strict
-import           Data.Aeson (FromJSON,Value(..),(.:?),(.!=))
-import qualified Data.Aeson as A
+import           Data.Aeson                  (FromJSON, Value (..), (.!=), (.:?))
+import qualified Data.Aeson                  as A
 import           Data.Aeson.Lens
-import qualified Data.Attoparsec.Text as AT
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Either.Strict as S
-import qualified Data.FileCache as F
-import qualified Data.HashMap.Strict as HM
-import qualified Data.List as L
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import qualified Data.Yaml as Y
-import           System.FilePath.Lens (directory)
-import qualified System.Log.Logger as LOG
+import qualified Data.Attoparsec.Text        as AT
+import qualified Data.ByteString.Lazy        as BS
+import qualified Data.Either.Strict          as S
+import qualified Data.FileCache              as F
+import qualified Data.HashMap.Strict         as HM
+import qualified Data.List                   as L
+import qualified Data.Text                   as T
+import qualified Data.Vector                 as V
+import qualified Data.Yaml                   as Y
+import           System.FilePath.Lens        (directory)
+import qualified System.Log.Logger           as LOG
 
-import           Puppet.PP hiding ((<$>))
 import           Puppet.Interpreter.Types
-import           Puppet.Utils (strictifyEither)
+import           Puppet.PP                   hiding ((<$>))
+import           Puppet.Utils                (strictifyEither)
 
 loggerName :: String
 loggerName = "Hiera.Server"
 
 data HieraConfigFile = HieraConfigFile
-    { _backends :: [Backend]
+    { _backends  :: [Backend]
     , _hierarchy :: [InterpolableHieraString]
     } deriving (Show)
 
@@ -158,11 +163,11 @@ query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
                                             <$$> "It couldn't be interpolated with known variables:" <+> varlist)
                     return Nothing
         query'' :: T.Text -> Backend -> IO (Maybe PValue)
-        query'' hierachy backend = do
+        query'' hierastring backend = do
             let (decodefunction, datadir, extension) = case backend of
                                                 (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
                                                 (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
-                filename = basedir <> datadir <> "/" <> T.unpack hierachy <> extension
+                filename = basedir <> datadir <> "/" <> T.unpack hierastring <> extension
                     where
                       basedir = case datadir of
                                   '/' : _ -> mempty
