@@ -77,7 +77,7 @@ fixResourceName _       = id
 
 -- | A hiera helper function, that will throw all Hiera errors and log
 -- messages to the main monad.
-runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (S.Maybe PValue)
+runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (Maybe PValue)
 runHiera q t = do
     -- We need to merge the current scope with the top level scope
     scps <- use scopes
@@ -90,8 +90,7 @@ runHiera q t = do
         toplevels = map (_1 %~ ("::" <>)) $ getV "::"
         locals = getV ctx
         vars = HM.fromList (toplevels <> locals)
-    (w :!: o) <- singleton (HieraQuery vars q t)
-    tell w
+    o <- singleton (HieraQuery vars q t)
     return o
 
 -- | The implementation of all hiera_* functions
@@ -101,8 +100,8 @@ hieraCall qt q df _ = do
     qs <- resolvePValueString q
     o <- runHiera qs qt
     case o of
-        S.Just p  -> return p
-        S.Nothing -> case df of
+        Just p  -> return p
+        Nothing -> case df of
                          Just d -> return d
                          Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
@@ -454,9 +453,9 @@ resolveFunction' "versioncmp" [pa,pb] = do
                            GT -> "1"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
 -- some custom functions
-resolveFunction' "pdbresourcequery" [q] = pdbresourcequery q Nothing
+resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
 resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
-resolveFunction' "pdbresourcequery" _ = throwPosError "pdbresourcequery(): Expects one or two arguments"
+resolveFunction' "pdbresourcequery" _     = throwPosError "pdbresourcequery(): Expects one or two arguments"
 resolveFunction' "hiera"       [q]     = hieraCall Priority   q Nothing  Nothing
 resolveFunction' "hiera"       [q,d]   = hieraCall Priority   q (Just d) Nothing
 resolveFunction' "hiera"       [q,d,o] = hieraCall Priority   q (Just d) (Just o)

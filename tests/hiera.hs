@@ -5,8 +5,6 @@ import System.IO.Temp
 import Hiera.Server
 import Data.Monoid
 import qualified Data.Either.Strict as S
-import qualified Data.Maybe.Strict as S
-import Data.Tuple.Strict
 import Test.HUnit
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
@@ -31,26 +29,25 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
                              , ("tom" , PHash (HM.singleton "uid" (PNumber 12)))
                              ]
     Right q <- startHiera (tmpfp ++ "/hiera.yaml")
-    let checkOutput v (S.Right (_ :!: x)) = x @?= v
+    let checkOutput v (S.Right x) = x @?= v
         checkOutput _ (S.Left rr) = assertFailure (show rr)
     hspec $ do
         describe "lookup data without a key" $ do
-            it "returns an error when called with an empty string" $ q mempty "" Priority >>= checkOutput S.Nothing
+            it "returns an error when called with an empty string" $ q mempty "" Priority >>= checkOutput Nothing
         describe "lookup data with no options" $ do
-            it "can get string data" $ q mempty "http_port" Priority >>= checkOutput (S.Just (PNumber 8080))
-            it "can get arrays" $ q mempty "ntp_servers" Priority >>= checkOutput (S.Just (PArray (V.fromList ["0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
-            it "can get hashes" $ q mempty "users" Priority >>= checkOutput (S.Just (PHash users))
+            it "can get string data" $ q mempty "http_port" Priority >>= checkOutput (Just (PNumber 8080))
+            it "can get arrays" $ q mempty "ntp_servers" Priority >>= checkOutput (Just (PArray (V.fromList ["0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
+            it "can get hashes" $ q mempty "users" Priority >>= checkOutput (Just (PHash users))
         describe "lookup data with a scope" $ do
-            it "overrides some values" $ q vars "http_port" Priority >>= checkOutput (S.Just (PNumber 9090))
-            it "doesn't fail on others" $ q vars "global" Priority >>= checkOutput (S.Just "glob")
+            it "overrides some values" $ q vars "http_port" Priority >>= checkOutput (Just (PNumber 9090))
+            it "doesn't fail on others" $ q vars "global" Priority >>= checkOutput (Just "glob")
         describe "json backend" $ do
-            it "resolves in json" $ q vars "testjson" Priority >>= checkOutput (S.Just "ok")
+            it "resolves in json" $ q vars "testjson" Priority >>= checkOutput (Just "ok")
         describe "deep interpolation" $ do
-            it "resolves in strings" $ q vars "interp1" Priority >>= checkOutput (S.Just (PString ("**" <> ndname <> "**")))
-            it "resolves in objects" $ q vars "testnode" Priority >>= checkOutput (S.Just (PHash (HM.fromList [("1",PString ("**" <> ndname <> "**")),("2",PString "nothing special")])))
-            it "resolves in arrays" $ q vars "arraytest" Priority >>= checkOutput (S.Just (PArray (V.fromList [PString "a", PString ndname, PString "c"])))
+            it "resolves in strings" $ q vars "interp1" Priority >>= checkOutput (Just (PString ("**" <> ndname <> "**")))
+            it "resolves in objects" $ q vars "testnode" Priority >>= checkOutput (Just (PHash (HM.fromList [("1",PString ("**" <> ndname <> "**")),("2",PString "nothing special")])))
+            it "resolves in arrays" $ q vars "arraytest" Priority >>= checkOutput (Just (PArray (V.fromList [PString "a", PString ndname, PString "c"])))
         describe "other merge modes" $ do
-            it "catenates arrays" $ q vars "ntp_servers" ArrayMerge >>= checkOutput (S.Just (PArray (V.fromList ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
-            it "puts single values in arrays" $ q vars "http_port" ArrayMerge >>= checkOutput (S.Just (PArray (V.fromList [PNumber 9090, PNumber 8080])))
-            it "merges hashes" $ q vars "users" HashMerge >>= checkOutput (S.Just (PHash (pusers <> users)))
-
+            it "catenates arrays" $ q vars "ntp_servers" ArrayMerge >>= checkOutput (Just (PArray (V.fromList ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
+            it "puts single values in arrays" $ q vars "http_port" ArrayMerge >>= checkOutput (Just (PArray (V.fromList [PNumber 9090, PNumber 8080])))
+            it "merges hashes" $ q vars "users" HashMerge >>= checkOutput (Just (PHash (pusers <> users)))

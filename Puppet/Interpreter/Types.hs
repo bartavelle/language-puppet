@@ -75,7 +75,7 @@ data HieraQueryType = Priority   -- ^ standard hiera query
 type HieraQueryFunc m = Container T.Text -- ^ All the variables that Hiera can interpolate, the top level ones being prefixed with ::
                      -> T.Text -- ^ The query
                      -> HieraQueryType
-                     -> m (S.Either PrettyError (Pair InterpreterWriter (S.Maybe PValue)))
+                     -> m (S.Either PrettyError (Maybe PValue))
 
 data RSearchExpression = REqualitySearch !T.Text !PValue
                        | RNonEqualitySearch !T.Text !PValue
@@ -183,7 +183,7 @@ data InterpreterInstr a where
     ComputeTemplate     :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> InterpreterInstr T.Text
     ExternalFunction    :: T.Text -> [PValue] -> InterpreterInstr PValue
     GetNodeName         :: InterpreterInstr T.Text
-    HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Pair InterpreterWriter (S.Maybe PValue))
+    HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
     GetCurrentCallStack :: InterpreterInstr [String]
     IsIgnoredModule     :: T.Text -> InterpreterInstr Bool
     -- error

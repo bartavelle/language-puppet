@@ -1,4 +1,9 @@
-{-# LANGUAGE LambdaCase, TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, NamedFieldPuns #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE NamedFieldPuns         #-}
+{-# LANGUAGE TemplateHaskell        #-}
 
 {- | This module runs a Hiera server that caches Hiera data. There is
 a huge caveat : only the data files are watched for changes, not the main configuration file.
@@ -16,28 +21,30 @@ import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad.Writer.Strict
-import           Data.Aeson (FromJSON,Value(..),(.:?),(.!=))
-import qualified Data.Aeson as A
+import           Data.Aeson                  (FromJSON, Value (..), (.!=), (.:?))
+import qualified Data.Aeson                  as A
 import           Data.Aeson.Lens
-import qualified Data.Attoparsec.Text as AT
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Either.Strict as S
-import qualified Data.FileCache as F
-import qualified Data.HashMap.Strict as HM
-import qualified Data.List as L
-import qualified Data.Maybe.Strict as S
-import qualified Data.Text as T
-import           Data.Tuple.Strict
-import qualified Data.Vector as V
-import qualified Data.Yaml as Y
-import           System.FilePath.Lens (directory)
+import qualified Data.Attoparsec.Text        as AT
+import qualified Data.ByteString.Lazy        as BS
+import qualified Data.Either.Strict          as S
+import qualified Data.FileCache              as F
+import qualified Data.HashMap.Strict         as HM
+import qualified Data.List                   as L
+import qualified Data.Text                   as T
+import qualified Data.Vector                 as V
+import qualified Data.Yaml                   as Y
+import           System.FilePath.Lens        (directory)
+import qualified System.Log.Logger           as LOG
 
-import           Puppet.PP hiding ((<$>))
 import           Puppet.Interpreter.Types
-import           Puppet.Utils (strictifyEither)
+import           Puppet.PP                   hiding ((<$>))
+import           Puppet.Utils                (strictifyEither)
 
-data ConfigFile = ConfigFile
-    { _backends :: [Backend]
+loggerName :: String
+loggerName = "Hiera.Server"
+
+data HieraConfigFile = HieraConfigFile
+    { _backends  :: [Backend]
     , _hierarchy :: [InterpolableHieraString]
     } deriving (Show)
 
@@ -59,7 +66,7 @@ instance Pretty HieraStringPart where
 
 type Cache = F.FileCacheR String Y.Value
 
-makeClassy ''ConfigFile
+makeClassy ''HieraConfigFile
 
 instance FromJSON InterpolableHieraString where
     parseJSON (String s) = case parseInterpolableString s of
@@ -67,7 +74,7 @@ instance FromJSON InterpolableHieraString where
                                Left rr -> fail rr
     parseJSON _ = fail "Invalid value type"
 
-instance FromJSON ConfigFile where
+instance FromJSON HieraConfigFile where
     parseJSON (Object v) = do
         let genBackend :: T.Text -> Y.Parser Backend
             genBackend name = do
@@ -80,7 +87,7 @@ instance FromJSON ConfigFile where
                                   Just _              -> fail ":datadir should be a string"
                                   Nothing             -> return "/etc/puppet/hieradata"
                 return (backendConstructor (T.unpack datadir))
-        ConfigFile
+        HieraConfigFile
             <$> (v .:? ":backends" .!= ["yaml"] >>= mapM genBackend)
             <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HString "common"]])
     parseJSON _ = fail "Not a valid Hiera configuration"
@@ -93,7 +100,7 @@ interpolableString = AT.many1 (fmap HString rawPart <|> fmap HVariable interpPar
         interpPart = AT.string "%{" *> AT.takeWhile1 (/= '}') <* AT.char '}'
 
 parseInterpolableString :: T.Text -> Either String [HieraStringPart]
-parseInterpolableString t = AT.parseOnly interpolableString t
+parseInterpolableString = AT.parseOnly interpolableString
 
 -- | The only method you'll ever need. It runs a Hiera server and gives you
 -- a querying function. The 'Nil' output is explicitely given as a Maybe
@@ -107,31 +114,22 @@ startHiera fp = Y.decodeFileEither fp >>= \case
 
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: Monad m => HieraQueryFunc m
-dummyHiera _ _ _ = return $ S.Right ([] :!: S.Nothing)
+dummyHiera _ _ _ = return $ S.Right Nothing
 
 -- | The combinator for "normal" queries
-queryCombinator :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
-queryCombinator [] = return S.Nothing
-queryCombinator (x:xs) = x >>= \case
-    v@(S.Just _) -> return v
-    S.Nothing -> queryCombinator xs
-
--- | The combinator for hiera_array
-queryCombinatorArray :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
-queryCombinatorArray = fmap rejoin . sequence
+queryCombinator :: HieraQueryType -> [IO (Maybe PValue)] -> IO (Maybe PValue)
+queryCombinator Priority = foldr (liftA2 mplus) (pure mzero)
+queryCombinator ArrayMerge  = fmap rejoin . sequence
     where
-        rejoin = S.Just . PArray . V.concat . map toA
-        toA S.Nothing = V.empty
-        toA (S.Just (PArray r)) = r
-        toA (S.Just a) = V.singleton a
-
--- | The combinator for hiera_hash
-queryCombinatorHash :: [LogWriter (S.Maybe PValue)] -> LogWriter (S.Maybe PValue)
-queryCombinatorHash = fmap (S.Just . PHash . mconcat . map toH) . sequence
+        rejoin = Just . PArray . V.concat . map toA
+        toA Nothing = V.empty
+        toA (Just (PArray r)) = r
+        toA (Just a) = V.singleton a
+queryCombinator HashMerge = fmap (Just . PHash . mconcat . map toH) . sequence
     where
-        toH S.Nothing = mempty
-        toH (S.Just (PHash h)) = h
-        toH _ = throw (ErrorCall "The hiera value was not a hash")
+        toH Nothing = mempty
+        toH (Just (PHash h)) = h
+        toH _ = error "The hiera value was not a hash"
 
 interpolateText :: Container T.Text -> T.Text -> T.Text
 interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveInterpolable vars of
@@ -151,44 +149,42 @@ interpolatePValue v (PArray r) = PArray (fmap (interpolatePValue v) r)
 interpolatePValue v (PString t) = PString (interpolateText v t)
 interpolatePValue _ x = x
 
-type LogWriter = WriterT InterpreterWriter IO
-
-query :: ConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
-query (ConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype = do
-    fmap (S.Right . prepout) (runWriterT (sequencerFunction (map query' _hierarchy))) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
+query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
+query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
+    fmap S.Right (queryCombinator qtype (map query' _hierarchy)) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
     where
-        prepout (a,s) = s :!: a
         varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))
-        sequencerFunction = case qtype of
-                                Priority   -> queryCombinator
-                                ArrayMerge -> queryCombinatorArray
-                                HashMerge  -> queryCombinatorHash
-        query' :: InterpolableHieraString -> LogWriter (S.Maybe PValue)
+        query' :: InterpolableHieraString -> IO (Maybe PValue)
         query' (InterpolableHieraString strs) =
             case resolveInterpolable vars strs of
-                Just s  -> sequencerFunction (map (query'' s) _backends)
-                Nothing -> notice ("Hiera: could not interpolate " <> pretty strs <> ", known variables are:" <+> varlist) >> return S.Nothing
-        query'' :: T.Text -> Backend -> LogWriter (S.Maybe PValue)
-        query'' hieraname backend = do
+                Just s  -> queryCombinator qtype (map (query'' s) _backends)
+                Nothing -> do
+                    LOG.noticeM loggerName (show $ "Hiera lookup: skipping using hierarchy level" <+> pretty strs
+                                            <$$> "It couldn't be interpolated with known variables:" <+> varlist)
+                    return Nothing
+        query'' :: T.Text -> Backend -> IO (Maybe PValue)
+        query'' hierastring backend = do
             let (decodefunction, datadir, extension) = case backend of
                                                 (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
                                                 (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
-                filename = basedir <> datadir <> "/" <> T.unpack hieraname <> extension
+                filename = basedir <> datadir <> "/" <> T.unpack hierastring <> extension
                     where
                       basedir = case datadir of
                                   '/' : _ -> mempty
                                   _       -> fp^.directory <> "/"
-                mfromJSON :: Maybe Value -> LogWriter (S.Maybe PValue)
-                mfromJSON Nothing = return S.Nothing
+                mfromJSON :: Maybe Value -> IO (Maybe PValue)
+                mfromJSON Nothing = return Nothing
                 mfromJSON (Just v) = case A.fromJSON v of
-                                         A.Success a -> return (S.Just (interpolatePValue vars a))
-                                         _           -> warn ("Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v)) >> return S.Nothing
+                                         A.Success a -> return (Just (interpolatePValue vars a))
+                                         _           -> do
+                                             LOG.warningM loggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v))
+                                             return Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
                 S.Left r -> do
                     let errs = "Hiera: error when reading file " <> string filename <+> string r
                     if "Yaml file not found: " `L.isInfixOf` r
-                        then debug errs
-                        else warn errs
-                    return S.Nothing
+                        then LOG.debugM loggerName (show errs)
+                        else LOG.warningM loggerName (show errs)
+                    return Nothing
                 S.Right x -> mfromJSON (x ^? key hquery)

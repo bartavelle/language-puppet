@@ -19,8 +19,6 @@ import PuppetDB.Dummy
 import qualified Data.HashMap.Strict as HM
 import Control.Monad.Identity
 import qualified Data.Either.Strict as S
-import qualified Data.Maybe.Strict as S
-import Data.Tuple.Strict
 import Data.Monoid
 import qualified Data.Text as T
 import Control.Lens
@@ -43,7 +41,7 @@ pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy template
                          Right stmts -> case rubyEvaluate scope ctx stmts of
                                             Right x -> S.Right x
                                             Left rr -> S.Left (PrettyError rr)
-        hieradummy _ _ _ = return (S.Right (mempty :!: S.Nothing))
+        hieradummy _ _ _ = return (S.Right Nothing)
         getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
                                                Just x -> S.Right x
                                                Nothing -> S.Left "Can't get statement"

@@ -69,7 +69,7 @@ evalInstrGen rdr stt (a :>>= f) =
             ErrorThrow d                 -> return (Left d, stt, mempty)
             ErrorCatch _ _               -> thpe "ErrorCatch"
             GetNodeName                  -> runC (rdr ^. thisNodename)
-            hq@(HieraQuery scps q t)     -> logStuff [DEBUG :!: pretty hq] (canFail ((rdr ^. hieraQuery) scps q t))
+            hq@(HieraQuery scps q t)     -> canFail ((rdr ^. hieraQuery) scps q t)
             PDBInformation               -> pdbInformation pdb >>= runC
             PDBReplaceCatalog w          -> canFail (replaceCatalog pdb w)
             PDBReplaceFacts fcts         -> canFail (replaceFacts pdb fcts)
