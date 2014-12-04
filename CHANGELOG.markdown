@@ -1,5 +1,6 @@
 # v1.0.2 ()
 ## New features
+* New `dumpinfos` debug function.
 
 ## Bugs fixed
 

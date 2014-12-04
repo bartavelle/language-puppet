@@ -14,7 +14,8 @@ import Prelude hiding (mapM)
 import Puppet.Utils
 import System.Log.Logger
 import Data.Maybe
-import Data.List (nubBy)
+import Data.List (nubBy,sortBy)
+import Data.Ord (comparing)
 import qualified Data.Text as T
 import Data.Tuple.Strict (Pair(..))
 import qualified Data.Tuple.Strict as S
@@ -772,6 +773,18 @@ mainFunctionCall "hiera_include" [x] = do
     curPos .= p
     return o
 mainFunctionCall "hiera_include" _ = throwPosError "hiera_include(): This function takes a single argument"
+mainFunctionCall "dumpinfos" _ = do
+    let prntline = logWriter ALERT
+        indentln = (<>) "  "
+    prntline "Scope stack :"
+    scps <- use curScope
+    mapM_ (prntline . indentln . pretty) scps
+    prntline "Variables in local scope :"
+    scp <- getScopeName
+    vars <- use (scopes . ix scp . scopeVariables)
+    forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, (pv :!: _ :!: _)) -> prntline $ indentln $ ttext idx <> " -> " <> pretty pv
+    return []
+
 mainFunctionCall fname args = do
     p <- use curPos
     let representation = MainFunctionCall (MFC fname mempty p)
