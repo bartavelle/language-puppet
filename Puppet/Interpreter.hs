@@ -551,31 +551,29 @@ expandDefine r = do
     extraRelations <>= extr
     void $ enterScope SENormal curContType modulename p
     (spurious, dls') <- getstt TopDefine deftype
-    dls <- extractPrism _DefineDeclaration' "expandDefine" dls'
+    DefineDec _ defineParams stmts cp <- extractPrism _DefineDeclaration' "expandDefine" dls'
     let isImported (ContImported _) = True
         isImported _ = False
     isImportedDefine <- isImported <$> getScope
-    case dls of
-        (DefineDec _ defineParams stmts cp) -> do
-            curPos .= r ^. rpos
-            curscp <- getScope
-            when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
-            pushScope curContType
-            imods <- singleton (IsIgnoredModule modulename)
-            out <- if imods
-                       then return mempty
-                       else do
-                            loadVariable "title" (PString defname)
-                            loadVariable "name" (PString defname)
-                            -- not done through loadvariable because of override
-                            -- errors
-                            loadParameters (r ^. rattributes) defineParams cp S.Nothing
-                            curPos .= cp
-                            res <- evaluateStatementsVector stmts
-                            finalize (spurious ++ res)
-            when isImportedDefine popScope
-            popScope
-            return out
+    curPos .= r ^. rpos
+    curscp <- getScope
+    when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
+    pushScope curContType
+    imods <- singleton (IsIgnoredModule modulename)
+    out <- if imods
+               then return mempty
+               else do
+                    loadVariable "title" (PString defname)
+                    loadVariable "name" (PString defname)
+                    -- not done through loadvariable because of override
+                    -- errors
+                    loadParameters (r ^. rattributes) defineParams cp S.Nothing
+                    curPos .= cp
+                    res <- evaluateStatementsVector stmts
+                    finalize (spurious ++ res)
+    when isImportedDefine popScope
+    popScope
+    return out
 
 
 loadClass :: T.Text
@@ -603,40 +601,38 @@ loadClass rclassname loadedfrom params cincludetype = do
             -- load the actual class, note we are not changing the current position
             -- right now
             (spurious, cls') <- getstt TopClass classname
-            cls <- extractPrism _ClassDeclaration' "loadClass" cls'
-            case cls of
-                (ClassDecl _ classParams inh stmts cp) -> do
-                    -- check if we need to define a resource representing the class
-                    -- This will be the case for the first standard include
-                    inhstmts <- case inh of
-                                    S.Nothing     -> return []
-                                    S.Just ihname -> loadClass ihname (S.Just classname) mempty IncludeStandard
-                    let !scopedesc = ContClass classname
-                        modulename = getModulename (RIdentifier "class" classname)
-                        secontext = case (inh, loadedfrom) of
-                                        (S.Just x,_) -> SEChild (dropInitialColons x)
-                                        (_,S.Just x) -> SEParent (dropInitialColons x)
-                                        _ -> SENormal
-                    void $ enterScope secontext scopedesc modulename p
-                    classresource <- if cincludetype == IncludeStandard
-                                         then do
-                                             scp <- use curScope
-                                             fqdn <- singleton GetNodeName
-                                             return [Resource (RIdentifier "class" classname) (HS.singleton classname) mempty mempty scp Normal mempty p fqdn]
-                                         else return []
-                    pushScope scopedesc
-                    imods <- singleton (IsIgnoredModule modulename)
-                    out <- if imods
-                               then return mempty
-                               else do
-                                    loadVariable "title" (PString classname)
-                                    loadVariable "name" (PString classname)
-                                    loadParameters params classParams cp (S.Just classname)
-                                    curPos .= cp
-                                    res <- evaluateStatementsVector stmts
-                                    finalize (classresource ++ spurious ++ inhstmts ++ res)
-                    popScope
-                    return out
+            ClassDecl _ classParams inh stmts cp <- extractPrism _ClassDeclaration' "loadClass" cls'
+            -- check if we need to define a resource representing the class
+            -- This will be the case for the first standard include
+            inhstmts <- case inh of
+                            S.Nothing     -> return []
+                            S.Just ihname -> loadClass ihname (S.Just classname) mempty IncludeStandard
+            let !scopedesc = ContClass classname
+                modulename = getModulename (RIdentifier "class" classname)
+                secontext = case (inh, loadedfrom) of
+                                (S.Just x,_) -> SEChild (dropInitialColons x)
+                                (_,S.Just x) -> SEParent (dropInitialColons x)
+                                _ -> SENormal
+            void $ enterScope secontext scopedesc modulename p
+            classresource <- if cincludetype == IncludeStandard
+                                 then do
+                                     scp <- use curScope
+                                     fqdn <- singleton GetNodeName
+                                     return [Resource (RIdentifier "class" classname) (HS.singleton classname) mempty mempty scp Normal mempty p fqdn]
+                                 else return []
+            pushScope scopedesc
+            imods <- singleton (IsIgnoredModule modulename)
+            out <- if imods
+                       then return mempty
+                       else do
+                            loadVariable "title" (PString classname)
+                            loadVariable "name" (PString classname)
+                            loadParameters params classParams cp (S.Just classname)
+                            curPos .= cp
+                            res <- evaluateStatementsVector stmts
+                            finalize (classresource ++ spurious ++ inhstmts ++ res)
+            popScope
+            return out
 -----------------------------------------------------------
 -- Resource stuff
 -----------------------------------------------------------
