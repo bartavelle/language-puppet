@@ -24,6 +24,7 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Control.Monad.Error hiding (mapM,forM)
 import Control.Lens
+import Data.HashSet.Lens
 import qualified Data.Maybe.Strict as S
 import qualified Data.Graph as G
 import qualified Data.Tree as T
@@ -467,18 +468,24 @@ loadParameters params classParams defaultPos wHiera = do
             foldM loadHieraParam params (toList unsetParams)
         S.Nothing -> return params
     -- pass 2 : we check that everything is right
-    let !classParamSet     = HS.fromList (map S.fst (toList classParams))
-        !mandatoryParamSet = HS.fromList (map S.fst (classParams ^.. folded . filtered (S.isNothing . S.snd)))
-        !definedParamSet   = ikeys params'
-        !unsetParams       = mandatoryParamSet `HS.difference` definedParamSet
-        !spuriousParams    = definedParamSet `HS.difference` classParamSet
+    let classParamSet     = HS.fromList (map S.fst (toList classParams))
+        mandatoryParamSet = HS.fromList (map S.fst (classParams ^.. folded . filtered (S.isNothing . S.snd)))
+        definedParamSet   = ikeys params'
+        unsetParams       = mandatoryParamSet `HS.difference` definedParamSet
+        defaultParams     = setOf (folded . _1) classParams
+        undefParamsWdefs  = ikeys (HM.filter (== PUndef) params') `HS.intersection` defaultParams
+        spuriousParams    = definedParamSet `HS.difference` classParamSet
         mclassdesc = S.maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ttext) wHiera
     unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ttext $ toList unsetParams) <> mclassdesc)
     unless (fnull spuriousParams) $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ttext) $ toList spuriousParams) <> mclassdesc)
-    let isDefault = not . flip HS.member definedParamSet . S.fst
-    mapM_ (uncurry loadVariable) (itoList params')
+    -- a default can override an undefined value
+    let isDefault (k :!: _) = not (k `HS.member` definedParamSet) || k `HS.member` undefParamsWdefs
+        defaultPairs = filter isDefault (toList classParams)
+    -- we load all parameters that are set, except thos that are set as
+    -- undefined and have a default value
+    itraverse_ loadVariable (HM.filterWithKey (\k _ -> not (k `HS.member` undefParamsWdefs)) params' )
     curPos .= defaultPos
-    forM_ (filter isDefault (toList classParams)) $ \(k :!: v) -> do
+    forM_ defaultPairs $ \(k :!: v) -> do
         rv <- case v of
                   S.Nothing -> throwPosError "Internal error: invalid invariant at loadParameters"
                   S.Just e  -> resolveExpression e

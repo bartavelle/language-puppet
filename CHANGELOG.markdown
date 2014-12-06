@@ -3,6 +3,8 @@
 * New `dumpinfos` debug function.
 
 ## Bugs fixed
+* Class/define parameters that are explicitely set as undefined are now overriden by
+  default values.
 
 ## Various
 * Hiera config interpolation logs decrease from WARN to NOTICE
