@@ -777,5 +777,12 @@ checkStrict wrn err = do
         then throwPosError err
         else warn wrn
 
-
-
+-- | Runs operations depending on the strict flag.
+ifStrict :: InterpreterMonad a -- ^ This operation will be run in strict mode.
+         -> InterpreterMonad a -- ^ This operation will be run in permissive mode.
+         -> InterpreterMonad a
+ifStrict yes no = do
+    str <- singleton IsStrict
+    if str
+        then yes
+        else no

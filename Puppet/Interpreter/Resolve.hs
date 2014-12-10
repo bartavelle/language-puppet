@@ -89,8 +89,7 @@ runHiera q t = do
         toplevels = map (_1 %~ ("::" <>)) $ getV "::"
         locals = getV ctx
         vars = HM.fromList (toplevels <> locals)
-    o <- singleton (HieraQuery vars q t)
-    return o
+    singleton (HieraQuery vars q t)
 
 -- | The implementation of all hiera_* functions
 hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe PValue -> InterpreterMonad PValue
@@ -139,7 +138,9 @@ resolveVariable fullvar = do
     scps <- use scopes
     scp <- getScopeName
     case getVariable scps scp fullvar of
-        Left rr -> throwPosError rr
+        Left rr -> ifStrict
+                        (throwPosError rr)
+                        (warn ("The variable" <+> pretty (UVariableReference fullvar) <+> "was not resolved" <+> pretty PUndef <+> "returned") >> return PUndef)
         Right x -> return x
 
 -- | A simple helper that checks if a given type is native or a define.
@@ -334,10 +335,6 @@ resolvePValueNumber x = case x ^? _Number of
                             Just n -> return n
                             Nothing -> throwPosError ("Don't know how to convert this to a number:" <$> pretty x)
 
--- | > resolveValueString = resolveValue >=> resolvePValueString
-resolveValueString :: UValue -> InterpreterMonad T.Text
-resolveValueString = resolveValue >=> resolvePValueString
-
 -- | > resolveExpressionString = resolveExpression >=> resolvePValueString
 resolveExpressionString :: Expression -> InterpreterMonad T.Text
 resolveExpressionString = resolveExpression >=> resolvePValueString
@@ -389,9 +386,14 @@ resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveF
         undefEmptyString x = x
 
 resolveFunction' :: T.Text -> [PValue] -> InterpreterMonad PValue
-resolveFunction' "defined" [PResourceReference "class" cn] = fmap (PBoolean . has (ix cn)) (use loadedClasses)
-resolveFunction' "defined" [PResourceReference rt rn] = fmap (PBoolean . has (ix (RIdentifier rt rn))) (use definedResources)
+resolveFunction' "defined" [PResourceReference "class" cn] = do
+    checkStrict "The 'defined' function should not be used." "The 'defined' function is not allowed in strict mode."
+    fmap (PBoolean . has (ix cn)) (use loadedClasses)
+resolveFunction' "defined" [PResourceReference rt rn] = do
+    checkStrict "The 'defined' function should not be used." "The 'defined' function is not allowed in strict mode."
+    fmap (PBoolean . has (ix (RIdentifier rt rn))) (use definedResources)
 resolveFunction' "defined" [ut] = do
+    checkStrict "The 'defined' function should not be used." "The 'defined' function is not allowed in strict mode."
     t <- resolvePValueString ut
     -- case 1, netsted thingie
     nestedStuff <- use nestedDeclarations
