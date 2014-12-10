@@ -30,6 +30,7 @@ data Preferences m = Preferences
     , _prefExtFuncs    :: Container ( [PValue] -> InterpreterMonad PValue )
     , _hieraPath       :: Maybe FilePath
     , _ignoredmodules  :: HS.HashSet T.Text -- ^ The set of ignored modules
+    , _strictness      :: Strictness
     }
 
 makeClassy ''Preferences
@@ -42,7 +43,7 @@ genPreferences basedir = do
         templatedir = basedir <> "/templates"
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    return $ Preferences manifestdir modulesdir templatedir dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just (basedir <> "/hiera.yaml")) mempty
+    return $ Preferences manifestdir modulesdir templatedir dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just (basedir <> "/hiera.yaml")) mempty Strict
 
 -- | Setup preferences from external/custom params
 -- k is set through lenses (ie: hieraPath.~mypath)

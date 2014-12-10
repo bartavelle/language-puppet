@@ -109,6 +109,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
                            hquery
                            defaultImpureMethods
                            (prefs ^. ignoredmodules)
+                           (prefs ^. strictness)
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
     return stmts

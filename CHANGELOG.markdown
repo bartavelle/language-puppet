@@ -1,6 +1,7 @@
 # v1.0.2 ()
 ## New features
 * New `dumpinfos` debug function.
+* The interpreter can now run in a strict or permissive mode.
 
 ## Bugs fixed
 * Class/define parameters that are explicitely set as undefined are now overriden by

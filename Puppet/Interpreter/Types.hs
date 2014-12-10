@@ -57,6 +57,12 @@ instance Show PrettyError where
 instance IsString PrettyError where
     fromString = PrettyError . string
 
+-- | The intepreter can run in two modes : a strict mode (recommended), and
+-- a permissive mode. The permissive mode let known antipatterns work with
+-- the interpreter.
+data Strictness = Strict | Permissive
+                deriving (Show, Eq)
+
 data PValue = PBoolean !Bool
             | PUndef
             | PString !T.Text -- integers and doubles are internally serialized as strings by puppet
@@ -167,6 +173,7 @@ data InterpreterReader m = InterpreterReader
     , _hieraQuery :: HieraQueryFunc m
     , _ioMethods :: ImpureMethods m
     , _ignoredModules :: HS.HashSet T.Text -- ^ The set of modules we will not include or whatsoever.
+    , _isStrict :: Bool -- ^ Are we running in strict mode ?
     }
 
 data ImpureMethods m = ImpureMethods
@@ -186,6 +193,7 @@ data InterpreterInstr a where
     HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
     GetCurrentCallStack :: InterpreterInstr [String]
     IsIgnoredModule     :: T.Text -> InterpreterInstr Bool
+    IsStrict            :: InterpreterInstr Bool
     -- error
     ErrorThrow          :: PrettyError -> InterpreterInstr a
     ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a
@@ -423,7 +431,7 @@ instance MonadThrowPos InterpreterMonad where
         throwError (PrettyError (s <+> "at" <+> showPos p <> dstack))
 
 getCurContainer :: InterpreterMonad CurContainer
-{-# INLINE getCurContainer #-}
+{-# INLINABLE getCurContainer #-}
 getCurContainer = do
     scp <- getScopeName
     preuse (scopes . ix scp . scopeContainer) >>= \case
@@ -441,7 +449,7 @@ getScopeName :: InterpreterMonad T.Text
 getScopeName = fmap scopeName getScope
 
 getScope :: InterpreterMonad CurContainerDesc
-{-# INLINE getScope #-}
+{-# INLINABLE getScope #-}
 getScope = use curScope >>= \s -> if null s
                                       then throwPosError "Internal error: empty scope!"
                                       else return (head s)
@@ -481,8 +489,8 @@ eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left
         check (S.Right x) = return (S.Right x)
 
 interpreterIO :: (MonadThrowPos m, MonadIO m) => IO (S.Either PrettyError a) -> m a
-{-# INLINE interpreterIO #-}
-interpreterIO f = do
+{-# INLINABLE interpreterIO #-}
+interpreterIO f =
     liftIO (eitherDocIO f) >>= \case
         S.Right x -> return x
         S.Left rr -> throwPosError (getError rr)
@@ -493,11 +501,11 @@ mightFail a = a >>= \case
     S.Left rr -> throwPosError (getError rr)
 
 safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad T.Text
-{-# INLINE safeDecodeUtf8 #-}
+{-# INLINABLE safeDecodeUtf8 #-}
 safeDecodeUtf8 i = return (T.decodeUtf8 i)
 
 interpreterError :: InterpreterMonad (S.Either PrettyError a) -> InterpreterMonad a
-{-# INLINE interpreterError #-}
+{-# INLINABLE interpreterError #-}
 interpreterError f = f >>= \case
                              S.Right r -> return r
                              S.Left rr -> throwPosError (getError rr)
@@ -509,34 +517,34 @@ resourceRelations = concatMap expandSet . HM.toList . _rrelations
 
 -- | helper for hashmap, in case we want another kind of map ..
 ifromList :: (Monoid m, At m, F.Foldable f) => f (Index m, IxValue m) -> m
-{-# INLINE ifromList #-}
+{-# INLINABLE ifromList #-}
 ifromList = F.foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
 
 ikeys :: (Eq k, Hashable k) => HM.HashMap k v -> HS.HashSet k
-{-# INLINE ikeys #-}
+{-# INLINABLE ikeys #-}
 ikeys = HS.fromList . HM.keys
 
 isingleton :: (Monoid b, At b) => Index b -> IxValue b -> b
-{-# INLINE isingleton #-}
+{-# INLINABLE isingleton #-}
 isingleton k v = mempty & at k ?~ v
 
 ifromListWith :: (Monoid m, At m, F.Foldable f) => (IxValue m -> IxValue m -> IxValue m) -> f (Index m, IxValue m) -> m
-{-# INLINE ifromListWith #-}
+{-# INLINABLE ifromListWith #-}
 ifromListWith f = F.foldl' (\curmap (k,v) -> iinsertWith f k v curmap) mempty
 
 iinsertWith :: At m => (IxValue m -> IxValue m -> IxValue m) -> Index m -> IxValue m -> m -> m
-{-# INLINE iinsertWith #-}
+{-# INLINABLE iinsertWith #-}
 iinsertWith f k v m = m & at k %~ mightreplace
     where
         mightreplace Nothing = Just v
         mightreplace (Just x) = Just (f v x)
 
 iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
-{-# INLINE iunionWith #-}
+{-# INLINABLE iunionWith #-}
 iunionWith = HM.unionWith
 
 fnull :: (Eq x, Monoid x) => x -> Bool
-{-# INLINE fnull #-}
+{-# INLINABLE fnull #-}
 fnull = (== mempty)
 
 rid2text :: RIdentifier -> T.Text
@@ -758,3 +766,16 @@ initialState facts = InterpreterState baseVars initialclass mempty [ContRoot] du
 
 dummypos :: PPosition
 dummypos = initialPPos "dummy"
+
+-- | Throws an error if we are in strict mode
+checkStrict :: Doc -- ^ The warning message.
+            -> Doc -- ^ The error message.
+            -> InterpreterMonad ()
+checkStrict wrn err = do
+    str <- singleton IsStrict
+    if str
+        then throwPosError err
+        else warn wrn
+
+
+

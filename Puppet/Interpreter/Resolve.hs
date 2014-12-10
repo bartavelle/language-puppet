@@ -58,7 +58,6 @@ import qualified Crypto.Hash.MD5 as MD5
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Base16 as B16
 import Data.Bits
-import Control.Monad.Writer (tell)
 import Control.Monad.Operational (singleton)
 import Text.Regex.PCRE.ByteString.Utils
 import Data.Scientific

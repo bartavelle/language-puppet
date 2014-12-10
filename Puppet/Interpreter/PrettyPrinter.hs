@@ -118,6 +118,7 @@ showQuery :: ToJSON a => Query a -> Doc
 showQuery = string . BSL.unpack . encode
 
 instance Pretty (InterpreterInstr a) where
+    pretty IsStrict = pf "IsStrict" []
     pretty GetNativeTypes = pf "GetNativeTypes" []
     pretty (GetStatement tlt nm) = pf "GetStatement" [pretty tlt,ttext nm]
     pretty (ComputeTemplate fn scp _) = pf "ComputeTemplate" [fn', ttext scp]

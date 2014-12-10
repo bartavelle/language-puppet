@@ -64,10 +64,11 @@ getCatalog :: Monad m
            -> HieraQueryFunc m -- ^ Hiera query function
            -> ImpureMethods m
            -> HS.HashSet T.Text -- ^ The set of ignored modules
+           -> Strictness -- ^ Whether the interpreter is strict or permissive
            -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
-getCatalog convertMonad gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery im ignord = do
+getCatalog convertMonad gtStatement gtTemplate pdbQuery ndename facts nTypes extfuncs hquery im ignord strct = do
     -- nameThread ("Catalog " <> T.unpack ndename)
-    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery im ignord
+    let rdr = InterpreterReader nTypes gtStatement gtTemplate pdbQuery extfuncs ndename hquery im ignord (strct == Strict)
         stt = initialState facts
     (output, _, warnings) <- convertMonad rdr stt (computeCatalog ndename)
     return (strictifyEither output :!: warnings)

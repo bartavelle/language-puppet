@@ -25,8 +25,6 @@ import qualified Data.Text.IO as T
 import Control.Exception
 import qualified Scripting.Lua as Lua
 import Control.Concurrent.MVar
-import Data.Tuple.Strict (Pair(..))
-import System.Log.Logger (Priority(..))
 
 bs :: BS.ByteString -> PrettyError
 bs = PrettyError . string . show
@@ -56,6 +54,7 @@ evalInstrGen rdr stt (a :>>= f) =
             S.Right x -> runC x
         logStuff x c = (_3 %~ (x <>)) `fmap` c
     in  case a of
+            IsStrict                     -> runC (rdr ^. isStrict)
             ExternalFunction fname args  -> case rdr ^. externalFunctions . at fname of
                                                 Just fn -> interpretMonad rdr stt ( fn args >>= f)
                                                 Nothing -> thpe (PrettyError ("Unknown function: " <> ttext fname))
@@ -69,7 +68,7 @@ evalInstrGen rdr stt (a :>>= f) =
             ErrorThrow d                 -> return (Left d, stt, mempty)
             ErrorCatch _ _               -> thpe "ErrorCatch"
             GetNodeName                  -> runC (rdr ^. thisNodename)
-            hq@(HieraQuery scps q t)     -> canFail ((rdr ^. hieraQuery) scps q t)
+            HieraQuery scps q t          -> canFail ((rdr ^. hieraQuery) scps q t)
             PDBInformation               -> pdbInformation pdb >>= runC
             PDBReplaceCatalog w          -> canFail (replaceCatalog pdb w)
             PDBReplaceFacts fcts         -> canFail (replaceFacts pdb fcts)
