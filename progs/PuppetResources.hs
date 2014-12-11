@@ -134,7 +134,7 @@ options = Options
        <> value ""))
    <*> flag Permissive Strict
        (  long "strict"
-       <> help "Strict mode diverges a bit from vanillia Puppet and enforces good practices")
+       <> help "Strict mode diverges from vanillia Puppet and enforces good practices")
 
 checkError :: Doc -> S.Either PrettyError a -> IO a
 checkError r (S.Left rr) = error (show (red r <> ": " <+> getError rr))
