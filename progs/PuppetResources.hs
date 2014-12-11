@@ -1,72 +1,73 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE  NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase     #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Main where
 
-import           Control.Concurrent.ParallelIO (parallel)
+import           Control.Concurrent.ParallelIO    (parallel)
 import           Control.Lens
 import           Control.Monad
-import           Data.Aeson (encode)
-import qualified Data.ByteString.Lazy.Char8 as BSL
-import           Data.Either (partitionEithers)
-import qualified Data.Either.Strict as S
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
-import           Data.List (isInfixOf)
-import           Data.Maybe (mapMaybe)
-import           Data.Monoid hiding (First)
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import           Data.Aeson                       (encode)
+import qualified Data.ByteString.Lazy.Char8       as BSL
+import           Data.Either                      (partitionEithers)
+import qualified Data.Either.Strict               as S
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.HashSet                     as HS
+import           Data.List                        (isInfixOf)
+import           Data.Maybe                       (mapMaybe)
+import           Data.Monoid                      hiding (First)
+import qualified Data.Set                         as Set
+import qualified Data.Text                        as T
+import qualified Data.Text.IO                     as T
 import           Data.Text.Strict.Lens
-import           Data.Tuple (swap)
-import qualified Data.Vector as V
-import           Data.Yaml (decodeFileEither)
+import           Data.Tuple                       (swap)
+import qualified Data.Vector                      as V
+import           Data.Yaml                        (decodeFileEither)
 import           Options.Applicative
-import           System.Exit (exitFailure, exitSuccess)
-import qualified System.FilePath.Glob as G
+import           System.Exit                      (exitFailure, exitSuccess)
+import qualified System.FilePath.Glob             as G
 import           System.IO
-import qualified System.Log.Logger as LOG
-import qualified Test.Hspec.Runner as H
-import qualified Text.Parsec as P
+import qualified System.Log.Logger                as LOG
+import qualified Test.Hspec.Runner                as H
+import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
 
 import           Facter
 
-import           Puppet.PP hiding ((<$>))
-import           Puppet.Preferences
 import           Puppet.Daemon
+import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
-import           Puppet.Parser.Types
 import           Puppet.Parser
-import           Puppet.Parser.PrettyPrinter(ppStatements)
-import           Puppet.Interpreter.PrettyPrinter()
-import           PuppetDB.Remote
-import           PuppetDB.Dummy
-import           PuppetDB.TestDB
-import           PuppetDB.Common
-import           Puppet.Testing
+import           Puppet.Parser.PrettyPrinter      (ppStatements)
+import           Puppet.Parser.Types
+import           Puppet.PP                        hiding ((<$>))
+import           Puppet.Preferences
 import           Puppet.Stats
+import           Puppet.Testing
+import           PuppetDB.Common
+import           PuppetDB.Dummy
+import           PuppetDB.Remote
+import           PuppetDB.TestDB
 
 
 type QueryFunc = T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 data Options = Options
-    { _pdb :: Maybe String
-    , _showjson :: Bool
-    , _showContent :: Bool
-    , _resourceType :: Maybe T.Text
-    , _resourceName :: Maybe T.Text
-    , _puppetdir :: FilePath
-    , _nodename :: Maybe T.Text
-    , _pdbfile :: Maybe FilePath
-    , _loglevel :: LOG.Priority
-    , _hieraFile :: Maybe FilePath
-    , _factsOverr :: Maybe FilePath
-    , _factsDefault :: Maybe FilePath
-    , _commitDB :: Bool
-    , _checkExport :: Bool
+    { _pdb             :: Maybe String
+    , _showjson        :: Bool
+    , _showContent     :: Bool
+    , _resourceType    :: Maybe T.Text
+    , _resourceName    :: Maybe T.Text
+    , _puppetdir       :: FilePath
+    , _nodename        :: Maybe T.Text
+    , _pdbfile         :: Maybe FilePath
+    , _loglevel        :: LOG.Priority
+    , _hieraFile       :: Maybe FilePath
+    , _factsOverr      :: Maybe FilePath
+    , _factsDefault    :: Maybe FilePath
+    , _commitDB        :: Bool
+    , _checkExport     :: Bool
     , _nousergrouptest :: Bool
-    , _ignoredMods :: HS.HashSet T.Text
+    , _ignoredMods     :: HS.HashSet T.Text
+    , _permissiveMode  :: Strictness
     } deriving (Show)
 
 options :: Parser Options
@@ -131,6 +132,9 @@ options = Options
        (  long "ignoremodules"
        <> help "Specify a comma-separated list of modules to ignore"
        <> value ""))
+   <*> flag Strict Permissive
+       (  long "permissive"
+       <> help "Permissive mode mimics Pupppet more closely and allows anti-pattern some 'bad' pratices")
 
 checkError :: Doc -> S.Either PrettyError a -> IO a
 checkError r (S.Left rr) = error (show (red r <> ": " <+> getError rr))
@@ -140,11 +144,11 @@ checkError _ (S.Right x) = return x
 Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> IO (QueryFunc, MStats, MStats, MStats)
-initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod = do
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> Strictness -> IO (QueryFunc, MStats, MStats, MStats)
+initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod permissiveMode = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel loglevel)
     LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel loglevel)
-    q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod))
+    q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod) . (strictness.~ permissiveMode))
     let f node = fmap overrideFacts (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
@@ -246,7 +250,7 @@ run (Options {_nodename = Nothing, _puppetdir}) = parseFile _puppetdir >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc $ ppStatements s
 
-run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB, _ignoredMods}) = do
+run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB, _ignoredMods, _permissiveMode}) = do
     pdbapi <- case (_pdb, _pdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -257,7 +261,7 @@ run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, 
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
-    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides _ignoredMods
+    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides _ignoredMods _permissiveMode
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""
