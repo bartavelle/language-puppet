@@ -97,7 +97,7 @@ for them.
 
 `--permissive`::
 
-Enable permissive mode. The permissive mode mimics Puppet more closely. It allows some "antipatterns" such as the use of `undef` for instance.
+Enable permissive mode. The permissive mode mimics Puppet more closely. It allows some "antipatterns" such as the use of `undef`.
 
 
 == pdbQuery
