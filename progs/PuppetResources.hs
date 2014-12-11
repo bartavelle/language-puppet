@@ -67,7 +67,7 @@ data Options = Options
     , _checkExport     :: Bool
     , _nousergrouptest :: Bool
     , _ignoredMods     :: HS.HashSet T.Text
-    , _permissiveMode  :: Strictness
+    , _strictMode      :: Strictness
     } deriving (Show)
 
 options :: Parser Options
@@ -132,9 +132,9 @@ options = Options
        (  long "ignoremodules"
        <> help "Specify a comma-separated list of modules to ignore"
        <> value ""))
-   <*> flag Strict Permissive
-       (  long "permissive"
-       <> help "Permissive mode mimics Pupppet more closely and allows anti-pattern some 'bad' pratices")
+   <*> flag Permissive Strict
+       (  long "strict"
+       <> help "Strict mode diverges a bit from vanillia Puppet and enforces good practices")
 
 checkError :: Doc -> S.Either PrettyError a -> IO a
 checkError r (S.Left rr) = error (show (red r <> ": " <+> getError rr))
@@ -145,10 +145,10 @@ Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
 initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> Strictness -> IO (QueryFunc, MStats, MStats, MStats)
-initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod permissiveMode = do
+initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod strictMode = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel loglevel)
     LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel loglevel)
-    q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod) . (strictness.~ permissiveMode))
+    q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod) . (strictness.~ strictMode))
     let f node = fmap overrideFacts (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
@@ -250,7 +250,7 @@ run (Options {_nodename = Nothing, _puppetdir}) = parseFile _puppetdir >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc $ ppStatements s
 
-run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB, _ignoredMods, _permissiveMode}) = do
+run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB, _ignoredMods, _strictMode}) = do
     pdbapi <- case (_pdb, _pdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -261,7 +261,7 @@ run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, 
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
-    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides _ignoredMods _permissiveMode
+    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides _ignoredMods _strictMode
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
         if isterm
             then putDoc x >> putStrLn ""

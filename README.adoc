@@ -95,9 +95,12 @@ Displays the catalog as a Puppet-compatible JSON file, that can then be used wit
 Both options expect a path to a YAML file defining facts. The first option will override the facts that are collected locally, while the second will merely provide default values
 for them.
 
-`--permissive`::
+`--strict`::
 
-Enable permissive mode. The permissive mode mimics Puppet more closely. It allows some "antipatterns" such as the use of `undef`.
+Enable strict mode.
+The strict mode is less permissive than vanilla Puppet.
+It is meant to prevent some pitfalls by enforcing good practices.
+For instance it refuses to silently ignore/convert `undef` variables.
 
 
 == pdbQuery
@@ -142,3 +145,6 @@ puppet functions::
 
 custom ruby functions::
 Currently the only way to support your custom ruby functions is to rewrite them in Lua.
+
+known differences::
+Looking up an undef key is silent in Puppet but it is an error with puppetresources.
