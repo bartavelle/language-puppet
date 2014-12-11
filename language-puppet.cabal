@@ -138,7 +138,7 @@ Test-Suite test-expr
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -rtsopts -threaded
   extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,text,parsers,vector,ansi-wl-pprint
+  build-depends:  language-puppet,base,text,parsers,vector,ansi-wl-pprint, strict-base-types
   main-is:        expr.hs
 Test-Suite test-hiera
   hs-source-dirs: tests
