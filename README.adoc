@@ -51,11 +51,12 @@ Filters the resources of the resulting catalog by name, but specifying a regular
 `-c` or `--showcontent`::
 
 If `-n` is the exact name of a file type resource defined in the catalog, this will display more nicely display the file content. Useful for debugging templates.
-Ex: puppetresources -p . -o mynodename -n '/etc/motd' --showcontent
++
+Example: `puppetresources -p . -o mynodename -n '/etc/motd' --showcontent`
 
 `--loglevel` or `-v`::
 
-Expects a log level. Possible values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY.
+Possible values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY.
 
 `--pdburl`::
 
