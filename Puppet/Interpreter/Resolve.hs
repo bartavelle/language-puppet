@@ -28,39 +28,39 @@ module Puppet.Interpreter.Resolve
       fixResourceName
     ) where
 
-import Puppet.PP
-import Puppet.Interpreter.Types
-import Puppet.Parser.Types
-import Puppet.Interpreter.PrettyPrinter()
-import Puppet.Parser.PrettyPrinter(showPos)
-import Puppet.Interpreter.RubyRandom
-import Puppet.Utils
+import           Puppet.Interpreter.PrettyPrinter ()
+import           Puppet.Interpreter.RubyRandom
+import           Puppet.Interpreter.Types
+import           Puppet.Parser.PrettyPrinter      (showPos)
+import           Puppet.Parser.Types
+import           Puppet.PP
+import           Puppet.Utils
 
-import Data.Version (parseVersion)
-import Text.ParserCombinators.ReadP (readP_to_S)
+import           Data.Version                     (parseVersion)
+import           Text.ParserCombinators.ReadP     (readP_to_S)
 
-import Data.Maybe (fromMaybe, mapMaybe)
-import Data.Aeson hiding ((.=))
-import Data.CaseInsensitive  ( mk )
-import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import Control.Applicative hiding ((<$>))
-import Control.Monad
-import Data.Tuple.Strict as S
-import Control.Lens
-import Data.Aeson.Lens hiding (key)
-import qualified Data.Maybe.Strict as S
-import qualified Data.ByteString as BS
-import qualified Crypto.Hash.MD5 as MD5
-import qualified Crypto.Hash.SHA1 as SHA1
-import qualified Data.ByteString.Base16 as B16
-import Data.Bits
-import Control.Monad.Operational (singleton)
-import Text.Regex.PCRE.ByteString.Utils
-import Data.Scientific
+import           Control.Applicative              hiding ((<$>))
+import           Control.Lens
+import           Control.Monad
+import           Control.Monad.Operational        (singleton)
+import qualified Crypto.Hash.MD5                  as MD5
+import qualified Crypto.Hash.SHA1                 as SHA1
+import           Data.Aeson                       hiding ((.=))
+import           Data.Aeson.Lens                  hiding (key)
+import           Data.Bits
+import qualified Data.ByteString                  as BS
+import qualified Data.ByteString.Base16           as B16
+import           Data.CaseInsensitive             (mk)
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.HashSet                     as HS
+import           Data.Maybe                       (fromMaybe, mapMaybe)
+import qualified Data.Maybe.Strict                as S
+import           Data.Scientific
+import qualified Data.Text                        as T
+import qualified Data.Text.Encoding               as T
+import           Data.Tuple.Strict                as S
+import qualified Data.Vector                      as V
+import           Text.Regex.PCRE.ByteString.Utils
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.
@@ -327,6 +327,11 @@ resolvePValueString (PString x) = return x
 resolvePValueString (PBoolean True) = return "true"
 resolvePValueString (PBoolean False) = return "false"
 resolvePValueString (PNumber x) = return (scientific2text x)
+resolvePValueString PUndef = do
+     checkStrict
+       "Resolving the keyword `undef` to the string \"undef\""
+       "Strict mode won't convert the keyword `undef` to the string \"undef\""
+     return "undef"
 resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <$> pretty x)
 
 -- | Turns everything it can into a number, or throws an error
