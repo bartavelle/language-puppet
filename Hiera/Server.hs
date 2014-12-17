@@ -108,6 +108,7 @@ parseInterpolableString = AT.parseOnly interpolableString
 -- type.
 startHiera :: FilePath -> IO (Either String (HieraQueryFunc IO))
 startHiera fp = Y.decodeFileEither fp >>= \case
+    Left (Y.InvalidYaml (Just (Y.YamlException "Yaml file not found: hiera.yaml"))) -> return (Right dummyHiera)
     Left ex   -> return (Left (show ex))
     Right cfg -> do
         cache <- F.newFileCache
