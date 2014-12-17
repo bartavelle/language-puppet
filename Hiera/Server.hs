@@ -30,6 +30,7 @@ import qualified Data.Either.Strict          as S
 import qualified Data.FileCache              as F
 import qualified Data.HashMap.Strict         as HM
 import qualified Data.List                   as L
+import           Data.Maybe                  (fromMaybe)
 import qualified Data.Text                   as T
 import qualified Data.Vector                 as V
 import qualified Data.Yaml                   as Y
@@ -82,7 +83,7 @@ instance FromJSON HieraConfigFile where
                                                   "yaml" -> return (YamlBackend, ":yaml")
                                                   "json" -> return (JsonBackend, ":json")
                                                   _      -> fail ("Unknown backend " ++ T.unpack name)
-                datadir <- case (Object v) ^? key skey . key ":datadir" of
+                datadir <- case Object v ^? key skey . key ":datadir" of
                                   Just (String dir)   -> return dir
                                   Just _              -> fail ":datadir should be a string"
                                   Nothing             -> return "/etc/puppet/hieradata"
@@ -132,9 +133,7 @@ queryCombinator HashMerge = fmap (Just . PHash . mconcat . map toH) . sequence
         toH _ = error "The hiera value was not a hash"
 
 interpolateText :: Container T.Text -> T.Text -> T.Text
-interpolateText vars t = case (parseInterpolableString t ^? _Right) >>= resolveInterpolable vars of
-                             Just x -> x
-                             Nothing -> t
+interpolateText vars t = fromMaybe t ((parseInterpolableString t ^? _Right) >>= resolveInterpolable vars)
 
 resolveInterpolable :: Container T.Text -> [HieraStringPart] -> Maybe T.Text
 resolveInterpolable vars = fmap T.concat . mapM resolvePart
