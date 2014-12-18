@@ -124,7 +124,7 @@ finalize rlist = do
             if n
                 then return [r]
                 else expandDefine r
-    join <$> mapM expandableDefine withDefaults
+    concat <$> mapM expandableDefine withDefaults
 
 popScope :: InterpreterMonad ()
 popScope = curScope %= tail
@@ -786,7 +786,7 @@ mainFunctionCall "dumpinfos" _ = do
     prntline "Variables in local scope :"
     scp <- getScopeName
     vars <- use (scopes . ix scp . scopeVariables)
-    forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, (pv :!: _ :!: _)) -> prntline $ indentln $ ttext idx <> " -> " <> pretty pv
+    forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ttext idx <> " -> " <> pretty pv
     return []
 
 mainFunctionCall fname args = do
