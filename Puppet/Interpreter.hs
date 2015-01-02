@@ -1,40 +1,41 @@
-{-# LANGUAGE LambdaCase, RankNTypes #-}
+{-# LANGUAGE LambdaCase   #-}
+{-# LANGUAGE RankNTypes   #-}
 module Puppet.Interpreter
        ( getCatalog
-       , computeCatalog
        ) where
 
-import Puppet.Interpreter.Types
-import Puppet.Interpreter.PrettyPrinter(containerComma)
-import Puppet.Interpreter.Resolve
-import Puppet.Parser.Types
-import Puppet.Lens
-import Puppet.Parser.PrettyPrinter
-import Puppet.PP hiding ((<$>))
-import Puppet.NativeTypes
+import           Puppet.Interpreter.PrettyPrinter (containerComma)
+import           Puppet.Interpreter.Resolve
+import           Puppet.Interpreter.Types
+import           Puppet.Lens
+import           Puppet.NativeTypes
+import           Puppet.Parser.PrettyPrinter
+import           Puppet.Parser.Types
+import           Puppet.PP                        hiding ((<$>))
 
-import Prelude hiding (mapM)
-import Puppet.Utils
-import System.Log.Logger
-import Data.Maybe
-import Data.List (nubBy,sortBy)
-import Data.Ord (comparing)
-import qualified Data.Text as T
-import Data.Tuple.Strict (Pair(..))
-import qualified Data.Tuple.Strict as S
-import qualified Data.Either.Strict as S
-import qualified Data.HashSet as HS
-import qualified Data.HashMap.Strict as HM
-import Control.Monad.Error hiding (mapM,forM)
-import Control.Lens
-import Data.HashSet.Lens
-import qualified Data.Maybe.Strict as S
-import qualified Data.Graph as G
-import qualified Data.Tree as T
-import Data.Foldable (toList,foldl',Foldable,foldlM)
-import Data.Traversable (mapM)
-import Control.Monad.Operational hiding (view)
-import Control.Applicative
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad.Error              hiding (forM, mapM)
+import           Control.Monad.Operational        hiding (view)
+import qualified Data.Either.Strict               as S
+import           Data.Foldable                    (Foldable, foldl', foldlM,
+                                                   toList)
+import qualified Data.Graph                       as G
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.HashSet                     as HS
+import           Data.HashSet.Lens
+import           Data.List                        (nubBy, sortBy)
+import           Data.Maybe
+import qualified Data.Maybe.Strict                as S
+import           Data.Ord                         (comparing)
+import qualified Data.Text                        as T
+import           Data.Traversable                 (mapM)
+import qualified Data.Tree                        as T
+import           Data.Tuple.Strict                (Pair (..))
+import qualified Data.Tuple.Strict                as S
+import           Prelude                          hiding (mapM)
+import           Puppet.Utils
+import           System.Log.Logger
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
