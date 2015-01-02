@@ -1,5 +1,8 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
-module Puppet.Interpreter where
+module Puppet.Interpreter
+       ( getCatalog
+       , computeCatalog
+       ) where
 
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.PrettyPrinter(containerComma)
