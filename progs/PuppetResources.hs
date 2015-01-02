@@ -356,11 +356,12 @@ computeCatalogs testOnly queryfunc pdbapi printFunc
 filterCatalog :: Maybe T.Text -> Maybe T.Text -> FinalCatalog -> IO FinalCatalog
 filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked) >=> filterC nameFilter (_1 . iname . unpacked)
     where
+       -- filter catalog using the adhoc lens
        filterC Nothing _ c = return c
-       filterC (Just regexp) lns c = compile compBlank execBlank (T.unpack regexp) >>= \case
+       filterC (Just regexp) l c = compile compBlank execBlank (T.unpack regexp) >>= \case
           Left rr   -> error ("Error compiling regexp 're': "  ++ show rr)
-          Right reg -> fmap HM.fromList $ filterM (filterResource lns reg) (HM.toList c)
-       filterResource lns reg v = execute reg (v ^. lns) >>= \case
+          Right reg -> fmap HM.fromList $ filterM (filterResource reg l) (HM.toList c)
+       filterResource reg l v = execute reg (v ^. l) >>= \case
                                          Left rr -> error ("Error when applying regexp: " ++ show rr)
                                          Right Nothing -> return False
                                          _ -> return True
