@@ -320,7 +320,8 @@ run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, 
     exit
 
 computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> Options -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
-computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showContent, _resourceType, _resourceName, _puppetdir, _checkExport, _nousergrouptest}) node =
+computeCatalogs testOnly queryfunc pdbapi printFunc
+                (Options {_showjson, _showContent, _resourceType, _resourceName, _puppetdir, _checkExport, _nousergrouptest}) node =
     queryfunc node >>= \case
       S.Left rr -> do
           if testOnly
@@ -328,17 +329,8 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
               else putDoc (getError rr) >> putStrLn "" >> error "error!"
           return (Nothing, Just (H.Summary 1 1))
       S.Right (rawcatalog, m, rawexported, knownRes) -> do
-          let cmpMatch Nothing _ curcat = return curcat
-              cmpMatch (Just rg) lns curcat = compile compBlank execBlank (T.unpack rg) >>= \case
-                  Left rr   -> error ("Error compiling regexp 're': "  ++ show rr)
-                  Right rec -> fmap HM.fromList $ filterM (filterResource lns rec) (HM.toList curcat)
-              filterResource lns rec v = execute rec (v ^. lns) >>= \case
-                                              Left rr -> error ("Error when applying regexp: " ++ show rr)
-                                              Right Nothing -> return False
-                                              _ -> return True
-              filterCatalog = cmpMatch _resourceType (_1 . itype . unpacked) >=> cmpMatch _resourceName (_1 . iname . unpacked)
-          catalog  <- filterCatalog rawcatalog
-          exported <- filterCatalog rawexported
+          catalog  <- filterCatalog _resourceType _resourceName rawcatalog
+          exported <- filterCatalog _resourceType _resourceName rawexported
           let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) m
               rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) m
           when _checkExport $ void $ replaceCatalog pdbapi rawWireCatalog
@@ -359,6 +351,19 @@ computeCatalogs testOnly queryfunc pdbapi printFunc (Options {_showjson, _showCo
                       printFunc (pretty (HM.elems exported))
                   return (Just r)
           return (Just (rawcatalog <> rawexported, knownRes), testResult)
+
+-- | Filter according to the type and name regex from the command line option
+filterCatalog :: Maybe T.Text -> Maybe T.Text -> FinalCatalog -> IO FinalCatalog
+filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked) >=> filterC nameFilter (_1 . iname . unpacked)
+    where
+       filterC Nothing _ c = return c
+       filterC (Just regexp) lns c = compile compBlank execBlank (T.unpack regexp) >>= \case
+          Left rr   -> error ("Error compiling regexp 're': "  ++ show rr)
+          Right reg -> fmap HM.fromList $ filterM (filterResource lns reg) (HM.toList c)
+       filterResource lns reg v = execute reg (v ^. lns) >>= \case
+                                         Left rr -> error ("Error when applying regexp: " ++ show rr)
+                                         Right Nothing -> return False
+                                         _ -> return True
 
 main :: IO ()
 main = execParser opts >>= run
