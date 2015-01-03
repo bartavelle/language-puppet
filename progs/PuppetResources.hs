@@ -12,7 +12,7 @@ import qualified Data.Either.Strict               as S
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
-import           Data.Maybe                       (mapMaybe)
+import           Data.Maybe                       (isNothing, mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
@@ -47,8 +47,7 @@ import           PuppetDB.Dummy
 import           PuppetDB.Remote
 import           PuppetDB.TestDB
 
-
-type QueryFunc = T.Text -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+type QueryFunc = Nodename -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 data Options = Options
     { _pdb             :: Maybe String
@@ -144,13 +143,14 @@ checkError _ (S.Right x) = return x
 Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> Strictness -> IO (QueryFunc, MStats, MStats, MStats)
+initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> Strictness
+                              -> IO (QueryFunc, MStats, MStats, MStats)
 initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod strictMode = do
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel loglevel)
     LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel loglevel)
     q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod) . (strictness.~ strictMode))
-    let f node = fmap overrideFacts (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
-    return (f, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
+    let queryfunc node = fmap overrideFacts (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
+    return (queryfunc, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
 parseFile = fmap . runPParser puppetParser <*> T.readFile
@@ -259,7 +259,7 @@ run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, 
     !factsOverrides <- case (_factsOverr, _factsDefault) of
                            (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
-                           (Nothing, Just p) -> (flip HM.union) `fmap` loadFactsOverrides p
+                           (Nothing, Just p) -> flip HM.union `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
     (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides _ignoredMods _strictMode
     printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
@@ -312,7 +312,7 @@ run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, 
         else do
             r <- computeCatalogs False queryfunc pdbapi printFunc cmd node
             return $ case snd r of
-                         Just s  -> if (H.summaryFailures s > 0)
+                         Just s  -> if H.summaryFailures s > 0
                                        then exitFailure
                                        else exitSuccess
                          Nothing -> exitSuccess
@@ -328,17 +328,17 @@ computeCatalogs testOnly queryfunc pdbapi printFunc
               then putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
               else putDoc (getError rr) >> putStrLn "" >> error "error!"
           return (Nothing, Just (H.Summary 1 1))
-      S.Right (rawcatalog, m, rawexported, knownRes) -> do
+      S.Right (rawcatalog, edgemap, rawexported, knownRes) -> do
           catalog  <- filterCatalog _resourceType _resourceName rawcatalog
           exported <- filterCatalog _resourceType _resourceName rawexported
-          let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) m
-              rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) m
+          let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) edgemap
+              rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) edgemap
           when _checkExport $ void $ replaceCatalog pdbapi rawWireCatalog
           testResult <- case (testOnly, _showContent, _showjson) of
               (True, _, _) -> Just `fmap` testCatalog node _puppetdir rawcatalog basicTest
               (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog)) >> return Nothing
               (_, True, _) -> do
-                  unless (_resourceType == Just "file" || _resourceType == Nothing) (error $ "Show content only works for file, not for " ++ show _resourceType)
+                  unless (_resourceType == Just "file" || isNothing _resourceType) (error $ "Show content only works for file, not for " ++ show _resourceType)
                   case _resourceName of
                       Just f  -> printContent f catalog
                       Nothing -> error "You should supply a resource name when using showcontent"
