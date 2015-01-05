@@ -12,7 +12,7 @@ import qualified Data.Either.Strict               as S
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
-import           Data.Maybe                       (isNothing, mapMaybe)
+import           Data.Maybe                       (catMaybes, mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
@@ -26,7 +26,6 @@ import           System.Exit                      (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob             as G
 import           System.IO
 import qualified System.Log.Logger                as LOG
-import qualified Test.Hspec.Runner                as H
 import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
 
@@ -35,13 +34,13 @@ import           Facter
 import           Puppet.Daemon
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
+import           Puppet.Lens
 import           Puppet.Parser
 import           Puppet.Parser.PrettyPrinter      (ppStatements)
 import           Puppet.Parser.Types
 import           Puppet.PP                        hiding ((<$>))
 import           Puppet.Preferences
 import           Puppet.Stats
-import           Puppet.Testing
 import           PuppetDB.Common
 import           PuppetDB.Dummy
 import           PuppetDB.Remote
@@ -49,24 +48,37 @@ import           PuppetDB.TestDB
 
 type QueryFunc = Nodename -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
+-- Ok the more logical path is probably to have one option that deals with single node and another `-a`
+-- for multiple node. Then for `-a` we could implement a optional command `with-deadcode`
+
+
+data MultNodes =  MultNodes [T.Text] | AllNodes deriving Show
+
+instance Read MultNodes where
+    readsPrec _ "allnodes" = [(AllNodes, "")]
+    readsPrec _ s = let os = (T.splitOn "," . T.pack) s
+                    in [(MultNodes os, "")]
+
 data Options = Options
-    { _pdb             :: Maybe String
-    , _showjson        :: Bool
-    , _showContent     :: Bool
-    , _resourceType    :: Maybe T.Text
-    , _resourceName    :: Maybe T.Text
-    , _puppetdir       :: FilePath
-    , _nodename        :: Maybe T.Text
-    , _pdbfile         :: Maybe FilePath
-    , _loglevel        :: LOG.Priority
-    , _hieraFile       :: Maybe FilePath
-    , _factsOverr      :: Maybe FilePath
-    , _factsDefault    :: Maybe FilePath
-    , _commitDB        :: Bool
-    , _checkExport     :: Bool
-    , _nousergrouptest :: Bool
-    , _ignoredMods     :: HS.HashSet T.Text
-    , _strictMode      :: Strictness
+    { _pdb          :: Maybe String
+    , _showjson     :: Bool
+    , _showContent  :: Bool
+    , _resourceType :: Maybe T.Text
+    , _resourceName :: Maybe T.Text
+    , _puppetdir    :: Maybe FilePath
+    , _nodename     :: Maybe Nodename
+    , _multnodes    :: Maybe MultNodes
+    , _deadcode     :: Bool
+    , _pdbfile      :: Maybe FilePath
+    , _loglevel     :: LOG.Priority
+    , _hieraFile    :: Maybe FilePath
+    , _factsOverr   :: Maybe FilePath
+    , _factsDefault :: Maybe FilePath
+    , _commitDB     :: Bool
+    , _checkExport  :: Bool
+    , _ignoredMods  :: HS.HashSet T.Text
+    , _parse        :: Maybe FilePath
+    , _strictMode   :: Strictness
     } deriving (Show)
 
 options :: Parser Options
@@ -90,15 +102,21 @@ options = Options
        (  long "name"
        <> short 'n'
        <> help "Filter the output by resource name (accepts a regular expression)"))
-   <*> strOption
+   <*> optional (strOption
        (  long "puppetdir"
        <> short 'p'
-       <> help "Puppet directory")
+       <> help "Puppet directory"))
    <*> optional (T.pack <$> strOption
-       (  long "node"
-       <> short 'o'
-       <> help "Node name. Using 'allnodes' enables a special mode where all nodes present in site.pp are tried. \
-              \ Run with +RTS -N. Using 'deadcode' will do the same, but will print warnings about code that's not being used."))
+            (  long "node"
+            <> short 'o'
+            <> help "The name of the node"))
+   <*> optional (option auto
+       (  long "all"
+       <> short 'a'
+       <> help "Values are a list of nodes or \"allnodes\""))
+   <*> switch
+       (  long "deadcode"
+       <> help "Show deadcode when the --all option is used")
    <*> optional (strOption
        (  long "pdbfile"
        <> help "Path to the testing PuppetDB file."))
@@ -123,14 +141,14 @@ options = Options
    <*> switch
        (  long "checkExported"
        <> help "Save exported resources in the puppetDB")
-   <*>  switch
-       (  long "nousergrouptest"
-       <> help "Disable the user and group tests")
    <*> (HS.fromList . T.splitOn "," . T.pack <$>
        strOption
        (  long "ignoremodules"
        <> help "Specify a comma-separated list of modules to ignore"
        <> value ""))
+   <*> optional (strOption
+       (  long "parse"
+       <> help "Parse a single file"))
    <*> flag Permissive Strict
        (  long "strict"
        <> help "Strict mode diverges from vanillia Puppet and enforces good practices")
@@ -143,14 +161,24 @@ checkError _ (S.Right x) = return x
 Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
 -}
-initializedaemonWithPuppet :: LOG.Priority -> PuppetDBAPI IO -> FilePath -> Maybe FilePath -> (Facts -> Facts) -> HS.HashSet T.Text -> Strictness
-                              -> IO (QueryFunc, MStats, MStats, MStats)
-initializedaemonWithPuppet loglevel pdbapi puppetdir hiera overrideFacts ignoremod strictMode = do
-    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel loglevel)
-    LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel loglevel)
-    q <- initDaemon =<< setupPreferences puppetdir ((prefPDB.~ pdbapi) . (hieraPath.~ hiera) . (ignoredmodules.~ ignoremod) . (strictness.~ strictMode))
-    let queryfunc node = fmap overrideFacts (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
-    return (queryfunc, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
+initializedaemonWithPuppet :: FilePath -> Options
+                              -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
+initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _ignoredMods, _strictMode}) = do
+    pdbapi <- case (_pdb, _pdbfile) of
+                  (Nothing, Nothing) -> return dummyPuppetDB
+                  (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
+                  (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
+                  (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
+    !factsOverrides <- case (_factsOverr, _factsDefault) of
+                           (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
+                           (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
+                           (Nothing, Just p) -> flip HM.union `fmap` loadFactsOverrides p
+                           (Nothing, Nothing) -> return id
+    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _loglevel)
+    LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _loglevel)
+    q <- initDaemon =<< setupPreferences workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _hieraFile) . (ignoredmodules.~ _ignoredMods) . (strictness.~ _strictMode))
+    let queryfunc node = fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
+    return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
 parseFile = fmap . runPParser puppetParser <*> T.readFile
@@ -245,112 +273,78 @@ instance (Ord a) => Monoid (Maximum a) where
     mappend (Maximum (Just a1)) (Maximum (Just a2)) = Maximum (Just (max a1 a2))
 
 
-run :: Options -> IO ()
-run (Options {_nodename = Nothing, _puppetdir}) = parseFile _puppetdir >>= \case
-            Left rr -> error ("parse error:" ++ show rr)
-            Right s -> putDoc $ ppStatements s
+-- | For each node, queryfunc the catalog and return stats
+computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> [Nodename] -> IO ()
+computeStats workingdir (Options {_loglevel, _deadcode})
+              queryfunc (parsingStats, catalogStats, templateStats)
+              topnodes = do
+    cats <- catMaybes <$> parallel (map (computeCatalog queryfunc) topnodes)
+    -- the parsing statistics, so that we known which files
+    pStats <- getStats parsingStats
+    cStats <- getStats catalogStats
+    tStats <- getStats templateStats
+    let allres = (cats ^.. folded . _1 . folded) ++ (cats ^.. folded . _2 . folded)
+        allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
+    when _deadcode $ findDeadCode workingdir allres allfiles
+    -- compute statistics
+    let (parsing,    Just (wPName, wPMean)) = worstAndSum pStats
+        (cataloging, Just (wCName, wCMean)) = worstAndSum cStats
+        (templating, Just (wTName, wTMean)) = worstAndSum tStats
+        parserShare = 100 * parsing / cataloging
+        templateShare = 100 * templating / cataloging
+        formatDouble = take 5 . show -- yeah, well ...
+        nbnodes = length topnodes
+        worstAndSum = (_1 %~ getSum)
+                            . (_2 %~ fmap swap . getMaximum)
+                            . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
+    putStr ("Tested " ++ show nbnodes ++ " nodes. ")
+    unless (nbnodes == 0) $ do
+        putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
+        when (_loglevel <= LOG.INFO) $ do
+            putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
+            putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
+            putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
+    exitSuccess
+    where
+        computeCatalog :: QueryFunc -> Nodename -> IO (Maybe (FinalCatalog, [Resource]))
+        computeCatalog func node =
+            func node >>= \case
+              S.Left err -> putDoc ("Problem with" <+> ttext node <+> ":" <+> getError err </> mempty) >> return Nothing
+              S.Right (rawcatalog, _ , rawexported, knownRes) -> return (Just (rawcatalog <> rawexported, knownRes))
 
-run cmd@(Options {_nodename = Just node, _pdb, _puppetdir, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _commitDB, _ignoredMods, _strictMode}) = do
-    pdbapi <- case (_pdb, _pdbfile) of
-                  (Nothing, Nothing) -> return dummyPuppetDB
-                  (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
-                  (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
-                  (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    !factsOverrides <- case (_factsOverr, _factsDefault) of
-                           (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
-                           (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
-                           (Nothing, Just p) -> flip HM.union `fmap` loadFactsOverrides p
-                           (Nothing, Nothing) -> return id
-    (queryfunc,mPStats,mCStats,mTStats) <- initializedaemonWithPuppet _loglevel pdbapi _puppetdir _hieraFile factsOverrides _ignoredMods _strictMode
-    printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
-        if isterm
-            then putDoc x >> putStrLn ""
-            else displayIO stdout (renderCompact x) >> putStrLn ""
-    let allnodes = node == "allnodes" || deadcode
-        deadcode = node == "deadcode"
-    exit <- if allnodes
-        then do
-            allstmts <- parseFile (_puppetdir <> "/manifests/site.pp") >>= \presult -> case presult of
-                                                                                          Left rr -> error (show rr)
-                                                                                          Right x -> return x
-            let topnodes = mapMaybe getNodeName (V.toList allstmts)
-                getNodeName (Node (Nd (NodeName n) _ _ _)) = Just n
-                getNodeName _ = Nothing
-            cats <- parallel (map (computeCatalogs True queryfunc pdbapi printFunc cmd) topnodes)
-            -- the the parsing statistics, so that we known which files
-            -- were parsed
-            pStats <- getStats mPStats
-            cStats <- getStats mCStats
-            tStats <- getStats mTStats
-            -- merge all the resources together
-            let cc = mapMaybe fst cats
-                testFailures = getSum (cats ^. traverse . _2 . _Just . to (Sum . H.summaryFailures))
-                allres = (cc ^.. folded . _1 . folded) ++ (cc ^.. folded . _2 . folded)
-                allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
-            when deadcode $ findDeadCode _puppetdir allres allfiles
-            -- compute statistics
-            let (parsing,    Just (wPName, wPMean)) = worstAndSum pStats
-                (cataloging, Just (wCName, wCMean)) = worstAndSum cStats
-                (templating, Just (wTName, wTMean)) = worstAndSum tStats
-                parserShare = 100 * parsing / cataloging
-                templateShare = 100 * templating / cataloging
-                formatDouble = take 5 . show -- yeah, well ...
-                nbnodes = length topnodes
-                worstAndSum = (_1 %~ getSum)
-                                    . (_2 %~ fmap swap . getMaximum)
-                                    . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
-            putStr ("Tested " ++ show nbnodes ++ " nodes. ")
-            unless (nbnodes == 0) $ do
-                putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
-                when (_loglevel <= LOG.INFO) $ do
-                    putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
-                    putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
-                    putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
-            return $ if testFailures > 0
-                         then exitFailure
-                         else exitSuccess
-        else do
-            r <- computeCatalogs False queryfunc pdbapi printFunc cmd node
-            return $ case snd r of
-                         Just s  -> if H.summaryFailures s > 0
-                                       then exitFailure
-                                       else exitSuccess
-                         Nothing -> exitSuccess
-    when _commitDB $ void $ commitDB pdbapi
-    exit
-
-computeCatalogs :: Bool -> QueryFunc -> PuppetDBAPI IO -> (Doc -> IO ()) -> Options -> T.Text -> IO (Maybe (FinalCatalog, [Resource]), Maybe H.Summary)
-computeCatalogs testOnly queryfunc pdbapi printFunc
-                (Options {_showjson, _showContent, _resourceType, _resourceName, _puppetdir, _checkExport, _nousergrouptest}) node =
+-- | Queryfunc the catalog for the node and PP the result
+computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> Nodename -> IO ()
+computeNodeCatalog (Options {_showjson, _showContent, _resourceType, _resourceName, _checkExport })
+             queryfunc pdbapi node =
     queryfunc node >>= \case
       S.Left rr -> do
-          if testOnly
-              then putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
-              else putDoc (getError rr) >> putStrLn "" >> error "error!"
-          return (Nothing, Just (H.Summary 1 1))
-      S.Right (rawcatalog, edgemap, rawexported, knownRes) -> do
+          putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
+          exitFailure
+      S.Right (rawcatalog, edgemap, rawexported, _) -> do
+          printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
+            if isterm
+                then putDoc x >> putStrLn ""
+                else displayIO stdout (renderCompact x) >> putStrLn ""
           catalog  <- filterCatalog _resourceType _resourceName rawcatalog
           exported <- filterCatalog _resourceType _resourceName rawexported
           let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) edgemap
               rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) edgemap
           when _checkExport $ void $ replaceCatalog pdbapi rawWireCatalog
-          testResult <- case (testOnly, _showContent, _showjson) of
-              (True, _, _) -> Just `fmap` testCatalog node _puppetdir rawcatalog basicTest
-              (_, _, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog)) >> return Nothing
-              (_, True, _) -> do
-                  unless (_resourceType == Just "file" || isNothing _resourceType) (error $ "Show content only works for file, not for " ++ show _resourceType)
+          case (_showContent, _showjson) of
+              (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
+              (True, _) -> do
+                  unless (_resourceType == Just "file") $ do
+                      putDoc "Show content only works for resource of type file"
+                      exitFailure
                   case _resourceName of
                       Just f  -> printContent f catalog
-                      Nothing -> error "You should supply a resource name when using showcontent"
-                  return Nothing
-              _ -> do
-                  r <- testCatalog node _puppetdir rawcatalog (basicTest >> unless _nousergrouptest usersGroupsDefined)
+                      Nothing -> putDoc "You should supply a resource name when using showcontent" >> exitFailure
+              _         -> do
                   printFunc (pretty (HM.elems catalog))
                   unless (HM.null exported) $ do
                       printFunc (mempty <+> dullyellow "Exported:" <+> mempty)
                       printFunc (pretty (HM.elems exported))
-                  return (Just r)
-          return (Just (rawcatalog <> rawexported, knownRes), testResult)
+
 
 -- | Filter according to the type and name regex from the command line option
 filterCatalog :: Maybe T.Text -> Maybe T.Text -> FinalCatalog -> IO FinalCatalog
@@ -360,11 +354,44 @@ filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked)
        filterC Nothing _ c = return c
        filterC (Just regexp) l c = compile compBlank execBlank (T.unpack regexp) >>= \case
           Left rr   -> error ("Error compiling regexp 're': "  ++ show rr)
-          Right reg -> fmap HM.fromList $ filterM (filterResource reg l) (HM.toList c)
+          Right reg -> HM.fromList <$> filterM (filterResource reg l) (HM.toList c)
        filterResource reg l v = execute reg (v ^. l) >>= \case
                                          Left rr -> error ("Error when applying regexp: " ++ show rr)
                                          Right Nothing -> return False
                                          _ -> return True
+
+
+run :: Options -> IO ()
+-- | Parse mode
+run (Options {_parse = Just fp}) = parseFile fp >>= \case
+            Left rr -> error ("parse error:" ++ show rr)
+            Right s -> putDoc $ ppStatements s
+
+run (Options {_puppetdir = Nothing, _parse = Nothing }) =
+    error "Without a puppet dir, only the `--parse` option can be supported"
+run (Options {_puppetdir = Just _, _nodename = Nothing, _multnodes = Nothing}) =
+    error "You need to choose between single or multiple node"
+
+-- | Single node mode (`--node` option)
+run cmd@(Options {_nodename = Just node, _commitDB, _puppetdir = Just workingdir}) = do
+    (queryfunc, pdbapi, _, _, _ ) <- initializedaemonWithPuppet workingdir cmd
+    computeNodeCatalog cmd queryfunc pdbapi node
+    when _commitDB $ void $ commitDB pdbapi
+
+-- | Multiple nodes mode (`--all`) option
+run cmd@(Options {_nodename = Nothing , _multnodes = Just nodes, _puppetdir = Just workingdir}) = do
+    (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir cmd
+    computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
+
+  where
+      retrieveNodes AllNodes = do
+              allstmts <- parseFile (workingdir <> "/manifests/site.pp") >>= \presult -> case presult of
+                                                                                              Left rr -> error (show rr)
+                                                                                              Right x -> return x
+              let getNodeName (Node (Nd (NodeName n) _ _ _)) = Just n
+                  getNodeName _ = Nothing
+              return $ mapMaybe getNodeName (V.toList allstmts)
+      retrieveNodes (MultNodes xs) = return xs
 
 main :: IO ()
 main = execParser opts >>= run

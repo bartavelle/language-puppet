@@ -2,6 +2,7 @@
 ## New features
 * New `dumpinfos` debug function.
 * The interpreter can now run in a strict or permissive mode.
+* The new `-a` option accepts a comma separated list of nodes for gathering stats.
 
 ## Bugs fixed
 * Class/define parameters that are explicitely set as undefined are now overriden by
@@ -9,6 +10,9 @@
 
 ## Various
 * Hiera config interpolation logs decrease from WARN to NOTICE
+* Remove option `--nousergrouptest`
+* Ease the use of the puppetresources command options. See the README file for changes.
+
 
 # v1.0.1 (2014/11/13)
 ## New features
