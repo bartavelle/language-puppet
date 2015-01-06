@@ -48,10 +48,6 @@ import           PuppetDB.TestDB
 
 type QueryFunc = Nodename -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
--- Ok the more logical path is probably to have one option that deals with single node and another `-a`
--- for multiple node. Then for `-a` we could implement a optional command `with-deadcode`
-
-
 data MultNodes =  MultNodes [T.Text] | AllNodes deriving Show
 
 instance Read MultNodes where
@@ -229,7 +225,7 @@ loadFactsOverrides fp = decodeFileEither fp >>= \case
     Left rr -> error ("Error when parsing " ++ fp ++ ": " ++ show rr)
     Right x -> return x
 
--- this finds the dead code
+-- | Finds the dead code
 findDeadCode :: String -> [Resource] -> Set.Set FilePath -> IO ()
 findDeadCode puppetdir catalogs allfiles = do
     -- first collect all files / positions from all the catalogs
