@@ -12,7 +12,8 @@ import qualified Data.Either.Strict               as S
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
-import           Data.Maybe                       (catMaybes, mapMaybe)
+import           Data.Maybe                       (catMaybes, isNothing,
+                                                   mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
@@ -329,8 +330,8 @@ computeNodeCatalog (Options {_showjson, _showContent, _resourceType, _resourceNa
           case (_showContent, _showjson) of
               (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
               (True, _) -> do
-                  unless (_resourceType == Just "file") $ do
-                      putDoc "Show content only works for resource of type file"
+                  unless (_resourceType == Just "file" || isNothing _resourceType) $ do
+                      putDoc $ "Show content only works with resource of type file. It is an error to provide another filter type"
                       exitFailure
                   case _resourceName of
                       Just f  -> printContent f catalog
