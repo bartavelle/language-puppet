@@ -54,9 +54,9 @@ numeric :: T.Text -> Either PrettyError (Resource -> Resource)
 numeric modestr = do
     when ((T.length modestr /= 3) && (T.length modestr /= 4)) (throwError "Invalid mode size")
     unless (T.all isDigit modestr) (throwError "The mode should only be made of digits")
-    if T.length modestr == 3
-        then return $ rattributes . at "mode" ?~ PString (T.cons '0' modestr)
-        else return id
+    return $ if T.length modestr == 3
+                 then rattributes . at "mode" ?~ PString (T.cons '0' modestr)
+                 else id
 
 checkSource :: T.Text -> PValue -> NativeTypeValidate
 checkSource _ (PString x) res | "puppet://" `T.isPrefixOf` x = Right res
@@ -71,7 +71,7 @@ data PermSet = R | W | X
              deriving (Ord, Eq)
 
 ugo :: T.Text -> Either PrettyError (Resource -> Resource)
-ugo t = AT.parseOnly modestring t
+ugo t = AT.parseOnly (modestring <* AT.endOfInput) t
             & _Left %~ (\rr -> PrettyError $ "Could not parse the mode string: " <> text rr)
             & _Right %~ (\s -> rattributes . at "mode" ?~ PString (mkmode Special s <> mkmode User s <> mkmode Group s <> mkmode Other s))
 
