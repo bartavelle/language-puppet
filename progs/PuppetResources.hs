@@ -312,7 +312,7 @@ computeStats workingdir (Options {_loglevel, _deadcode})
 -- | Queryfunc the catalog for the node and PP the result
 computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> Nodename -> IO ()
 computeNodeCatalog (Options {_showjson, _showContent, _resourceType, _resourceName, _checkExport })
-             queryfunc pdbapi node =
+                   queryfunc pdbapi node =
     queryfunc node >>= \case
       S.Left rr -> do
           putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
@@ -381,13 +381,13 @@ run cmd@(Options {_nodename = Nothing , _multnodes = Just nodes, _puppetdir = Ju
     computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
 
   where
+      retrieveNodes :: MultNodes -> IO [Nodename]
       retrieveNodes AllNodes = do
-              allstmts <- parseFile (workingdir <> "/manifests/site.pp") >>= \presult -> case presult of
-                                                                                              Left rr -> error (show rr)
-                                                                                              Right x -> return x
-              let getNodeName (Node (Nd (NodeName n) _ _ _)) = Just n
-                  getNodeName _ = Nothing
-              return $ mapMaybe getNodeName (V.toList allstmts)
+          allstmts <- parseFile (workingdir <> "/manifests/site.pp") >>= \case Left err -> error (show err)
+                                                                               Right x  -> return x
+          let getNodeName (Node (Nd (NodeName n) _ _ _)) = Just n
+              getNodeName _ = Nothing
+          return $ mapMaybe getNodeName (V.toList allstmts)
       retrieveNodes (MultNodes xs) = return xs
 
 main :: IO ()
