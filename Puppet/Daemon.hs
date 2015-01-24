@@ -1,44 +1,33 @@
-{-# LANGUAGE LambdaCase, CPP #-}
+{-# LANGUAGE CPP        #-}
+{-# LANGUAGE LambdaCase #-}
 module Puppet.Daemon (initDaemon) where
 
 import           Control.Exception
 import           Control.Lens
-import qualified Data.Either.Strict as S
+import qualified Data.Either.Strict       as S
 import           Data.FileCache
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.HashMap.Strict      as HM
+import qualified Data.Text                as T
+import qualified Data.Text.IO             as T
 import           Data.Tuple.Strict
-import qualified Data.Vector as V
+import qualified Data.Vector              as V
 import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
 import           Hiera.Server
-import qualified System.Log.Logger as LOG
+import qualified System.Log.Logger        as LOG
 
 import           Puppet.Interpreter
 import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Types
 import           Puppet.Manifests
-import           Puppet.PP
 import           Puppet.Parser
 import           Puppet.Parser.Types
 import           Puppet.Plugins
+import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
 import           Puppet.Utils
-
-loggerName :: String
-loggerName = "Puppet.Daemon"
-
-logDebug :: T.Text -> IO ()
-logDebug   = LOG.debugM   loggerName . T.unpack
--- logInfo :: T.Text -> IO ()
--- logInfo    = LOG.infoM    loggerName . T.unpack
--- logWarning :: T.Text -> IO ()
--- logWarning = LOG.warningM loggerName . T.unpack
--- logError :: T.Text -> IO ()
--- logError   = LOG.errorM   loggerName . T.unpack
 
 {-| This is a high level function, that will initialize the parsing and
 interpretation infrastructure from the 'Prefs' structure, and will return a
@@ -91,25 +80,27 @@ gCatalog :: Preferences IO
          -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
          -> MStats
          -> HieraQueryFunc IO
-         -> T.Text
+         -> Nodename
          -> Facts
          -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
     traceEventIO ("START gCatalog " <> T.unpack ndename)
-    (stmts :!: warnings) <- measure stats ndename $
-                getCatalog interpretMonad
-                           getStatements
-                           getTemplate
-                           (prefs ^. prefPDB)
-                           ndename
-                           facts
-                           (prefs ^. natTypes)
-                           (prefs ^. prefExtFuncs)
-                           hquery
-                           defaultImpureMethods
-                           (prefs ^. ignoredmodules)
-                           (prefs ^. strictness)
+    let catalogComputation = getCatalog interpretMonad
+                                        (InterpreterReader
+                                            (prefs ^. natTypes)
+                                            getStatements
+                                            getTemplate
+                                            (prefs ^. prefPDB)
+                                            (prefs ^. prefExtFuncs)
+                                            ndename
+                                            hquery
+                                            defaultImpureMethods
+                                            (prefs ^. ignoredmodules)
+                                            (prefs ^. strictness == Strict))
+                                        ndename
+                                        facts
+    (stmts :!: warnings) <- measure stats ndename catalogComputation
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
     return stmts
@@ -148,3 +139,11 @@ parseFile fname = do
         Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
     traceEventIO ("STOP parsing " ++ fname)
     return o
+
+
+-- Some utils func internal to this module
+loggerName :: String
+loggerName = "Puppet.Daemon"
+
+logDebug :: T.Text -> IO ()
+logDebug   = LOG.debugM   loggerName . T.unpack

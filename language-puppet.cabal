@@ -26,7 +26,6 @@ source-repository head
   type: git
   location: git://github.com/bartavelle/language-puppet.git
 
-
 library
   exposed-modules:     Puppet.Parser.Types
                        , Puppet.Parser
@@ -41,6 +40,7 @@ library
                        , Puppet.NativeTypes
                        , Puppet.NativeTypes.Helpers
                        , Puppet.Interpreter
+                       , Puppet.Interpreter.Pure
                        , Puppet.Interpreter.Resolve
                        , SafeProcess
                        , Puppet.Stdlib
@@ -53,12 +53,12 @@ library
                        , Erb.Ruby
                        , Erb.Evaluate
                        , Puppet.Lens
-                       , Puppet.Interpreter.IO
-                       , Puppet.Interpreter.Pure
   other-modules:         Puppet.Utils
                        , Puppet.NativeTypes.File
                        , Erb.Compute
                        , Paths_language_puppet
+                       , Puppet.Interpreter.IO
+                       , Puppet.Interpreter.RubyRandom
                        , Puppet.Manifests
                        , Puppet.NativeTypes.ZoneRecord
                        , Puppet.NativeTypes.Concat
@@ -72,7 +72,6 @@ library
                        , Puppet.NativeTypes.Package
                        , Puppet.NativeTypes.SshSecure
                        , Puppet.Plugins
-                       , Puppet.Interpreter.RubyRandom
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields
   ghc-prof-options:    -auto-all -caf-all
