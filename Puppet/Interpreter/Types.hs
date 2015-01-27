@@ -460,8 +460,6 @@ getScope = use curScope >>= \s -> if null s
                                       then throwPosError "Internal error: empty scope!"
                                       else return (head s)
 
--- instance
-
 instance FromJSON PValue where
     parseJSON Null       = return PUndef
     parseJSON (Number n) = return $ PNumber n
@@ -577,7 +575,7 @@ instance ToJSON Resource where
             changeRelations :: (RIdentifier, HS.HashSet LinkType) -> [(T.Text, V.Vector Value)]
             changeRelations (k,v) = do
                 c <- HS.toList v
-                return (rel2text c,V.singleton (String (rid2text k)))
+                return (rel2text c, V.singleton (String (rid2text k)))
 
 instance FromJSON Resource where
     parseJSON (Object v) = do
@@ -789,6 +787,4 @@ ifStrict :: InterpreterMonad a -- ^ This operation will be run in strict mode.
          -> InterpreterMonad a
 ifStrict yes no = do
     str <- singleton IsStrict
-    if str
-        then yes
-        else no
+    if str then yes else no

@@ -204,7 +204,7 @@ resourceReference = do
     (restype, resnames) <- resourceReferenceRaw
     return $ UResourceReference restype $ case resnames of
                  [x] -> x
-                 _   -> Terminal (array resnames)
+                 _   -> Terminal $ UArray (V.fromList resnames)
 
 bareword :: Parser T.Text
 bareword = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Bare word"

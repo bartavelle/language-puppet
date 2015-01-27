@@ -86,8 +86,7 @@ gCatalog :: Preferences IO
 gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
     traceEventIO ("START gCatalog " <> T.unpack ndename)
-    let catalogComputation = getCatalog interpretMonad
-                                        (InterpreterReader
+    let catalogComputation = getCatalog (InterpreterReader
                                             (prefs ^. natTypes)
                                             getStatements
                                             getTemplate

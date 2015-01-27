@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveGeneric, TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- | All the types used for parsing, and helpers working on these types.
 module Puppet.Parser.Types
  ( -- * Position management
@@ -11,10 +12,7 @@ module Puppet.Parser.Types
    lSourceLine,
    lSourceColumn,
    -- * Helpers
-   capitalize',
    capitalizeRT,
-   array,
-   toBool,
    rel2text,
    -- * Types
    -- ** Expressions
@@ -52,27 +50,27 @@ module Puppet.Parser.Types
 import           Control.Lens
 
 import           Data.Aeson
-import           Data.Char (toUpper)
+import           Data.Char              (toUpper)
 import           Data.Hashable
-import qualified Data.Maybe.Strict as S
+import qualified Data.Maybe.Strict      as S
 import           Data.Scientific
 import           Data.String
-import qualified Data.Text as T
+import qualified Data.Text              as T
 import           Data.Tuple.Strict
-import qualified Data.Vector as V
+import qualified Data.Vector            as V
 
 import           GHC.Generics
 
-import           Text.Regex.PCRE.String
 import           Text.Parsec.Pos
+import           Text.Regex.PCRE.String
 
 -- | Properly capitalizes resource types
 capitalizeRT :: T.Text -> T.Text
 capitalizeRT = T.intercalate "::" . map capitalize' . T.splitOn "::"
-
-capitalize' :: T.Text -> T.Text
-capitalize' t | T.null t = T.empty
-              | otherwise = T.cons (toUpper (T.head t)) (T.tail t)
+    where
+        capitalize' :: T.Text -> T.Text
+        capitalize' t | T.null t = T.empty
+                      | otherwise = T.cons (toUpper (T.head t)) (T.tail t)
 
 -- | A pair containing the start and end of a given token.
 type PPosition = Pair Position Position
@@ -117,9 +115,9 @@ data BlockParameters = BPSingle !T.Text -- ^ @|k|@
 
 -- The description of the /higher level function/ call.
 data HFunctionCall = HFunctionCall
-    { _hftype :: !HigherFuncType
-    , _hfexpr :: !(S.Maybe Expression)
-    , _hfparams :: !BlockParameters
+    { _hftype       :: !HigherFuncType
+    , _hfexpr       :: !(S.Maybe Expression)
+    , _hfparams     :: !BlockParameters
     , _hfstatements :: !(V.Vector Statement)
     , _hfexpression :: !(S.Maybe Expression)
     } deriving (Eq,Show)
@@ -150,9 +148,7 @@ data UValue
 instance IsString UValue where
     fromString = UString . T.pack
 
--- | A helper function for writing 'array's.
-array :: [Expression] -> UValue
-array = UArray . V.fromList
+
 
 data SelectorCase = SelectorValue UValue
                   | SelectorDefault
@@ -214,14 +210,6 @@ data SearchExpression
 
 data CollectorType = Collector | ExportedCollector
     deriving (Eq, Show)
-
--- | Tries to turn an unresolved value into a 'Bool' without any context.
-toBool :: UValue -> Bool
-toBool (UString "")      = False
-toBool (UInterpolable v) = not (V.null v)
-toBool UUndef            = False
-toBool (UBoolean x)      = x
-toBool _                 = True
 
 data Virtuality = Normal -- ^ Normal resource, that will be included in the catalog
                 | Virtual -- ^ Type for virtual resources

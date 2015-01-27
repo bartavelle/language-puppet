@@ -37,61 +37,62 @@ defaultImpureMethods = ImpureMethods (liftIO currentCallStack)
                 catch (fmap Right (Lua.callfunc lstt (T.unpack fname) args)) (\e -> return $ Left $ show (e :: SomeException))
 
 
+-- | The operational interpreter function
 interpretMonad :: (Functor m, Monad m)
                 => InterpreterReader m
                 -> InterpreterState
                 -> InterpreterMonad a
                 -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
-interpretMonad rd_ prmstate instr = case runState (viewT instr) prmstate of
-                                     (!a,!nextstate) -> evalInstrGen rd_ nextstate a
+interpretMonad r s0 instr = let (!p, !s1) = runState (viewT instr) s0
+                            in eval r s1 p
 
-    where
-        evalInstrGen :: (Functor m, Monad m)
-                        => InterpreterReader m
-                        -> InterpreterState
-                        -> ProgramViewT InterpreterInstr (State InterpreterState) a
-                        -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
-        evalInstrGen _ stt (Return x) = return (Right x, stt, mempty)
-        evalInstrGen rdr stt (a :>>= f) =
-            let runC a' = interpretMonad rdr stt (f a')
-                thpe = interpretMonad rdr stt . throwPosError . getError
-                pdb = _pdbAPI rdr
-                strFail iof errf = iof >>= \case
-                    Left rr -> thpe (errf (string rr))
-                    Right x -> runC x
-                canFail iof = iof >>= \case
-                    S.Left rr -> thpe rr
-                    S.Right x -> runC x
-                logStuff x c = (_3 %~ (x <>)) `fmap` c
-            in  case a of
-                    IsStrict                     -> runC (rdr ^. isStrict)
-                    ExternalFunction fname args  -> case rdr ^. externalFunctions . at fname of
-                                                        Just fn -> interpretMonad rdr stt ( fn args >>= f)
-                                                        Nothing -> thpe (PrettyError ("Unknown function: " <> ttext fname))
-                    GetStatement topleveltype toplevelname
-                                                 -> canFail ((rdr ^. getStatement) topleveltype toplevelname)
-                    ComputeTemplate fn scp cscps -> canFail ((rdr ^. computeTemplateFunction) fn scp cscps)
-                    WriterTell t                 -> logStuff t (runC ())
-                    WriterPass _                 -> thpe "WriterPass"
-                    WriterListen _               -> thpe "WriterListen"
-                    GetNativeTypes               -> runC (rdr ^. nativeTypes)
-                    ErrorThrow d                 -> return (Left d, stt, mempty)
-                    ErrorCatch _ _               -> thpe "ErrorCatch"
-                    GetNodeName                  -> runC (rdr ^. thisNodename)
-                    HieraQuery scps q t          -> canFail ((rdr ^. hieraQuery) scps q t)
-                    PDBInformation               -> pdbInformation pdb >>= runC
-                    PDBReplaceCatalog w          -> canFail (replaceCatalog pdb w)
-                    PDBReplaceFacts fcts         -> canFail (replaceFacts pdb fcts)
-                    PDBDeactivateNode nn         -> canFail (deactivateNode pdb nn)
-                    PDBGetFacts q                -> canFail (getFacts pdb q)
-                    PDBGetResources q            -> canFail (getResources pdb q)
-                    PDBGetNodes q                -> canFail (getNodes pdb q)
-                    PDBCommitDB                  -> canFail (commitDB pdb)
-                    PDBGetResourcesOfNode nn q   -> canFail (getResourcesOfNode pdb nn q)
-                    GetCurrentCallStack          -> (rdr ^. ioMethods . imGetCurrentCallStack) >>= runC
-                    ReadFile fls                 -> strFail ((rdr ^. ioMethods . imReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
-                    TraceEvent e                 -> (rdr ^. ioMethods . imTraceEvent) e >>= runC
-                    IsIgnoredModule m            -> runC (rdr ^. ignoredModules . contains m)
-                    CallLua c fname args         -> (rdr ^. ioMethods . imCallLua) c fname args >>= \case
-                                                        Right x -> runC x
-                                                        Left rr -> thpe (PrettyError (string rr))
+-- The internal (not exposed) eval function
+eval :: (Functor m, Monad m)
+                => InterpreterReader m
+                -> InterpreterState
+                -> ProgramViewT InterpreterInstr (State InterpreterState) a
+                -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
+eval _ s (Return x) = return (Right x, s, mempty)
+eval r s (a :>>= k) =
+    let runInstr = interpretMonad r s . k -- run one instruction
+        thpe = interpretMonad r s . throwPosError . getError
+        pdb = _pdbAPI r
+        strFail iof errf = iof >>= \case
+            Left rr -> thpe (errf (string rr))
+            Right x -> runInstr x
+        canFail iof = iof >>= \case
+            S.Left err -> thpe err
+            S.Right x -> runInstr x
+        logStuff x c = (_3 %~ (x <>)) `fmap` c
+    in  case a of
+            IsStrict                     -> runInstr (r ^. isStrict)
+            ExternalFunction fname args  -> case r ^. externalFunctions . at fname of
+                                                Just fn -> interpretMonad r s ( fn args >>= k)
+                                                Nothing -> thpe (PrettyError ("Unknown function: " <> ttext fname))
+            GetStatement topleveltype toplevelname
+                                         -> canFail ((r ^. getStatement) topleveltype toplevelname)
+            ComputeTemplate fn scp cscps -> canFail ((r ^. computeTemplateFunction) fn scp cscps)
+            WriterTell t                 -> logStuff t (runInstr ())
+            WriterPass _                 -> thpe "WriterPass"
+            WriterListen _               -> thpe "WriterListen"
+            GetNativeTypes               -> runInstr (r ^. nativeTypes)
+            ErrorThrow d                 -> return (Left d, s, mempty)
+            ErrorCatch _ _               -> thpe "ErrorCatch"
+            GetNodeName                  -> runInstr (r ^. thisNodename)
+            HieraQuery scps q t          -> canFail ((r ^. hieraQuery) scps q t)
+            PDBInformation               -> pdbInformation pdb >>= runInstr
+            PDBReplaceCatalog w          -> canFail (replaceCatalog pdb w)
+            PDBReplaceFacts fcts         -> canFail (replaceFacts pdb fcts)
+            PDBDeactivateNode nn         -> canFail (deactivateNode pdb nn)
+            PDBGetFacts q                -> canFail (getFacts pdb q)
+            PDBGetResources q            -> canFail (getResources pdb q)
+            PDBGetNodes q                -> canFail (getNodes pdb q)
+            PDBCommitDB                  -> canFail (commitDB pdb)
+            PDBGetResourcesOfNode nn q   -> canFail (getResourcesOfNode pdb nn q)
+            GetCurrentCallStack          -> (r ^. ioMethods . imGetCurrentCallStack) >>= runInstr
+            ReadFile fls                 -> strFail ((r ^. ioMethods . imReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
+            TraceEvent e                 -> (r ^. ioMethods . imTraceEvent) e >>= runInstr
+            IsIgnoredModule m            -> runInstr (r ^. ignoredModules . contains m)
+            CallLua c fname args         -> (r ^. ioMethods . imCallLua) c fname args >>= \case
+                                                Right x -> runInstr x
+                                                Left rr -> thpe (PrettyError (string rr))
