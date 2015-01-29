@@ -2,10 +2,13 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
+{-| Parse puppet source code from text. -}
 module Puppet.Parser (
-    expression
+  -- * Runner
+    runPParser
+  -- * Parsers
   , puppetParser
-  , runPParser
+  , expression
 ) where
 
 import qualified Data.Text as T
@@ -37,6 +40,35 @@ import           Text.Parser.LookAhead
 import           Text.Parser.Token hiding (stringLiteral')
 import           Text.Parser.Token.Highlight
 
+-- | Run a puppet parser against some 'T.Text' input.
+runPParser :: Parser a -> SourceName -> T.Text -> Either ParseError a
+runPParser (ParserT p) = PP.parse p
+
+-- | Parse a collection of puppet 'Statement'.
+puppetParser :: Parser (V.Vector Statement)
+puppetParser = someSpace >> statementList
+
+-- | Parse a puppet 'Expression'.
+expression :: Parser Expression
+expression = condExpression
+             <|> ParserT (buildExpressionParser expressionTable (unParser (token terminal)))
+             <?> "expression"
+    where
+        condExpression = do
+            selectedExpression <- try (token terminal <* symbolic '?')
+            let cas = do
+                c <- (symbol "default" *> return SelectorDefault) -- default case
+                        <|> fmap SelectorValue (fmap UVariableReference variableReference
+                                                 <|> fmap UBoolean puppetBool
+                                                 <|> literalValue
+                                                 <|> fmap UInterpolable interpolableString
+                                                 <|> (URegexp <$> termRegexp))
+                void $ symbol "=>"
+                e <- expression
+                return (c :!: e)
+            cases <- braces (cas `sepEndBy1` comma)
+            return (ConditionalValue selectedExpression (V.fromList cases))
+
 newtype Parser a = ParserT { unParser :: PP.ParsecT T.Text () Identity a}
                  deriving (Functor, Applicative, Alternative)
 
@@ -47,9 +79,6 @@ deriving instance LookAheadParsing Parser
 
 getPosition :: Parser SourcePos
 getPosition = ParserT PP.getPosition
-
-runPParser :: Parser a -> SourceName -> T.Text -> Either ParseError a
-runPParser (ParserT p) = PP.parse p
 
 type OP = PP.ParsecT T.Text () Identity
 
@@ -265,25 +294,7 @@ termRegexp = regexp >>= compileRegexp
 terminal :: Parser Expression
 terminal = terminalG (fmap Terminal (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
 
-expression :: Parser Expression
-expression = condExpression
-             <|> ParserT (buildExpressionParser expressionTable (unParser (token terminal)))
-             <?> "expression"
-    where
-        condExpression = do
-            selectedExpression <- try (token terminal <* symbolic '?')
-            let cas = do
-                c <- (symbol "default" *> return SelectorDefault) -- default case
-                        <|> fmap SelectorValue (fmap UVariableReference variableReference
-                                                 <|> fmap UBoolean puppetBool
-                                                 <|> literalValue
-                                                 <|> fmap UInterpolable interpolableString
-                                                 <|> (URegexp <$> termRegexp))
-                void $ symbol "=>"
-                e <- expression
-                return (c :!: e)
-            cases <- braces (cas `sepEndBy1` comma)
-            return (ConditionalValue selectedExpression (V.fromList cases))
+
 
 expressionTable :: [[Operator T.Text () Identity Expression]]
 expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
@@ -622,12 +633,8 @@ statement =
     <|> (pure . MainFunctionCall <$> mainFunctionCall)
     <?> "Statement"
 
-
 statementList :: Parser (V.Vector Statement)
 statementList = fmap (V.fromList . concat) (many statement)
-
-puppetParser :: Parser (V.Vector Statement)
-puppetParser = someSpace >> statementList
 
 {-
 - Stuff related to the new functions with "lambdas"

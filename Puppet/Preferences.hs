@@ -1,36 +1,36 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE TemplateHaskell        #-}
 module Puppet.Preferences (
     setupPreferences
   , HasPreferences(..)
   , Preferences(Preferences)
 ) where
 
-import Puppet.Utils
-import Puppet.Interpreter.Types
-import Puppet.Plugins
-import Puppet.NativeTypes
-import Puppet.NativeTypes.Helpers
-import Puppet.Stdlib
-import PuppetDB.Dummy
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes
+import           Puppet.NativeTypes.Helpers
+import           Puppet.Plugins
+import           Puppet.Stdlib
+import           Puppet.Utils
+import           PuppetDB.Dummy
 
-import qualified Data.Text as T
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
-import Control.Lens
+import           Control.Lens
+import qualified Data.HashMap.Strict        as HM
+import qualified Data.HashSet               as HS
+import qualified Data.Text                  as T
 
 data Preferences m = Preferences
-    { _manifestPath    :: FilePath -- ^ The path to the manifests.
-    , _modulesPath     :: FilePath -- ^ The path to the modules.
-    , _templatesPath   :: FilePath -- ^ The path to the template.
-    , _prefPDB         :: PuppetDBAPI m
-    , _natTypes        :: Container NativeTypeMethods -- ^ The list of native types.
-    , _prefExtFuncs    :: Container ( [PValue] -> InterpreterMonad PValue )
-    , _hieraPath       :: Maybe FilePath
-    , _ignoredmodules  :: HS.HashSet T.Text -- ^ The set of ignored modules
-    , _strictness      :: Strictness
+    { _manifestPath   :: FilePath -- ^ The path to the manifests.
+    , _modulesPath    :: FilePath -- ^ The path to the modules.
+    , _templatesPath  :: FilePath -- ^ The path to the template.
+    , _prefPDB        :: PuppetDBAPI m
+    , _natTypes       :: Container NativeTypeMethods -- ^ The list of native types.
+    , _prefExtFuncs   :: Container ( [PValue] -> InterpreterMonad PValue )
+    , _hieraPath      :: Maybe FilePath
+    , _ignoredmodules :: HS.HashSet T.Text -- ^ The set of ignored modules
+    , _strictness     :: Strictness
     }
 
 makeClassy ''Preferences
@@ -45,9 +45,12 @@ genPreferences basedir = do
     let loadedTypes = HM.fromList (map defaulttype typenames)
     return $ Preferences manifestdir modulesdir templatedir dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just (basedir <> "/hiera.yaml")) mempty Strict
 
--- | Setup preferences from external/custom params
--- k is set through lenses (ie: hieraPath.~mypath)
-setupPreferences :: FilePath -> (Preferences IO -> Preferences IO) -> IO (Preferences IO)
+{-| Use lens with the set operator and composition to set external/custom params.
+
+Ex.: @ setupPreferences workingDir ((hieraPath.~mypath) . (prefPDB.~pdbapi)) @
+-}
+setupPreferences :: FilePath -- ^ The base working directory
+                 -> (Preferences IO -> Preferences IO) -- ^ Preference setting
+                 -> IO (Preferences IO)
 setupPreferences basedir k =
-  -- use lens composition
   fmap k (genPreferences basedir)
