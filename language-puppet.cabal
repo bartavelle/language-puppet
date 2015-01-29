@@ -42,6 +42,7 @@ library
                        , Puppet.Interpreter
                        , Puppet.Interpreter.Pure
                        , Puppet.Interpreter.Resolve
+                       , Puppet.Interpreter.IO
                        , SafeProcess
                        , Puppet.Stdlib
                        , PuppetDB.Remote
@@ -57,7 +58,6 @@ library
                        , Puppet.NativeTypes.File
                        , Erb.Compute
                        , Paths_language_puppet
-                       , Puppet.Interpreter.IO
                        , Puppet.Interpreter.RubyRandom
                        , Puppet.Manifests
                        , Puppet.NativeTypes.ZoneRecord

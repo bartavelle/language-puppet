@@ -30,11 +30,10 @@ import           Puppet.Stats
 import           Puppet.Utils
 
 {-| This is a high level function, that will initialize the parsing and
-interpretation infrastructure from the 'Prefs' structure, and will return a
-function that will take a node name, 'Facts' and return either an error or the
-'FinalCatalog', along with the dependency graph and catalog of exported resources. It also return a few IO
-functions that can be used in order to query the daemon for statistics,
-following the format in "Puppet.Stats".
+interpretation infrastructure from the 'Preferences', and will return 'DaemonMethods'.
+From there, you have access to 'getCatalog', a function that take a node name,
+and the 'Facts' to return the result of the catalog computation. 'DaemonMethods' also returns
+a few IO functions that can be used to query for statistics (see "Puppet.Stats").
 
 It will internaly initialize a thread for the LUA interpreter, and a thread for the Ruby one.
 It should cache the AST of every .pp file, and could use a bit of memory. As a comparison, it
@@ -42,9 +41,8 @@ fits in 60 MB with the author's manifests, but really breathes when given 300 MB
 of heap space. In this configuration, even if it spawns a ruby process for every
 template evaluation, it is way faster than the puppet stack.
 
-It can optionnaly talk with PuppetDB, by setting an URL in the 'Prefs' data
-structure. The recommended way to set it to http://localhost:8080 and set a SSH
-tunnel :
+It can optionnaly talk with PuppetDB, by setting an URL via the 'prefPDB'.
+The recommended way to set it to http://localhost:8080 and set a SSH tunnel :
 
 > ssh -L 8080:localhost:8080 puppet.host
 

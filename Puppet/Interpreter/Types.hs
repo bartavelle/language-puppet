@@ -296,9 +296,7 @@ data LinkInformation = LinkInformation
 
 type EdgeMap = HM.HashMap RIdentifier [LinkInformation]
 
-{-| This is a fully resolved resource that will be used in the
-    'FinalCatalog'.
--}
+{-| A fully resolved puppet resource that will be used in the 'FinalCatalog'. -}
 data Resource = Resource
     { _rid         :: !RIdentifier                                    -- ^ Resource name.
     , _ralias      :: !(HS.HashSet T.Text)                            -- ^ All the resource aliases
@@ -325,7 +323,7 @@ type FinalCatalog = HM.HashMap RIdentifier Resource
 data DaemonMethods = DaemonMethods
     { -- | The most important function, computing catalogs.
       -- Given a node name and a list of facts, it returns the result of the catalog compilation : either an error, or a tuple containing all the resources in this catalog, the dependency map, the exported resources, and a list of known resources, that might not be up to date, but are here for code coverage tests.
-      _dGetCatalog    :: T.Text -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+      _dGetCatalog    :: Nodename -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
     , _dParserStats   :: MStats
     , _dCatalogStats  :: MStats
     , _dTemplateStats :: MStats
