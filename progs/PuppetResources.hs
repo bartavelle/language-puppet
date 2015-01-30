@@ -9,11 +9,11 @@ import           Data.Aeson                       (encode)
 import qualified Data.ByteString.Lazy.Char8       as BSL
 import           Data.Either                      (partitionEithers)
 import qualified Data.Either.Strict               as S
+import           Data.Foldable                    (foldMap)
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
-import           Data.Maybe                       (catMaybes, isNothing,
-                                                   mapMaybe)
+import           Data.Maybe                       (isNothing, mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
@@ -154,6 +154,12 @@ checkError :: Doc -> S.Either PrettyError a -> IO a
 checkError r (S.Left rr) = error (show (red r <> ": " <+> getError rr))
 checkError _ (S.Right x) = return x
 
+-- | Like catMaybes, but it counts the Nothing values
+catMaybesCount :: [Maybe a] -> ([a], Sum Int)
+catMaybesCount = foldMap f where
+    f Nothing  = ([ ], Sum 1)
+    f (Just x) = ([x], Sum 0)
+
 {-| Does all the work of initializing a daemon for querying.
 Returns the final catalog when given a node name. Note that this is pretty
 hackish as it will generate facts from the local computer !
@@ -275,12 +281,13 @@ computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> 
 computeStats workingdir (Options {_loglevel, _deadcode})
               queryfunc (parsingStats, catalogStats, templateStats)
               topnodes = do
-    cats <- catMaybes <$> parallel (map (computeCatalog queryfunc) topnodes)
+    mcats <- parallel (map (computeCatalog queryfunc) topnodes)
     -- the parsing statistics, so that we known which files
     pStats <- getStats parsingStats
     cStats <- getStats catalogStats
     tStats <- getStats templateStats
-    let allres = (cats ^.. folded . _1 . folded) ++ (cats ^.. folded . _2 . folded)
+    let (cats, Sum failures) = catMaybesCount mcats
+        allres = (cats ^.. folded . _1 . folded) ++ (cats ^.. folded . _2 . folded)
         allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
     when _deadcode $ findDeadCode workingdir allres allfiles
     -- compute statistics
@@ -301,7 +308,11 @@ computeStats workingdir (Options {_loglevel, _deadcode})
             putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
             putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
             putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
-    exitSuccess
+
+    if failures > 0
+       then do {putDoc ("Found" <+> red (int failures) <+> "failure(s)." <> line) ; exitFailure}
+       else do {putDoc (green "All green."  <> line) ; exitSuccess}
+
     where
         computeCatalog :: QueryFunc -> Nodename -> IO (Maybe (FinalCatalog, [Resource]))
         computeCatalog func node =
@@ -377,7 +388,7 @@ run cmd@(Options {_nodename = Just node, _commitDB, _puppetdir = Just workingdir
 
 -- | Multiple nodes mode (`--all`) option
 run cmd@(Options {_nodename = Nothing , _multnodes = Just nodes, _puppetdir = Just workingdir}) = do
-    (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir cmd
+    (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir (cmd {_loglevel = LOG.ERROR})
     computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
 
   where
