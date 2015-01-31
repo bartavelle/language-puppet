@@ -388,6 +388,9 @@ run cmd@(Options {_nodename = Just node, _commitDB, _puppetdir = Just workingdir
 
 -- | Multiple nodes mode (`--all`) option
 run cmd@(Options {_nodename = Nothing , _multnodes = Just nodes, _puppetdir = Just workingdir}) = do
+    -- it would be really noisy to run this mode with loglevel < LOG.ERROR;
+    -- even the default LOG.WARNING would clutter the output.
+    -- That's why we force LOG.ERROR for the puppet daemon.
     (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir (cmd {_loglevel = LOG.ERROR})
     computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
 
