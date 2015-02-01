@@ -9,7 +9,6 @@ import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
 import           Puppet.Utils
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<>))
 
 import           Control.Concurrent
 import           Control.Monad.Error
