@@ -3,6 +3,7 @@
 * New `dumpinfos` debug function.
 * The interpreter can now run in a strict or permissive mode.
 * The new `-a` option accepts a comma separated list of nodes for gathering stats.
+* The new `--noextratests` option disable optional tests from `Puppet.OptionalTests`.
 
 ## Bugs fixed
 * Class/define parameters that are explicitely set as undefined are now overriden by
