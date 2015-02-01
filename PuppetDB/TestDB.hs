@@ -1,34 +1,39 @@
-{-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, LambdaCase #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE TemplateHaskell        #-}
 -- | A stub implementation of PuppetDB, backed by a YAML file.
 module PuppetDB.TestDB (loadTestDB,initTestDB) where
 
-import Data.Yaml
-import qualified Data.Text as T
-import qualified Data.Either.Strict as S
-import qualified Data.Vector as V
-import Control.Lens
-import Data.Aeson.Lens
-import Control.Exception
-import Control.Concurrent.STM
-import Data.Monoid
-import Control.Applicative
-import Data.List (foldl')
-import Text.Parsec.Pos
-import Data.CaseInsensitive
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
+import           Control.Applicative
+import           Control.Concurrent.STM
+import           Control.Exception
+import           Control.Lens
+import           Data.Aeson.Lens
+import           Data.CaseInsensitive
+import qualified Data.Either.Strict       as S
+import qualified Data.HashMap.Strict      as HM
+import qualified Data.HashSet             as HS
+import           Data.List                (foldl')
+import           Data.Monoid
+import qualified Data.Text                as T
+import qualified Data.Vector              as V
+import           Data.Yaml
+import           Text.Parsec.Pos
 
-import Puppet.Parser.Types
-import Puppet.Interpreter.Types
-import Puppet.PP hiding ((<$>))
-import Puppet.Lens
+import           Puppet.Interpreter.Types
+import           Puppet.Lens
+import           Puppet.Parser.Types
+import           Puppet.PP                hiding ((<$>))
 
 data DBContent = DBContent
-    { _dbcontentResources :: Container WireCatalog
-    , _dbcontentFacts :: Container Facts
+    { _dbcontentResources   :: Container WireCatalog
+    , _dbcontentFacts       :: Container Facts
     , _dbcontentBackingFile :: Maybe FilePath
     }
-makeFields ''DBContent
+
+makeLensesWith abbreviatedFields ''DBContent
 
 type DB = TVar DBContent
 

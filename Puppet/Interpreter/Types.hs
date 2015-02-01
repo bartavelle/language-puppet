@@ -333,25 +333,25 @@ data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType
 
 -- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
 data WireCatalog = WireCatalog
-    { _wirecatalogNodename        :: !Nodename
-    , _wirecatalogWVersion        :: !T.Text
-    , _wirecatalogWEdges          :: !(V.Vector PuppetEdge)
-    , _wirecatalogWResources      :: !(V.Vector Resource)
-    , _wirecatalogTransactionUUID :: !T.Text
+    { _wireCatalogNodename        :: !Nodename
+    , _wireCatalogWVersion        :: !T.Text
+    , _wireCatalogWEdges          :: !(V.Vector PuppetEdge)
+    , _wireCatalogWResources      :: !(V.Vector Resource)
+    , _wireCatalogTransactionUUID :: !T.Text
     }
 
 data PFactInfo = PFactInfo
-    { _pfactinfoNodename :: !T.Text
-    , _pfactinfoFactname :: !T.Text
-    , _pfactinfoFactval  :: !PValue
+    { _pFactInfoNodename :: !T.Text
+    , _pFactInfoFactname :: !T.Text
+    , _pFactInfoFactval  :: !PValue
     }
 
 data PNodeInfo = PNodeInfo
-    { _pnodeinfoNodename    :: !Nodename
-    , _pnodeinfoDeactivated :: !Bool
-    , _pnodeinfoCatalogT    :: !(S.Maybe UTCTime)
-    , _pnodeinfoFactsT      :: !(S.Maybe UTCTime)
-    , _pnodeinfoReportT     :: !(S.Maybe UTCTime)
+    { _pNodeInfoNodename    :: !Nodename
+    , _pNodeInfoDeactivated :: !Bool
+    , _pNodeInfoCatalogT    :: !(S.Maybe UTCTime)
+    , _pNodeInfoFactsT      :: !(S.Maybe UTCTime)
+    , _pNodeInfoReportT     :: !(S.Maybe UTCTime)
     }
 
 data PuppetDBAPI m = PuppetDBAPI
