@@ -107,6 +107,10 @@ Strict is less permissive than vanilla Puppet.
 It is meant to prevent some pitfalls by enforcing good practices.
 For instance it refuses to silently ignore/convert `undef` variables.
 
+`--noextratests`::
+
+Disable the extra tests from `Puppet.OptionalTests`.
+
 `--parse`::
 
 Enable `parse mode`. Specify the puppet file to be parsed. Variables are not resolved. No interpretation.
