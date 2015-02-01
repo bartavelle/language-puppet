@@ -27,55 +27,54 @@ source-repository head
   location: git://github.com/bartavelle/language-puppet.git
 
 library
-  exposed-modules:     Puppet.Parser.Types
-                       , Puppet.Parser
-                       , Puppet.Interpreter.Types
-                       , Puppet.Parser.PrettyPrinter
-                       , Puppet.Interpreter.PrettyPrinter
-                       , Puppet.Preferences
-                       , Puppet.Daemon
-                       , Facter
-                       , Puppet.PP
-                       , Puppet.Stats
-                       , Puppet.NativeTypes
-                       , Puppet.NativeTypes.Helpers
-                       , Puppet.Interpreter
-                       , Puppet.Interpreter.Pure
-                       , Puppet.Interpreter.Resolve
-                       , Puppet.Interpreter.IO
-                       , SafeProcess
-                       , Puppet.Stdlib
-                       , PuppetDB.Remote
-                       , PuppetDB.TestDB
-                       , PuppetDB.Dummy
-                       , PuppetDB.Common
-                       , Hiera.Server
+  exposed-modules:       Erb.Evaluate
                        , Erb.Parser
                        , Erb.Ruby
-                       , Erb.Evaluate
+                       , Facter
+                       , Hiera.Server
+                       , Puppet.Daemon
+                       , PuppetDB.Common
+                       , PuppetDB.Dummy
+                       , PuppetDB.Remote
+                       , PuppetDB.TestDB
+                       , Puppet.Interpreter
+                       , Puppet.Interpreter.IO
+                       , Puppet.Interpreter.PrettyPrinter
+                       , Puppet.Interpreter.Pure
+                       , Puppet.Interpreter.Resolve
+                       , Puppet.Interpreter.Types
                        , Puppet.Lens
-  other-modules:         Puppet.Utils
-                       , Puppet.NativeTypes.File
-                       , Erb.Compute
+                       , Puppet.NativeTypes
+                       , Puppet.NativeTypes.Helpers
+                       , Puppet.Parser
+                       , Puppet.Parser.PrettyPrinter
+                       , Puppet.Parser.Types
+                       , Puppet.PP
+                       , Puppet.Preferences
+                       , Puppet.Stats
+                       , Puppet.Stdlib
+                       , Puppet.OptionalTests
+                       , SafeProcess
+  other-modules:         Erb.Compute
                        , Paths_language_puppet
                        , Puppet.Interpreter.RubyRandom
                        , Puppet.Manifests
-                       , Puppet.NativeTypes.ZoneRecord
                        , Puppet.NativeTypes.Concat
                        , Puppet.NativeTypes.Cron
                        , Puppet.NativeTypes.Exec
+                       , Puppet.NativeTypes.File
                        , Puppet.NativeTypes.Group
                        , Puppet.NativeTypes.Host
-                       , Puppet.NativeTypes.User
                        , Puppet.NativeTypes.Mount
-                       , Puppet.Utils
                        , Puppet.NativeTypes.Package
                        , Puppet.NativeTypes.SshSecure
+                       , Puppet.NativeTypes.User
+                       , Puppet.NativeTypes.ZoneRecord
                        , Puppet.Plugins
+                       , Puppet.Utils
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields
   ghc-prof-options:    -auto-all -caf-all
-  -- other-modules:
   build-depends:       base >=4.6 && < 4.8
                         , aeson                >= 0.7     && < 0.9
                         , ansi-wl-pprint       == 0.6.*
@@ -88,7 +87,7 @@ library
                         , directory            == 1.2.*
                         , filecache            >= 0.2.5   && < 0.3
                         , hashable             == 1.2.*
-                        , hruby >= 0.2.5 && <0.3
+                        , hruby                >= 0.2.5 && <0.3
                         , hslogger             == 1.2.*
                         , hslua                >= 0.3.10  && < 0.4
                         , http-conduit         >= 2.1     && < 2.2

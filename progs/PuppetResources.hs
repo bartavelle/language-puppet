@@ -76,6 +76,7 @@ data Options = Options
     , _ignoredMods  :: HS.HashSet T.Text
     , _parse        :: Maybe FilePath
     , _strictMode   :: Strictness
+    , _noExtraTests :: Bool
     } deriving (Show)
 
 options :: Parser Options
@@ -149,6 +150,9 @@ options = Options
    <*> flag Permissive Strict
        (  long "strict"
        <> help "Strict mode diverges from vanillia Puppet and enforces good practices")
+   <*> flag False True
+       (  long "noextratests"
+       <> help "Disable extra tests (eg.: check that files exist on local disk")
 
 checkError :: Doc -> S.Either PrettyError a -> IO a
 checkError r (S.Left rr) = error (show (red r <> ": " <+> getError rr))
@@ -161,12 +165,13 @@ catMaybesCount = foldMap f where
     f (Just x) = ([x], Sum 0)
 
 {-| Does all the work of initializing a daemon for querying.
-Returns the final catalog when given a node name. Note that this is pretty
-hackish as it will generate facts from the local computer !
+Returns a 'QueryFunc' API, together with some stats.
+Be aware it uses the locale computer to generate a set of `facts` (this is a bit hackish).
+These facts can be overriden at the command line (see 'Options').
 -}
 initializedaemonWithPuppet :: FilePath -> Options
                               -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
-initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _ignoredMods, _strictMode}) = do
+initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _ignoredMods, _strictMode, _noExtraTests}) = do
     pdbapi <- case (_pdb, _pdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -179,8 +184,9 @@ initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hier
                            (Nothing, Nothing) -> return id
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _loglevel)
     LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _loglevel)
-    q <- initDaemon =<< setupPreferences workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _hieraFile) . (ignoredmodules.~ _ignoredMods) . (strictness.~ _strictMode))
-    let queryfunc node = fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
+    q <- initDaemon =<< setupPreferences
+         workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _hieraFile) . (ignoredmodules.~ _ignoredMods) . (strictness.~ _strictMode) . (extraTests.~ (not _noExtraTests)))
+    let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
@@ -281,13 +287,12 @@ computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> 
 computeStats workingdir (Options {_loglevel, _deadcode})
               queryfunc (parsingStats, catalogStats, templateStats)
               topnodes = do
-    mcats <- parallel (map (computeCatalog queryfunc) topnodes)
     -- the parsing statistics, so that we known which files
     pStats <- getStats parsingStats
     cStats <- getStats catalogStats
     tStats <- getStats templateStats
-    let (cats, Sum failures) = catMaybesCount mcats
-        allres = (cats ^.. folded . _1 . folded) ++ (cats ^.. folded . _2 . folded)
+    (cats, Sum failures) <- catMaybesCount <$> parallel (map (computeCatalog queryfunc) topnodes)
+    let allres = (cats ^.. folded . _1 . folded) ++ (cats ^.. folded . _2 . folded)
         allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
     when _deadcode $ findDeadCode workingdir allres allfiles
     -- compute statistics

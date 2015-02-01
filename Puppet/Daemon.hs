@@ -4,6 +4,7 @@ module Puppet.Daemon (initDaemon) where
 
 import           Control.Exception
 import           Control.Lens
+import           Control.Monad            (when)
 import qualified Data.Either.Strict       as S
 import           Data.FileCache
 import qualified Data.HashMap.Strict      as HM
@@ -15,12 +16,11 @@ import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
 import           Hiera.Server
-import qualified System.Log.Logger        as LOG
-
 import           Puppet.Interpreter
 import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Types
 import           Puppet.Manifests
+import           Puppet.OptionalTests
 import           Puppet.Parser
 import           Puppet.Parser.Types
 import           Puppet.Plugins
@@ -28,6 +28,7 @@ import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
 import           Puppet.Utils
+import qualified System.Log.Logger        as LOG
 
 {-| This is a high level function, that will initialize the parsing and
 interpretation infrastructure from the 'Preferences', and will return 'DaemonMethods'.
@@ -69,7 +70,7 @@ initDaemon prefs = do
     hquery        <- case prefs ^. hieraPath of
                          Just p  -> fmap (either error id) $ startHiera p
                          Nothing -> return dummyHiera
-    luacontainer <- initLuaMaster (T.pack (prefs ^. modulesPath))
+    luacontainer <- initLuaMaster (T.pack (prefs ^. puppetPaths.modulesPath))
     let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
     return (DaemonMethods (gCatalog myprefs getStatements getTemplate catalogStats hquery) parserStats catalogStats templateStats)
 
@@ -100,7 +101,12 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     (stmts :!: warnings) <- measure stats ndename catalogComputation
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
+    when (prefs ^. extraTests) $ runOptionalTests stmts
     return stmts
+    where
+      runOptionalTests r = case r^?S._Right._1 of
+        Nothing -> return ()
+        Just c  -> testCatalog (prefs^.puppetPaths.baseDir) c
 
 parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
 parseFunction prefs filecache stats topleveltype toplevelname =
@@ -118,13 +124,13 @@ parseFunction prefs filecache stats topleveltype toplevelname =
 -- TODO this is wrong, see
 -- http://docs.puppetlabs.com/puppet/3/reference/lang_namespaces.html#behavior
 compileFileList :: Preferences IO -> TopLevelType -> T.Text -> S.Either PrettyError T.Text
-compileFileList prefs TopNode _ = S.Right (T.pack (prefs ^. manifestPath) <> "/site.pp")
+compileFileList prefs TopNode _ = S.Right (T.pack (prefs ^. puppetPaths.manifestPath) <> "/site.pp")
 compileFileList prefs _ name = moduleInfo
     where
         moduleInfo | length nameparts == 1 = S.Right (mpath <> "/" <> name <> "/manifests/init.pp")
                    | null nameparts = S.Left "no name parts, error in compilefilelist"
                    | otherwise = S.Right (mpath <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp")
-        mpath = T.pack (prefs ^. modulesPath)
+        mpath = T.pack (prefs ^. puppetPaths.modulesPath)
         nameparts = T.splitOn "::" name
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))

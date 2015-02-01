@@ -1,36 +1,37 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP                      #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase               #-}
+{-# LANGUAGE NamedFieldPuns           #-}
 module Erb.Compute(computeTemplate, initTemplateDaemon) where
 
-import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
-import Puppet.Interpreter.Types
-import Puppet.Preferences
-import Puppet.Stats
-import Puppet.PP
-import Puppet.Utils
+import           Puppet.Interpreter.Types
+import           Puppet.PP
+import           Puppet.Preferences
+import           Puppet.Stats
+import           Puppet.Utils
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<>))
 
-import qualified Data.Either.Strict as S
-import Control.Monad.Error
-import Control.Concurrent
-import System.Posix.Files
-import Paths_language_puppet (getDataFileName)
-import Erb.Parser
-import Erb.Evaluate
-import Erb.Ruby
-import Debug.Trace
-import qualified System.Log.Logger as LOG
-import qualified Data.Text as T
-import Text.Parsec hiding (string)
-import Text.Parsec.Error
-import Text.Parsec.Pos
-import System.Environment
-import Data.FileCache
+import           Control.Concurrent
+import           Control.Monad.Error
+import qualified Data.Either.Strict           as S
+import           Data.FileCache
+import qualified Data.Text                    as T
+import           Debug.Trace
+import           Erb.Evaluate
+import           Erb.Parser
+import           Erb.Ruby
+import           Paths_language_puppet        (getDataFileName)
+import           System.Environment
+import qualified System.Log.Logger            as LOG
+import           System.Posix.Files
+import           Text.Parsec                  hiding (string)
+import           Text.Parsec.Error
+import           Text.Parsec.Pos
 
-import Control.Lens
-import Data.Tuple.Strict
-import qualified Foreign.Ruby as FR
-import Foreign.Ruby.Safe
+import           Control.Lens
+import           Data.Tuple.Strict
+import qualified Foreign.Ruby                 as FR
+import           Foreign.Ruby.Safe
 
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
@@ -47,7 +48,7 @@ showRubyError (Stack msg stk) = PrettyError $ dullred (string msg) </> dullyello
 showRubyError (WithOutput str _) = PrettyError $ dullred (string str)
 
 initTemplateDaemon :: RubyInterpreter -> (Preferences IO) -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
-initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _ _ _) mvstats = do
+initTemplateDaemon intr prefs mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
     let returnError rs = return $ \_ _ _ -> return (S.Left (showRubyError rs))
@@ -55,7 +56,7 @@ initTemplateDaemon intr (Preferences _ modpath templatepath _ _ _ _ _ _) mvstats
         Left rs -> returnError rs
         Right () -> registerGlobalFunction4 intr "varlookup" hrresolveVariable >>= \case
             Right () -> do
-                void $ forkIO $ templateDaemon intr (T.pack modpath) (T.pack templatepath) controlchan mvstats templatecache
+                void $ forkIO $ templateDaemon intr (T.pack (prefs^.puppetPaths.modulesPath)) (T.pack (prefs^.puppetPaths.templatesPath)) controlchan mvstats templatecache
                 return (templateQuery controlchan)
             Left rs -> returnError rs
 
@@ -176,4 +177,3 @@ computeTemplateWRuby fileinfo curcontext variables = FR.freezeGC $ eitherDocIO $
         Right r -> FR.fromRuby r >>= \case
             Just result -> return (S.Right result)
             Nothing -> return (S.Left "Could not deserialiaze ruby output")
-
