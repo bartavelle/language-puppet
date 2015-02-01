@@ -43,7 +43,9 @@ checkFile :: FilePath -> PValue -> ErrorT PrettyError IO ()
 checkFile basedir (PString f) = case (T.stripPrefix "puppet:///" f, T.stripPrefix "file:///" f) of
     (Just stringdir, _) -> case T.splitOn "/" stringdir of
         ("modules":modname:rest) -> testFile (basedir <> "/modules/" <> T.unpack modname <> "/files/" <> T.unpack (T.intercalate "/" rest))
-        ("files":rest) -> testFile (basedir <> "/files/" <> T.unpack (T.intercalate "/" rest))
-        ("private":_) -> return ()
-        _ -> throwError (PrettyError $ "Invalid file source:" <+> ttext f)
+        ("files":rest)           -> testFile (basedir <> "/files/" <> T.unpack (T.intercalate "/" rest))
+        ("private":_)            -> return ()
+        _                        -> throwError (PrettyError $ "Invalid file source:" <+> ttext f)
+    (Nothing, _)        -> return ()
 checkFile basedir pv@(PArray xs) = asum [checkFile basedir x | x <- toList xs] <|> throwError (PrettyError $ "Could not find the file in" <+> pretty pv)
+checkFile _ x = throwError (PrettyError $ "Source was not a string, but" <+> pretty x)
