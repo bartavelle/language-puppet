@@ -5,24 +5,25 @@
 -- | This is an internal module.
 module Puppet.Interpreter.IO (defaultImpureMethods, interpretMonad)  where
 
-import Puppet.PP
+import Puppet.PP hiding ((<$>))
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.PrettyPrinter()
 import Puppet.Plugins()
 
 import Control.Monad.Operational
-import Control.Monad.RSS.Strict
 import Control.Monad.State.Strict
 import Control.Lens
+import Control.Applicative
 
 import qualified Data.Either.Strict as S
 
+import Data.Monoid
 import GHC.Stack
 import Debug.Trace (traceEventIO)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Control.Exception
 import qualified Scripting.Lua as Lua
+import Control.Exception
 import Control.Concurrent.MVar
 
 defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
@@ -32,9 +33,9 @@ defaultImpureMethods = ImpureMethods (liftIO currentCallStack)
                                      (\c fname args -> liftIO (runlua c fname args))
     where
         file [] = return $ Left ""
-        file (x:xs) = fmap Right (T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
+        file (x:xs) = (Right <$> T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
         runlua c fname args = liftIO $ withMVar c $ \lstt ->
-                catch (fmap Right (Lua.callfunc lstt (T.unpack fname) args)) (\e -> return $ Left $ show (e :: SomeException))
+                catch (Right <$> Lua.callfunc lstt (T.unpack fname) args) (\e -> return $ Left $ show (e :: SomeException))
 
 
 -- | The operational interpreter function
@@ -63,7 +64,7 @@ eval r s (a :>>= k) =
         canFail iof = iof >>= \case
             S.Left err -> thpe err
             S.Right x -> runInstr x
-        logStuff x c = (_3 %~ (x <>)) `fmap` c
+        logStuff x c = (_3 %~ (x <>)) <$> c
     in  case a of
             IsStrict                     -> runInstr (r ^. isStrict)
             ExternalFunction fname args  -> case r ^. externalFunctions . at fname of
