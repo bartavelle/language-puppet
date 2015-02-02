@@ -8,55 +8,62 @@
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
 module Puppet.Interpreter.Types (
-  -- * Types
-   Resource(..)
- , HasResource(..)
+  -- * Record & lenses
+   HasResource(..)
+ , Resource(Resource)
+ , HasResDefaults(..)
+ , ResDefaults(ResDefaults)
+ , HasLinkInformation(..)
+ , LinkInformation(LinkInformation)
+ , HasRIdentifier(..)
+ , RIdentifier(..)
+ , HasScopeInformation(..)
+ , ScopeInformation(ScopeInformation)
+ , HasResourceModifier(..)
+ , ResourceModifier(ResourceModifier)
+ , HasImpureMethods(..)
+ , ImpureMethods(..)
+ , HasCurContainer(..)
+ , CurContainer(CurContainer)
+ , HasNativeTypeMethods(..)
+ , NativeTypeMethods(NativeTypeMethods)
+  -- ** Operational instructions
+ , InterpreterInstr(..)
+ , HasInterpreterReader(..)
+ , InterpreterReader(InterpreterReader)
+ , HasInterpreterState(..)
+ , InterpreterState (InterpreterState)
+  -- * Record & field lenses
+ , PNodeInfo(PNodeInfo)
+ , nodename
+ , PFactInfo(PFactInfo)
+ , factname
+ , wResources
+ , wEdges
+ , factval
+  -- * Sum types
  , PValue(..)
  , CurContainerDesc(..)
  , ResourceCollectorType(..)
- , ResDefaults(ResDefaults)
- , HasResDefaults(..)
  , RSearchExpression(..)
- , PFactInfo(PFactInfo)
  , Query(..)
  , ModifierType(..)
  , NodeField
  , Strictness(..)
- , LinkInformation(LinkInformation)
- , HasLinkInformation(..)
  , HieraQueryType(..)
- , ScopeInformation(ScopeInformation)
- , HasScopeInformation(..)
  , WireCatalog(..)
  , TopLevelType(..)
  , FactField(..)
- , RIdentifier(..)
- , PNodeInfo(PNodeInfo)
- , HasRIdentifier(..)
  , ResRefOverride(..)
- , ResourceModifier(ResourceModifier)
- , HasResourceModifier(..)
  , ResourceField(..)
  , OverrideType(..)
  , DaemonMethods(..)
  , ClassIncludeType(..)
- , NativeTypeMethods(NativeTypeMethods)
- , HasNativeTypeMethods(..)
- , ImpureMethods(..)
- , HasImpureMethods(..)
- , CurContainer(CurContainer)
- , HasCurContainer(..)
- , PrettyError(..)
-  -- ** Operational instructions
- , InterpreterInstr(..)
- , InterpreterReader(InterpreterReader)
- , HasInterpreterReader(..)
- , InterpreterState (InterpreterState)
- , HasInterpreterState(..)
   -- ** PuppetDB
  , PuppetEdge(PuppetEdge)
  , PuppetDBAPI(..)
-  -- * Synonym
+  -- * newtype & synonym
+ , PrettyError(..)
  , InterpreterMonad
  , InterpreterWriter
  , FinalCatalog
@@ -67,12 +74,6 @@ module Puppet.Interpreter.Types (
  , Scope
  , Facts
  , EdgeMap
-  -- * Field lenses
- , nodename
- , factname
- , wResources
- , wEdges
- , factval
   -- * Classes
  , MonadThrowPos(..)
   -- * Utils

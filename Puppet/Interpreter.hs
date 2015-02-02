@@ -186,10 +186,10 @@ computeCatalog ndename = do
 makeEdgeMap :: FinalCatalog -> InterpreterMonad EdgeMap
 makeEdgeMap ct = do
     -- merge the looaded classes and resources
-    defs' <- HM.map _rpos <$> use definedResources
+    defs' <- HM.map (view rpos) <$> use definedResources
     clss' <- use loadedClasses
     let defs = defs' <> classes' <> aliases' <> names'
-        names' = HM.map _rpos ct
+        names' = HM.map (view rpos) ct
         -- generate fake resources for all extra aliases
         aliases' = ifromList $ do
             r <- ct ^.. traversed :: [Resource]
@@ -341,9 +341,10 @@ evaluateStatement r@(ResourceCollection (RColl e resType searchExp mods p)) = do
             fqdn <- singleton GetNodeName
             -- we must filter the resources that originated from this host
             -- here ! They are also turned into "normal" resources
-            res <- ( map (rvirtuality .~ Normal)
-                   . filter ((/= fqdn) . _rnode)
-                   ) <$> singleton (PDBGetResources q)
+            res <- toListOf (folded
+                            . filtered ( hasn't (rnode . only fqdn) )
+                            . to (rvirtuality .~ Normal)
+                            ) <$> singleton (PDBGetResources q)
             scpdesc <- ContImported <$> getScope
             void $ enterScope SENormal scpdesc "importing" p
             pushScope scpdesc

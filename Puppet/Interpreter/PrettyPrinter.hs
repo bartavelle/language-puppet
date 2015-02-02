@@ -84,7 +84,7 @@ resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r
 instance Pretty Resource where
     prettyList lst =
        let grouped = HM.toList $ HM.fromListWith (++) [ (r ^. rid . itype, [r]) | r <- lst ] :: [ (T.Text, [Resource]) ]
-           sorted = sortWith fst (map (second (sortWith (\r -> r ^.rid.iname))) grouped)
+           sorted = sortWith fst (map (second (sortWith (view (rid.iname)))) grouped)
            showGroup :: (T.Text, [Resource]) -> Doc
            showGroup (rt, res) = dullyellow (ttext rt) <+> lbrace <$> indent 2 (vcat (map resourceBody res)) <$> rbrace
        in  vcat (map showGroup sorted)

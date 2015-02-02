@@ -196,7 +196,7 @@ printContent :: T.Text -> FinalCatalog -> IO ()
 printContent filename catalog =
         case HM.lookup (RIdentifier "file" filename) catalog of
             Nothing -> error "File not found"
-            Just r  -> case HM.lookup "content" (_rattributes r) of
+            Just r  -> case HM.lookup "content" (r ^. rattributes) of
                            Nothing -> error "This file has no content"
                            Just (PString c)  -> T.putStrLn c
                            Just x -> print x
