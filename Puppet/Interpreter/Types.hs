@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                    #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
@@ -8,7 +7,100 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
-module Puppet.Interpreter.Types where
+module Puppet.Interpreter.Types (
+  -- * Types
+   Resource(..)
+ , HasResource(..)
+ , PValue(..)
+ , CurContainerDesc(..)
+ , ResourceCollectorType(..)
+ , ResDefaults(ResDefaults)
+ , HasResDefaults(..)
+ , RSearchExpression(..)
+ , PFactInfo(PFactInfo)
+ , Query(..)
+ , ModifierType(..)
+ , NodeField
+ , Strictness(..)
+ , LinkInformation(LinkInformation)
+ , HasLinkInformation(..)
+ , HieraQueryType(..)
+ , ScopeInformation(ScopeInformation)
+ , HasScopeInformation(..)
+ , WireCatalog(..)
+ , TopLevelType(..)
+ , FactField(..)
+ , RIdentifier(..)
+ , PNodeInfo(PNodeInfo)
+ , HasRIdentifier(..)
+ , ResRefOverride(..)
+ , ResourceModifier(ResourceModifier)
+ , HasResourceModifier(..)
+ , ResourceField(..)
+ , OverrideType(..)
+ , DaemonMethods(..)
+ , ClassIncludeType(..)
+ , NativeTypeMethods(NativeTypeMethods)
+ , HasNativeTypeMethods(..)
+ , ImpureMethods(..)
+ , HasImpureMethods(..)
+ , CurContainer(CurContainer)
+ , HasCurContainer(..)
+ , PrettyError(..)
+  -- ** Operational instructions
+ , InterpreterInstr(..)
+ , InterpreterReader(InterpreterReader)
+ , HasInterpreterReader(..)
+ , InterpreterState (InterpreterState)
+ , HasInterpreterState(..)
+  -- ** PuppetDB
+ , PuppetEdge(PuppetEdge)
+ , PuppetDBAPI(..)
+  -- * Synonym
+ , InterpreterMonad
+ , InterpreterWriter
+ , FinalCatalog
+ , NativeTypeValidate
+ , Nodename
+ , Container
+ , HieraQueryFunc
+ , Scope
+ , Facts
+ , EdgeMap
+  -- * Field lenses
+ , nodename
+ , factname
+ , wResources
+ , wEdges
+ , factval
+  -- * Classes
+ , MonadThrowPos(..)
+  -- * Utils
+ , metaparameters
+ , initialState
+ , getCurContainer
+ , text2Scientific
+ , safeDecodeUtf8
+ , ifStrict
+ , getScope
+ , getScopeName
+ , scopeName
+ , resourceRelations
+ , checkStrict
+ , dummypos
+ , iinsertWith
+ , ikeys
+ , isingleton
+ , ifromListWith
+ , ifromList
+ , iunionWith
+ , fnull
+ , rcurcontainer
+ , logWriter
+ , warn
+ , debug
+ , eitherDocIO
+) where
 
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
@@ -181,8 +273,8 @@ data InterpreterReader m = InterpreterReader
     , _thisNodename            :: T.Text
     , _hieraQuery              :: HieraQueryFunc m
     , _ioMethods               :: ImpureMethods m
-    , _ignoredModules          :: HS.HashSet T.Text -- ^ The set of modules we will not include or whatsoever.
-    , _isStrict                :: Bool -- ^ Are we running in strict mode ?
+    , _ignoredModules          :: HS.HashSet T.Text
+    , _isStrict                :: Bool
     }
 
 data ImpureMethods m = ImpureMethods
@@ -227,7 +319,6 @@ data InterpreterInstr a where
     -- Calling Lua
     CallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> InterpreterInstr PValue
 
-newtype Warning = Warning Doc
 
 type InterpreterLog = Pair Priority Doc
 type InterpreterWriter = [InterpreterLog]
@@ -490,27 +581,9 @@ eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left
         check (S.Left r) = return (S.Left r)
         check (S.Right x) = return (S.Right x)
 
-interpreterIO :: (MonadThrowPos m, MonadIO m) => IO (S.Either PrettyError a) -> m a
-{-# INLINABLE interpreterIO #-}
-interpreterIO f =
-    liftIO (eitherDocIO f) >>= \case
-        S.Right x -> return x
-        S.Left rr -> throwPosError (getError rr)
-
-mightFail :: (MonadError PrettyError m, MonadThrowPos m) => m (S.Either PrettyError a) -> m a
-mightFail a = a >>= \case
-    S.Right x -> return x
-    S.Left rr -> throwPosError (getError rr)
-
 safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad T.Text
 {-# INLINABLE safeDecodeUtf8 #-}
 safeDecodeUtf8 i = return (T.decodeUtf8 i)
-
-interpreterError :: InterpreterMonad (S.Either PrettyError a) -> InterpreterMonad a
-{-# INLINABLE interpreterError #-}
-interpreterError f = f >>= \case
-                             S.Right r -> return r
-                             S.Left rr -> throwPosError (getError rr)
 
 resourceRelations :: Resource -> [(RIdentifier, LinkType)]
 resourceRelations = concatMap expandSet . HM.toList . _rrelations

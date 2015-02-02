@@ -56,7 +56,7 @@ eval _ s (Return x) = return (Right x, s, mempty)
 eval r s (a :>>= k) =
     let runInstr = interpretMonad r s . k -- run one instruction
         thpe = interpretMonad r s . throwPosError . getError
-        pdb = _pdbAPI r
+        pdb = r^.pdbAPI
         strFail iof errf = iof >>= \case
             Left rr -> thpe (errf (string rr))
             Right x -> runInstr x

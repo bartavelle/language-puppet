@@ -2,23 +2,23 @@
 {-# LANGUAGE GADTs #-}
 module Puppet.Interpreter.PrettyPrinter(containerComma) where
 
-import Puppet.PP
-import Puppet.Parser.Types
-import Puppet.Interpreter.Types
-import Puppet.Parser.PrettyPrinter
-import Puppet.Utils
+import           Puppet.Interpreter.Types
+import           Puppet.Parser.PrettyPrinter
+import           Puppet.Parser.Types
+import           Puppet.PP
+import           Puppet.Utils
 
-import qualified Data.Vector as V
-import qualified Data.Text as T
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
-import Control.Arrow (first,second)
-import Control.Lens
-import Data.List
-import GHC.Exts
-import qualified Data.ByteString.Lazy.Char8 as BSL
+import           Control.Arrow               (first, second)
+import           Control.Lens
+import qualified Data.ByteString.Lazy.Char8  as BSL
+import qualified Data.HashMap.Strict         as HM
+import qualified Data.HashSet                as HS
+import           Data.List
+import qualified Data.Text                   as T
+import qualified Data.Vector                 as V
+import           GHC.Exts
 
-import Data.Aeson (ToJSON, encode)
+import           Data.Aeson                  (ToJSON, encode)
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins
@@ -84,7 +84,7 @@ resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r
 instance Pretty Resource where
     prettyList lst =
        let grouped = HM.toList $ HM.fromListWith (++) [ (r ^. rid . itype, [r]) | r <- lst ] :: [ (T.Text, [Resource]) ]
-           sorted = sortWith fst (map (second (sortWith (_iname . _rid) )) grouped)
+           sorted = sortWith fst (map (second (sortWith (\r -> r ^.rid.iname))) grouped)
            showGroup :: (T.Text, [Resource]) -> Doc
            showGroup (rt, res) = dullyellow (ttext rt) <+> lbrace <$> indent 2 (vcat (map resourceBody res)) <$> rbrace
        in  vcat (map showGroup sorted)

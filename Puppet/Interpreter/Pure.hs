@@ -7,21 +7,20 @@
 -- > Right (PString "3")
 module Puppet.Interpreter.Pure where
 
-import Puppet.PP
-import Puppet.Parser.Types
-import Puppet.Interpreter.Types
-import Puppet.Interpreter.IO
-import Puppet.NativeTypes
-import Erb.Parser
-import Erb.Evaluate
-import PuppetDB.Dummy
+import           Erb.Evaluate
+import           Erb.Parser
+import           Puppet.Interpreter.IO
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes
+import           Puppet.Parser.Types
+import           Puppet.PP
+import           PuppetDB.Dummy
 
-import qualified Data.HashMap.Strict as HM
-import Control.Monad.Identity
-import qualified Data.Either.Strict as S
-import Data.Monoid
-import qualified Data.Text as T
-import Control.Lens
+import           Control.Lens
+import qualified Data.Either.Strict       as S
+import qualified Data.HashMap.Strict      as HM
+import           Data.Monoid
+import qualified Data.Text                as T
 
 -- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
 -- type.
@@ -54,6 +53,7 @@ pureEval :: Facts -- ^ A list of facts that will be used during evaluation
 pureEval facts sttmap action = runIdentity (interpretMonad (pureReader sttmap) startingState action)
     where
         startingState = initialState facts
+
 
 -- | A bunch of facts that can be used for pure evaluation.
 dummyFacts :: Facts
