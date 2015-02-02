@@ -26,7 +26,7 @@ testFileSources basedir c = do
         presentFile r = r ^. rid . itype == "file"
                         && (r ^. rattributes . at "ensure") `elem` [Nothing, Just "present"]
                         && r ^. rattributes . at "source" /= Just PUndef
-        getSource = mapMaybe (\r -> (,) `fmap` pure r <*> r ^. rattributes . at "source")
+        getSource = mapMaybe (\r -> (,) <$> pure r <*> r ^. rattributes . at "source")
     let files = (getSource . getFiles) c
     forM_ files $ \(_, filesource) -> do
         rs <- runErrorT (checkFile basedir filesource)
