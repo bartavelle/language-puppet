@@ -9,7 +9,7 @@ import           Data.Foldable                    hiding (forM_, mapM_)
 import           Data.Maybe                       (mapMaybe)
 import           Data.Monoid                      ((<>))
 import qualified Data.Text                        as T
-import           Prelude                          hiding (all, notElem)
+import           Prelude                          hiding (all, elem)
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
 import           Puppet.PP                        hiding ((<$>))
@@ -23,10 +23,9 @@ testCatalog = testFileSources
 testFileSources :: FilePath -> FinalCatalog -> IO ()
 testFileSources basedir c = do
     let getFiles = filter presentFile . toList
-        presentFile r | r ^. rid . itype /= "file" = False
-                      | (r ^. rattributes . at "ensure") `notElem` [Nothing, Just "present"] = False
-                      | r ^. rattributes . at "source" == Just PUndef = False
-                      | otherwise = True
+        presentFile r = r ^. rid . itype == "file"
+                        && (r ^. rattributes . at "ensure") `elem` [Nothing, Just "present"]
+                        && r ^. rattributes . at "source" /= Just PUndef
         getSource = mapMaybe (\r -> (,) `fmap` pure r <*> r ^. rattributes . at "source")
     let files = (getSource . getFiles) c
     forM_ files $ \(_, filesource) -> do
@@ -34,7 +33,6 @@ testFileSources basedir c = do
         case rs of
              Right () -> return ()
              Left err -> fail (show err)
-
 
 testFile :: FilePath -> ErrorT PrettyError IO ()
 testFile fp = liftIO (fileExist fp) >>= (`unless` (throwError $ PrettyError $ "Searched in" <+> string fp))
