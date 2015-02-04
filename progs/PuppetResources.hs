@@ -288,10 +288,10 @@ computeStats workingdir (Options {_loglevel, _deadcode})
               queryfunc (parsingStats, catalogStats, templateStats)
               topnodes = do
     -- the parsing statistics, so that we known which files
-    (cats, Sum failures) <- catMaybesCount <$> parallel (map (computeCatalog queryfunc) topnodes)
     pStats <- getStats parsingStats
     cStats <- getStats catalogStats
     tStats <- getStats templateStats
+    (cats, Sum failures) <- catMaybesCount <$> parallel (map (computeCatalog queryfunc) topnodes)
     let allres = (cats ^.. folded . _1 . folded) ++ (cats ^.. folded . _2 . folded)
         allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
     when _deadcode $ findDeadCode workingdir allres allfiles
