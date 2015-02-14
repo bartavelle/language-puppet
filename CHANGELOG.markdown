@@ -8,6 +8,7 @@
 ## Bugs fixed
 * Class/define parameters that are explicitely set as undefined are now overriden by
   default values.
+* Empty resource groups are now rejected.
 
 ## Various
 * Hiera config interpolation logs decrease from WARN to NOTICE

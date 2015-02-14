@@ -475,7 +475,7 @@ resourceGroup' = do
             return [(n, vals, p :!: pe) | n <- names ]
         groupDeclaration = (,) <$> many (char '@') <*> typeName <* symbolic '{'
     (virts, rtype) <- try groupDeclaration -- for matching reasons, this gets a try until the opening brace
-    x <- resourceDeclaration `sepEndBy` (symbolic ';' <|> comma)
+    x <- resourceDeclaration `sepEndBy1` (symbolic ';' <|> comma)
     void $ symbolic '}'
     virtuality <- case virts of
                       ""   -> return Normal
