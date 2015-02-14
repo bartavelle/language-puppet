@@ -32,7 +32,7 @@ module Puppet.Interpreter.Types (
  , HasInterpreterReader(..)
  , InterpreterReader(InterpreterReader)
  , HasInterpreterState(..)
- , InterpreterState (InterpreterState)
+ , InterpreterState
   -- * Record & field lenses
  , PNodeInfo(PNodeInfo)
  , nodename
