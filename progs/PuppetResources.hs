@@ -316,7 +316,7 @@ computeStats workingdir (Options {_loglevel, _deadcode})
 
     if failures > 0
        then do {putDoc ("Found" <+> red (int failures) <+> "failure(s)." <> line) ; exitFailure}
-       else do {putDoc (green "All green."  <> line) ; exitSuccess}
+       else do {putDoc (dullgreen "All green."  <> line) ; exitSuccess}
 
     where
         computeCatalog :: QueryFunc -> Nodename -> IO (Maybe (FinalCatalog, [Resource]))
