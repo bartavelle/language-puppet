@@ -95,6 +95,7 @@ module Puppet.Interpreter.Types (
  , ifromListWith
  , ifromList
  , iunionWith
+ , showPos
  , fnull
  , rcurcontainer
  , logWriter
@@ -154,6 +155,10 @@ newtype PrettyError = PrettyError { getError :: Doc }
 
 instance Show PrettyError where
     show = show . getError
+
+instance Monoid PrettyError where
+    mempty = PrettyError mempty
+    mappend a b = PrettyError $ getError a <+> getError b
 
 instance IsString PrettyError where
     fromString = PrettyError . string
