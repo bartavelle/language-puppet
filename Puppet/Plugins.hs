@@ -37,7 +37,6 @@ import System.IO
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
-import Control.Monad.IO.Class
 import Control.Concurrent
 import Control.Monad.Error
 import Control.Monad.Operational (singleton)
