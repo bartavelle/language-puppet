@@ -10,7 +10,7 @@ import           Control.Lens
 import           Control.Monad                    (unless)
 import           Control.Monad.Trans              (liftIO)
 import           Control.Monad.Trans.Except
-import           Data.Foldable                    (msum, toList, elem)
+import           Data.Foldable                    (asum, toList, elem, traverse_)
 import           Data.Maybe                       (mapMaybe)
 import           Data.Monoid                      ((<>))
 import qualified Data.Text                        as T
@@ -44,9 +44,9 @@ checkAllSources fp fs = go fs []
         Right () -> go xs es
         Left err -> go xs ((PrettyError $ "Could not find " <+> pretty filesource <> semi
                            <+> align (vsep [getError err, showPos (res^.rpos^._1)])):es)
-    go [] [] = return ()
+    go [] [] = pure ()
     go [] es = do
-      mapM_(\e -> putDoc $ getError e <> line) es
+      traverse_ (\e -> putDoc $ getError e <> line) es
       exitFailure
 
 testFile :: FilePath -> ExceptT PrettyError IO ()
@@ -65,5 +65,5 @@ checkFile basedir (PString f) = case T.stripPrefix "puppet:///" f of
         _                        -> throwE (PrettyError $ "Invalid file source:" <+> ttext f)
     Nothing        -> return ()
 -- source is always an array of possible paths. We only fails if none of them check.
-checkFile basedir (PArray xs) = msum [checkFile basedir x | x <- toList xs]
+checkFile basedir (PArray xs) = asum [checkFile basedir x | x <- toList xs]
 checkFile _ x = throwE (PrettyError $ "Source was not a string, but" <+> pretty x)
