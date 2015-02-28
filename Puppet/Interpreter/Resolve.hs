@@ -241,7 +241,11 @@ resolveExpression (Lookup a idx) =
             ridx <- resolveExpressionString idx
             case h ^. at ridx of
                 Just v -> return v
-                Nothing -> throwPosError ("Can't find index '" <> ttext ridx <> "' in" <+> pretty (PHash h))
+                Nothing -> do
+                  checkStrict
+                    ("Look up for an hash with the unknown key '" <> ttext ridx <> "' for" <+> pretty (PHash h))
+                    ("Can't find index '" <> ttext ridx <> "' in" <+> pretty (PHash h))
+                  return "undef"
         PArray ar -> do
             ridx <- resolveExpression idx
             i <- case ridx ^? _Integer of

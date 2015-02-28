@@ -105,7 +105,9 @@ for them.
 Enable strict check.
 Strict is less permissive than vanilla Puppet.
 It is meant to prevent some pitfalls by enforcing good practices.
-For instance it refuses to silently ignore/convert `undef` variables.
+For instance it refuses to
+  - silently ignore/convert `undef` variables
+  - lookup an hash with an unknown key and return `undef`.
 
 `--noextratests`::
 
@@ -157,6 +159,3 @@ puppet functions::
 
 custom ruby functions::
 Currently the only way to support your custom ruby functions is to rewrite them in Lua.
-
-known differences::
-Looking up an undef key is silent in Puppet but it is an error with puppetresources.
