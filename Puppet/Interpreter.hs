@@ -272,15 +272,15 @@ realize rs = do
                                                           DontRealize      -> (vcheck (`elem` [Normal, ExportedRealized]), return)
                 fmod r = (r ^. rid . itype == rmod ^. rmResType) && checkSearchExpression (rmod ^. rmSearch) r && isGoodvirtuality r
                 mutation = alterVirtuality >=> rmod ^. rmMutation
-                applyModification :: Pair (Pair FinalCatalog FinalCatalog) Bool -> Resource -> InterpreterMonad (Pair (Pair FinalCatalog FinalCatalog) Bool)
-                applyModification (cma :!: cmo :!: matched) r = do
+                applyModification :: Pair FinalCatalog FinalCatalog -> Resource -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
+                applyModification (cma :!: cmo) r = do
                     nr <- mutation r
                     let i m = m & at (nr ^. rid) ?~ nr
                     return $ if nr /= r
-                                 then i cma :!: i cmo :!: True
-                                 else cma :!: cmo :!: matched
-            (result :!: mtch) <- foldM applyModification (curmap :!: modified :!: False) filtrd
-            when (rmod ^. rmModifierType == ModifierMustMatch && not mtch) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod)))
+                                 then i cma :!: i cmo
+                                 else cma :!: cmo
+            result <- foldM applyModification (curmap :!: modified) filtrd
+            when (rmod ^. rmModifierType == ModifierMustMatch && null filtrd) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod <> ",no matching resource was found.")))
             return result
         equalModifier (ResourceModifier a1 b1 c1 d1 _ e1) (ResourceModifier a2 b2 c2 d2 _ e2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
     result <- use resMod >>= foldM mutate (rma :!: mempty) . nubBy equalModifier
