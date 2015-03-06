@@ -6,6 +6,7 @@
 * The new `--noextratests` option disable optional tests from `Puppet.OptionalTests`.
 
 ## Bugs fixed
+* Exported/virtual custom types are not expanded. This is a huge bug.
 * Class/define parameters that are explicitely set as undefined are now overriden by
   default values.
 * Empty resource groups are now rejected.

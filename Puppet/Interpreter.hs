@@ -118,7 +118,9 @@ finalize rlist = do
     void $ getOver >>= mapM keepforlater
     let expandableDefine r = do
             n <- isNativeType (r ^. rid . itype)
-            if n
+            -- if we have a native type, or a virtual/exported resource it
+            -- should not be expanded !
+            if (n || r ^. rvirtuality /= Normal)
                 then return [r]
                 else expandDefine r
     concat <$> mapM expandableDefine withDefaults
