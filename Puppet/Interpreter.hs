@@ -306,8 +306,8 @@ evaluateNode (Nd _ stmts inheritance p) = do
     unless (S.isNothing inheritance) $ throwPosError "Node inheritance is not handled yet, and will probably never be"
     vmapM evaluateStatement stmts >>= finalize . concat
 
-evaluateStatementsVector :: Foldable f => f Statement -> InterpreterMonad [Resource]
-evaluateStatementsVector = fmap concat . vmapM evaluateStatement
+evaluateStatementsFoldable :: Foldable f => f Statement -> InterpreterMonad [Resource]
+evaluateStatementsFoldable = fmap concat . vmapM evaluateStatement
 
 -- | Converts a list of pairs into a container, checking there is no
 -- duplicate
@@ -389,7 +389,7 @@ evaluateStatement (ConditionalStatement (CondStatement conds p)) = do
         checkCond ((e :!: stmts) : xs) = do
             result <- pValue2Bool <$> resolveExpression e
             if result
-                then evaluateStatementsVector stmts
+                then evaluateStatementsFoldable stmts
                 else checkCond xs
     checkCond (toList conds)
 evaluateStatement (DefaultDeclaration (DefaultDec resType decls p)) = do
@@ -587,7 +587,7 @@ expandDefine r = do
                     -- errors
                     loadParameters (r ^. rattributes) defineParams cp S.Nothing
                     curPos .= cp
-                    res <- evaluateStatementsVector stmts
+                    res <- evaluateStatementsFoldable stmts
                     finalize (spurious ++ res)
     when isImportedDefine popScope
     popScope
@@ -647,7 +647,7 @@ loadClass rclassname loadedfrom params cincludetype = do
                             loadVariable "name" (PString classname)
                             loadParameters params classParams cp (S.Just classname)
                             curPos .= cp
-                            res <- evaluateStatementsVector stmts
+                            res <- evaluateStatementsFoldable stmts
                             finalize (classresource ++ spurious ++ inhstmts ++ res)
             popScope
             return out
@@ -813,7 +813,7 @@ evaluateHFC hf = do
     let runblock :: [(T.Text, PValue)] -> InterpreterMonad [Resource]
         runblock assocs = do
             saved <- hfSetvars assocs
-            res <- evaluateStatementsVector (hf ^. hfstatements)
+            res <- evaluateStatementsFoldable (hf ^. hfstatements)
             hfRestorevars  saved
             return res
     results <- mapM runblock varassocs
