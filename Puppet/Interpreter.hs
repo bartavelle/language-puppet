@@ -261,12 +261,22 @@ makeEdgeMap ct = do
         -- throwPosError (vcat (map (\(RIdentifier st sn, RIdentifier dt dn) -> "\"" <> ttext st <> ttext sn <> "\" -> \"" <> ttext dt <> ttext dn <> "\"") edgePairs))
     return step2
 
+-- | This functions performs all the actions triggered by calls to the
+-- realize function or other collectors. It returns a pair of
+-- "finalcatalogs", where the first part is the new catalog, and the second
+-- part the map of all modified resources. The second part is needed so
+-- that we know for example which resources we should test for expansion
+-- (custom types).
 realize :: [Resource] -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
 realize rs = do
-    let rma = ifromList (map (\r -> (r ^. rid, r)) rs)
+    let -- rma is the initial map of resources, indexed by resource identifier
+        rma = ifromList (map (\r -> (r ^. rid, r)) rs)
+        -- mutate runs all the resource modifiers (ie. realize, overrides
+        -- and other collectors). It stores the modified resources on the
+        -- "right" of the resulting pair.
         mutate :: Pair FinalCatalog FinalCatalog -> ResourceModifier -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
         mutate (curmap :!: modified) rmod = do
-            let filtrd = curmap ^.. folded . filtered fmod
+            let filtrd = curmap ^.. folded . filtered fmod -- all the resources that match the selector/realize criteria
                 vcheck f r = f (r ^. rvirtuality)
                 (isGoodvirtuality, alterVirtuality) = case rmod ^. rmType of
                                                           RealizeVirtual   -> (vcheck (/= Exported), \r -> return (r & rvirtuality .~ Normal))
@@ -281,7 +291,7 @@ realize rs = do
                     return $ if nr /= r
                                  then i cma :!: i cmo
                                  else cma :!: cmo
-            result <- foldM applyModification (curmap :!: modified) filtrd
+            result <- foldM applyModification (curmap :!: modified) filtrd -- apply the modifiation to all the matching resources
             when (rmod ^. rmModifierType == ModifierMustMatch && null filtrd) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod <> ",no matching resource was found.")))
             return result
         equalModifier (ResourceModifier a1 b1 c1 d1 _ e1) (ResourceModifier a2 b2 c2 d2 _ e2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
