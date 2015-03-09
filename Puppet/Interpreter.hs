@@ -162,7 +162,7 @@ computeCatalog ndename = do
             -- collect stuff and apply thingies
             (realized :!: modified) <- realize allres
             -- we need to run it again against collected stuff, especially
-            -- for defines that have been realized
+            -- for custom types (defines) that have been realized
             refinalized <- finalize (toList modified) >>= finalStep
             -- replace the modified stuff
             let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
@@ -170,6 +170,9 @@ computeCatalog ndename = do
         mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummypos ndename
     resnode <- evaluateNode node >>= finalStep . (++ (mainstage : restop))
     let (real :!: exported) = foldl' classify (mempty :!: mempty) resnode
+        -- Classify sorts resources between exported and normal ones. It
+        -- drops virtual resources, and puts in both categories resources
+        -- that are at the same time exported and realized.
         classify :: Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
                  -> Resource
                  -> Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
@@ -798,15 +801,14 @@ mainFunctionCall "dumpinfos" _ = do
     vars <- use (scopes . ix scp . scopeVariables)
     forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ttext idx <> " -> " <> pretty pv
     return []
-
 mainFunctionCall fname args = do
     p <- use curPos
     let representation = MainFunctionCall (MFC fname mempty p)
     rs <- singleton (ExternalFunction fname args)
     unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs </> pretty representation)
     return []
--- Method stuff
 
+-- Method stuff
 evaluateHFC :: HFunctionCall -> InterpreterMonad [Resource]
 evaluateHFC hf = do
     varassocs <- hfGenerateAssociations hf
