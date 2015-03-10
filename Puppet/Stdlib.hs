@@ -11,7 +11,7 @@ import Puppet.Lens
 import Data.Char
 import Data.Monoid
 import Control.Monad
-import Data.Vector.Lens
+import Data.Vector.Lens (toVectorOf)
 import Text.Regex.PCRE.ByteString.Utils
 import Data.Traversable (for)
 import qualified Data.Vector as V
@@ -52,6 +52,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("has_key", hasKey)
                               , ("lstrip", stringArrayFunction T.stripStart)
                               , ("merge", merge)
+                              , ("member", member)
                               , ("pick", pick)
                               , ("rstrip", stringArrayFunction T.stripEnd)
                               , singleArgument "size" size
@@ -201,7 +202,7 @@ _grep [PArray vls, rawre] = do
        r <- resolvePValueString v
        ismatched <- matchRE regexp r
        return (r, ismatched)
-    return $ PArray $ (V.map (PString . fst) (V.filter snd rvls))
+    return $ PArray $ V.map (PString . fst) (V.filter snd rvls)
 _grep [x,_] = throwPosError ("grep(): The first argument must be an Array, not" <+> pretty x)
 _grep _ = throwPosError "grep(): Expected two arguments."
 
@@ -247,6 +248,10 @@ puppetJoin _ = throwPosError "join(): expected two arguments"
 keys :: PValue -> InterpreterMonad PValue
 keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)
 keys x = throwPosError ("keys(): Expects a Hash, not" <+> pretty x)
+
+member :: [PValue] -> InterpreterMonad PValue
+member [PArray v, x] = return $ PBoolean (x `V.elem` v)
+member _ = throwPosError "member() expects 2 arguments"
 
 hasKey :: [PValue] -> InterpreterMonad PValue
 hasKey [PHash h, k] = do
