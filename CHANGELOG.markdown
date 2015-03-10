@@ -4,7 +4,7 @@
 * The interpreter can now run in a strict or permissive mode.
 * The new `-a` option accepts a comma separated list of nodes for gathering stats.
 * The new `--noextratests` option disable optional tests from `Puppet.OptionalTests`.
-* Implementation of `member()` from stdlib (see #100 for details)
+* Implementation of `member()` from stdlib (see issue #100 for details)
 
 ## Bugs fixed
 * Exported/virtual custom types are not expanded. This is a huge bug.
