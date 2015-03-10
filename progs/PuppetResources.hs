@@ -185,7 +185,7 @@ initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hier
     LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _loglevel)
     LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _loglevel)
     q <- initDaemon =<< setupPreferences
-         workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _hieraFile) . (ignoredmodules.~ _ignoredMods) . (strictness.~ _strictMode) . (extraTests.~ (not _noExtraTests)))
+         workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _hieraFile) . (ignoredmodules.~ _ignoredMods) . (strictness.~ _strictMode) . (extraTests.~ not _noExtraTests))
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
@@ -347,7 +347,7 @@ computeNodeCatalog (Options {_showjson, _showContent, _resourceType, _resourceNa
               (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
               (True, _) -> do
                   unless (_resourceType == Just "file" || isNothing _resourceType) $ do
-                      putDoc $ "Show content only works with resource of type file. It is an error to provide another filter type"
+                      putDoc "Show content only works with resource of type file. It is an error to provide another filter type"
                       exitFailure
                   case _resourceName of
                       Just f  -> printContent f catalog
