@@ -1,4 +1,7 @@
-# v1.0.2 ()
+# v1.1.0 (2015/03/11)
+
+Critical bugs have been fixed, upgrade recommended.
+
 ## New features
 * New `dumpinfos` debug function.
 * The interpreter can now run in a strict or permissive mode.
