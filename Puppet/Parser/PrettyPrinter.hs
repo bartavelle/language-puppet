@@ -1,14 +1,15 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Puppet.Parser.PrettyPrinter where
 
-import Puppet.PP
-import Puppet.Parser.Types
-import Puppet.Utils
-import qualified Data.Vector as V
-import qualified Data.Text as T
-import Data.Tuple.Strict (Pair ( (:!:) ))
-import qualified Data.Tuple.Strict as S
-import qualified Data.Maybe.Strict as S
+import qualified Data.Maybe.Strict            as S
+import qualified Data.Text                    as T
+import           Data.Tuple.Strict            (Pair ((:!:)))
+import qualified Data.Tuple.Strict            as S
+import qualified Data.Vector                  as V
+import           Puppet.Parser.Types
+import           Puppet.PP
+import           Puppet.Utils
+import           Text.PrettyPrint.ANSI.Leijen ((<$>))
 
 capitalize :: T.Text -> Doc
 capitalize = dullyellow . text . T.unpack . capitalizeRT

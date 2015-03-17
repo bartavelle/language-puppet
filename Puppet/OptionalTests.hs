@@ -17,7 +17,7 @@ import qualified Data.Text                        as T
 import           Prelude                          hiding (all, elem)
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
-import           Puppet.PP                        hiding ((<$>))
+import           Puppet.PP
 import           System.Exit                      (exitFailure)
 import           System.Posix.Files
 

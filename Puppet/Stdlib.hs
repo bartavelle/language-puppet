@@ -1,24 +1,25 @@
 {-# LANGUAGE LambdaCase #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
-import Puppet.PP
-import Puppet.Interpreter.Resolve
-import Puppet.Interpreter.Types
+import           Puppet.Interpreter.Resolve
+import           Puppet.Interpreter.Types
+import           Puppet.PP
 
-import Control.Lens
-import Data.Aeson.Lens
-import Puppet.Lens
-import Data.Char
-import Data.Monoid
-import Control.Monad
-import Data.Vector.Lens (toVectorOf)
-import Text.Regex.PCRE.ByteString.Utils
-import Data.Traversable (for)
-import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.ByteString.Base16 as B16
+import           Control.Lens
+import           Control.Monad
+import           Data.Aeson.Lens
+import qualified Data.ByteString.Base16           as B16
+import           Data.Char
+import qualified Data.HashMap.Strict              as HM
+import           Data.Monoid
+import qualified Data.Text                        as T
+import qualified Data.Text.Encoding               as T
+import           Data.Traversable                 (for)
+import qualified Data.Vector                      as V
+import           Data.Vector.Lens                 (toVectorOf)
+import           Puppet.Lens
+import qualified Text.PrettyPrint.ANSI.Leijen     as PP
+import           Text.Regex.PCRE.ByteString.Utils
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
@@ -324,7 +325,7 @@ validateRe [str, PArray v, msg] = do
     rest <- mapM (resolvePValueString >=> compileRE >=> flip matchRE rstr) (V.toList v)
     if or rest
         then return PUndef
-        else throwPosError (pretty msg <$> "Source string:" <+> pretty str <> comma <+> "regexps:" <+> pretty (V.toList v))
+        else throwPosError (pretty msg PP.<$> "Source string:" <+> pretty str <> comma <+> "regexps:" <+> pretty (V.toList v))
 validateRe [_, r, _] = throwPosError ("validate_re(): expected a regexp or an array of regexps, but not" <+> pretty r)
 validateRe _ = throwPosError "validate_re(): wrong number of arguments (#{args.length}; must be 2 or 3)"
 

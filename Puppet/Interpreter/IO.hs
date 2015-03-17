@@ -1,30 +1,33 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE LambdaCase        #-}
+
 -- | This is an internal module.
-module Puppet.Interpreter.IO (defaultImpureMethods, interpretMonad)  where
+module Puppet.Interpreter.IO (
+    defaultImpureMethods
+  , interpretMonad
+  ) where
 
-import Puppet.PP hiding ((<$>))
-import Puppet.Interpreter.Types
-import Puppet.Interpreter.PrettyPrinter()
-import Puppet.Plugins()
+import           Puppet.Interpreter.PrettyPrinter ()
+import           Puppet.Interpreter.Types
+import           Puppet.Plugins                   ()
+import           Puppet.PP
 
-import Control.Monad.Operational
-import Control.Monad.State.Strict
-import Control.Lens
-import Control.Applicative
-
-import qualified Data.Either.Strict as S
-
-import Data.Monoid
-import GHC.Stack
-import Debug.Trace (traceEventIO)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import qualified Scripting.Lua as Lua
-import Control.Exception
-import Control.Concurrent.MVar
+import           Control.Applicative
+import           Control.Concurrent.MVar
+import           Control.Exception
+import           Control.Lens
+import           Control.Monad.Operational
+import           Control.Monad.State.Strict
+import qualified Data.Either.Strict               as S
+import           Data.Monoid
+import qualified Data.Text                        as T
+import qualified Data.Text.IO                     as T
+import           Debug.Trace                      (traceEventIO)
+import           GHC.Stack
+import qualified Scripting.Lua                    as Lua
 
 defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
 defaultImpureMethods = ImpureMethods (liftIO currentCallStack)

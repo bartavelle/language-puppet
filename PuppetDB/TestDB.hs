@@ -3,8 +3,12 @@
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE TemplateHaskell        #-}
+
 -- | A stub implementation of PuppetDB, backed by a YAML file.
-module PuppetDB.TestDB (loadTestDB,initTestDB) where
+module PuppetDB.TestDB
+       ( loadTestDB
+       , initTestDB
+) where
 
 import           Control.Applicative
 import           Control.Concurrent.STM
@@ -25,7 +29,7 @@ import           Text.Parsec.Pos
 import           Puppet.Interpreter.Types
 import           Puppet.Lens
 import           Puppet.Parser.Types
-import           Puppet.PP                hiding ((<$>))
+import           Puppet.PP
 
 data DBContent = DBContent
     { _dbcontentResources   :: Container WireCatalog

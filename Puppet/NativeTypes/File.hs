@@ -1,16 +1,17 @@
 module Puppet.NativeTypes.File (nativeFile) where
 
-import Puppet.NativeTypes.Helpers hiding ((<$>))
-import Control.Monad.Error
-import Puppet.Interpreter.Types
-import Data.Char (isDigit)
-import qualified Data.Text as T
-import Control.Lens
-import Control.Applicative
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
-import Data.Monoid
-import qualified Data.Attoparsec.Text as AT
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
+
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad.Error
+import qualified Data.Attoparsec.Text       as AT
+import           Data.Char                  (isDigit)
+import qualified Data.Map.Strict            as M
+import           Data.Monoid
+import qualified Data.Set                   as S
+import qualified Data.Text                  as T
 
 nativeFile :: (NativeTypeName, NativeTypeMethods)
 nativeFile = ("file", nativetypemethods parameterfunctions (validateSourceOrContent >=> validateMode))

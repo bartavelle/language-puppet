@@ -7,8 +7,8 @@ module Puppet.PP
     , module Text.PrettyPrint.ANSI.Leijen
     ) where
 
-import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
-import qualified Data.Text as T
+import qualified Data.Text                    as T
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 ttext :: T.Text -> Doc
 ttext = text . T.unpack

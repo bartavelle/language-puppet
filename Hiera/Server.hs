@@ -38,7 +38,7 @@ import           System.FilePath.Lens        (directory)
 import qualified System.Log.Logger           as LOG
 
 import           Puppet.Interpreter.Types
-import           Puppet.PP                   hiding ((<$>))
+import           Puppet.PP
 import           Puppet.Utils                (strictifyEither)
 
 loggerName :: String

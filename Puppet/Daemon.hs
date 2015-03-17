@@ -2,11 +2,13 @@
 {-# LANGUAGE LambdaCase #-}
 module Puppet.Daemon (initDaemon) where
 
+import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad            (when)
 import qualified Data.Either.Strict       as S
 import           Data.FileCache
+import           Data.Foldable            (for_)
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.Text                as T
 import qualified Data.Text.IO             as T
@@ -68,7 +70,7 @@ initDaemon prefs = do
     intr          <- startRubyInterpreter
     getTemplate   <- initTemplateDaemon intr prefs templateStats
     hquery        <- case prefs ^. hieraPath of
-                         Just p  -> fmap (either error id) $ startHiera p
+                         Just p  -> either error id <$> startHiera p
                          Nothing -> return dummyHiera
     luacontainer <- initLuaMaster (T.pack (prefs ^. puppetPaths.modulesPath))
     let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
@@ -104,9 +106,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     when (prefs ^. extraTests) $ runOptionalTests stmts
     return stmts
     where
-      runOptionalTests r = case r^?S._Right._1 of
-        Nothing -> return ()
-        Just c  -> testCatalog (prefs^.puppetPaths.baseDir) c
+      runOptionalTests r = for_ (r^?S._Right._1) $ testCatalog (prefs^.puppetPaths.baseDir)
 
 parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
 parseFunction prefs filecache stats topleveltype toplevelname =

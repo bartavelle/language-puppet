@@ -39,7 +39,7 @@ import           Puppet.Lens
 import           Puppet.Parser
 import           Puppet.Parser.PrettyPrinter      (ppStatements)
 import           Puppet.Parser.Types
-import           Puppet.PP                        hiding ((<$>))
+import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
 import           PuppetDB.Common

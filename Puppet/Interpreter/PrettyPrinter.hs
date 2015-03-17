@@ -8,17 +8,18 @@ import           Puppet.Parser.Types
 import           Puppet.PP
 import           Puppet.Utils
 
-import           Control.Arrow               (first, second)
+import           Control.Arrow                (first, second)
 import           Control.Lens
-import qualified Data.ByteString.Lazy.Char8  as BSL
-import qualified Data.HashMap.Strict         as HM
-import qualified Data.HashSet                as HS
+import qualified Data.ByteString.Lazy.Char8   as BSL
+import qualified Data.HashMap.Strict          as HM
+import qualified Data.HashSet                 as HS
 import           Data.List
-import qualified Data.Text                   as T
-import qualified Data.Vector                 as V
+import qualified Data.Text                    as T
+import qualified Data.Vector                  as V
 import           GHC.Exts
 
-import           Data.Aeson                  (ToJSON, encode)
+import           Data.Aeson                   (ToJSON, encode)
+import           Text.PrettyPrint.ANSI.Leijen ((<$>))
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins
@@ -55,7 +56,7 @@ instance Pretty RIdentifier where
     pretty (RIdentifier t n) = pretty (PResourceReference t n)
 
 meta :: Resource -> Doc
-meta r = showPPos (r ^. rpos) <+> (green (node <+> brackets scp) )
+meta r = showPPos (r ^. rpos) <+> green (node <+> brackets scp)
     where
         node = red (ttext (r ^. rnode))
         scp = "Scope" <+> pretty (r ^.. rscope . folded . filtered (/=ContRoot) . to pretty)

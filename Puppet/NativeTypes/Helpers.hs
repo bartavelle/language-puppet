@@ -32,20 +32,20 @@ module Puppet.NativeTypes.Helpers
     , validateSourceOrContent
     ) where
 
-import Puppet.PP hiding (string,integer)
-import Puppet.Utils
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Puppet.Interpreter.Types
-import Puppet.Interpreter.PrettyPrinter()
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
-import Data.Char (isDigit)
-import Control.Monad
-import qualified Data.Text as T
-import Control.Lens
-import qualified Data.Vector as V
-import Data.Aeson.Lens (_Number,_Integer)
-import Data.Maybe (fromMaybe)
+import           Control.Lens
+import           Control.Monad
+import           Data.Aeson.Lens                  (_Integer, _Number)
+import           Data.Char                        (isDigit)
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.HashSet                     as HS
+import           Data.Maybe                       (fromMaybe)
+import qualified Data.Text                        as T
+import qualified Data.Vector                      as V
+import           Puppet.Interpreter.PrettyPrinter ()
+import           Puppet.Interpreter.Types
+import           Puppet.PP                        hiding (integer, string)
+import           Puppet.Utils
+import qualified Text.PrettyPrint.ANSI.Leijen     as P
 
 type NativeTypeName = T.Text
 

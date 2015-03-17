@@ -35,10 +35,7 @@ import           Puppet.Parser.Types
 import           Puppet.PP
 import           Puppet.Utils
 
-import           Data.Version                     (parseVersion)
-import           Text.ParserCombinators.ReadP     (readP_to_S)
-
-import           Control.Applicative              hiding ((<$>))
+import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Operational        (singleton)
@@ -59,6 +56,9 @@ import qualified Data.Text                        as T
 import qualified Data.Text.Encoding               as T
 import           Data.Tuple.Strict                as S
 import qualified Data.Vector                      as V
+import           Data.Version                     (parseVersion)
+import           Text.ParserCombinators.ReadP     (readP_to_S)
+import qualified Text.PrettyPrint.ANSI.Leijen     as PP
 import           Text.Regex.PCRE.ByteString.Utils
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
@@ -300,7 +300,7 @@ resolveExpression a@(FunctionApplication e (Terminal (UHFunctionCall hf))) = do
     unless (S.isNothing (hf ^. hfexpr)) (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
     resolveValue (UHFunctionCall (hf & hfexpr .~ S.Just e))
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
-resolveExpression x = throwPosError ("Don't know how to resolve this expression:" <$> pretty x)
+resolveExpression x = throwPosError ("Don't know how to resolve this expression:" PP.<$> pretty x)
 
 -- | Resolves an 'UValue' (terminal for the 'Expression' data type) into
 -- a 'PValue'
@@ -335,13 +335,13 @@ resolvePValueString PUndef = do
        "Resolving the keyword `undef` to the string \"undef\""
        "Strict mode won't convert the keyword `undef` to the string \"undef\""
      return "undef"
-resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <$> pretty x)
+resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" PP.<$> pretty x)
 
 -- | Turns everything it can into a number, or throws an error
 resolvePValueNumber :: PValue -> InterpreterMonad Scientific
 resolvePValueNumber x = case x ^? _Number of
                             Just n -> return n
-                            Nothing -> throwPosError ("Don't know how to convert this to a number:" <$> pretty x)
+                            Nothing -> throwPosError ("Don't know how to convert this to a number:" PP.<$> pretty x)
 
 -- | > resolveExpressionString = resolveExpression >=> resolvePValueString
 resolveExpressionString :: Expression -> InterpreterMonad T.Text

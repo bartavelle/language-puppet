@@ -12,7 +12,7 @@ import           Puppet.Lens
 import           Puppet.NativeTypes
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
-import           Puppet.PP                        hiding ((<$>))
+import           Puppet.PP
 
 import           Control.Applicative
 import           Control.Lens
