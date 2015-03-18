@@ -66,6 +66,7 @@ library
                        , Puppet.NativeTypes.Group
                        , Puppet.NativeTypes.Host
                        , Puppet.NativeTypes.Mount
+                       , Puppet.NativeTypes.Notify
                        , Puppet.NativeTypes.Package
                        , Puppet.NativeTypes.SshSecure
                        , Puppet.NativeTypes.User
