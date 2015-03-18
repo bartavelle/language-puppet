@@ -1,3 +1,11 @@
+# v1.1.1 ()
+
+## New features
+* Add 'notify' native type
+
+## Bugs fixed
+* Enable 'package' native type (issue #102)
+
 # v1.1.0 (2015/03/11)
 
 Critical bugs have been fixed, upgrade recommended.
