@@ -18,6 +18,7 @@ cabal-version:       >=1.8
 extra-source-files:
     CHANGELOG.markdown
     README.adoc
+    HLint.hs
 
 Data-Files:
   ruby/hrubyerb.rb

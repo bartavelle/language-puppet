@@ -20,6 +20,7 @@ import qualified Data.Either.Strict       as S
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.HashSet             as HS
 import           Data.List                (foldl')
+import qualified Data.Maybe.Strict        as S
 import           Data.Monoid
 import qualified Data.Text                as T
 import qualified Data.Vector              as V
@@ -184,4 +185,12 @@ commit db = do
         Just bf -> fmap S.Right (encodeFile bf dbc) `catches` [ ]
 
 getNds :: DB -> Query NodeField -> IO (S.Either PrettyError [PNodeInfo])
-getNds _ _ = return (S.Left "getNds not implemented")
+getNds db QEmpty = fmap (S.Right . toNodeInfo) (readTVarIO db)
+    where
+        toNodeInfo :: DBContent -> [PNodeInfo]
+        toNodeInfo = fmap g . HM.keys . _dbcontentFacts
+             where
+                g :: Nodename -> PNodeInfo
+                g = \n -> PNodeInfo n False S.Nothing S.Nothing S.Nothing
+
+getNds _ _ = return (S.Left "getNds with query not implemented")
