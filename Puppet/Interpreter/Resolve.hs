@@ -137,9 +137,7 @@ resolveVariable fullvar = do
     scps <- use scopes
     scp <- getScopeName
     case getVariable scps scp fullvar of
-        Left rr -> ifStrict
-                        (throwPosError rr)
-                        (warn ("The variable" <+> pretty (UVariableReference fullvar) <+> "was not resolved" <+> pretty PUndef <+> "returned") >> return PUndef)
+        Left rr -> throwPosError rr
         Right x -> return x
 
 -- | A simple helper that checks if a given type is native or a define.
