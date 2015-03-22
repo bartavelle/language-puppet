@@ -330,8 +330,8 @@ resolvePValueString (PBoolean False) = return "false"
 resolvePValueString (PNumber x) = return (scientific2text x)
 resolvePValueString PUndef = do
      checkStrict
-       "Strict mode won't convert the keyword `undef` to the string \"undef\""
        "Resolving the keyword `undef` to the string \"undef\""
+       "Strict mode won't convert the keyword `undef` to the string \"undef\""
      return "undef"
 resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" PP.<$> pretty x)
 
