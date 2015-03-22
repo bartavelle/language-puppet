@@ -856,7 +856,9 @@ checkStrict wrn err = do
     str <- singleton IsStrict
     if str
         then throwPosError err
-        else warn wrn
+        else do
+          srcname <- use (curPos._1.lSourceName)
+          warn (wrn <+> "at" <+> string srcname)
 
 -- | Runs operations depending on the strict flag.
 ifStrict :: InterpreterMonad a -- ^ This operation will be run in strict mode.
