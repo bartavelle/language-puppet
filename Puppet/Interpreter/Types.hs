@@ -82,7 +82,6 @@ module Puppet.Interpreter.Types (
  , getCurContainer
  , text2Scientific
  , safeDecodeUtf8
- , ifStrict
  , getScope
  , getScopeName
  , scopeName
@@ -849,6 +848,7 @@ dummypos :: PPosition
 dummypos = initialPPos "dummy"
 
 -- | Throws an error if we are in strict mode
+-- A warning in permissive mode
 checkStrict :: Doc -- ^ The warning message.
             -> Doc -- ^ The error message.
             -> InterpreterMonad ()
