@@ -19,6 +19,7 @@ import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
 import qualified Data.Text.IO                     as T
 import           Data.Text.Strict.Lens
+import           Data.Traversable                 (for)
 import           Data.Tuple                       (swap)
 import qualified Data.Vector                      as V
 import           Data.Yaml                        (decodeFileEither)
@@ -26,6 +27,9 @@ import           Options.Applicative
 import           System.Exit                      (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob             as G
 import           System.IO
+import           System.Log.Formatter             (simpleLogFormatter)
+import           System.Log.Handler               (setFormatter)
+import           System.Log.Handler.Simple        (streamHandler)
 import qualified System.Log.Logger                as LOG
 import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
@@ -172,6 +176,7 @@ These facts can be overriden at the command line (see 'Options').
 initializedaemonWithPuppet :: FilePath -> Options
                               -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
 initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _ignoredMods, _strictMode, _noExtraTests}) = do
+    setupLogger
     pdbapi <- case (_pdb, _pdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -182,12 +187,20 @@ initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hier
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> flip HM.union `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
-    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _loglevel)
-    LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _loglevel)
     q <- initDaemon =<< setupPreferences
          workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _hieraFile) . (ignoredmodules.~ _ignoredMods) . (strictness.~ _strictMode) . (extraTests.~ not _noExtraTests))
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
+    where
+      stdoutHandler p = setFormatter
+                        <$> streamHandler stdout p
+                        <*> pure (simpleLogFormatter "$prio: $msg")
+      setupLogger = do
+         hs <- for [LOG.DEBUG, LOG.INFO, LOG.NOTICE, LOG.WARNING] stdoutHandler
+         LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers hs
+         LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _loglevel)
+         LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _loglevel)
+
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
 parseFile = fmap . runPParser puppetParser <*> T.readFile
@@ -331,7 +344,7 @@ computeNodeCatalog (Options {_showjson, _showContent, _resourceType, _resourceNa
                    queryfunc pdbapi node =
     queryfunc node >>= \case
       S.Left rr -> do
-          putDoc ("Problem with" <+> ttext node <+> ":" <+> getError rr </> mempty)
+          putDoc (red "ERROR:" <+> parens (ttext node) <+> getError rr </> mempty)
           exitFailure
       S.Right (rawcatalog, edgemap, rawexported, _) -> do
           printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
