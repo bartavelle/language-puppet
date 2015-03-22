@@ -1,5 +1,6 @@
-{-# LANGUAGE LambdaCase     #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE RecordWildCards #-}
 module Main where
 
 import           Control.Concurrent.ParallelIO    (parallel)
@@ -35,7 +36,6 @@ import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
 
 import           Facter
-
 import           Puppet.Daemon
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
@@ -61,34 +61,31 @@ instance Read MultNodes where
                     in [(MultNodes os, "")]
 
 data Options = Options
-    { _pdb          :: Maybe String
-    , _showjson     :: Bool
-    , _showContent  :: Bool
-    , _resourceType :: Maybe T.Text
-    , _resourceName :: Maybe T.Text
-    , _puppetdir    :: Maybe FilePath
-    , _nodename     :: Maybe Nodename
-    , _multnodes    :: Maybe MultNodes
-    , _deadcode     :: Bool
-    , _pdbfile      :: Maybe FilePath
-    , _loglevel     :: LOG.Priority
-    , _hieraFile    :: Maybe FilePath
-    , _factsOverr   :: Maybe FilePath
-    , _factsDefault :: Maybe FilePath
-    , _commitDB     :: Bool
-    , _checkExport  :: Bool
-    , _ignoredMods  :: HS.HashSet T.Text
-    , _parse        :: Maybe FilePath
-    , _strictMode   :: Strictness
-    , _noExtraTests :: Bool
+    { _optShowjson     :: Bool
+    , _optShowContent  :: Bool
+    , _optResourceType :: Maybe T.Text
+    , _optResourceName :: Maybe T.Text
+    , _optPuppetdir    :: Maybe FilePath
+    , _optNodename     :: Maybe Nodename
+    , _optMultnodes    :: Maybe MultNodes
+    , _optDeadcode     :: Bool
+    , _optPdburl       :: Maybe String
+    , _optPdbfile      :: Maybe FilePath
+    , _optLoglevel     :: LOG.Priority
+    , _optHieraFile    :: Maybe FilePath
+    , _optFactsOverr   :: Maybe FilePath
+    , _optFactsDefault :: Maybe FilePath
+    , _optCommitDB     :: Bool
+    , _optCheckExport  :: Bool
+    , _optIgnoredMods  :: HS.HashSet T.Text
+    , _optParse        :: Maybe FilePath
+    , _optStrictMode   :: Strictness
+    , _optNoExtraTests :: Bool
     } deriving (Show)
 
 options :: Parser Options
 options = Options
-    <$> optional (strOption
-       (  long "pdburl"
-       <> help "URL of the puppetdb (ie. http://localhost:8080/)."))
-   <*> switch
+    <$> switch
        (  long "JSON"
        <> short 'j'
        <> help "Shows the output as a JSON document (useful for full catalog views)")
@@ -119,6 +116,9 @@ options = Options
    <*> switch
        (  long "deadcode"
        <> help "Show deadcode when the --all option is used")
+   <*> optional (strOption
+       (  long "pdburl"
+       <> help "URL of the puppetdb (ie. http://localhost:8080/)."))
    <*> optional (strOption
        (  long "pdbfile"
        <> help "Path to the testing PuppetDB file."))
@@ -173,22 +173,23 @@ Returns a 'QueryFunc' API, together with some stats.
 Be aware it uses the locale computer to generate a set of `facts` (this is a bit hackish).
 These facts can be overriden at the command line (see 'Options').
 -}
-initializedaemonWithPuppet :: FilePath -> Options
-                              -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
-initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hieraFile, _factsOverr, _factsDefault, _ignoredMods, _strictMode, _noExtraTests}) = do
+initializedaemonWithPuppet :: FilePath
+                           -> Options
+                           -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
+initializedaemonWithPuppet workingdir (Options {..}) = do
     setupLogger
-    pdbapi <- case (_pdb, _pdbfile) of
+    pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
                   (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    !factsOverrides <- case (_factsOverr, _factsDefault) of
+    !factsOverrides <- case (_optFactsOverr, _optFactsDefault) of
                            (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
                            (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
                            (Nothing, Just p) -> flip HM.union `fmap` loadFactsOverrides p
                            (Nothing, Nothing) -> return id
     q <- initDaemon =<< setupPreferences
-         workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _hieraFile) . (ignoredmodules.~ _ignoredMods) . (strictness.~ _strictMode) . (extraTests.~ not _noExtraTests))
+         workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _optHieraFile) . (ignoredmodules.~ _optIgnoredMods) . (strictness.~ _optStrictMode) . (extraTests.~ not _optNoExtraTests))
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
     where
@@ -198,8 +199,8 @@ initializedaemonWithPuppet workingdir (Options {_pdb, _pdbfile, _loglevel, _hier
       setupLogger = do
          hs <- for [LOG.DEBUG, LOG.INFO, LOG.NOTICE, LOG.WARNING] stdoutHandler
          LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers hs
-         LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _loglevel)
-         LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _loglevel)
+         LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _optLoglevel)
+         LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _optLoglevel)
 
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
@@ -297,9 +298,9 @@ instance (Ord a) => Monoid (Maximum a) where
 
 -- | For each node, queryfunc the catalog and return stats
 computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> [Nodename] -> IO ()
-computeStats workingdir (Options {_loglevel, _deadcode})
-              queryfunc (parsingStats, catalogStats, templateStats)
-              topnodes = do
+computeStats workingdir (Options {..})
+             queryfunc (parsingStats, catalogStats, templateStats)
+             topnodes = do
     -- the parsing statistics, so that we known which files
     (cats, Sum failures) <- catMaybesCount <$> parallel (map (computeCatalog queryfunc) topnodes)
     pStats <- getStats parsingStats
@@ -307,7 +308,7 @@ computeStats workingdir (Options {_loglevel, _deadcode})
     tStats <- getStats templateStats
     let allres = (cats ^.. folded . _1 . folded) ++ (cats ^.. folded . _2 . folded)
         allfiles = Set.fromList $ map T.unpack $ HM.keys pStats
-    when _deadcode $ findDeadCode workingdir allres allfiles
+    when _optDeadcode $ findDeadCode workingdir allres allfiles
     -- compute statistics
     let (parsing,    Just (wPName, wPMean)) = worstAndSum pStats
         (cataloging, Just (wCName, wCMean)) = worstAndSum cStats
@@ -322,7 +323,7 @@ computeStats workingdir (Options {_loglevel, _deadcode})
     putStr ("Tested " ++ show nbnodes ++ " nodes. ")
     unless (nbnodes == 0) $ do
         putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
-        when (_loglevel <= LOG.INFO) $ do
+        when (_optLoglevel <= LOG.INFO) $ do
             putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
             putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
             putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
@@ -340,8 +341,7 @@ computeStats workingdir (Options {_loglevel, _deadcode})
 
 -- | Queryfunc the catalog for the node and PP the result
 computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> Nodename -> IO ()
-computeNodeCatalog (Options {_showjson, _showContent, _resourceType, _resourceName, _checkExport })
-                   queryfunc pdbapi node =
+computeNodeCatalog (Options {..}) queryfunc pdbapi node =
     queryfunc node >>= \case
       S.Left rr -> do
           putDoc (red "ERROR:" <+> parens (ttext node) <+> getError rr </> mempty)
@@ -351,18 +351,18 @@ computeNodeCatalog (Options {_showjson, _showContent, _resourceType, _resourceNa
             if isterm
                 then putDoc x >> putStrLn ""
                 else displayIO stdout (renderCompact x) >> putStrLn ""
-          catalog  <- filterCatalog _resourceType _resourceName rawcatalog
-          exported <- filterCatalog _resourceType _resourceName rawexported
+          catalog  <- filterCatalog _optResourceType _optResourceName rawcatalog
+          exported <- filterCatalog _optResourceType _optResourceName rawexported
           let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) edgemap
               rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) edgemap
-          when _checkExport $ void $ replaceCatalog pdbapi rawWireCatalog
-          case (_showContent, _showjson) of
+          when _optCheckExport $ void $ replaceCatalog pdbapi rawWireCatalog
+          case (_optShowContent, _optShowjson) of
               (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
               (True, _) -> do
-                  unless (_resourceType == Just "file" || isNothing _resourceType) $ do
+                  unless (_optResourceType == Just "file" || isNothing _optResourceType) $ do
                       putDoc "Show content only works with resource of type file. It is an error to provide another filter type"
                       exitFailure
-                  case _resourceName of
+                  case _optResourceName of
                       Just f  -> printContent f catalog
                       Nothing -> putDoc "You should supply a resource name when using showcontent" >> exitFailure
               _         -> do
@@ -389,27 +389,27 @@ filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked)
 
 run :: Options -> IO ()
 -- | Parse mode
-run (Options {_parse = Just fp}) = parseFile fp >>= \case
+run (Options {_optParse = Just fp}) = parseFile fp >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> putDoc $ ppStatements s
 
-run (Options {_puppetdir = Nothing, _parse = Nothing }) =
+run (Options {_optPuppetdir = Nothing, _optParse = Nothing }) =
     error "Without a puppet dir, only the `--parse` option can be supported"
-run (Options {_puppetdir = Just _, _nodename = Nothing, _multnodes = Nothing}) =
+run (Options {_optPuppetdir = Just _, _optNodename = Nothing, _optMultnodes = Nothing}) =
     error "You need to choose between single or multiple node"
 
 -- | Single node mode (`--node` option)
-run cmd@(Options {_nodename = Just node, _commitDB, _puppetdir = Just workingdir}) = do
+run cmd@(Options {_optNodename = Just node, _optPuppetdir = Just workingdir, ..}) = do
     (queryfunc, pdbapi, _, _, _ ) <- initializedaemonWithPuppet workingdir cmd
     computeNodeCatalog cmd queryfunc pdbapi node
-    when _commitDB $ void $ commitDB pdbapi
+    when _optCommitDB $ void $ commitDB pdbapi
 
 -- | Multiple nodes mode (`--all`) option
-run cmd@(Options {_nodename = Nothing , _multnodes = Just nodes, _puppetdir = Just workingdir}) = do
+run cmd@(Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppetdir = Just workingdir}) = do
     -- it would be really noisy to run this mode with loglevel < LOG.ERROR;
     -- even the default LOG.WARNING would clutter the output.
     -- That's why we force LOG.ERROR for the puppet daemon.
-    (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir (cmd {_loglevel = LOG.ERROR})
+    (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir (cmd {_optLoglevel = LOG.ERROR})
     computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
 
   where
