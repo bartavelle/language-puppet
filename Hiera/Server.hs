@@ -159,7 +159,7 @@ query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
             case resolveInterpolable vars strs of
                 Just s  -> queryCombinator qtype (map (query'' s) _backends)
                 Nothing -> do
-                    LOG.noticeM loggerName (show $ "Hiera lookup: skipping using hierarchy level" <+> pretty strs
+                    LOG.infoM loggerName (show $ "Hiera lookup: skipping using hierarchy level" <+> pretty strs
                                             <$$> "It couldn't be interpolated with known variables:" <+> varlist)
                     return Nothing
         query'' :: T.Text -> Backend -> IO (Maybe PValue)

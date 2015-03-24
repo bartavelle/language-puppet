@@ -9,6 +9,9 @@
 ## Changes
 * Even in Permissive mode, don't resolve unknown variable (see #103)
 
+## Various
+* Hiera config interpolation logs decrease from NOTICE to INFO
+
 # v1.1.0 (2015/03/11)
 
 Critical bugs have been fixed, upgrade recommended.
