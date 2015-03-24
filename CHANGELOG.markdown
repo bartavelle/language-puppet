@@ -8,6 +8,7 @@
 
 ## Changes
 * Even in Permissive mode, don't resolve unknown variable (see #103)
+* Add priority to the logger permissive output (see #106)
 
 ## Various
 * Hiera config interpolation logs decrease from NOTICE to INFO
