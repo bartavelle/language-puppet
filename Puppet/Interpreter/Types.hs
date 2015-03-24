@@ -849,16 +849,17 @@ dummypos = initialPPos "dummy"
 
 -- | Throws an error if we are in strict mode
 -- A warning in permissive mode
-checkStrict :: Doc -- ^ The warning message.
+checkStrict :: Priority
+            -> Doc -- ^ The warning message.
             -> Doc -- ^ The error message.
             -> InterpreterMonad ()
-checkStrict wrn err = do
+checkStrict p wrn err = do
     str <- singleton IsStrict
     if str
         then throwPosError err
         else do
           srcname <- use (curPos._1.lSourceName)
-          warn (wrn <+> "at" <+> string srcname)
+          logWriter p (wrn <+> "at" <+> string srcname)
 
 -- | Runs operations depending on the strict flag.
 ifStrict :: InterpreterMonad a -- ^ This operation will be run in strict mode.
