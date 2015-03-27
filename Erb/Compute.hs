@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP                      #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE LambdaCase               #-}
 {-# LANGUAGE NamedFieldPuns           #-}
 module Erb.Compute(computeTemplate, initTemplateDaemon) where
@@ -46,7 +45,7 @@ showRubyError :: RubyError -> PrettyError
 showRubyError (Stack msg stk) = PrettyError $ dullred (string msg) </> dullyellow (string stk)
 showRubyError (WithOutput str _) = PrettyError $ dullred (string str)
 
-initTemplateDaemon :: RubyInterpreter -> (Preferences IO) -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
+initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
 initTemplateDaemon intr prefs mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
@@ -115,7 +114,7 @@ computeTemplate intr fileinfo curcontext fvariables mstats filecache = do
 
 getRubyScriptPath :: String -> IO String
 getRubyScriptPath rubybin = do
-    let checkpath :: FilePath -> (IO FilePath) -> IO FilePath
+    let checkpath :: FilePath -> IO FilePath -> IO FilePath
         checkpath fp nxt = do
             e <- fileExist fp
             if e
@@ -158,7 +157,7 @@ computeTemplateWRuby fileinfo curcontext variables = FR.freezeGC $ eitherDocIO $
             case erbBinding of
                 Left x -> return (Left x)
                 Right v -> do
-                     forM_ (itoList varlist) $ \(varname, (varval :!: _ :!: _)) -> FR.toRuby varval >>= FR.rb_iv_set v (T.unpack varname)
+                     forM_ (itoList varlist) $ \(varname, varval :!: _ :!: _) -> FR.toRuby varval >>= FR.rb_iv_set v (T.unpack varname)
                      f v
     o <- case fileinfo of
              Right fname  -> do
