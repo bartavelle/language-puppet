@@ -89,7 +89,7 @@ library
                         , directory            == 1.2.*
                         , filecache            >= 0.2.5   && < 0.3
                         , hashable             == 1.2.*
-                        , hruby                >= 0.2.9 && <0.3
+                        , hruby                >= 0.3 && <0.4
                         , hslogger             == 1.2.*
                         , hslua                >= 0.3.10  && < 0.4
                         , http-conduit         >= 2.1     && < 2.2

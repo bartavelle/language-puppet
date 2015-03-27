@@ -135,7 +135,7 @@ import           Data.Time.Clock
 import qualified Data.Traversable             as TR
 import           Data.Tuple.Strict
 import qualified Data.Vector                  as V
-import           Foreign.Ruby
+import           Foreign.Ruby.Helpers
 import           GHC.Generics                 hiding (to)
 import           GHC.Stack
 import qualified Scripting.Lua                as Lua
@@ -574,11 +574,12 @@ instance ToJSON PValue where
 instance ToRuby PValue where
     toRuby = toRuby . toJSON
 instance FromRuby PValue where
-    fromRuby v = fromRuby v >>= \case
-            Nothing -> return Nothing
-            Just x  -> case fromJSON x of
-                           Error _ -> return Nothing
-                           Success suc -> return (Just suc)
+    fromRuby = fmap chk . fromRuby
+        where
+            chk (Left x) = Left x
+            chk (Right x) = case fromJSON x of
+                                Error rr -> Left rr
+                                Success suc -> Right suc
 
 eitherDocIO :: IO (S.Either PrettyError a) -> IO (S.Either PrettyError a)
 eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ PrettyError $ dullred $ text $ show (e :: SomeException))
@@ -640,7 +641,7 @@ instance ToJSON Resource where
                       , ("aliases", toJSON $ r ^. ralias)
                       , ("exported", Bool $ r ^. rvirtuality == Exported)
                       , ("tags", toJSON $ r ^. rtags)
-                      , ("parameters", Object ( (HM.map toJSON $ r ^. rattributes) `HM.union` relations ))
+                      , ("parameters", Object ( HM.map toJSON (r ^. rattributes) `HM.union` relations ))
                       , ("sourceline", r ^. rpos . _1 . to sourceLine . to toJSON)
                       , ("sourcefile", r ^. rpos . _1 . to sourceName . to toJSON)
                       ]
@@ -861,10 +862,3 @@ checkStrict p wrn err = do
           srcname <- use (curPos._1.lSourceName)
           logWriter p (wrn <+> "at" <+> string srcname)
 
--- | Runs operations depending on the strict flag.
-ifStrict :: InterpreterMonad a -- ^ This operation will be run in strict mode.
-         -> InterpreterMonad a -- ^ This operation will be run in permissive mode.
-         -> InterpreterMonad a
-ifStrict yes no = do
-    str <- singleton IsStrict
-    if str then yes else no

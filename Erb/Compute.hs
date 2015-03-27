@@ -28,8 +28,9 @@ import           Text.Parsec.Pos
 
 import           Control.Lens
 import           Data.Tuple.Strict
-import qualified Foreign.Ruby                 as FR
-import           Foreign.Ruby.Safe
+import qualified Foreign.Ruby.Helpers         as FR
+import qualified Foreign.Ruby.Bindings        as FR
+import           Foreign.Ruby
 
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
@@ -44,6 +45,7 @@ type TemplateAnswer = S.Either PrettyError T.Text
 showRubyError :: RubyError -> PrettyError
 showRubyError (Stack msg stk) = PrettyError $ dullred (string msg) </> dullyellow (string stk)
 showRubyError (WithOutput str _) = PrettyError $ dullred (string str)
+showRubyError (OtherError rr) = PrettyError (dullred (text rr))
 
 initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
 initTemplateDaemon intr prefs mvstats = do
@@ -136,14 +138,14 @@ hrresolveVariable _ rscp rvariables rtoresolve = do
     variables <- FR.extractHaskellValue rvariables
     toresolve <- FR.fromRuby rtoresolve
     let answer = case toresolve of
-                     Just "~g~e~t_h~a~s~h~" ->
+                     Right "~g~e~t_h~a~s~h~" ->
                         let getvars ctx = (variables ^. ix ctx . scopeVariables) & traverse %~ view (_1 . _1)
                             vars = getvars "::" <> getvars scope
                         in  Right (PHash vars)
-                     Just t -> getVariable variables scope t
-                     _ -> Left "The variable name is not a string"
+                     Right t -> getVariable variables scope t
+                     Left rr -> Left ("The variable name is not a string" <+> text rr)
     case answer of
-        Left _  -> FR.getSymbol "undef"
+        Left _  -> getSymbol "undef"
         Right r -> FR.toRuby r
 
 computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO TemplateAnswer
@@ -173,5 +175,5 @@ computeTemplateWRuby fileinfo curcontext variables = FR.freezeGC $ eitherDocIO $
                             Left _  -> "inline_template"
             in  return (S.Left $ PrettyError (dullred (text rr) <+> "in" <+> dullgreen (text fname)))
         Right r -> FR.fromRuby r >>= \case
-            Just result -> return (S.Right result)
-            Nothing -> return (S.Left "Could not deserialiaze ruby output")
+            Right result -> return (S.Right result)
+            Left rr -> return (S.Left $ PrettyError ("Could not deserialiaze ruby output" <+> text rr))
