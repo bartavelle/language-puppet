@@ -320,7 +320,7 @@ computeStats workingdir (Options {..})
         worstAndSum = (_1 %~ getSum)
                             . (_2 %~ fmap swap . getMaximum)
                             . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
-    putStr ("Tested " ++ show nbnodes ++ " nodes. ")
+    putStr ("\nTested " ++ show nbnodes ++ " nodes. ")
     unless (nbnodes == 0) $ do
         putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
         when (_optLoglevel <= LOG.INFO) $ do
@@ -336,7 +336,7 @@ computeStats workingdir (Options {..})
         computeCatalog :: QueryFunc -> Nodename -> IO (Maybe (FinalCatalog, [Resource]))
         computeCatalog func node =
             func node >>= \case
-              S.Left err -> putDoc ("Problem with" <+> ttext node <+> ":" <+> getError err </> mempty) >> return Nothing
+              S.Left err -> putDoc (line <> red "ERROR:" <+> parens (ttext node) <+> ":" <+> getError err) >> return Nothing
               S.Right (rawcatalog, _ , rawexported, knownRes) -> return (Just (rawcatalog <> rawexported, knownRes))
 
 -- | Queryfunc the catalog for the node and PP the result
@@ -344,7 +344,7 @@ computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> Nodename -> IO (
 computeNodeCatalog (Options {..}) queryfunc pdbapi node =
     queryfunc node >>= \case
       S.Left rr -> do
-          putDoc (red "ERROR:" <+> parens (ttext node) <+> getError rr </> mempty)
+          putDoc (line <> red "ERROR:" <+> parens (ttext node) <+> getError rr)
           exitFailure
       S.Right (rawcatalog, edgemap, rawexported, _) -> do
           printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->

@@ -66,6 +66,8 @@ module Puppet.Lens
  , _ConditionalValue
  , _FunctionApplication
  , _Terminal
+ -- * Prisms for exceptions
+ , _PrettyError
  ) where
 
 import Control.Lens
@@ -85,7 +87,7 @@ import qualified Data.Text as T
 import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict hiding (uncurry)
 import Text.Parser.Combinators (eof)
-
+import Control.Exception (SomeException, toException, fromException)
 -- Prisms
 makePrisms ''PValue
 --makePrisms ''Statement
@@ -103,6 +105,10 @@ makePrisms ''MFC
 makePrisms ''SFC
 makePrisms ''RColl
 makePrisms ''Dep
+
+
+_PrettyError :: Prism' SomeException PrettyError
+_PrettyError = prism' toException fromException
 
 _ResourceDeclaration' :: Prism' Statement ResDec
 _ResourceDeclaration' = prism ResourceDeclaration $ \x -> case x of

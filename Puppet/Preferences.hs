@@ -27,6 +27,7 @@ data PuppetDirPaths = PuppetDirPaths
     , _manifestPath  :: FilePath -- ^ The path to the manifests.
     , _modulesPath   :: FilePath -- ^ The path to the modules.
     , _templatesPath :: FilePath -- ^ The path to the template.
+    , _testPath      :: FilePath -- ^ The path to a tests folders to hold tests files such as the pdbfiles.
     }
 
 makeClassy ''PuppetDirPaths
@@ -50,9 +51,13 @@ genPreferences basedir = do
     let manifestdir = basedir <> "/manifests"
         modulesdir  = basedir <> "/modules"
         templatedir = basedir <> "/templates"
+        testdir     = basedir <> "/tests"
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    return $ Preferences (PuppetDirPaths basedir manifestdir modulesdir templatedir) dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes) (stdlibFunctions) (Just (basedir <> "/hiera.yaml")) mempty Strict True
+    return $ Preferences (PuppetDirPaths basedir manifestdir modulesdir templatedir testdir)
+                         dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
+                         stdlibFunctions
+                         (Just (basedir <> "/hiera.yaml")) mempty Strict True
 
 {-| Use lens with the set operator and composition to set external/custom params.
 

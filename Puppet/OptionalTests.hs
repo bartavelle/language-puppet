@@ -1,32 +1,70 @@
-{-# LANGUAGE LambdaCase      #-}
--- | The module works in IO and exits on failure.
--- It is meant to be use by a `Daemon`.
--- PS: if more flexibility is needed, we can `throwM`
--- on failure and let the caller choose what to do.
+{-# LANGUAGE LambdaCase #-}
+-- | The module works in IO and throws a 'PrettyError' exception at each failure.
+-- These exceptions can be caught (see the exceptions package).
 module Puppet.OptionalTests (testCatalog) where
 
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad                    (unless)
-import           Control.Monad.Trans              (liftIO)
+import           Control.Monad.Catch
+import           Control.Monad.Trans              (MonadIO, liftIO)
 import           Control.Monad.Trans.Except
-import           Data.Foldable                    (asum, toList, elem, traverse_)
+import           Data.Foldable                    (asum, elem, toList,
+                                                   traverse_)
+import qualified Data.HashSet                     as HS
 import           Data.Maybe                       (mapMaybe)
 import           Data.Monoid                      ((<>))
 import qualified Data.Text                        as T
 import           Prelude                          hiding (all, elem)
+
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
+import           Puppet.Lens                      (_PString)
 import           Puppet.PP
-import           System.Exit                      (exitFailure)
 import           System.Posix.Files
 
+knownUsers :: [T.Text]
+knownUsers = ["", "mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "stash", "syslog", "www-data"]
+knownGroups :: [T.Text]
+knownGroups= ["", "adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "stash", "www-data"]
+
 -- | Entry point for all optional tests
-testCatalog :: FilePath -> FinalCatalog -> IO ()
-testCatalog = testFileSources
+testCatalog :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> FinalCatalog -> m ()
+testCatalog fp c = testFileSources fp c >> testUsersGroups fp c
+
+-- | Tests that all users and groups are defined
+testUsersGroups :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> FinalCatalog -> m ()
+testUsersGroups _ c = do
+    let users = HS.fromList $ map (view (rid . iname)) (getResourceFrom "user") ++ knownUsers
+        groups = HS.fromList $ map (view (rid . iname)) (getResourceFrom "group") ++ knownGroups
+        checkResource lu lg = mapM_ (checkResource' lu lg)
+        checkResource' lu lg res = do
+            let msg att name = align (vsep [ "Resource" <+> ttext (res^.rid.itype)
+                                             <+> ttext (res^.rid.iname) <+> showPos (res^.rpos._1)
+                                           , "reference the unknown" <+> string att <+> squotes (ttext name)])
+                               <> line
+            case lu of
+                Just lu' -> do
+                    let u = res ^. rattributes . lu' . _PString
+                    unless (HS.member u users) $ throwM $ PrettyError (msg "user" u)
+                Nothing -> pure ()
+            case lg of
+                Just lg' -> do
+                    let g = res ^. rattributes . lg' . _PString
+                    unless (HS.member g groups) $ throwM $ PrettyError (msg "group" g)
+                Nothing -> pure ()
+    do
+        checkResource (Just $ ix "owner") (Just $ ix "group") (getResourceFrom "file")
+        checkResource (Just $ ix "user")  (Just $ ix "group") (getResourceFrom "exec")
+        checkResource (Just $ ix "user")  Nothing             (getResourceFrom "cron")
+        checkResource (Just $ ix "user")  Nothing             (getResourceFrom "ssh_authorized_key")
+        checkResource (Just $ ix "user")  Nothing             (getResourceFrom "ssh_authorized_key_secure")
+        checkResource Nothing             (Just $ ix "gid")   (getResourceFrom "users")
+    where
+      getResourceFrom t = c ^.. traverse . filtered (\r -> r ^. rid . itype == t && r ^. rattributes . at "ensure" /= Just "absent")
 
 -- | Test source for every file resources in the catalog.
-testFileSources :: FilePath -> FinalCatalog -> IO ()
+testFileSources :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> FinalCatalog -> m ()
 testFileSources basedir c = do
     let getFiles = filter presentFile . toList
         presentFile r = r ^. rid . itype == "file"
@@ -36,7 +74,7 @@ testFileSources basedir c = do
     checkAllSources basedir $ (getSource . getFiles) c
 
 -- | Check source for all file resources and append failures along.
-checkAllSources :: FilePath -> [(Resource, PValue)] -> IO ()
+checkAllSources :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> [(Resource, PValue)] -> m ()
 checkAllSources fp fs = go fs []
   where
     go ((res, filesource):xs) es =
@@ -45,18 +83,16 @@ checkAllSources fp fs = go fs []
         Left err -> go xs ((PrettyError $ "Could not find " <+> pretty filesource <> semi
                            <+> align (vsep [getError err, showPos (res^.rpos^._1)])):es)
     go [] [] = pure ()
-    go [] es = do
-      traverse_ (\e -> putDoc $ getError e <> line) es
-      exitFailure
+    go [] es = traverse_ throwM es
 
-testFile :: FilePath -> ExceptT PrettyError IO ()
+testFile :: MonadIO m => FilePath -> ExceptT PrettyError m ()
 testFile fp = do
     p <-  liftIO (fileExist fp)
     unless p (throwE $ PrettyError $ "searched in" <+> squotes (string fp))
 
 -- | Only test the `puppet:///` protocol (files managed by the puppet server)
 --   we don't test absolute path (puppet client files)
-checkFile :: FilePath -> PValue -> ExceptT PrettyError IO ()
+checkFile :: (MonadIO m, Applicative m) => FilePath -> PValue -> ExceptT PrettyError m ()
 checkFile basedir (PString f) = case T.stripPrefix "puppet:///" f of
     Just stringdir -> case T.splitOn "/" stringdir of
         ("modules":modname:rest) -> testFile (basedir <> "/modules/" <> T.unpack modname <> "/files/" <> T.unpack (T.intercalate "/" rest))

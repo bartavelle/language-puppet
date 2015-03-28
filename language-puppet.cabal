@@ -87,6 +87,7 @@ library
                         , containers           == 0.5.*
                         , cryptohash           >= 0.10    && < 0.12
                         , directory            == 1.2.*
+                        , exceptions           >= 0.8
                         , filecache            >= 0.2.5   && < 0.3
                         , hashable             == 1.2.*
                         , hruby                >= 0.3 && <0.4

@@ -1,3 +1,4 @@
+{-# LANGUAGE AutoDeriveTypeable     #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
@@ -161,6 +162,12 @@ instance Monoid PrettyError where
 
 instance IsString PrettyError where
     fromString = PrettyError . string
+
+instance Error PrettyError where
+    noMsg = PrettyError empty
+    strMsg = PrettyError . text
+
+instance Exception PrettyError
 
 -- | The intepreter can run in two modes : a strict mode (recommended), and
 -- a permissive mode. The permissive mode let known antipatterns work with
@@ -348,10 +355,6 @@ instance MonadWriter InterpreterWriter InterpreterMonad where
     tell = singleton . WriterTell
     pass = singleton . WriterPass
     listen = singleton . WriterListen
-
-instance Error PrettyError where
-    noMsg = PrettyError empty
-    strMsg = PrettyError . text
 
 data RIdentifier = RIdentifier
     { _itype :: !T.Text
@@ -861,4 +864,3 @@ checkStrict p wrn err = do
         else do
           srcname <- use (curPos._1.lSourceName)
           logWriter p (wrn <+> "at" <+> string srcname)
-

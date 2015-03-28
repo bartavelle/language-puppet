@@ -4,11 +4,10 @@ module Puppet.Daemon (initDaemon) where
 
 import           Control.Applicative
 import           Control.Exception
+import           Control.Exception.Lens
 import           Control.Lens
-import           Control.Monad            (when)
 import qualified Data.Either.Strict       as S
 import           Data.FileCache
-import           Data.Foldable            (for_)
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.Text                as T
 import qualified Data.Text.IO             as T
@@ -17,10 +16,12 @@ import qualified Data.Vector              as V
 import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
+
 import           Hiera.Server
 import           Puppet.Interpreter
 import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Types
+import           Puppet.Lens              (_PrettyError)
 import           Puppet.Manifests
 import           Puppet.OptionalTests
 import           Puppet.Parser
@@ -54,8 +55,8 @@ Canveats :
 * It might be buggy when top level statements that are not class\/define\/nodes
 are altered, or when files loaded with require are changed.
 
-* The catalog is not computed exactly the same way Puppet does. Some good practices are enforced.
-As an example querying a dictionary with a non existent key returns undef in puppet, whereas it throws an error with language-puppet.
+* The catalog is not computed exactly the same way Puppet does. Some good practices are enforced, particularly in strict mode.
+For instance, unknown variables are always an error. Querying a dictionary with a non existent key returns undef in puppet, whereas it would throw an error in strict mode.
 
 -}
 initDaemon :: Preferences IO -> IO DaemonMethods
@@ -103,10 +104,16 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     (stmts :!: warnings) <- measure stats ndename catalogComputation
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
-    when (prefs ^. extraTests) $ runOptionalTests stmts
-    return stmts
+    if prefs ^. extraTests
+       then runOptionalTests stmts
+       else return stmts
     where
-      runOptionalTests r = for_ (r^?S._Right._1) $ testCatalog (prefs^.puppetPaths.baseDir)
+      runOptionalTests stm = case stm^?S._Right._1 of
+        Nothing -> return stm
+        (Just c)  -> let workingdir = prefs^.puppetPaths.baseDir
+                     in catching _PrettyError
+                                 (do {testCatalog workingdir c; return stm})
+                                 (return . S.Left)
 
 parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
 parseFunction prefs filecache stats topleveltype toplevelname =
