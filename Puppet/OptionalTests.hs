@@ -29,11 +29,11 @@ knownGroups :: [T.Text]
 knownGroups= ["", "adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "stash", "www-data"]
 
 -- | Entry point for all optional tests
-testCatalog :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> FinalCatalog -> m ()
+testCatalog :: FilePath -> FinalCatalog -> IO ()
 testCatalog fp c = testFileSources fp c >> testUsersGroups fp c
 
 -- | Tests that all users and groups are defined
-testUsersGroups :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> FinalCatalog -> m ()
+testUsersGroups :: FilePath -> FinalCatalog -> IO ()
 testUsersGroups _ c = do
     let users = HS.fromList $ map (view (rid . iname)) (getResourceFrom "user") ++ knownUsers
         groups = HS.fromList $ map (view (rid . iname)) (getResourceFrom "group") ++ knownGroups
@@ -64,7 +64,7 @@ testUsersGroups _ c = do
       getResourceFrom t = c ^.. traverse . filtered (\r -> r ^. rid . itype == t && r ^. rattributes . at "ensure" /= Just "absent")
 
 -- | Test source for every file resources in the catalog.
-testFileSources :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> FinalCatalog -> m ()
+testFileSources :: FilePath -> FinalCatalog -> IO ()
 testFileSources basedir c = do
     let getFiles = filter presentFile . toList
         presentFile r = r ^. rid . itype == "file"
@@ -74,7 +74,7 @@ testFileSources basedir c = do
     checkAllSources basedir $ (getSource . getFiles) c
 
 -- | Check source for all file resources and append failures along.
-checkAllSources :: (MonadThrow m , MonadIO m, Applicative m) => FilePath -> [(Resource, PValue)] -> m ()
+checkAllSources :: FilePath -> [(Resource, PValue)] -> IO ()
 checkAllSources fp fs = go fs []
   where
     go ((res, filesource):xs) es =
@@ -85,14 +85,14 @@ checkAllSources fp fs = go fs []
     go [] [] = pure ()
     go [] es = traverse_ throwM es
 
-testFile :: MonadIO m => FilePath -> ExceptT PrettyError m ()
+testFile :: FilePath -> ExceptT PrettyError IO ()
 testFile fp = do
     p <-  liftIO (fileExist fp)
     unless p (throwE $ PrettyError $ "searched in" <+> squotes (string fp))
 
 -- | Only test the `puppet:///` protocol (files managed by the puppet server)
 --   we don't test absolute path (puppet client files)
-checkFile :: (MonadIO m, Applicative m) => FilePath -> PValue -> ExceptT PrettyError m ()
+checkFile :: FilePath -> PValue -> ExceptT PrettyError IO ()
 checkFile basedir (PString f) = case T.stripPrefix "puppet:///" f of
     Just stringdir -> case T.splitOn "/" stringdir of
         ("modules":modname:rest) -> testFile (basedir <> "/modules/" <> T.unpack modname <> "/files/" <> T.unpack (T.intercalate "/" rest))
