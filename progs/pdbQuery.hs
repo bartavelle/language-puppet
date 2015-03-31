@@ -8,7 +8,8 @@ import           PuppetDB.Remote
 import           Facter
 
 import           Control.Lens
-import           Control.Monad (forM_,unless)
+import           Control.Monad (forM_,unless,(>=>))
+import           Control.Monad.Trans.Either
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Either.Strict as S
 import qualified Data.HashMap.Strict as HM
@@ -18,6 +19,7 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import           Data.Yaml hiding (Parser)
 import           Options.Applicative as O
+import           Servant.Common.BaseUrl
 
 data Options = Options { _pdbloc :: Maybe FilePath
                        , _pdbtype :: PDBType
@@ -71,54 +73,59 @@ addfacts :: Parser Command
 addfacts = AddFacts <$> O.argument auto mempty
 
 
-display :: (Show r, ToJSON a) => String -> S.Either r a -> IO ()
-display s (S.Left rr) = error (s <> " " <> show rr)
-display _ (S.Right a) = BS.putStrLn (encode a)
+display :: (Show r, ToJSON a) => String -> Either r a -> IO ()
+display s (Left rr) = error (s <> " " <> show rr)
+display _ (Right a) = BS.putStrLn (encode a)
 
-checkError :: (Show r) => String -> S.Either r a -> IO a
-checkError s (S.Left rr) = error (s <> " " <> show rr)
-checkError _ (S.Right a) = return a
+checkErrorS :: (Show r) => String -> S.Either r a -> IO a
+checkErrorS s (S.Left rr) = error (s <> " " <> show rr)
+checkErrorS _ (S.Right a) = return a
+
+checkError :: (Show r) => String -> Either r a -> IO a
+checkError s (Left rr) = error (s <> " " <> show rr)
+checkError _ (Right a) = return a
+
+runCheck :: Show r => String -> EitherT r IO a -> IO a
+runCheck s = runEitherT >=> checkError s
 
 run :: Options -> IO ()
 run cmdl = do
     epdbapi <- case (_pdbloc cmdl, _pdbtype cmdl) of
-                   (Just l, PDBRemote) -> pdbConnect (T.pack l)
+                   (Just l, PDBRemote) -> pdbConnect $ either error id $ parseBaseUrl l
                    (Just l, PDBTest)   -> loadTestDB l
                    (_, x)              -> getDefaultDB x
     pdbapi <- case epdbapi of
                   S.Left r -> error (show r)
                   S.Right x -> return x
-    let getOrError s (S.Left rr) = error (s <> " " <> show rr)
-        getOrError _ (S.Right x) = return x
     case _pdbcmd cmdl of
         DumpFacts -> if _pdbtype cmdl == PDBDummy
                          then puppetDBFacts "dummy"  pdbapi >>= mapM_ print . HM.toList
                          else do
-                             allfacts <- getFacts pdbapi QEmpty >>= checkError "get facts"
-                             tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= checkError "load test db"
+                             allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
+                             tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= checkErrorS "load test db"
                              let groupfacts = foldl' groupfact HM.empty allfacts
                                  groupfact curmap (PFactInfo ndname fctname fctval) =
                                      curmap & at ndname . non HM.empty %~ (at fctname ?~ fctval)
-                             replaceFacts tmpdb (HM.toList groupfacts) >>= checkError "replace facts in dummy db"
-                             commitDB tmpdb >>= checkError "commit db"
-        DumpNodes -> getNodes pdbapi QEmpty >>= display "dump nodes"
+                             runCheck "replace facts in dummy db" (replaceFacts tmpdb (HM.toList groupfacts))
+                             runCheck "commit db" (commitDB tmpdb)
+        DumpNodes -> runEitherT (getNodes pdbapi QEmpty) >>= display "dump nodes"
         AddFacts n -> do
             unless (_pdbtype cmdl == PDBTest) (error "This option only works with the test puppetdb")
             fcts <- puppetDBFacts n pdbapi
-            replaceFacts pdbapi [(n, fcts)] >>= getOrError "replace facts"
-            commitDB pdbapi >>= getOrError "commit db"
+            runCheck "replace facts" (replaceFacts pdbapi [(n, fcts)])
+            runCheck "commit db" (commitDB pdbapi)
         CreateTestDB destfile -> do
-            ndb <- loadTestDB destfile >>= getOrError "puppetdb load"
-            allnodes <- getNodes pdbapi QEmpty >>= getOrError "get nodes"
-            allfacts <- getFacts pdbapi QEmpty >>= getOrError "get facts"
+            ndb <- loadTestDB destfile >>= checkErrorS "puppetdb load"
+            allnodes <- runCheck "get nodes" (getNodes pdbapi QEmpty)
+            allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
             let factsGrouped = HM.toList $ HM.fromListWith (<>) $ map (\x -> (x ^. nodename, HM.singleton (x ^. factname) (x ^. factval))) allfacts
-            replaceFacts ndb factsGrouped >>= getOrError "replace facts"
+            runCheck "replace facts" (replaceFacts ndb factsGrouped)
             forM_ allnodes $ \pnodename -> do
                 let ndename = pnodename ^. nodename
-                res <- getResourcesOfNode pdbapi ndename QEmpty >>= getOrError ("get resources for " ++ show ndename)
+                res <- runCheck ("get resources for " ++ show ndename) (getResourcesOfNode pdbapi ndename QEmpty)
                 let wirecatalog = WireCatalog ndename "version" V.empty (V.fromList res) ndename
-                replaceCatalog ndb wirecatalog
-            commitDB ndb >>= getOrError "commit db"
+                runCheck "replace catalog" (replaceCatalog ndb wirecatalog)
+            runCheck "commit db" (commitDB ndb)
         _ -> error "Not yet implemented"
 
 main :: IO ()

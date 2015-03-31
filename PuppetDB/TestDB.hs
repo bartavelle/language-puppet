@@ -14,6 +14,8 @@ import           Control.Applicative
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Either
 import           Data.Aeson.Lens
 import           Data.CaseInsensitive
 import qualified Data.Either.Strict       as S
@@ -90,7 +92,7 @@ data Extracted = EText T.Text
                | ESet (HS.HashSet T.Text)
                | ENil
 
-resolveQuery :: (a -> b -> Extracted) -> Query a -> (b -> Bool)
+resolveQuery :: (a -> b -> Extracted) -> Query a -> b -> Bool
 resolveQuery _ QEmpty = const True
 resolveQuery f (QEqual a t) = \v -> case f a v of
                                         EText tt -> mk tt == mk t
@@ -112,29 +114,26 @@ dbapiInfo db = do
         Nothing -> return "TestDB"
         Just v -> return ("TestDB" <+> string v)
 
-ncompare :: (Integer -> Integer -> Bool) ->  (a -> b -> Extracted) -> a -> Integer -> (b -> Bool)
+ncompare :: (Integer -> Integer -> Bool) ->  (a -> b -> Extracted) -> a -> Integer -> b -> Bool
 ncompare operation f a i v = case f a v of
                                  EText tt -> case PString tt ^? _Integer of
                                                  Just ii -> operation i ii
                                                  _ -> False
                                  _ -> False
 
-mustWork :: IO () -> IO (S.Either PrettyError ())
-mustWork a = a >> return (S.Right ())
+replCat :: DB -> WireCatalog -> EitherT PrettyError IO ()
+replCat db wc = liftIO $ atomically $ modifyTVar db (resources . at (wc ^. nodename) ?~ wc)
 
-replCat :: DB -> WireCatalog -> IO (S.Either PrettyError ())
-replCat db wc = mustWork $ atomically $ modifyTVar db (resources . at (wc ^. nodename) ?~ wc)
-
-replFacts :: DB -> [(Nodename, Facts)] -> IO (S.Either PrettyError ())
-replFacts db lst = mustWork $ atomically $ modifyTVar db $
+replFacts :: DB -> [(Nodename, Facts)] -> EitherT PrettyError IO ()
+replFacts db lst = liftIO $ atomically $ modifyTVar db $
                     facts %~ (\r -> foldl' (\curr (n,f) -> curr & at n ?~ f) r lst)
 
-deactivate :: DB -> Nodename -> IO (S.Either PrettyError ())
-deactivate db n = mustWork $ atomically $ modifyTVar db $
+deactivate :: DB -> Nodename -> EitherT PrettyError IO ()
+deactivate db n = liftIO $ atomically $ modifyTVar db $
                     (resources . at n .~ Nothing) . (facts . at n .~ Nothing)
 
-getFcts :: DB -> Query FactField -> IO (S.Either PrettyError [PFactInfo])
-getFcts db f = fmap (S.Right . filter (resolveQuery factQuery f) . toFactInfo) (readTVarIO db)
+getFcts :: DB -> Query FactField -> EitherT PrettyError IO [PFactInfo]
+getFcts db f = fmap (filter (resolveQuery factQuery f) . toFactInfo) (liftIO $ readTVarIO db)
     where
         toFactInfo :: DBContent -> [PFactInfo]
         toFactInfo = concatMap gf .  HM.toList . _dbcontentFacts
@@ -164,28 +163,28 @@ resourceQuery RExported r = if r ^. rvirtuality == Exported
 resourceQuery RFile r = r ^. rpos . _1 . to sourceName . to T.pack . to EText
 resourceQuery RLine r = r ^. rpos . _1 . to sourceLine . to show . to T.pack . to EText
 
-getRes :: DB -> Query ResourceField -> IO (S.Either PrettyError [Resource])
-getRes db f = fmap (S.Right . filter (resolveQuery resourceQuery f) . toResources) (readTVarIO db)
+getRes :: DB -> Query ResourceField -> EitherT PrettyError IO [Resource]
+getRes db f = fmap (filter (resolveQuery resourceQuery f) . toResources) (liftIO $ readTVarIO db)
     where
         toResources :: DBContent -> [Resource]
         toResources = concatMap (V.toList . view wResources) .  HM.elems . view resources
 
-getResNode :: DB -> Nodename -> Query ResourceField -> IO (S.Either PrettyError [Resource])
+getResNode :: DB -> Nodename -> Query ResourceField -> EitherT PrettyError IO [Resource]
 getResNode db nn f = do
-    c <- readTVarIO db
-    return $ case c ^. resources . at nn of
-                 Just cnt -> S.Right $ filter (resolveQuery resourceQuery f) $ V.toList $ cnt ^. wResources
-                 Nothing -> S.Left "Unknown node"
+    c <- liftIO $ readTVarIO db
+    case c ^. resources . at nn of
+        Just cnt -> return $ filter (resolveQuery resourceQuery f) $ V.toList $ cnt ^. wResources
+        Nothing -> left "Unknown node"
 
-commit :: DB -> IO (S.Either PrettyError ())
+commit :: DB -> EitherT PrettyError IO ()
 commit db = do
-    dbc <- atomically $ readTVar db
+    dbc <- liftIO $ atomically $ readTVar db
     case dbc ^. backingFile of
-        Nothing -> return (S.Left "No backing file defined")
-        Just bf -> fmap S.Right (encodeFile bf dbc) `catches` [ ]
+        Nothing -> left "No backing file defined"
+        Just bf -> liftIO (encodeFile bf dbc `catches` [ ])
 
-getNds :: DB -> Query NodeField -> IO (S.Either PrettyError [PNodeInfo])
-getNds db QEmpty = fmap (S.Right . toNodeInfo) (readTVarIO db)
+getNds :: DB -> Query NodeField -> EitherT PrettyError IO [PNodeInfo]
+getNds db QEmpty = fmap toNodeInfo (liftIO $ readTVarIO db)
     where
         toNodeInfo :: DBContent -> [PNodeInfo]
         toNodeInfo = fmap g . HM.keys . _dbcontentFacts
@@ -193,4 +192,4 @@ getNds db QEmpty = fmap (S.Right . toNodeInfo) (readTVarIO db)
                 g :: Nodename -> PNodeInfo
                 g = \n -> PNodeInfo n False S.Nothing S.Nothing S.Nothing
 
-getNds _ _ = return (S.Left "getNds with query not implemented")
+getNds _ _ = left "getNds with query not implemented"

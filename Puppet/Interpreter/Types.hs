@@ -111,6 +111,7 @@ import           Control.Lens
 import           Control.Monad.Error
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
+import           Control.Monad.Trans.Either
 import           Control.Monad.Writer.Class
 import           Data.Aeson                   as A
 import           Data.Aeson.Lens
@@ -136,6 +137,7 @@ import           Foreign.Ruby.Helpers
 import           GHC.Generics                 hiding (to)
 import           GHC.Stack
 import qualified Scripting.Lua                as Lua
+import           Servant.Common.Text
 import           System.Log.Logger
 import           Text.Parsec.Pos
 import           Text.PrettyPrint.ANSI.Leijen hiding (rational, (<$>))
@@ -460,14 +462,14 @@ data PNodeInfo = PNodeInfo
 
 data PuppetDBAPI m = PuppetDBAPI
     { pdbInformation     :: m Doc
-    , replaceCatalog     :: WireCatalog         -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
-    , replaceFacts       :: [(Nodename, Facts)] -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
-    , deactivateNode     :: Nodename            -> m (S.Either PrettyError ()) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-    , getFacts           :: Query FactField     -> m (S.Either PrettyError [PFactInfo]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
-    , getResources       :: Query ResourceField -> m (S.Either PrettyError [Resource]) -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
-    , getNodes           :: Query NodeField     -> m (S.Either PrettyError [PNodeInfo])
-    , commitDB           ::                        m (S.Either PrettyError ()) -- ^ This is only here to tell the test PuppetDB to save its content to disk.
-    , getResourcesOfNode :: Nodename -> Query ResourceField -> m (S.Either PrettyError [Resource])
+    , replaceCatalog     :: WireCatalog         -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+    , replaceFacts       :: [(Nodename, Facts)] -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+    , deactivateNode     :: Nodename            -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+    , getFacts           :: Query FactField     -> EitherT PrettyError m [PFactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+    , getResources       :: Query ResourceField -> EitherT PrettyError m [Resource] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+    , getNodes           :: Query NodeField     -> EitherT PrettyError m [PNodeInfo]
+    , commitDB           ::                        EitherT PrettyError m () -- ^ This is only here to tell the test PuppetDB to save its content to disk.
+    , getResourcesOfNode :: Nodename -> Query ResourceField -> EitherT PrettyError m [Resource]
     }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
@@ -710,6 +712,9 @@ instance ToJSON a => ToJSON (Query a) where
     toJSON (QLE    flds val) = toJSON [ "<=", toJSON flds, toJSON val ]
     toJSON (QGE    flds val) = toJSON [ ">=", toJSON flds, toJSON val ]
     toJSON (QEmpty)          = Null
+
+instance ToJSON a => ToText (Query a) where
+    toText = T.decodeUtf8 . Control.Lens.view strict . encode
 
 instance FromJSON a => FromJSON (Query a) where
     parseJSON Null = pure QEmpty

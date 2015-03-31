@@ -1,60 +1,57 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
 module PuppetDB.Remote (pdbConnect) where
 
-import Puppet.Utils
 import Puppet.PP
 
 import Puppet.Interpreter.Types
-
-import Network.HTTP.Conduit
-import qualified Network.HTTP.Types as W
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString.Char8 as BC
-import Data.Aeson
-import qualified Codec.Text.IConv as IConv
-import qualified Control.Exception as X
-import Control.Monad.Error
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text (Text)
+import Control.Monad.Trans.Either
 import qualified Data.Either.Strict as S
+import Servant.API
+import Servant.Client
+import Servant.Common.Text
+import Data.Aeson
+import Data.Proxy
 
-runRequest :: (Monad m, MonadIO m, FromJSON b, MonadError PrettyError m) => Request -> m b
-runRequest req = do
-    let doRequest = withManager (fmap responseBody . httpLbs req) :: IO L.ByteString
-        eHandler :: X.SomeException -> IO (Either PrettyError L.ByteString)
-        eHandler e = return $ Left $ PrettyError $ string (show e) <> ", with queryString " <+> string (BC.unpack (queryString req))
-    liftIO (fmap Right doRequest `X.catch` eHandler) >>= \case
-        Right o -> do
-            let utf8 = IConv.convert "LATIN1" "UTF-8" o
-            case decode' utf8 of
-                Just x                   -> return x
-                Nothing                  -> throwError (PrettyError ("Json decoding has failed " <> string (show utf8)))
-        Left err -> throwError err
+type PDBAPIv3 =    "nodes"     :> QueryParam "query" (Query NodeField)     :> Get [PNodeInfo]
+              :<|> "nodes"     :> Capture "resourcename" Text :> "resources" :> QueryParam "query" (Query ResourceField) :> Get [Resource]
+              :<|> "facts"     :> QueryParam "query" (Query FactField)     :> Get [PFactInfo]
+              :<|> "resources" :> QueryParam "query" (Query ResourceField) :> Get [Resource]
 
-pdbRequest :: (FromJSON a, ToJSON b) => T.Text -> T.Text -> b -> IO (S.Either PrettyError a)
-pdbRequest url querytype query = fmap strictifyEither $ runErrorT $ do
-    let jsonquery = L.toStrict (encode query)
-        q = case toJSON query of
-                Null -> ""
-                _ -> T.decodeUtf8 $ "?" <> W.renderSimpleQuery False [("query", jsonquery)]
-    let fullurl = url <> "/v3/" <> querytype <> q
-    initReq <- case parseUrl (T.unpack fullurl) of
-            Right r -> return (r :: Request)
-            Left rr -> throwError (PrettyError ("Something failed when parsing the PuppetDB URL" <+> string (show rr)))
-    let req = initReq { requestHeaders = [("Accept", "application/json")] }
-    runRequest req
+type PDBAPI = "v3" :> PDBAPIv3
+
+spdbAPI :: Proxy PDBAPI
+spdbAPI = Proxy
+
+sgetNodes :: Maybe (Query NodeField) -> BaseUrl -> EitherT String IO [PNodeInfo]
+sgetNodeResources :: Text -> Maybe (Query ResourceField) -> BaseUrl -> EitherT String IO [Resource]
+sgetFacts :: Maybe (Query FactField) -> BaseUrl -> EitherT String IO [PFactInfo]
+sgetResources :: Maybe (Query ResourceField) -> BaseUrl -> EitherT String IO [Resource]
+(     sgetNodes
+ :<|> sgetNodeResources
+ :<|> sgetFacts
+ :<|> sgetResources
+ ) = client spdbAPI
 
 -- | Given an URL (ie. @http://localhost:8080@), will return an incomplete 'PuppetDBAPI'.
-pdbConnect :: T.Text -> IO (S.Either PrettyError (PuppetDBAPI IO))
+pdbConnect :: BaseUrl -> IO (S.Either PrettyError (PuppetDBAPI IO))
 pdbConnect url = return $ S.Right $ PuppetDBAPI
-    (return (ttext url))
-    (const (return (S.Left "operation not supported")))
-    (const (return (S.Left "operation not supported")))
-    (const (return (S.Left "operation not supported")))
-    (pdbRequest url "facts")
-    (pdbRequest url "resources")
-    (pdbRequest url "nodes")
-    (return (S.Left "operation not supported"))
-    (\ndename -> pdbRequest url ("nodes/" <> ndename <> "/resources"))
+    (return (string $ show url))
+    (const (left "operation not supported"))
+    (const (left "operation not supported"))
+    (const (left "operation not supported"))
+    (q1 sgetFacts)
+    (q1 sgetResources)
+    (q1 sgetNodes)
+    (left "operation not supported")
+    (\ndename q -> prettyError $ sgetNodeResources ndename (Just q) url)
+    where
+        prettyError :: EitherT String IO b -> EitherT PrettyError IO b
+        prettyError = bimapEitherT (PrettyError . string) id
+        q1 :: (ToText a, FromJSON b) => (Maybe a -> BaseUrl -> EitherT String IO b) -> a -> EitherT PrettyError IO b
+        q1 f x = prettyError $ f (Just x) url
 

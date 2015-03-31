@@ -38,6 +38,9 @@ instance IsString TemplateParseError where
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
 
+instance IsString TemplateParseError where
+    fromString = strMsg
+
 instance Error TemplateParseError where
     noMsg = TemplateParseError $ newErrorUnknown (initialPos "dummy")
     strMsg s = TemplateParseError $ newErrorMessage (Message s) (initialPos "dummy")
