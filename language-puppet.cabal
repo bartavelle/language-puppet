@@ -96,7 +96,7 @@ library
                         , http-conduit         >= 2.1     && < 2.2
                         , http-types           == 0.8.*
                         , iconv                == 0.4.*
-                        , lens                 >= 4.8.0.1 && < 5
+                        , lens                 >= 4.8     && < 5
                         , lens-aeson           >= 1.0
                         , luautils             >= 0.1.3   && < 0.1.4
                         , mtl                  >= 2.1     && < 2.3

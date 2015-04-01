@@ -14,6 +14,7 @@ import           Control.Monad.Error
 import qualified Data.Either.Strict           as S
 import           Data.FileCache
 import qualified Data.Text                    as T
+import           Data.String
 import           Debug.Trace
 import           Erb.Evaluate
 import           Erb.Parser
@@ -32,6 +33,8 @@ import qualified Foreign.Ruby.Helpers         as FR
 import qualified Foreign.Ruby.Bindings        as FR
 import           Foreign.Ruby
 
+instance IsString TemplateParseError where
+  fromString = strMsg
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
 
