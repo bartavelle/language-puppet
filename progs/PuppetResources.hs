@@ -23,7 +23,6 @@ import           Data.Text.Strict.Lens
 import           Data.Traversable                 (for)
 import           Data.Tuple                       (swap)
 import qualified Data.Vector                      as V
-import           Data.Yaml                        (decodeFileEither)
 import           Options.Applicative
 import           System.Exit                      (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob             as G
@@ -46,6 +45,7 @@ import           Puppet.Parser.Types
 import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
+import           Puppet.Utils
 import           PuppetDB.Common
 import           PuppetDB.Dummy
 import           PuppetDB.Remote
@@ -185,8 +185,8 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     !factsOverrides <- case (_optFactsOverr, _optFactsDefault) of
                            (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
-                           (Just p, Nothing) -> HM.union `fmap` loadFactsOverrides p
-                           (Nothing, Just p) -> flip HM.union `fmap` loadFactsOverrides p
+                           (Just p, Nothing) -> HM.union `fmap` loadYamlFile p
+                           (Nothing, Just p) -> flip HM.union `fmap` loadYamlFile p
                            (Nothing, Nothing) -> return id
     q <- initDaemon =<< setupPreferences
          workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _optHieraFile) . (ignoredmodules.~ _optIgnoredMods) . (strictness.~ _optStrictMode) . (extraTests.~ not _optNoExtraTests))
@@ -246,11 +246,6 @@ prepareForPuppetApply w =
        . (wEdges     .~ correctEdges)
        $ w
 
-
-loadFactsOverrides :: FilePath -> IO Facts
-loadFactsOverrides fp = decodeFileEither fp >>= \case
-    Left rr -> error ("Error when parsing " ++ fp ++ ": " ++ show rr)
-    Right x -> return x
 
 -- | Finds the dead code
 findDeadCode :: String -> [Resource] -> Set.Set FilePath -> IO ()

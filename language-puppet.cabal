@@ -55,6 +55,7 @@ library
                        , Puppet.Stats
                        , Puppet.Stdlib
                        , Puppet.OptionalTests
+                       , Puppet.Utils
                        , SafeProcess
   other-modules:         Erb.Compute
                        , Paths_language_puppet
@@ -73,7 +74,6 @@ library
                        , Puppet.NativeTypes.User
                        , Puppet.NativeTypes.ZoneRecord
                        , Puppet.Plugins
-                       , Puppet.Utils
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields
   ghc-prof-options:    -auto-all -caf-all

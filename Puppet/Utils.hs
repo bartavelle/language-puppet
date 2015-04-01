@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase      #-}
 -- | Those are utility functions, most of them being pretty much self
 -- explanatory.
 module Puppet.Utils
@@ -8,6 +9,7 @@ module Puppet.Utils
     , takeDirectory
     , strictifyEither
     , nameThread
+    , loadYamlFile
     , scientific2text
     ) where
 
@@ -22,6 +24,7 @@ import GHC.Conc (labelThread)
 import Data.Scientific
 import Control.Lens
 import Data.Aeson.Lens
+import qualified Data.Yaml as Y
 
 scientific2text :: Scientific -> T.Text
 scientific2text n = T.pack $ case n ^? _Integer of
@@ -96,3 +99,8 @@ splitFileName x = (if T.null dir then "./" else dir, name)
             where
                 (a,b) = T.break (=='/') $ T.reverse y
 
+-- | Read a yaml file and throw a runtime error if the parsing fails
+loadYamlFile :: Y.FromJSON a =>  FilePath -> IO a
+loadYamlFile fp = Y.decodeFileEither fp >>= \case
+    Left rr -> error ("Error when parsing " ++ fp ++ ": " ++ show rr)
+    Right x -> return x

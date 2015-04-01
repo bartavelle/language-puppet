@@ -110,10 +110,9 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     where
       runOptionalTests stm = case stm^?S._Right._1 of
         Nothing -> return stm
-        (Just c)  -> let workingdir = prefs^.puppetPaths.baseDir
-                     in catching _PrettyError
-                                 (do {testCatalog workingdir c; return stm})
-                                 (return . S.Left)
+        (Just c)  -> catching _PrettyError
+                              (do {testCatalog prefs c; return stm})
+                              (return . S.Left)
 
 parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
 parseFunction prefs filecache stats topleveltype toplevelname =

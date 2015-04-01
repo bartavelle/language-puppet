@@ -7,7 +7,7 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Monad                    (unless)
 import           Control.Monad.Catch
-import           Control.Monad.Trans              (MonadIO, liftIO)
+import           Control.Monad.Trans              (liftIO)
 import           Control.Monad.Trans.Except
 import           Data.Foldable                    (asum, elem, toList,
                                                    traverse_)
@@ -21,22 +21,19 @@ import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
 import           Puppet.Lens                      (_PString)
 import           Puppet.PP
+import           Puppet.Preferences
 import           System.Posix.Files
 
-knownUsers :: [T.Text]
-knownUsers = ["", "mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "stash", "syslog", "www-data"]
-knownGroups :: [T.Text]
-knownGroups= ["", "adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "stash", "www-data"]
 
 -- | Entry point for all optional tests
-testCatalog :: FilePath -> FinalCatalog -> IO ()
-testCatalog fp c = testFileSources fp c >> testUsersGroups fp c
+testCatalog :: Preferences IO -> FinalCatalog -> IO ()
+testCatalog prefs c = testFileSources (prefs^.puppetPaths.baseDir) c >> testUsersGroups (prefs^.knownusers) (prefs^.knowngroups) c
 
 -- | Tests that all users and groups are defined
-testUsersGroups :: FilePath -> FinalCatalog -> IO ()
-testUsersGroups _ c = do
-    let users = HS.fromList $ map (view (rid . iname)) (getResourceFrom "user") ++ knownUsers
-        groups = HS.fromList $ map (view (rid . iname)) (getResourceFrom "group") ++ knownGroups
+testUsersGroups :: [T.Text] -> [T.Text] -> FinalCatalog -> IO ()
+testUsersGroups kusers kgroups c = do
+    let users = HS.fromList $ "" : map (view (rid . iname)) (getResourceFrom "user") ++ kusers
+        groups = HS.fromList $ "" : map (view (rid . iname)) (getResourceFrom "group") ++ kgroups
         checkResource lu lg = mapM_ (checkResource' lu lg)
         checkResource' lu lg res = do
             let msg att name = align (vsep [ "Resource" <+> ttext (res^.rid.itype)
