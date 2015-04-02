@@ -15,7 +15,7 @@ cabal sandbox init
 cabal install -j -p
 ```
 
-There are also http://lpuppet.banquise.net/download/[binary packages available] and https://registry.hub.docker.com/u/pierrer/puppetresources[a 400M docker images].
+There are also http://lpuppet.banquise.net/download/[binary packages available] and https://registry.hub.docker.com/u/pierrer/puppetresources[a docker images].
 
 == Puppetresources
 
@@ -64,7 +64,7 @@ Example: `puppetresources -p . -o mynodename -n '/etc/motd' --showcontent`
 
 `--loglevel` or `-v`::
 
-Possible values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY.
+Possible values are : DEBUG, INFO, NOTICE, WARNING, ERROR
 
 `--pdburl`::
 
@@ -116,6 +116,12 @@ Disable the extra tests from `Puppet.OptionalTests`.
 `--parse`::
 
 Enable `parse mode`. Specify the puppet file to be parsed. Variables are not resolved. No interpretation.
+
+=== Settings defaults using a yaml file
+
+Defaults for some of these options can be set using a `/yourworkingdirectory/tests/defaults.yaml` file. For instance `OptionalTests` is checking that all users and groups are known. Because some of these users and groups might be defined outside puppet, a list of known ones is used internally. This can be overridden in that file using the key `knownusers` and `knowngroups`.
+
+Please look at the template file for a list of possible defaults.
 
 == pdbQuery
 

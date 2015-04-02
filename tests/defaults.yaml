@@ -1,0 +1,25 @@
+knownusers:
+  - mysql
+  - nagios
+  - nginx
+  - postgres
+  - puppet
+  - root
+  - stash
+  - syslog
+  - vagrant
+  - www-data
+
+knowngroups:
+  - adm
+  - mysql
+  - nagios
+  - postgres
+  - puppet
+  - root
+  - stash
+  - syslog
+  - vagrant
+  - www-data
+
+strict: false

@@ -2,6 +2,7 @@
 
 ## New features
 * Add 'notify' native type
+* Ability to provide defaults via a yaml file for some options
 
 ## Bugs fixed
 * Enable 'package' native type (issue #102)
