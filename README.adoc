@@ -121,7 +121,7 @@ Enable `parse mode`. Specify the puppet file to be parsed. Variables are not res
 
 Defaults for some of these options can be set using a `/yourworkingdirectory/tests/defaults.yaml` file. For instance `OptionalTests` is checking that all users and groups are known. Because some of these users and groups might be defined outside puppet, a list of known ones is used internally. This can be overridden in that file using the key `knownusers` and `knowngroups`.
 
-Please look at the template file for a list of possible defaults.
+Please look at https://github.com/bartavelle/language-puppet/blob/master/tests/defaults.yaml[the template file] for a list of possible defaults.
 
 == pdbQuery
 
