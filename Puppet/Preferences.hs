@@ -13,6 +13,7 @@ module Puppet.Preferences (
 
 import           Control.Applicative
 import           Control.Lens
+import           Control.Monad              (mzero)
 import           Data.Aeson
 import qualified Data.HashMap.Strict        as HM
 import qualified Data.HashSet               as HS
@@ -54,15 +55,18 @@ data Preferences m = Preferences
 data Defaults = Defaults
     { _defKnownusers  :: Maybe [T.Text]
     , _defKnowngroups :: Maybe [T.Text]
-    }
+    , _defStrictness  :: Maybe Strictness
+    } deriving Show
+
 
 makeClassy ''Preferences
 
 instance FromJSON Defaults where
     parseJSON (Object v) = Defaults
-                           <$> v .:? "knownusers"  .!= mempty
+                           <$> v .:? "knownusers"   .!= mempty
                            <*> v .:? "knowngroups"  .!= mempty
-    parseJSON _ = error "Error parsing Facts"
+                           <*> v .:? "strict"
+    parseJSON _ = mzero
 
 genPreferences :: FilePath
                -> IO (Preferences IO)
@@ -77,7 +81,7 @@ genPreferences basedir = do
     return $ Preferences (PuppetDirPaths basedir manifestdir modulesdir templatedir testdir)
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
                          stdlibFunctions
-                         (Just (basedir <> "/hiera.yaml")) mempty Strict True (getKnownusers defaults) (getKnowngroups defaults)
+                         (Just (basedir <> "/hiera.yaml")) mempty (getStrictness defaults) True (getKnownusers defaults) (getKnowngroups defaults)
 
 {-| Use lens with the set operator and composition to set external/custom params.
 Ex.: @ setupPreferences workingDir ((hieraPath.~mypath) . (prefPDB.~pdbapi)) @
@@ -99,3 +103,9 @@ getKnownusers Nothing = ["mysql", "vagrant","nginx", "nagios", "postgres", "pupp
 getKnowngroups :: Maybe Defaults -> [T.Text]
 getKnowngroups (Just def) = fromMaybe (getKnowngroups Nothing) (_defKnowngroups def)
 getKnowngroups Nothing = ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data"]
+
+-- Get strictness mode from defaults
+-- if it is not defined in yaml or yaml file not present use the same default as in the command line.
+getStrictness :: Maybe Defaults -> Strictness
+getStrictness (Just def) = fromMaybe (getStrictness Nothing) (_defStrictness def)
+getStrictness Nothing = Permissive

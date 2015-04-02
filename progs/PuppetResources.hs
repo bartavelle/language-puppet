@@ -79,7 +79,7 @@ data Options = Options
     , _optCheckExport  :: Bool
     , _optIgnoredMods  :: HS.HashSet T.Text
     , _optParse        :: Maybe FilePath
-    , _optStrictMode   :: Strictness
+    , _optStrictMode   :: Bool
     , _optNoExtraTests :: Bool
     } deriving (Show)
 
@@ -151,7 +151,7 @@ options = Options
    <*> optional (strOption
        (  long "parse"
        <> help "Parse a single file"))
-   <*> flag Permissive Strict
+   <*> switch
        (  long "strict"
        <> help "Strict mode diverges from vanillia Puppet and enforces good practices")
    <*> flag False True
@@ -188,8 +188,13 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                            (Just p, Nothing) -> HM.union `fmap` loadYamlFile p
                            (Nothing, Just p) -> flip HM.union `fmap` loadYamlFile p
                            (Nothing, Nothing) -> return id
-    q <- initDaemon =<< setupPreferences
-         workingdir ((prefPDB.~ pdbapi) . (hieraPath.~ _optHieraFile) . (ignoredmodules.~ _optIgnoredMods) . (strictness.~ _optStrictMode) . (extraTests.~ not _optNoExtraTests))
+    q <- initDaemon =<< setupPreferences workingdir
+                        ((prefPDB.~ pdbapi) .
+                         (hieraPath.~ _optHieraFile) .
+                         (ignoredmodules.~ _optIgnoredMods) .
+                         (strictness%~ (\x -> if _optStrictMode then Strict else x)).
+                         (extraTests.~ not _optNoExtraTests))
+
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
     where

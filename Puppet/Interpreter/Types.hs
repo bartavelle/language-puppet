@@ -104,10 +104,6 @@ module Puppet.Interpreter.Types (
  , eitherDocIO
 ) where
 
-import           Puppet.Parser.PrettyPrinter
-import           Puppet.Parser.Types
-import           Puppet.Stats
-
 import           Control.Applicative          hiding (empty)
 import           Control.Concurrent.MVar      (MVar)
 import           Control.Exception
@@ -144,6 +140,10 @@ import           System.Log.Logger
 import           Text.Parsec.Pos
 import           Text.PrettyPrint.ANSI.Leijen hiding (rational, (<$>))
 
+import           Puppet.Parser.PrettyPrinter
+import           Puppet.Parser.Types
+import           Puppet.Stats
+
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
 
@@ -174,6 +174,11 @@ instance Exception PrettyError
 -- the interpreter.
 data Strictness = Strict | Permissive
                 deriving (Show, Eq)
+
+instance FromJSON Strictness where
+  parseJSON (Bool True) = pure Strict
+  parseJSON (Bool False) = pure Permissive
+  parseJSON _ = mzero
 
 
 data PValue = PBoolean !Bool
