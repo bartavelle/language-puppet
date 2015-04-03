@@ -125,7 +125,7 @@ options = Options
    <*> option auto
        (  long "loglevel"
        <> short 'v'
-       <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL, ALERT, EMERGENCY"
+       <> help "Values are : DEBUG, INFO, NOTICE, WARNING, ERROR"
        <> value LOG.WARNING)
    <*> optional (strOption
        (  long "hiera"
@@ -191,8 +191,8 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                         (set prefPDB pdbapi .
                          set hieraPath _optHieraFile .
                          over ignoredmodules (`fromMaybe` _optIgnoredMods) .
-                         over strictness (\x -> if _optStrictMode then Strict else x).
-                         set extraTests (not _optNoExtraTests))
+                         (if _optStrictMode then set strictness Strict else id) .
+                         (if _optNoExtraTests then set extraTests False else id))
 
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)

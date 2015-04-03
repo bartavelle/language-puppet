@@ -56,8 +56,9 @@ data Preferences m = Preferences
 data Defaults = Defaults
     { _defKnownusers  :: Maybe [Text]
     , _defKnowngroups :: Maybe [Text]
+    , _defIgnoredMods :: Maybe [Text]
     , _defStrictness  :: Maybe Strictness
-    , _defIgnoredMods :: [Text]
+    , _defExtratests  :: Maybe Bool
     } deriving Show
 
 
@@ -65,10 +66,11 @@ makeClassy ''Preferences
 
 instance FromJSON Defaults where
     parseJSON (Object v) = Defaults
-                           <$> v .:? "knownusers"     .!= mempty
-                           <*> v .:? "knowngroups"    .!= mempty
+                           <$> v .:? "knownusers"
+                           <*> v .:? "knowngroups"
+                           <*> v .:? "ignoredmodules"
                            <*> v .:? "strict"
-                           <*> v .:? "ignoredmodules" .!= mempty
+                           <*> v .:? "extratests"
     parseJSON _ = mzero
 
 genPreferences :: FilePath
@@ -84,7 +86,12 @@ genPreferences basedir = do
     return $ Preferences (PuppetDirPaths basedir manifestdir modulesdir templatedir testdir)
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
                          stdlibFunctions
-                         (Just (basedir <> "/hiera.yaml")) (getIgnoredMods defaults) (getStrictness defaults) True (getKnownusers defaults) (getKnowngroups defaults)
+                         (Just (basedir <> "/hiera.yaml"))
+                         (getIgnoredMods defaults)
+                         (getStrictness defaults)
+                         (getExtraTests defaults)
+                         (getKnownusers defaults)
+                         (getKnowngroups defaults)
 
 {-| Use lens with the set operator and composition to set external/custom params.
 Ex.: @ setupPreferences workingDir ((hieraPath.~mypath) . (prefPDB.~pdbapi)) @
@@ -99,6 +106,10 @@ loadDefaults fp = do
   p <- fileExist fp
   if p then loadYamlFile fp else return Nothing
 
+-- Utilities for getting default values from the yaml file
+-- It provides (the same) static defaults (see the 'Nothing' case) when
+--     no default yaml file or
+--     not key/value for the option has been provided
 getKnownusers :: Maybe Defaults -> [Text]
 getKnownusers (Just def) = fromMaybe (getKnownusers Nothing) (_defKnownusers def)
 getKnownusers Nothing = ["mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "syslog", "www-data"]
@@ -107,12 +118,14 @@ getKnowngroups :: Maybe Defaults -> [Text]
 getKnowngroups (Just def) = fromMaybe (getKnowngroups Nothing) (_defKnowngroups def)
 getKnowngroups Nothing = ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data"]
 
--- Get strictness mode from defaults
--- if it is not defined in yaml or yaml file not present use the same default as in the command line.
 getStrictness :: Maybe Defaults -> Strictness
 getStrictness (Just def) = fromMaybe (getStrictness Nothing) (_defStrictness def)
 getStrictness Nothing = Permissive
 
 getIgnoredMods :: Maybe Defaults -> HS.HashSet Text
-getIgnoredMods (Just def) = HS.fromList $ _defIgnoredMods def
+getIgnoredMods (Just def) = maybe (getIgnoredMods Nothing) HS.fromList (_defIgnoredMods def)
 getIgnoredMods Nothing = mempty
+
+getExtraTests :: Maybe Defaults -> Bool
+getExtraTests (Just def) = fromMaybe (getExtraTests Nothing) (_defExtratests def)
+getExtraTests Nothing = True
