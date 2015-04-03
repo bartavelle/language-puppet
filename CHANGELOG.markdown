@@ -11,6 +11,7 @@
 * Even in Permissive mode, don't resolve unknown variable (see #103)
 * Add priority to the logger permissive output (see #106)
 * New hruby version
+* Rename option `--ignoremodules` into `--ignoredmodules`
 
 ## Various
 * Hiera config interpolation logs decrease from NOTICE to INFO

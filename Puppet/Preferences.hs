@@ -18,6 +18,7 @@ import           Data.Aeson
 import qualified Data.HashMap.Strict        as HM
 import qualified Data.HashSet               as HS
 import           Data.Maybe                 (fromMaybe)
+import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           System.Posix               (fileExist)
 
@@ -45,17 +46,18 @@ data Preferences m = Preferences
     , _natTypes       :: Container NativeTypeMethods -- ^ The list of native types.
     , _prefExtFuncs   :: Container ( [PValue] -> InterpreterMonad PValue )
     , _hieraPath      :: Maybe FilePath
-    , _ignoredmodules :: HS.HashSet T.Text -- ^ The set of ignored modules
+    , _ignoredmodules :: HS.HashSet Text -- ^ The set of ignored modules
     , _strictness     :: Strictness
     , _extraTests     :: Bool
-    , _knownusers     :: [T.Text]
-    , _knowngroups    :: [T.Text]
+    , _knownusers     :: [Text]
+    , _knowngroups    :: [Text]
     }
 
 data Defaults = Defaults
-    { _defKnownusers  :: Maybe [T.Text]
-    , _defKnowngroups :: Maybe [T.Text]
+    { _defKnownusers  :: Maybe [Text]
+    , _defKnowngroups :: Maybe [Text]
     , _defStrictness  :: Maybe Strictness
+    , _defIgnoredMods :: [Text]
     } deriving Show
 
 
@@ -63,9 +65,10 @@ makeClassy ''Preferences
 
 instance FromJSON Defaults where
     parseJSON (Object v) = Defaults
-                           <$> v .:? "knownusers"   .!= mempty
-                           <*> v .:? "knowngroups"  .!= mempty
+                           <$> v .:? "knownusers"     .!= mempty
+                           <*> v .:? "knowngroups"    .!= mempty
                            <*> v .:? "strict"
+                           <*> v .:? "ignoredmodules" .!= mempty
     parseJSON _ = mzero
 
 genPreferences :: FilePath
@@ -81,7 +84,7 @@ genPreferences basedir = do
     return $ Preferences (PuppetDirPaths basedir manifestdir modulesdir templatedir testdir)
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
                          stdlibFunctions
-                         (Just (basedir <> "/hiera.yaml")) mempty (getStrictness defaults) True (getKnownusers defaults) (getKnowngroups defaults)
+                         (Just (basedir <> "/hiera.yaml")) (getIgnoredMods defaults) (getStrictness defaults) True (getKnownusers defaults) (getKnowngroups defaults)
 
 {-| Use lens with the set operator and composition to set external/custom params.
 Ex.: @ setupPreferences workingDir ((hieraPath.~mypath) . (prefPDB.~pdbapi)) @
@@ -96,11 +99,11 @@ loadDefaults fp = do
   p <- fileExist fp
   if p then loadYamlFile fp else return Nothing
 
-getKnownusers :: Maybe Defaults -> [T.Text]
+getKnownusers :: Maybe Defaults -> [Text]
 getKnownusers (Just def) = fromMaybe (getKnownusers Nothing) (_defKnownusers def)
 getKnownusers Nothing = ["mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "syslog", "www-data"]
 
-getKnowngroups :: Maybe Defaults -> [T.Text]
+getKnowngroups :: Maybe Defaults -> [Text]
 getKnowngroups (Just def) = fromMaybe (getKnowngroups Nothing) (_defKnowngroups def)
 getKnowngroups Nothing = ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data"]
 
@@ -109,3 +112,7 @@ getKnowngroups Nothing = ["adm", "syslog", "mysql", "nagios","postgres", "puppet
 getStrictness :: Maybe Defaults -> Strictness
 getStrictness (Just def) = fromMaybe (getStrictness Nothing) (_defStrictness def)
 getStrictness Nothing = Permissive
+
+getIgnoredMods :: Maybe Defaults -> HS.HashSet Text
+getIgnoredMods (Just def) = HS.fromList $ _defIgnoredMods def
+getIgnoredMods Nothing = mempty

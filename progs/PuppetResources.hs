@@ -14,7 +14,7 @@ import           Data.Foldable                    (foldMap)
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
-import           Data.Maybe                       (isNothing, mapMaybe)
+import           Data.Maybe                       (fromMaybe, isNothing, mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
@@ -77,7 +77,7 @@ data Options = Options
     , _optFactsDefault :: Maybe FilePath
     , _optCommitDB     :: Bool
     , _optCheckExport  :: Bool
-    , _optIgnoredMods  :: HS.HashSet T.Text
+    , _optIgnoredMods  :: Maybe (HS.HashSet T.Text)
     , _optParse        :: Maybe FilePath
     , _optStrictMode   :: Bool
     , _optNoExtraTests :: Bool
@@ -143,11 +143,10 @@ options = Options
    <*> switch
        (  long "checkExported"
        <> help "Save exported resources in the puppetDB")
-   <*> (HS.fromList . T.splitOn "," . T.pack <$>
+   <*> optional (HS.fromList . T.splitOn "," . T.pack <$>
        strOption
-       (  long "ignoremodules"
-       <> help "Specify a comma-separated list of modules to ignore"
-       <> value ""))
+       (  long "ignoredmodules"
+       <> help "Specify a comma-separated list of modules to ignore"))
    <*> optional (strOption
        (  long "parse"
        <> help "Parse a single file"))
@@ -189,11 +188,11 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                            (Nothing, Just p) -> flip HM.union `fmap` loadYamlFile p
                            (Nothing, Nothing) -> return id
     q <- initDaemon =<< setupPreferences workingdir
-                        ((prefPDB.~ pdbapi) .
-                         (hieraPath.~ _optHieraFile) .
-                         (ignoredmodules.~ _optIgnoredMods) .
-                         (strictness%~ (\x -> if _optStrictMode then Strict else x)).
-                         (extraTests.~ not _optNoExtraTests))
+                        (set prefPDB pdbapi .
+                         set hieraPath _optHieraFile .
+                         over ignoredmodules (`fromMaybe` _optIgnoredMods) .
+                         over strictness (\x -> if _optStrictMode then Strict else x).
+                         set extraTests (not _optNoExtraTests))
 
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)

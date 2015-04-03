@@ -78,7 +78,7 @@ Expects a path to a *fake* PuppetDB, represented as a YAML file on disk. This op
 
 Expects the path to the `hiera.yaml` file.
 
-`--ignoremodules`::
+`--ignoredmodules`::
 
 Expects a list of comma-separated modules. The interpreter will not try to evaluate the defined types and classes from this module. This is useful for using modules that use bad
 practices forbidden by `puppetresources`.
