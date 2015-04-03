@@ -22,7 +22,9 @@ knowngroups:
   - vagrant
   - www-data
 
-strict: false
-
 ignoredmodules:
   - java
+
+strict: false
+
+extratests: true
