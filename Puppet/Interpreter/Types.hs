@@ -247,7 +247,7 @@ data CurContainerDesc = ContRoot -- ^ Contained at node or root level
                       | ContDefine !T.Text !T.Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
                       | ContImported !CurContainerDesc -- ^ Dummy container for imported resources, so that we know we must update the nodename
                       | ContImport !Nodename !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
-                      deriving (Eq, Generic, Ord)
+                      deriving (Eq, Generic, Ord, Show)
 
 data CurContainer = CurContainer
     { _cctype :: !CurContainerDesc
@@ -290,6 +290,7 @@ data InterpreterReader m = InterpreterReader
     , _hieraQuery              :: HieraQueryFunc m
     , _ioMethods               :: ImpureMethods m
     , _ignoredModules          :: HS.HashSet T.Text
+    , _externalModules         :: HS.HashSet T.Text
     , _isStrict                :: Bool
     }
 
@@ -310,6 +311,7 @@ data InterpreterInstr a where
     HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
     GetCurrentCallStack :: InterpreterInstr [String]
     IsIgnoredModule     :: T.Text -> InterpreterInstr Bool
+    IsExternalModule    :: T.Text -> InterpreterInstr Bool
     IsStrict            :: InterpreterInstr Bool
     -- error
     ErrorThrow          :: PrettyError -> InterpreterInstr a
@@ -336,16 +338,16 @@ data InterpreterInstr a where
     CallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> InterpreterInstr PValue
 
 
-type InterpreterLog = Pair Priority Doc
+type InterpreterLog = Pair LOG.Priority Doc
 type InterpreterWriter = [InterpreterLog]
 
 warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-warn d = tell [WARNING :!: d]
+warn d = tell [LOG.WARNING :!: d]
 
 debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-debug d = tell [DEBUG :!: d]
+debug d = tell [LOG.DEBUG :!: d]
 
-logWriter :: (Monad m, MonadWriter InterpreterWriter m) => Priority -> Doc -> m ()
+logWriter :: (Monad m, MonadWriter InterpreterWriter m) => LOG.Priority -> Doc -> m ()
 logWriter prio d = tell [prio :!: d]
 
 -- | The main monad
@@ -860,14 +862,22 @@ dummypos = initialPPos "dummy"
 
 -- | Throws an error if we are in strict mode
 -- A warning in permissive mode
-checkStrict :: Priority
-            -> Doc -- ^ The warning message.
+checkStrict :: Doc -- ^ The warning message.
             -> Doc -- ^ The error message.
             -> InterpreterMonad ()
-checkStrict p wrn err = do
+checkStrict wrn err = do
+    extMod <- isExternalModule
+    let priority = if extMod then LOG.NOTICE else LOG.WARNING
     str <- singleton IsStrict
-    if str
+    if str && not extMod
         then throwPosError err
         else do
           srcname <- use (curPos._1.lSourceName)
-          logWriter p (wrn <+> "at" <+> string srcname)
+          logWriter priority (wrn <+> "at" <+> string srcname)
+
+isExternalModule :: InterpreterMonad Bool
+isExternalModule =
+  getScope >>= \case
+    ContClass n      -> singleton $ IsExternalModule n
+    ContDefine n _ _ -> (singleton . IsExternalModule . head . T.splitOn "::") n
+    _                -> return False

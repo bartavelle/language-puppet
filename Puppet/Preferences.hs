@@ -42,24 +42,26 @@ data PuppetDirPaths = PuppetDirPaths
 makeClassy ''PuppetDirPaths
 
 data Preferences m = Preferences
-    { _puppetPaths    :: PuppetDirPaths
-    , _prefPDB        :: PuppetDBAPI m
-    , _natTypes       :: Container NativeTypeMethods -- ^ The list of native types.
-    , _prefExtFuncs   :: Container ( [PValue] -> InterpreterMonad PValue )
-    , _hieraPath      :: Maybe FilePath
-    , _ignoredmodules :: HS.HashSet Text -- ^ The set of ignored modules
-    , _strictness     :: Strictness
-    , _extraTests     :: Bool
-    , _knownusers     :: [Text]
-    , _knowngroups    :: [Text]
+    { _puppetPaths     :: PuppetDirPaths
+    , _prefPDB         :: PuppetDBAPI m
+    , _natTypes        :: Container NativeTypeMethods -- ^ The list of native types.
+    , _prefExtFuncs    :: Container ( [PValue] -> InterpreterMonad PValue )
+    , _hieraPath       :: Maybe FilePath
+    , _ignoredmodules  :: HS.HashSet Text
+    , _strictness      :: Strictness
+    , _extraTests      :: Bool
+    , _knownusers      :: [Text]
+    , _knowngroups     :: [Text]
+    , _externalmodules :: HS.HashSet Text
     }
 
 data Defaults = Defaults
-    { _defKnownusers  :: Maybe [Text]
-    , _defKnowngroups :: Maybe [Text]
-    , _defIgnoredMods :: Maybe [Text]
-    , _defStrictness  :: Maybe Strictness
-    , _defExtratests  :: Maybe Bool
+    { _dfKnownusers      :: Maybe [Text]
+    , _dfKnowngroups     :: Maybe [Text]
+    , _dfIgnoredmodules  :: Maybe [Text]
+    , _dfStrictness      :: Maybe Strictness
+    , _dfExtratests      :: Maybe Bool
+    , _dfExternalmodules :: Maybe [Text]
     } deriving Show
 
 
@@ -72,6 +74,7 @@ instance FromJSON Defaults where
                            <*> v .:? "ignoredmodules"
                            <*> v .:? "strict"
                            <*> v .:? "extratests"
+                           <*> v .:? "externalmodules"
     parseJSON _ = mzero
 
 genPreferences :: FilePath
@@ -88,11 +91,12 @@ genPreferences basedir = do
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
                          stdlibFunctions
                          (Just (basedir <> "/hiera.yaml"))
-                         (getIgnoredMods defaults)
+                         (getIgnoredmodules defaults)
                          (getStrictness defaults)
                          (getExtraTests defaults)
                          (getKnownusers defaults)
                          (getKnowngroups defaults)
+                         (getExternalmodules defaults)
 
 {-| Use lens with the set operator and composition to set external/custom params.
 Ex.: @ setupPreferences workingDir ((hieraPath.~mypath) . (prefPDB.~pdbapi)) @
@@ -112,21 +116,25 @@ loadDefaults fp = do
 --     no default yaml file or
 --     not key/value for the option has been provided
 getKnownusers :: Maybe Defaults -> [Text]
-getKnownusers (Just def) = fromMaybe (getKnownusers Nothing) (_defKnownusers def)
+getKnownusers (Just df) = fromMaybe (getKnownusers Nothing) (_dfKnownusers df)
 getKnownusers Nothing = ["mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "syslog", "www-data"]
 
 getKnowngroups :: Maybe Defaults -> [Text]
-getKnowngroups (Just def) = fromMaybe (getKnowngroups Nothing) (_defKnowngroups def)
+getKnowngroups (Just df) = fromMaybe (getKnowngroups Nothing) (_dfKnowngroups df)
 getKnowngroups Nothing = ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data"]
 
 getStrictness :: Maybe Defaults -> Strictness
-getStrictness (Just def) = fromMaybe (getStrictness Nothing) (_defStrictness def)
+getStrictness (Just df) = fromMaybe (getStrictness Nothing) (_dfStrictness df)
 getStrictness Nothing = Permissive
 
-getIgnoredMods :: Maybe Defaults -> HS.HashSet Text
-getIgnoredMods (Just def) = maybe (getIgnoredMods Nothing) HS.fromList (_defIgnoredMods def)
-getIgnoredMods Nothing = mempty
+getIgnoredmodules :: Maybe Defaults -> HS.HashSet Text
+getIgnoredmodules (Just df) = maybe (getIgnoredmodules Nothing) HS.fromList (_dfIgnoredmodules df)
+getIgnoredmodules Nothing = mempty
 
 getExtraTests :: Maybe Defaults -> Bool
-getExtraTests (Just def) = fromMaybe (getExtraTests Nothing) (_defExtratests def)
+getExtraTests (Just df) = fromMaybe (getExtraTests Nothing) (_dfExtratests df)
 getExtraTests Nothing = True
+
+getExternalmodules :: Maybe Defaults -> HS.HashSet Text
+getExternalmodules (Just df) = maybe (getExternalmodules Nothing) HS.fromList (_dfExternalmodules df)
+getExternalmodules Nothing = mempty

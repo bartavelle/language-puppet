@@ -150,6 +150,7 @@ instance Pretty (InterpreterInstr a) where
     pretty (ReadFile f)                = pf "ReadFile" (map ttext f)
     pretty (TraceEvent e)              = pf "TraceEvent" [string e]
     pretty (IsIgnoredModule m)         = pf "IsIgnoredModule" [ttext m]
+    pretty (IsExternalModule m)        = pf "IsExternalModule" [ttext m]
 
 instance Pretty LinkInformation where
     pretty (LinkInformation lsrc ldst ltype lpos) = pretty lsrc <+> pretty ltype <+> pretty ldst <+> showPPos lpos
