@@ -97,6 +97,7 @@ eval r s (a :>>= k) =
             ReadFile fls                 -> strFail ((r ^. ioMethods . imReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
             TraceEvent e                 -> (r ^. ioMethods . imTraceEvent) e >>= runInstr
             IsIgnoredModule m            -> runInstr (r ^. ignoredModules . contains m)
+            IsExternalModule m           -> runInstr (r ^. externalModules . contains m)
             CallLua c fname args         -> (r ^. ioMethods . imCallLua) c fname args >>= \case
                                                 Right x -> runInstr x
                                                 Left rr -> thpe (PrettyError (string rr))

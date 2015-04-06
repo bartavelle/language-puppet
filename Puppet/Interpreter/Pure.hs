@@ -31,7 +31,7 @@ impurePure = ImpureMethods (return []) (const (return (Left "Can't read file")))
 -- templates, and that can include only the supplied top level statements.
 pureReader :: HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level statement map
            -> InterpreterReader Identity
-pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty True
+pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty mempty True
     where
         templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
         templatedummy (Left cnt) ctx scope =
@@ -57,7 +57,7 @@ pureEval facts sttmap action = runIdentity (interpretMonad (pureReader sttmap) s
 
 -- | A bunch of facts that can be used for pure evaluation.
 dummyFacts :: Facts
-dummyFacts = HM.fromList $
+dummyFacts = HM.fromList
         [ ("architecture", "amd64")
         , ("augeasversion", "0.10.0")
         , ("bios_release_date", "07/06/2010")

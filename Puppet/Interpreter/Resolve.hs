@@ -60,7 +60,6 @@ import           Data.Version                     (parseVersion)
 import           Text.ParserCombinators.ReadP     (readP_to_S)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
 import           Text.Regex.PCRE.ByteString.Utils
-import qualified System.Log.Logger as LOG
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.
@@ -240,7 +239,7 @@ resolveExpression (Lookup a idx) =
             case h ^. at ridx of
                 Just v -> return v
                 Nothing -> do
-                  checkStrict LOG.WARNING
+                  checkStrict
                     ("Look up for an hash with the unknown key '" <> ttext ridx <> "' for" <+> pretty (PHash h))
                     ("Can't find index '" <> ttext ridx <> "' in" <+> pretty (PHash h))
                   return "undef"
@@ -330,7 +329,7 @@ resolvePValueString (PBoolean True) = return "true"
 resolvePValueString (PBoolean False) = return "false"
 resolvePValueString (PNumber x) = return (scientific2text x)
 resolvePValueString PUndef = do
-     checkStrict LOG.WARNING
+     checkStrict
        "Resolving the keyword `undef` to the string \"undef\""
        "Strict mode won't convert the keyword `undef` to the string \"undef\""
      return "undef"
@@ -394,15 +393,15 @@ resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveF
 
 resolveFunction' :: T.Text -> [PValue] -> InterpreterMonad PValue
 resolveFunction' "defined" [PResourceReference "class" cn] = do
-    checkStrict LOG.NOTICE "The use of the 'defined' function is a code smell"
+    checkStrict "The use of the 'defined' function is a code smell"
                 "The 'defined' function is not allowed in strict mode."
     fmap (PBoolean . has (ix cn)) (use loadedClasses)
 resolveFunction' "defined" [PResourceReference rt rn] = do
-    checkStrict LOG.NOTICE "The use of the 'defined' function is a code smell"
+    checkStrict "The use of the 'defined' function is a code smell"
                 "The 'defined' function is not allowed in strict mode."
     fmap (PBoolean . has (ix (RIdentifier rt rn))) (use definedResources)
 resolveFunction' "defined" [ut] = do
-    checkStrict LOG.NOTICE "The use of the 'defined' function is a code smell."
+    checkStrict "The use of the 'defined' function is a code smell."
                 "The 'defined' function is not allowed in strict mode."
     t <- resolvePValueString ut
     -- case 1, netsted thingie

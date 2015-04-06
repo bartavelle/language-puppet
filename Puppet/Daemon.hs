@@ -98,6 +98,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
                                             hquery
                                             defaultImpureMethods
                                             (prefs ^. ignoredmodules)
+                                            (prefs ^. externalmodules)
                                             (prefs ^. strictness == Strict))
                                         ndename
                                         facts
