@@ -877,7 +877,9 @@ checkStrict wrn err = do
 
 isExternalModule :: InterpreterMonad Bool
 isExternalModule =
-  getScope >>= \case
-    ContClass n      -> singleton $ IsExternalModule n
-    ContDefine n _ _ -> (singleton . IsExternalModule . head . T.splitOn "::") n
-    _                -> return False
+    getScope >>= \case
+      ContClass n      -> isExternal n
+      ContDefine n _ _ -> isExternal n
+      _                -> return False
+    where
+      isExternal = singleton . IsExternalModule . head . T.splitOn "::"
