@@ -672,7 +672,6 @@ addTagResource r rv = r & rtags . contains rv .~ True
 addAttribute :: OverrideType -> T.Text -> Resource -> PValue -> InterpreterMonad Resource
 addAttribute _ "alias"     r v = (\rv -> r & ralias . contains rv .~ True) <$> resolvePValueString v
 addAttribute _ "audit"     r _ = use curPos >>= \p -> warn ("Metaparameter audit ignored at" <+> showPPos p) >> return r
-addAttribute _ "noop"      r _ = use curPos >>= \p -> warn ("Metaparameter noop ignored at" <+> showPPos p) >> return r
 addAttribute _ "loglevel"  r _ = use curPos >>= \p -> warn ("Metaparameter loglevel ignored at" <+> showPPos p) >> return r
 addAttribute _ "schedule"  r _ = use curPos >>= \p -> warn ("Metaparameter schedule ignored at" <+> showPPos p) >> return r
 addAttribute _ "stage"     r _ = use curPos >>= \p -> warn ("Metaparameter stage ignored at" <+> showPPos p) >> return r
