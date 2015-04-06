@@ -20,16 +20,12 @@ import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
 import qualified Data.Text.IO                     as T
 import           Data.Text.Strict.Lens
-import           Data.Traversable                 (for)
 import           Data.Tuple                       (swap)
 import qualified Data.Vector                      as V
 import           Options.Applicative
 import           System.Exit                      (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob             as G
 import           System.IO
-import           System.Log.Formatter             (simpleLogFormatter)
-import           System.Log.Handler               (setFormatter)
-import           System.Log.Handler.Simple        (streamHandler)
 import qualified System.Log.Logger                as LOG
 import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
@@ -176,7 +172,8 @@ initializedaemonWithPuppet :: FilePath
                            -> Options
                            -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
 initializedaemonWithPuppet workingdir (Options {..}) = do
-    setupLogger
+    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _optLoglevel)
+    LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _optLoglevel)
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -196,15 +193,6 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
 
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
-    where
-      stdoutHandler p = setFormatter
-                        <$> streamHandler stdout p
-                        <*> pure (simpleLogFormatter "$prio: $msg")
-      setupLogger = do
-         hs <- for [LOG.DEBUG, LOG.INFO, LOG.NOTICE, LOG.WARNING] stdoutHandler
-         LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers hs
-         LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _optLoglevel)
-         LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _optLoglevel)
 
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
