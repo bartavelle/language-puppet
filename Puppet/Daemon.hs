@@ -7,23 +7,29 @@ import           Control.Applicative
 import           Control.Exception
 import           Control.Exception.Lens
 import           Control.Lens
-import qualified Data.Either.Strict       as S
+import qualified Data.Either.Strict        as S
 import           Data.FileCache
-import qualified Data.HashMap.Strict      as HM
-import qualified Data.Text                as T
-import qualified Data.Text.IO             as T
+import qualified Data.HashMap.Strict       as HM
+import qualified Data.Text                 as T
+import qualified Data.Text.IO              as T
+import           Data.Traversable          (for)
 import           Data.Tuple.Strict
-import qualified Data.Vector              as V
+import qualified Data.Vector               as V
 import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
 import           Prelude
+import           System.IO                 (stdout)
+import           System.Log.Formatter      as LOG
+import           System.Log.Handler        as LOG
+import           System.Log.Handler.Simple as LOG
+import qualified System.Log.Logger         as LOG
 
 import           Hiera.Server
 import           Puppet.Interpreter
 import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Types
-import           Puppet.Lens              (_PrettyError)
+import           Puppet.Lens               (_PrettyError)
 import           Puppet.Manifests
 import           Puppet.OptionalTests
 import           Puppet.Parser
@@ -33,7 +39,6 @@ import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
 import           Puppet.Utils
-import qualified System.Log.Logger        as LOG
 
 {-| This is a high level function, that will initialize the parsing and
 interpretation infrastructure from the 'Preferences', and will return 'DaemonMethods'.
@@ -63,6 +68,7 @@ For instance, unknown variables are always an error. Querying a dictionary with 
 -}
 initDaemon :: Preferences IO -> IO DaemonMethods
 initDaemon prefs = do
+    setupConsoleLogger
     logDebug "initDaemon"
     traceEventIO "initDaemon"
     templateStats <- newStats
@@ -159,3 +165,12 @@ loggerName = "Puppet.Daemon"
 
 logDebug :: T.Text -> IO ()
 logDebug   = LOG.debugM   loggerName . T.unpack
+
+setupConsoleLogger :: IO ()
+setupConsoleLogger = do
+   hs <- for [LOG.DEBUG, LOG.INFO, LOG.NOTICE, LOG.WARNING] consoleLogHandler
+   LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers hs
+   where
+     consoleLogHandler p = LOG.setFormatter
+                          <$> LOG.streamHandler stdout p
+                          <*> pure (LOG.simpleLogFormatter "$prio: $msg")
