@@ -3,6 +3,7 @@
 ## New features
 * Add 'notify' native type
 * Ability to provide defaults via a yaml file for some options
+* Added the 'ensure_packages' and 'ensure_resources' functions
 
 ## Bugs fixed
 * Enable 'package' native type (issue #102)
