@@ -6,6 +6,7 @@
 
 ## Bugs fixed
 * Enable 'package' native type (issue #102)
+* Builds against GHC 7.10
 
 ## Changes
 * Even in Permissive mode, don't resolve unknown variable (see #103)
