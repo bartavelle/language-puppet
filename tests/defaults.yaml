@@ -25,6 +25,10 @@ knowngroups:
 ignoredmodules:
   - java
 
-strict: false
+externalmodules:
+  - nginx
+  - jenkins
+
+strict: true
 
 extratests: true
