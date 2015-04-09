@@ -138,7 +138,7 @@ import           GHC.Generics                 hiding (to)
 import           GHC.Stack
 import qualified Scripting.Lua                as Lua
 import           Servant.Common.Text
-import           System.Log.Logger
+import qualified System.Log.Logger            as LOG
 import           Text.Parsec.Pos
 import           Text.PrettyPrint.ANSI.Leijen hiding (rational, (<$>))
 import           Prelude

@@ -815,7 +815,7 @@ ensurePackages :: [PValue] -> InterpreterMonad [Resource]
 ensurePackages [packages] = ensurePackages [packages, PHash mempty]
 ensurePackages [PString p, x] = ensurePackages [ PArray (V.singleton (PString p)), x ]
 ensurePackages [PArray packages, PHash defaults] = do
-    checkStrict NOTICE "The use of the 'ensure_packages' function is a code smell."
+    checkStrict "The use of the 'ensure_packages' function is a code smell."
                 "The 'ensure_packages' function is not allowed in strict mode."
     concat <$> for packages (resolvePValueString >=> ensureResource' "package" (HM.singleton "ensure" "present" <> defaults))
 ensurePackages [PArray _,_] = throwPosError "ensure_packages(): the second argument must be a hash."
@@ -824,7 +824,7 @@ ensurePackages _ = throwPosError "ensure_packages(): requires one or two argumen
 
 ensureResource :: [PValue] -> InterpreterMonad [Resource]
 ensureResource [PString tp, PString ttl, PHash params] = do
-    checkStrict NOTICE "The use of the 'ensure_resource' function is a code smell."
+    checkStrict "The use of the 'ensure_resource' function is a code smell."
                 "The 'ensure_resource' function is not allowed in strict mode."
     ensureResource' tp params ttl
 ensureResource [tp,ttl] = ensureResource [tp,ttl,PHash mempty]
