@@ -20,6 +20,7 @@ import           GHC.Exts
 
 import           Data.Aeson                   (ToJSON, encode)
 import           Text.PrettyPrint.ANSI.Leijen ((<$>))
+import           Prelude                      hiding ((<$>))
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins

@@ -164,7 +164,7 @@ factProcessor :: IO [(String,String)]
 factProcessor = do
     cpuinfo <- readFile "/proc/cpuinfo"
     let cpuinfos = zip [ "processor" ++ show (n :: Int) | n <- [0..]] modelnames
-        modelnames = mapMaybe (fmap (dropWhile (`elem` "\t :")) . stripPrefix "model name") (lines cpuinfo)
+        modelnames = mapMaybe (fmap (dropWhile (`elem` ("\t :" :: String))) . stripPrefix "model name") (lines cpuinfo)
     return $ ("processorcount", show (length cpuinfos)) : cpuinfos
 
 puppetDBFacts :: T.Text -> PuppetDBAPI IO -> IO (Container PValue)
