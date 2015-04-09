@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP        #-}
+{-# LANGUAGE GADTs      #-}
 {-# LANGUAGE LambdaCase #-}
 module Puppet.Daemon (initDaemon) where
 
