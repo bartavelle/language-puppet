@@ -21,6 +21,7 @@ import           Data.Maybe                 (fromMaybe)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           System.Posix               (fileExist)
+import           Prelude
 
 import           Puppet.Interpreter.Types
 import           Puppet.NativeTypes

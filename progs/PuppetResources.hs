@@ -36,6 +36,7 @@ import           System.Log.Handler.Simple        (streamHandler)
 import qualified System.Log.Logger                as LOG
 import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
+import           Prelude
 
 import           Facter
 import           Puppet.Daemon

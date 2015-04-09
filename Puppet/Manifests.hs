@@ -10,7 +10,7 @@ import Puppet.Interpreter.Types
 import Text.Regex.PCRE.ByteString.Utils
 import Control.Lens
 import Control.Applicative
-import Control.Monad.Error
+import Control.Monad.Except
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -29,7 +29,7 @@ filterStatements TopNode ndename stmts =
         triage curstuff n@(Node (Nd  NodeDefault _  _ _)) = curstuff & _4 ?~ n
         triage curstuff x = curstuff & _1 %~ (|> x)
         bsnodename = T.encodeUtf8 ndename
-        checkRegexp :: [Pair Regex Statement] -> ErrorT PrettyError IO (Maybe Statement)
+        checkRegexp :: [Pair Regex Statement] -> ExceptT PrettyError IO (Maybe Statement)
         checkRegexp [] = return Nothing
         checkRegexp ((regexp  :!: s):xs) =
             case execute' regexp bsnodename of
@@ -40,7 +40,7 @@ filterStatements TopNode ndename stmts =
         strictEither (Right x) = S.Right x
     in case directnodes ^. at ndename of -- check if there is a node specifically called after my name
            Just r  -> return (S.Right (TopContainer spurious r))
-           Nothing -> fmap strictEither $ runErrorT $ do
+           Nothing -> fmap strictEither $ runExceptT $ do
                 regexpMatchM <- checkRegexp (V.toList regexpmatches) -- match regexps
                 case regexpMatchM <|> defaultnode of -- check for regexp matches or use the default node
                     Just r -> return (TopContainer spurious r)

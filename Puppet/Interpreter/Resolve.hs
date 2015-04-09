@@ -61,6 +61,7 @@ import           Text.ParserCombinators.ReadP     (readP_to_S)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
 import           Text.Regex.PCRE.ByteString.Utils
 import qualified System.Log.Logger as LOG
+import           Prelude
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.

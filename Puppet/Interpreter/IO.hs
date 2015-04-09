@@ -29,6 +29,7 @@ import qualified Data.Text.IO                     as T
 import           Debug.Trace                      (traceEventIO)
 import           GHC.Stack
 import qualified Scripting.Lua                    as Lua
+import           Prelude
 
 defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
 defaultImpureMethods = ImpureMethods (liftIO currentCallStack)

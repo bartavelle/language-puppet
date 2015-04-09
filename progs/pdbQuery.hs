@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs      #-}
 module Main where
 
 import           Puppet.Interpreter.Types

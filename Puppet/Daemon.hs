@@ -17,6 +17,7 @@ import qualified Data.Vector              as V
 import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
+import           Prelude
 
 import           Hiera.Server
 import           Puppet.Interpreter

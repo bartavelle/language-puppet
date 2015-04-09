@@ -17,7 +17,7 @@ import           Puppet.PP
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad.Error              hiding (forM, mapM)
+import           Control.Monad.Except
 import           Control.Monad.Operational        hiding (view)
 import qualified Data.Either.Strict               as S
 import           Data.Foldable                    (Foldable, foldl', foldlM,
@@ -35,9 +35,9 @@ import           Data.Traversable                 (mapM)
 import qualified Data.Tree                        as T
 import           Data.Tuple.Strict                (Pair (..))
 import qualified Data.Tuple.Strict                as S
-import           Prelude                          hiding (mapM)
 import           Puppet.Utils
 import           System.Log.Logger
+import           Prelude                          hiding (mapM)
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]

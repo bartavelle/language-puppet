@@ -108,7 +108,7 @@ import           Control.Applicative          hiding (empty)
 import           Control.Concurrent.MVar      (MVar)
 import           Control.Exception
 import           Control.Lens
-import           Control.Monad.Error
+import           Control.Monad.Except
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
 import           Control.Monad.Trans.Either
@@ -141,6 +141,7 @@ import           Servant.Common.Text
 import           System.Log.Logger
 import           Text.Parsec.Pos
 import           Text.PrettyPrint.ANSI.Leijen hiding (rational, (<$>))
+import           Prelude
 
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
@@ -164,10 +165,6 @@ instance Monoid PrettyError where
 
 instance IsString PrettyError where
     fromString = PrettyError . string
-
-instance Error PrettyError where
-    noMsg = PrettyError empty
-    strMsg = PrettyError . text
 
 instance Exception PrettyError
 

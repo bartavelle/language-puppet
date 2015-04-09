@@ -28,6 +28,7 @@ import qualified Data.Text                as T
 import qualified Data.Vector              as V
 import           Data.Yaml
 import           Text.Parsec.Pos
+import           Prelude
 
 import           Puppet.Interpreter.Types
 import           Puppet.Lens
