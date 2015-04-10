@@ -4,7 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE TemplateHaskell        #-}
 module Puppet.Preferences (
-    setupPreferences
+    dfPreferences
   , HasPreferences(..)
   , Preferences(Preferences)
   , PuppetDirPaths
@@ -76,9 +76,10 @@ instance FromJSON Defaults where
                            <*> v .:? "externalmodules"
     parseJSON _ = mzero
 
-genPreferences :: FilePath
+-- | generate default preferences
+dfPreferences :: FilePath
                -> IO (Preferences IO)
-genPreferences basedir = do
+dfPreferences basedir = do
     let manifestdir = basedir <> "/manifests"
         modulesdir  = basedir <> "/modules"
         templatedir = basedir <> "/templates"
@@ -97,13 +98,6 @@ genPreferences basedir = do
                          (getKnowngroups defaults)
                          (getExternalmodules defaults)
 
-{-| Use lens with the set operator and composition to set external/custom params.
-Ex.: @ setupPreferences workingDir ((hieraPath.~mypath) . (prefPDB.~pdbapi)) @
--}
-setupPreferences :: FilePath -- ^ The base working directory
-                 -> (Preferences IO -> Preferences IO) -- ^ Preference setting
-                 -> IO (Preferences IO)
-setupPreferences basedir k = fmap k (genPreferences basedir)
 
 loadDefaults :: FilePath -> IO (Maybe Defaults)
 loadDefaults fp = do

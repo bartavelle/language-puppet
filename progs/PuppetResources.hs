@@ -184,13 +184,12 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                            (Just p, Nothing) -> HM.union `fmap` loadYamlFile p
                            (Nothing, Just p) -> flip HM.union `fmap` loadYamlFile p
                            (Nothing, Nothing) -> return id
-    q <- initDaemon =<< setupPreferences workingdir
-                        (set prefPDB pdbapi .
-                         set hieraPath _optHieraFile .
-                         over ignoredmodules (`fromMaybe` _optIgnoredMods) .
-                         (if _optStrictMode then set strictness Strict else id) .
-                         (if _optNoExtraTests then set extraTests False else id))
-
+    prf <- dfPreferences workingdir <&> prefPDB .~ pdbapi
+                                    <&> hieraPath .~ _optHieraFile
+                                    <&> ignoredmodules %~ (`fromMaybe` _optIgnoredMods)
+                                    <&> (if _optStrictMode then strictness .~ Strict else id)
+                                    <&> (if _optNoExtraTests then extraTests .~ False else id)
+    q <- initDaemon prf
     let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
