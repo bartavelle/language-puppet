@@ -10,7 +10,7 @@ import           Puppet.Stats
 import           Puppet.Utils
 
 import           Control.Concurrent
-import           Control.Monad.Error
+import           Control.Monad.Except
 import qualified Data.Either.Strict           as S
 import           Data.FileCache
 import qualified Data.Text                    as T
@@ -34,13 +34,9 @@ import qualified Foreign.Ruby.Bindings        as FR
 import           Foreign.Ruby
 
 instance IsString TemplateParseError where
-  fromString = strMsg
+  fromString s = TemplateParseError $ newErrorMessage (Message s) (initialPos "dummy")
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
-
-instance Error TemplateParseError where
-    noMsg = TemplateParseError $ newErrorUnknown (initialPos "dummy")
-    strMsg s = TemplateParseError $ newErrorMessage (Message s) (initialPos "dummy")
 
 type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, T.Text, Container ScopeInformation)
 type TemplateAnswer = S.Either PrettyError T.Text

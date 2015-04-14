@@ -21,6 +21,7 @@ import           Control.Exception
 import           Control.Lens
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
+import           Control.Monad.Trans.Either
 import qualified Data.Either.Strict               as S
 import           Data.Monoid
 import qualified Data.Text                        as T
@@ -28,6 +29,7 @@ import qualified Data.Text.IO                     as T
 import           Debug.Trace                      (traceEventIO)
 import           GHC.Stack
 import qualified Scripting.Lua                    as Lua
+import           Prelude
 
 defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
 defaultImpureMethods = ImpureMethods (liftIO currentCallStack)
@@ -67,6 +69,9 @@ eval r s (a :>>= k) =
         canFail iof = iof >>= \case
             S.Left err -> thpe err
             S.Right x -> runInstr x
+        canFailE iof = runEitherT iof >>= \case
+            Left err -> thpe err
+            Right x -> runInstr x
         logStuff x c = (_3 %~ (x <>)) <$> c
     in  case a of
             IsStrict                     -> runInstr (r ^. isStrict)
@@ -85,14 +90,14 @@ eval r s (a :>>= k) =
             GetNodeName                  -> runInstr (r ^. thisNodename)
             HieraQuery scps q t          -> canFail ((r ^. hieraQuery) scps q t)
             PDBInformation               -> pdbInformation pdb >>= runInstr
-            PDBReplaceCatalog w          -> canFail (replaceCatalog pdb w)
-            PDBReplaceFacts fcts         -> canFail (replaceFacts pdb fcts)
-            PDBDeactivateNode nn         -> canFail (deactivateNode pdb nn)
-            PDBGetFacts q                -> canFail (getFacts pdb q)
-            PDBGetResources q            -> canFail (getResources pdb q)
-            PDBGetNodes q                -> canFail (getNodes pdb q)
-            PDBCommitDB                  -> canFail (commitDB pdb)
-            PDBGetResourcesOfNode nn q   -> canFail (getResourcesOfNode pdb nn q)
+            PDBReplaceCatalog w          -> canFailE (replaceCatalog pdb w)
+            PDBReplaceFacts fcts         -> canFailE (replaceFacts pdb fcts)
+            PDBDeactivateNode nn         -> canFailE (deactivateNode pdb nn)
+            PDBGetFacts q                -> canFailE (getFacts pdb q)
+            PDBGetResources q            -> canFailE (getResources pdb q)
+            PDBGetNodes q                -> canFailE (getNodes pdb q)
+            PDBCommitDB                  -> canFailE (commitDB pdb)
+            PDBGetResourcesOfNode nn q   -> canFailE (getResourcesOfNode pdb nn q)
             GetCurrentCallStack          -> (r ^. ioMethods . imGetCurrentCallStack) >>= runInstr
             ReadFile fls                 -> strFail ((r ^. ioMethods . imReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
             TraceEvent e                 -> (r ^. ioMethods . imTraceEvent) e >>= runInstr

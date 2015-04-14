@@ -2,7 +2,7 @@ module Puppet.NativeTypes.ZoneRecord (nativeZoneRecord) where
 
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import Control.Monad.Error
+import Control.Monad.Except
 import qualified Data.Text as T
 import Control.Lens
 

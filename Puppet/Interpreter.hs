@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs        #-}
 {-# LANGUAGE LambdaCase   #-}
 {-# LANGUAGE RankNTypes   #-}
 module Puppet.Interpreter
@@ -16,7 +17,7 @@ import           Puppet.PP
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad.Error              hiding (forM, mapM)
+import           Control.Monad.Except
 import           Control.Monad.Operational        hiding (view)
 import qualified Data.Either.Strict               as S
 import           Data.Foldable                    (Foldable, foldl', foldlM,
@@ -30,13 +31,14 @@ import           Data.Maybe
 import qualified Data.Maybe.Strict                as S
 import           Data.Ord                         (comparing)
 import qualified Data.Text                        as T
-import           Data.Traversable                 (mapM)
+import           Data.Traversable                 (mapM, for)
 import qualified Data.Tree                        as T
 import           Data.Tuple.Strict                (Pair (..))
 import qualified Data.Tuple.Strict                as S
-import           Prelude                          hiding (mapM)
+import qualified Data.Vector                      as V
 import           Puppet.Utils
 import           System.Log.Logger
+import           Prelude                          hiding (mapM)
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
@@ -120,7 +122,7 @@ finalize rlist = do
             n <- isNativeType (r ^. rid . itype)
             -- if we have a native type, or a virtual/exported resource it
             -- should not be expanded !
-            if (n || r ^. rvirtuality /= Normal)
+            if n || r ^. rvirtuality /= Normal
                 then return [r]
                 else expandDefine r
     concat <$> mapM expandableDefine withDefaults
@@ -767,6 +769,8 @@ mainFunctionCall "create_resources" [PString rtype, PHash hs, PHash defs] = do
         genRes rname x = throwPosError ("create_resource(): the value corresponding to key" <+> ttext rname <+> "should be a hash, not" <+> pretty x)
     concat . HM.elems <$> itraverse genRes hs
 mainFunctionCall "create_resources" args = throwPosError ("create_resource(): expects between two and three arguments, of type [string,hash,hash], and not:" <+> pretty args)
+mainFunctionCall "ensure_packages" args = ensurePackages args
+mainFunctionCall "ensure_resource" args = ensureResource args
 mainFunctionCall "realize" args = do
     p <- use curPos
     let realiz (PResourceReference rt rn) = resMod %= (ResourceModifier rt ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return p : )
@@ -806,6 +810,35 @@ mainFunctionCall fname args = do
     rs <- singleton (ExternalFunction fname args)
     unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs </> pretty representation)
     return []
+
+ensurePackages :: [PValue] -> InterpreterMonad [Resource]
+ensurePackages [packages] = ensurePackages [packages, PHash mempty]
+ensurePackages [PString p, x] = ensurePackages [ PArray (V.singleton (PString p)), x ]
+ensurePackages [PArray packages, PHash defaults] = do
+    checkStrict "The use of the 'ensure_packages' function is a code smell."
+                "The 'ensure_packages' function is not allowed in strict mode."
+    concat <$> for packages (resolvePValueString >=> ensureResource' "package" (HM.singleton "ensure" "present" <> defaults))
+ensurePackages [PArray _,_] = throwPosError "ensure_packages(): the second argument must be a hash."
+ensurePackages [_,_] = throwPosError "ensure_packages(): the first argument must be a string or an array of strings."
+ensurePackages _ = throwPosError "ensure_packages(): requires one or two arguments."
+
+ensureResource :: [PValue] -> InterpreterMonad [Resource]
+ensureResource [PString tp, PString ttl, PHash params] = do
+    checkStrict "The use of the 'ensure_resource' function is a code smell."
+                "The 'ensure_resource' function is not allowed in strict mode."
+    ensureResource' tp params ttl
+ensureResource [tp,ttl] = ensureResource [tp,ttl,PHash mempty]
+ensureResource [_, PString _, PHash _] = throwPosError "ensureResource(): The first argument must be a string."
+ensureResource [PString _, _, PHash _] = throwPosError "ensureResource(): The second argument must be a string."
+ensureResource [PString _, PString _, _] = throwPosError "ensureResource(): The thrid argument must be a hash."
+ensureResource _ = throwPosError "ensureResource(): expects 2 or 3 arguments."
+
+ensureResource' :: T.Text -> HM.HashMap T.Text PValue -> T.Text -> InterpreterMonad [Resource]
+ensureResource' tp params ttl = do
+    def <- has (ix (RIdentifier tp ttl)) <$> use definedResources
+    if def
+       then return []
+       else use curPos >>= registerResource tp ttl params Normal
 
 -- Method stuff
 evaluateHFC :: HFunctionCall -> InterpreterMonad [Resource]

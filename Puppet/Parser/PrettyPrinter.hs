@@ -10,6 +10,7 @@ import           Puppet.Parser.Types
 import           Puppet.PP
 import           Puppet.Utils
 import           Text.PrettyPrint.ANSI.Leijen ((<$>))
+import           Prelude                      hiding ((<$>))
 
 capitalize :: T.Text -> Doc
 capitalize = dullyellow . text . T.unpack . capitalizeRT

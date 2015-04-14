@@ -21,6 +21,7 @@ import qualified Data.Either.Strict       as S
 import qualified Data.HashMap.Strict      as HM
 import           Data.Monoid
 import qualified Data.Text                as T
+import           Prelude
 
 -- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
 -- type.

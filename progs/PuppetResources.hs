@@ -6,6 +6,7 @@ module Main where
 import           Control.Concurrent.ParallelIO    (parallel)
 import           Control.Lens
 import           Control.Monad
+import           Control.Monad.Trans.Either
 import           Data.Aeson                       (encode)
 import qualified Data.ByteString.Lazy.Char8       as BSL
 import           Data.Either                      (partitionEithers)
@@ -17,18 +18,21 @@ import           Data.List                        (isInfixOf)
 import           Data.Maybe                       (fromMaybe, isNothing, mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
+import           Data.String                      (fromString)
 import qualified Data.Text                        as T
 import qualified Data.Text.IO                     as T
 import           Data.Text.Strict.Lens
 import           Data.Tuple                       (swap)
 import qualified Data.Vector                      as V
 import           Options.Applicative
+import           Servant.Common.BaseUrl
 import           System.Exit                      (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob             as G
 import           System.IO
 import qualified System.Log.Logger                as LOG
 import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
+import           Prelude
 
 import           Facter
 import           Puppet.Daemon
@@ -177,7 +181,9 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
-                  (Just url, _)      -> pdbConnect (T.pack url) >>= checkError "Error when connecting to the remote PuppetDB"
+                  (Just url, _)      -> checkError "Error when parsing url" (parseBaseUrl url & either (S.Left . fromString) S.Right)
+                                            >>= pdbConnect
+                                            >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     !factsOverrides <- case (_optFactsOverr, _optFactsDefault) of
                            (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
@@ -341,7 +347,7 @@ computeNodeCatalog (Options {..}) queryfunc pdbapi node =
           exported <- filterCatalog _optResourceType _optResourceName rawexported
           let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) edgemap
               rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) edgemap
-          when _optCheckExport $ void $ replaceCatalog pdbapi rawWireCatalog
+          when _optCheckExport $ void $ runEitherT $ replaceCatalog pdbapi rawWireCatalog
           case (_optShowContent, _optShowjson) of
               (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
               (True, _) -> do
@@ -388,7 +394,7 @@ run (Options {_optPuppetdir = Just _, _optNodename = Nothing, _optMultnodes = No
 run cmd@(Options {_optNodename = Just node, _optPuppetdir = Just workingdir, ..}) = do
     (queryfunc, pdbapi, _, _, _ ) <- initializedaemonWithPuppet workingdir cmd
     computeNodeCatalog cmd queryfunc pdbapi node
-    when _optCommitDB $ void $ commitDB pdbapi
+    when _optCommitDB $ void $ runEitherT $ commitDB pdbapi
 
 -- | Multiple nodes mode (`--all`) option
 run cmd@(Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppetdir = Just workingdir}) = do

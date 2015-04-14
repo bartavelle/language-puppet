@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP        #-}
+{-# LANGUAGE GADTs      #-}
 {-# LANGUAGE LambdaCase #-}
 module Puppet.Daemon (initDaemon) where
 
@@ -17,6 +18,7 @@ import qualified Data.Vector               as V
 import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
+import           Prelude
 import           System.IO                 (stdout)
 import           System.Log.Formatter      as LOG
 import           System.Log.Handler        as LOG

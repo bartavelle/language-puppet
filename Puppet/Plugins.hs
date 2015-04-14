@@ -38,7 +38,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 import Control.Concurrent
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Monad.Operational (singleton)
 import Data.Scientific
 
@@ -55,8 +55,7 @@ instance Lua.StackValue PValue
         push l (PUndef)                  = Lua.push l ("undefined" :: T.Text)
         push l (PNumber b)               = Lua.push l (fromRational (toRational b) :: Double)
 
-        peek l n = do
-            Lua.ltype l n >>= \case
+        peek l n = Lua.ltype l n >>= \case
                 Lua.TBOOLEAN -> fmap (fmap PBoolean) (Lua.peek l n)
                 Lua.TSTRING  -> fmap (fmap PString) (Lua.peek l n)
                 Lua.TNUMBER  -> fmap (fmap (PNumber . fromFloatDigits)) (Lua.peek l n :: IO (Maybe Double))

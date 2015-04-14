@@ -87,31 +87,32 @@ library
                         , containers           == 0.5.*
                         , cryptohash           >= 0.10    && < 0.12
                         , directory            == 1.2.*
+                        , either               == 4.3.*
                         , exceptions           >= 0.8     && < 0.9
                         , filecache            >= 0.2.8   && < 0.3
                         , hashable             == 1.2.*
                         , hruby                >= 0.3 && <0.4
                         , hslogger             == 1.2.*
                         , hslua                >= 0.3.10  && < 0.4
-                        , http-conduit         >= 2.1     && < 2.2
-                        , http-types           == 0.8.*
-                        , iconv                == 0.4.*
-                        , lens                 >= 4.8     && < 5
+                        , lens                 >= 4.9     && < 5
                         , lens-aeson           >= 1.0
                         , luautils             >= 0.1.3   && < 0.1.4
                         , mtl                  >= 2.1     && < 2.3
-                        , operational
+                        , operational          >= 0.2.3   && < 0.3
                         , parsec               == 3.1.*
                         , parsers              >= 0.11    && < 0.13
                         , pcre-utils           >= 0.1.4   && < 0.2
                         , process              >= 1.1     && < 1.3
                         , regex-pcre-builtin   >= 0.94.4
                         , scientific           >= 0.2   && < 0.4
+                        , servant              == 0.2.*
+                        , servant-client       == 0.2.*
                         , split                == 0.2.*
                         , stm                  == 2.4.*
                         , strict-base-types    >= 0.2.2
                         , text                 >= 0.11
                         , time                 >= 1.4  && < 2
+                        , transformers         == 0.4.*
                         , transformers-compat  == 0.4.*
                         , unix                 >= 2.6     && < 2.8
                         , unordered-containers == 0.2.*
@@ -165,7 +166,7 @@ executable puppetresources
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded -with-rtsopts "-A2M" -eventlog
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9
+  build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9, either, servant-client
   main-is:             PuppetResources.hs
 
 executable pdbquery
@@ -173,5 +174,5 @@ executable pdbquery
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded
   ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,optparse-applicative >= 0.11,text,yaml,bytestring,strict-base-types,lens,unordered-containers,vector
+  build-depends:       language-puppet,base,optparse-applicative >= 0.11,text,yaml,bytestring,strict-base-types,lens,unordered-containers,vector,either,servant-client
   main-is:             pdbQuery.hs

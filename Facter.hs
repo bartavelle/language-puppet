@@ -8,7 +8,6 @@ import qualified Data.HashMap.Strict as HM
 import Puppet.Interpreter.Types
 import qualified Data.Text as T
 import Control.Arrow
-import qualified Data.Either.Strict as S
 import Control.Lens
 import System.Posix.User
 import System.Posix.Unistd (getSystemID, SystemID(..))
@@ -17,6 +16,7 @@ import Data.List (intercalate,stripPrefix)
 import System.Environment
 import System.Directory (doesFileExist)
 import Data.Maybe (mapMaybe)
+import Control.Monad.Trans.Either
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -107,7 +107,7 @@ factOSLSB = do
         lrelease = getval "DISTRIB_RELEASE"
         distid  = getval "DISTRIB_ID"
         maj     | lrelease == "?" = "?"
-                | otherwise = fst $ break (== '.') lrelease
+                | otherwise = takeWhile (/= '.') lrelease
         osfam   | distid == "Ubuntu" = "Debian"
                 | otherwise = distid
     return  [ ("lsbdistid"              , distid)
@@ -164,13 +164,13 @@ factProcessor :: IO [(String,String)]
 factProcessor = do
     cpuinfo <- readFile "/proc/cpuinfo"
     let cpuinfos = zip [ "processor" ++ show (n :: Int) | n <- [0..]] modelnames
-        modelnames = mapMaybe (fmap (dropWhile (`elem` "\t :")) . stripPrefix "model name") (lines cpuinfo)
+        modelnames = mapMaybe (fmap (dropWhile (`elem` ("\t :" :: String))) . stripPrefix "model name") (lines cpuinfo)
     return $ ("processorcount", show (length cpuinfos)) : cpuinfos
 
 puppetDBFacts :: T.Text -> PuppetDBAPI IO -> IO (Container PValue)
 puppetDBFacts ndename pdbapi =
-    getFacts pdbapi (QEqual FCertname ndename) >>= \case
-        S.Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
+    runEitherT (getFacts pdbapi (QEqual FCertname ndename)) >>= \case
+        Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
         _ -> do
             rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv, factProcessor])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts

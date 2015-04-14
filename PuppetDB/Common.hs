@@ -13,6 +13,7 @@ import Control.Lens
 import System.Environment
 import qualified Data.Either.Strict as S
 import Data.Vector.Lens
+import Servant.Common.BaseUrl
 
 -- | The supported PuppetDB implementations.
 data PDBType = PDBRemote -- ^ Your standard PuppetDB, queried through the HTTP interface.
@@ -39,7 +40,8 @@ instance Read PDBType where
 -- | Given a 'PDBType', will try return a sane default implementation.
 getDefaultDB :: PDBType -> IO (S.Either PrettyError (PuppetDBAPI IO))
 getDefaultDB PDBDummy  = return (S.Right dummyPuppetDB)
-getDefaultDB PDBRemote = pdbConnect "http://localhost:8080"
+getDefaultDB PDBRemote = let Right url = parseBaseUrl "http://localhost:8080"
+                         in  pdbConnect url
 getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
                                 Just h -> loadTestDB (h ++ "/.testdb")
                                 Nothing -> fmap S.Right initTestDB

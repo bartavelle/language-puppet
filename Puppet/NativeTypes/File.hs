@@ -5,7 +5,8 @@ import           Puppet.NativeTypes.Helpers
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad.Error
+import           Control.Monad.Except
+import           Control.Monad.Trans.Except
 import qualified Data.Attoparsec.Text       as AT
 import           Data.Char                  (isDigit)
 import qualified Data.Map.Strict            as M
@@ -49,9 +50,9 @@ validateMode res = do
                   Just (PString s) -> return s
                   Just x -> throwError $ PrettyError ("Invalide mode type, should be a string " <+> pretty x)
                   Nothing -> throwError "Could not find mode!"
-    (numeric modestr <|> ugo modestr) & _Right %~ ($ res)
+    (numeric modestr <|> except (ugo modestr)) & runExcept & _Right %~ ($ res)
 
-numeric :: T.Text -> Either PrettyError (Resource -> Resource)
+numeric :: T.Text -> Except PrettyError (Resource -> Resource)
 numeric modestr = do
     when ((T.length modestr /= 3) && (T.length modestr /= 4)) (throwError "Invalid mode size")
     unless (T.all isDigit modestr) (throwError "The mode should only be made of digits")
