@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                language-puppet
-version:             1.1.1
+version:             1.1.1.1
 synopsis:            Tools to parse and evaluate the Puppet DSL.
 description:         This is a set of tools that is supposed to fill all your Puppet needs : syntax checks, catalog compilation, PuppetDB queries, simulationg of complex interactions between nodes, Puppet master replacement, and more !
 homepage:            http://lpuppet.banquise.net/
@@ -150,7 +150,7 @@ Test-Suite test-puppetdb
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -rtsopts -threaded
   extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,temporary,strict-base-types,lens,text
+  build-depends:  language-puppet,base,temporary,strict-base-types,lens,text,either
   main-is:        puppetdb.hs
 Test-Suite erbparser
   hs-source-dirs: tests

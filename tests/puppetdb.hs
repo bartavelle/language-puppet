@@ -7,6 +7,7 @@ import qualified Data.Either.Strict as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Control.Lens
+import Control.Monad.Trans.Either
 
 import Puppet.Interpreter.Types
 import PuppetDB.Common
@@ -16,6 +17,9 @@ import Facter
 checkError :: Show x => String -> S.Either x a -> IO a
 checkError _ (S.Right x) = return x
 checkError step (S.Left rr) = error (step ++ ": " ++ show rr)
+
+checkErrorE :: Show x => String -> EitherT x IO a -> IO a
+checkErrorE msg = runEitherT >=> either (error . ((msg ++ " ") ++) . show) return
 
 main :: IO ()
 main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
@@ -28,8 +32,8 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
     -- and add a custom fact
     let nfacts = facts & at "customfact" ?~ "MyCustomFactValue"
     -- save the facts
-    replaceFacts pdb [(ndname, nfacts)] >>= checkError "replaceFacts"
-    commitDB pdb >>= checkError "commitDB"
+    checkErrorE "replaceFacts" (replaceFacts pdb [(ndname, nfacts)])
+    checkErrorE "commitDB" (commitDB pdb)
     -- check that our custom fact was indeed saved
     dblines <- T.lines `fmap` T.readFile pdbfile
     unless ("    customfact: MyCustomFactValue" `elem` dblines) (error "could not find my fact")
@@ -37,8 +41,8 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
     fpdb <- loadTestDB pdbfile >>= checkError "loadTestDB"
     ffacts <- puppetDBFacts ndname pdb
     unless (ffacts == nfacts) (error "facts are distinct")
-    replaceCatalog fpdb (generateWireCatalog ndname mempty mempty) >>= checkError "replaceCatalog"
-    commitDB fpdb >>= checkError "commit 2"
+    checkErrorE "replaceCatalog" (replaceCatalog fpdb (generateWireCatalog ndname mempty mempty))
+    checkErrorE "commit 2" (commitDB fpdb)
     -- and check for our facts again
     fdblines <- T.lines `fmap` T.readFile pdbfile
     unless ("    customfact: MyCustomFactValue" `elem` fdblines) (error "could not find my fact")
