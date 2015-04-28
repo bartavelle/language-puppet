@@ -1,3 +1,7 @@
+# v1.1.1.2 (2015/04/28)
+
+Various packaging changes.
+
 # v1.1.1 (2015/04/20)
 
 ## New features
