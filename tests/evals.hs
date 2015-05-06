@@ -7,9 +7,11 @@ import Puppet.Interpreter.Pure
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.Resolve
 
+import Test.Hspec
 import Control.Applicative
 import Text.Parser.Combinators (eof)
-import Data.Either (lefts)
+import Data.Foldable (forM_)
+import Prelude
 
 pureTests :: [T.Text]
 pureTests = [ "4 + 2 == 6"
@@ -20,10 +22,11 @@ pureTests = [ "4 + 2 == 6"
             , "[1,2,3] << 10 == [1,2,3,10]"
             , "[1,2,3] << [4,5] == [1,2,3,[4,5]]"
             , "4 / 2.0 == 2"
+            , "$settings::confdir == 'lapin'"
             ]
 
 main :: IO ()
-main = do
+main = hspec $ do
     let check :: T.Text -> Either String ()
         check t = case runPParser (expression <* eof) "dummy" t of
                       Left rr -> Left (T.unpack t ++ " -> " ++ show rr)
@@ -31,4 +34,4 @@ main = do
                                      Right (PBoolean True) -> Right ()
                                      Right x -> Left (T.unpack t ++ " -> " ++ show (pretty x))
                                      Left rr -> Left (T.unpack t ++ " -> " ++ show rr)
-    mapM_ putStrLn (lefts $ map check pureTests)
+    describe "evaluation" $ forM_ pureTests $ \t -> it ("should evaluate " ++ show t) $ either error (const True) (check t)

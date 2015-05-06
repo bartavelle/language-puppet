@@ -122,7 +122,7 @@ Test-Suite test-evals
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -rtsopts -threaded
   extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,text,lens,parsers
+  build-depends:  language-puppet,base,text,lens,parsers,hspec
   main-is:        evals.hs
 Test-Suite test-lexer
   hs-source-dirs: tests
