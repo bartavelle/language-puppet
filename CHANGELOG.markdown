@@ -1,3 +1,8 @@
+# v1.1.2
+
+## New features
+* Support for the `$settings` variables.
+
 # v1.1.1.2 (2015/04/28)
 
 Various packaging changes.
