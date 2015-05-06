@@ -99,7 +99,6 @@ dfPreferences basedir = do
                          (getKnowngroups defaults)
                          (getExternalmodules defaults)
 
-
 loadDefaults :: FilePath -> IO (Maybe Defaults)
 loadDefaults fp = do
   p <- fileExist fp
@@ -110,25 +109,20 @@ loadDefaults fp = do
 --     no default yaml file or
 --     not key/value for the option has been provided
 getKnownusers :: Maybe Defaults -> [Text]
-getKnownusers (Just df) = fromMaybe (getKnownusers Nothing) (_dfKnownusers df)
-getKnownusers Nothing = ["mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "syslog", "www-data"]
+getKnownusers = fromMaybe ["mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "syslog", "www-data"] . (>>= _dfKnownusers)
 
 getKnowngroups :: Maybe Defaults -> [Text]
-getKnowngroups (Just df) = fromMaybe (getKnowngroups Nothing) (_dfKnowngroups df)
-getKnowngroups Nothing = ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data"]
+getKnowngroups = fromMaybe ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data"] . (>>= _dfKnowngroups)
 
 getStrictness :: Maybe Defaults -> Strictness
-getStrictness (Just df) = fromMaybe (getStrictness Nothing) (_dfStrictness df)
-getStrictness Nothing = Permissive
+getStrictness = fromMaybe Permissive . (>>= _dfStrictness)
 
 getIgnoredmodules :: Maybe Defaults -> HS.HashSet Text
-getIgnoredmodules (Just df) = maybe (getIgnoredmodules Nothing) HS.fromList (_dfIgnoredmodules df)
-getIgnoredmodules Nothing = mempty
+getIgnoredmodules = maybe mempty HS.fromList . (>>= _dfIgnoredmodules)
 
 getExtraTests :: Maybe Defaults -> Bool
-getExtraTests (Just df) = fromMaybe (getExtraTests Nothing) (_dfExtratests df)
-getExtraTests Nothing = True
+getExtraTests = fromMaybe True . (>>= _dfExtratests)
 
 getExternalmodules :: Maybe Defaults -> HS.HashSet Text
-getExternalmodules (Just df) = maybe (getExternalmodules Nothing) HS.fromList (_dfExternalmodules df)
-getExternalmodules Nothing = mempty
+getExternalmodules = maybe mempty HS.fromList . (>>= _dfExternalmodules)
+
