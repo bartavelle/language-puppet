@@ -849,12 +849,17 @@ instance AsNumber PValue where
                                          _      -> Left p
             toNumber p = Left p
 
-initialState :: Facts -> InterpreterState
-initialState facts = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
+initialState :: Facts
+             -> Container T.Text -- ^ Server settings
+             -> InterpreterState
+initialState facts settings = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
     where
         callervars = HM.fromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
-        factvars = facts & each %~ (\x -> x :!: initialPPos "facts" :!: ContRoot)
-        baseVars = HM.singleton "::" (ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
+        factvars = fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts
+        settingvars = fmap (\x -> PString x :!: initialPPos "settings" :!: ContClass "settings") settings
+        baseVars = HM.fromList [ ("::", ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
+                               , ("settings", ScopeInformation settingvars mempty mempty (CurContainer (ContClass "settings") mempty) mempty S.Nothing)
+                               ]
         initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
 
 dummypos :: PPosition

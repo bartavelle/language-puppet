@@ -22,7 +22,7 @@ pureTests = [ "4 + 2 == 6"
             , "[1,2,3] << 10 == [1,2,3,10]"
             , "[1,2,3] << [4,5] == [1,2,3,[4,5]]"
             , "4 / 2.0 == 2"
-            , "$settings::confdir == 'lapin'"
+            , "$settings::confdir == '/etc/puppet'"
             ]
 
 main :: IO ()

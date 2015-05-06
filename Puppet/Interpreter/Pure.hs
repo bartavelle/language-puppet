@@ -53,7 +53,8 @@ pureEval :: Facts -- ^ A list of facts that will be used during evaluation
          -> (Either PrettyError a, InterpreterState, InterpreterWriter)
 pureEval facts sttmap action = runIdentity (interpretMonad (pureReader sttmap) startingState action)
     where
-        startingState = initialState facts
+        startingState = initialState facts $ HM.fromList [ ("confdir", "/etc/puppet")
+                                                         ]
 
 
 -- | A bunch of facts that can be used for pure evaluation.

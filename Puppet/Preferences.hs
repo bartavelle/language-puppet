@@ -2,6 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE TemplateHaskell        #-}
 module Puppet.Preferences (
     dfPreferences
@@ -9,6 +10,7 @@ module Puppet.Preferences (
   , Preferences(Preferences)
   , PuppetDirPaths
   , HasPuppetDirPaths(..)
+  , mkDefaultSettings
 ) where
 
 import           Control.Applicative
@@ -126,3 +128,6 @@ getExtraTests = fromMaybe True . (>>= _dfExtratests)
 getExternalmodules :: Maybe Defaults -> HS.HashSet Text
 getExternalmodules = maybe mempty HS.fromList . (>>= _dfExternalmodules)
 
+mkDefaultSettings :: Preferences m -> Container Text
+mkDefaultSettings p = HM.fromList [ ("confdir", T.pack $ _baseDir $ _puppetPaths p)
+                                  ]

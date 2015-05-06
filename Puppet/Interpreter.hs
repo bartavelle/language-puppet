@@ -67,9 +67,10 @@ getCatalog :: (Functor m, Monad m)
            => InterpreterReader m -- ^ The whole environment required for computing catalog.
            -> Nodename
            -> Facts
+           -> Container T.Text -- ^ Server settings
            -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
-getCatalog interpretReader node facts   = do
-    (output, _, warnings) <- interpretMonad interpretReader (initialState facts) (computeCatalog node)
+getCatalog interpretReader node facts settings = do
+    (output, _, warnings) <- interpretMonad interpretReader (initialState facts settings) (computeCatalog node)
     return (strictifyEither output :!: warnings)
 
 isParent :: T.Text -> CurContainerDesc -> InterpreterMonad Bool
