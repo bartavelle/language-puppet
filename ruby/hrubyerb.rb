@@ -2,6 +2,10 @@ require 'erb'
 require 'digest/md5'
 require 'yaml'
 
+class Encoding
+    ASCII_8BIT = 42
+end
+
 class Scope
     def initialize(context,variables)
         @context = context
