@@ -2,6 +2,7 @@
 
 ## New features
 * Support for the `$settings` variables.
+* Support for the `to_yaml` function in templates.
 
 # v1.1.1.2 (2015/04/28)
 

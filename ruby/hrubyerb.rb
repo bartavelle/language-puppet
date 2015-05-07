@@ -1,5 +1,6 @@
 require 'erb'
 require 'digest/md5'
+require 'yaml'
 
 class Scope
     def initialize(context,variables)
@@ -38,6 +39,10 @@ class Scope
 
     def to_hash
         vl('~g~e~t_h~a~s~h~')
+    end
+
+    def function_to_yaml(args)
+        args.to_yaml
     end
 
     def function_versioncmp(args)
