@@ -10,7 +10,6 @@ module Puppet.Preferences (
   , Preferences(Preferences)
   , PuppetDirPaths
   , HasPuppetDirPaths(..)
-  , mkDefaultSettings
 ) where
 
 import           Control.Applicative
@@ -55,6 +54,7 @@ data Preferences m = Preferences
     , _knownusers      :: [Text]
     , _knowngroups     :: [Text]
     , _externalmodules :: HS.HashSet Text
+    , _puppetSettings  :: Container Text
     }
 
 data Defaults = Defaults
@@ -64,6 +64,7 @@ data Defaults = Defaults
     , _dfStrictness      :: Maybe Strictness
     , _dfExtratests      :: Maybe Bool
     , _dfExternalmodules :: Maybe [Text]
+    , _dfPuppetSettings  :: Maybe (Container Text)
     } deriving Show
 
 
@@ -77,6 +78,7 @@ instance FromJSON Defaults where
                            <*> v .:? "strict"
                            <*> v .:? "extratests"
                            <*> v .:? "externalmodules"
+                           <*> v .:? "settings"
     parseJSON _ = mzero
 
 -- | generate default preferences
@@ -90,7 +92,8 @@ dfPreferences basedir = do
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     defaults <- loadDefaults (testdir ++ "/defaults.yaml")
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    return $ Preferences (PuppetDirPaths basedir manifestdir modulesdir templatedir testdir)
+    let dirpaths = PuppetDirPaths basedir manifestdir modulesdir templatedir testdir
+    return $ Preferences dirpaths
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
                          stdlibFunctions
                          (Just (basedir <> "/hiera.yaml"))
@@ -100,6 +103,7 @@ dfPreferences basedir = do
                          (getKnownusers defaults)
                          (getKnowngroups defaults)
                          (getExternalmodules defaults)
+                         (getPuppetSettings dirpaths defaults)
 
 loadDefaults :: FilePath -> IO (Maybe Defaults)
 loadDefaults fp = do
@@ -128,6 +132,9 @@ getExtraTests = fromMaybe True . (>>= _dfExtratests)
 getExternalmodules :: Maybe Defaults -> HS.HashSet Text
 getExternalmodules = maybe mempty HS.fromList . (>>= _dfExternalmodules)
 
-mkDefaultSettings :: Preferences m -> Container Text
-mkDefaultSettings p = HM.fromList [ ("confdir", T.pack $ _baseDir $ _puppetPaths p)
-                                  ]
+getPuppetSettings :: PuppetDirPaths -> Maybe Defaults -> Container Text
+getPuppetSettings dirpaths = fromMaybe df . (>>= _dfPuppetSettings)
+    where
+      df :: Container Text
+      df = HM.fromList [ ("confdir", T.pack $ dirpaths^.baseDir)
+                       ]

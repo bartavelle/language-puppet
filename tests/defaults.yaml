@@ -32,3 +32,6 @@ externalmodules:
 strict: true
 
 extratests: true
+
+settings:
+  confdir: /etc/puppet

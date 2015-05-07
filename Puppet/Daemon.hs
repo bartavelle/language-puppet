@@ -96,8 +96,7 @@ gCatalog :: Preferences IO
 gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
     logDebug ("Received query for node " <> ndename)
     traceEventIO ("START gCatalog " <> T.unpack ndename)
-    let settings = mkDefaultSettings prefs
-        catalogComputation = getCatalog (InterpreterReader
+    let catalogComputation = getCatalog (InterpreterReader
                                             (prefs ^. natTypes)
                                             getStatements
                                             getTemplate
@@ -111,7 +110,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
                                             (prefs ^. strictness == Strict))
                                         ndename
                                         facts
-                                        settings
+                                        (prefs^.puppetSettings)
     (stmts :!: warnings) <- measure stats ndename catalogComputation
     mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
