@@ -10,7 +10,6 @@ import Puppet.PP
 import Puppet.Interpreter.Types
 import Data.Text (Text)
 import Control.Monad.Trans.Either
-import qualified Data.Either.Strict as S
 import Servant.API
 import Servant.Client
 import Data.Aeson
@@ -27,9 +26,9 @@ api :: Proxy PDBAPI
 api = Proxy
 
 -- | Given an URL (ie. @http://localhost:8080@), will return an incomplete 'PuppetDBAPI'.
-pdbConnect :: BaseUrl -> IO (S.Either PrettyError (PuppetDBAPI IO))
+pdbConnect :: BaseUrl -> IO (Either PrettyError (PuppetDBAPI IO))
 pdbConnect url =
-    return $ S.Right $ PuppetDBAPI
+    return $ Right $ PuppetDBAPI
         (return (string $ show url))
         (const (left "operation not supported"))
         (const (left "operation not supported"))

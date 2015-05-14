@@ -157,9 +157,9 @@ options = Options
        (  long "noextratests"
        <> help "Disable extra tests (eg.: check that files exist on local disk")
 
-checkError :: Doc -> S.Either PrettyError a -> IO a
-checkError r (S.Left rr) = error (show (red r <> ": " <+> getError rr))
-checkError _ (S.Right x) = return x
+checkError :: Doc -> Either PrettyError a -> IO a
+checkError r (Left rr) = error (show (red r <> ": " <+> getError rr))
+checkError _ (Right x) = return x
 
 -- | Like catMaybes, but it counts the Nothing values
 catMaybesCount :: [Maybe a] -> ([a], Sum Int)
@@ -181,7 +181,7 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
-                  (Just url, _)      -> checkError "Error when parsing url" (parseBaseUrl url & either (S.Left . fromString) S.Right)
+                  (Just url, _)      -> checkError "Error when parsing url" (parseBaseUrl url & either (Left . fromString) Right)
                                             >>= pdbConnect
                                             >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"

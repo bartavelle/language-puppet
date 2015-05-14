@@ -18,7 +18,6 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Either
 import           Data.Aeson.Lens
 import           Data.CaseInsensitive
-import qualified Data.Either.Strict       as S
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.HashSet             as HS
 import           Data.List                (foldl')
@@ -53,20 +52,20 @@ instance ToJSON DBContent where
     toJSON (DBContent r f _) = object [("resources", toJSON r), ("facts", toJSON f)]
 
 -- | Initializes the test DB using a file to back its content
-loadTestDB :: FilePath -> IO (S.Either PrettyError (PuppetDBAPI IO))
+loadTestDB :: FilePath -> IO (Either PrettyError (PuppetDBAPI IO))
 loadTestDB fp =
     decodeFileEither fp >>= \case
-        Left (OtherParseException rr) -> return (S.Left (PrettyError (string (show rr))))
+        Left (OtherParseException rr) -> return (Left (PrettyError (string (show rr))))
         Left (InvalidYaml Nothing) -> baseError "Unknown error"
         Left (InvalidYaml (Just (YamlException s))) -> if take 21 s == "Yaml file not found: "
                                                           then newFile
                                                           else baseError (string s)
         Left (InvalidYaml (Just (YamlParseException pb ctx (YamlMark _ l c)))) -> baseError $ red (string pb <+> string ctx) <+> "at line" <+> int l <> ", column" <+> int c
         Left _ -> newFile
-        Right x -> fmap S.Right (genDBAPI (x & backingFile ?~ fp ))
+        Right x -> fmap Right (genDBAPI (x & backingFile ?~ fp ))
     where
-        baseError r = return $ S.Left $ PrettyError $ "Could not parse" <+> string fp <> ":" <+> r
-        newFile = S.Right <$> genDBAPI (newDB & backingFile ?~ fp )
+        baseError r = return $ Left $ PrettyError $ "Could not parse" <+> string fp <> ":" <+> r
+        newFile = Right <$> genDBAPI (newDB & backingFile ?~ fp )
 
 -- | Starts a new PuppetDB, without any backing file.
 initTestDB :: IO (PuppetDBAPI IO)

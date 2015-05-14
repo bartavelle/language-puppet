@@ -11,7 +11,6 @@ import Data.Maybe
 import Data.List (stripPrefix)
 import Control.Lens
 import System.Environment
-import qualified Data.Either.Strict as S
 import Data.Vector.Lens
 import Servant.Common.BaseUrl
 
@@ -38,13 +37,13 @@ instance Read PDBType where
             tsts = stripPrefix "test"      r
 
 -- | Given a 'PDBType', will try return a sane default implementation.
-getDefaultDB :: PDBType -> IO (S.Either PrettyError (PuppetDBAPI IO))
-getDefaultDB PDBDummy  = return (S.Right dummyPuppetDB)
+getDefaultDB :: PDBType -> IO (Either PrettyError (PuppetDBAPI IO))
+getDefaultDB PDBDummy  = return (Right dummyPuppetDB)
 getDefaultDB PDBRemote = let Right url = parseBaseUrl "http://localhost:8080"
                          in  pdbConnect url
 getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
                                 Just h -> loadTestDB (h ++ "/.testdb")
-                                Nothing -> fmap S.Right initTestDB
+                                Nothing -> fmap Right initTestDB
 
 -- | Turns a 'FinalCatalog' and 'EdgeMap' into a document that can be
 -- serialized and fed to @puppet apply@.
