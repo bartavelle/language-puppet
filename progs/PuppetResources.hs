@@ -72,8 +72,6 @@ data Options = Options
     , _optPdbfile      :: Maybe FilePath
     , _optLoglevel     :: LOG.Priority
     , _optHieraFile    :: Maybe FilePath
-    , _optFactsOverr   :: Maybe FilePath
-    , _optFactsDefault :: Maybe FilePath
     , _optCommitDB     :: Bool
     , _optCheckExport  :: Bool
     , _optIgnoredMods  :: Maybe (HS.HashSet T.Text)
@@ -130,12 +128,6 @@ options = Options
        (  long "hiera"
        <> help "Path to the Hiera configuration file (default hiera.yaml)"
        <> value "hiera.yaml"))
-   <*> optional (strOption
-       (  long "facts-override"
-       <> help "Path to a Yaml file containing a list of 'facts' that will override locally resolved facts"))
-   <*> optional (strOption
-       (  long "facts-defaults"
-       <> help "Path to a Yaml file containing a list of 'facts' that will be used as defaults"))
    <*> switch
        (  long "commitdb"
        <> help "Commit the computed catalogs in the puppetDB")
