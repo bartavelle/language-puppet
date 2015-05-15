@@ -11,14 +11,13 @@ import           Data.Aeson                       (encode)
 import qualified Data.ByteString.Lazy.Char8       as BSL
 import           Data.Either                      (partitionEithers)
 import qualified Data.Either.Strict               as S
-import           Data.Foldable                    (foldMap)
+import           Data.Foldable
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
 import           Data.Maybe                       (fromMaybe, isNothing, mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
-import           Data.String                      (fromString)
 import qualified Data.Text                        as T
 import qualified Data.Text.IO                     as T
 import           Data.Text.Strict.Lens
@@ -32,7 +31,6 @@ import           System.IO
 import qualified System.Log.Logger                as LOG
 import qualified Text.Parsec                      as P
 import           Text.Regex.PCRE.String
-import           Prelude
 
 import           Facter
 import           Puppet.Daemon
@@ -45,11 +43,12 @@ import           Puppet.Parser.Types
 import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
-import           Puppet.Utils
 import           PuppetDB.Common
 import           PuppetDB.Dummy
 import           PuppetDB.Remote
 import           PuppetDB.TestDB
+
+import           Prelude
 
 type QueryFunc = Nodename -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
@@ -157,8 +156,8 @@ options = Options
        (  long "noextratests"
        <> help "Disable extra tests (eg.: check that files exist on local disk")
 
-checkError :: Doc -> Either PrettyError a -> IO a
-checkError r (Left rr) = error (show (red r <> ": " <+> getError rr))
+checkError :: Show e => Doc -> Either e a -> IO a
+checkError r (Left rr) = error (show (red r <> ": " <+> (string . show) rr))
 checkError _ (Right x) = return x
 
 -- | Like catMaybes, but it counts the Nothing values
@@ -181,22 +180,17 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
-                  (Just url, _)      -> checkError "Error when parsing url" (parseBaseUrl url & either (Left . fromString) Right)
+                  (Just url, _)      -> checkError "Error when parsing url" (parseBaseUrl url)
                                             >>= pdbConnect
                                             >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    !factsOverrides <- case (_optFactsOverr, _optFactsDefault) of
-                           (Just _, Just _) -> error "You can't use --facts-override and --facts-defaults at the same time"
-                           (Just p, Nothing) -> HM.union `fmap` loadYamlFile p
-                           (Nothing, Just p) -> flip HM.union `fmap` loadYamlFile p
-                           (Nothing, Nothing) -> return id
     prf <- dfPreferences workingdir <&> prefPDB .~ pdbapi
                                     <&> hieraPath .~ _optHieraFile
                                     <&> ignoredmodules %~ (`fromMaybe` _optIgnoredMods)
                                     <&> (if _optStrictMode then strictness .~ Strict else id)
                                     <&> (if _optNoExtraTests then extraTests .~ False else id)
     q <- initDaemon prf
-    let queryfunc = \node -> fmap factsOverrides (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
+    let queryfunc = \node -> fmap (HM.union (prf^.factsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 
