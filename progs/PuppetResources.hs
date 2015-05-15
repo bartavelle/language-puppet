@@ -190,7 +190,7 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                                     <&> (if _optStrictMode then strictness .~ Strict else id)
                                     <&> (if _optNoExtraTests then extraTests .~ False else id)
     q <- initDaemon prf
-    let queryfunc = \node -> fmap (HM.union (prf^.factsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
+    let queryfunc = \node -> fmap (`HM.union` (prf^.factsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
 
 
