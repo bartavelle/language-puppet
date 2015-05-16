@@ -1,33 +1,47 @@
 knownusers:
-  - mysql
-  - nagios
   - nginx
   - postgres
   - puppet
   - root
-  - stash
   - syslog
-  - vagrant
-  - www-data
 
 knowngroups:
   - adm
-  - mysql
-  - nagios
   - postgres
   - puppet
   - root
-  - stash
   - syslog
-  - vagrant
   - www-data
 
+factsdefault:
+  subgroup:
+
+factsoverride:
+  puppetversion: 3.7.5
+  id: unitesting
+  fqdn: utesting
+  architecture: x86_64
+  osfamily: RedHat
+  operatingsystem: CentOS
+  operatingsystemmajrelease: '6'
+  lsbmajdistrelease: 6
+  lsbdistid: RH
+  operatingsystemrelease: '6.6'
+  kernel: linux
+  kernelrelease: 3.10.42-1-lts
+  kernelversion: 2.6.32
+  kernelmajversion: '2.6.5'
+  ipaddress: 127.0.0.1
+  concat_basedir: /tmp
+  path: /usr/local/sbin:/usr/local/bin:/usr/bin
+
 ignoredmodules:
-  - java
+  - maven
 
 externalmodules:
   - nginx
-  - jenkins
+  - postgresql
+  - docker
 
 strict: true
 

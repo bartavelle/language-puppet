@@ -55,6 +55,7 @@ data Preferences m = Preferences
     , _knowngroups     :: [Text]
     , _externalmodules :: HS.HashSet Text
     , _puppetSettings  :: Container Text
+    , _factsOverride   :: Container PValue
     }
 
 data Defaults = Defaults
@@ -65,6 +66,8 @@ data Defaults = Defaults
     , _dfExtratests      :: Maybe Bool
     , _dfExternalmodules :: Maybe [Text]
     , _dfPuppetSettings  :: Maybe (Container Text)
+    , _dfFactsDefault    :: Maybe (Container PValue)
+    , _dfFactsOverride   :: Maybe (Container PValue)
     } deriving Show
 
 
@@ -79,6 +82,8 @@ instance FromJSON Defaults where
                            <*> v .:? "extratests"
                            <*> v .:? "externalmodules"
                            <*> v .:? "settings"
+                           <*> v .:? "factsdefault"
+                           <*> v .:? "factsoverride"
     parseJSON _ = mzero
 
 -- | generate default preferences
@@ -104,6 +109,7 @@ dfPreferences basedir = do
                          (getKnowngroups defaults)
                          (getExternalmodules defaults)
                          (getPuppetSettings dirpaths defaults)
+                         (getFactsOverride defaults `HM.union` getFactsDefault defaults)
 
 loadDefaults :: FilePath -> IO (Maybe Defaults)
 loadDefaults fp = do
@@ -138,3 +144,9 @@ getPuppetSettings dirpaths = fromMaybe df . (>>= _dfPuppetSettings)
       df :: Container Text
       df = HM.fromList [ ("confdir", T.pack $ dirpaths^.baseDir)
                        ]
+
+getFactsOverride :: Maybe Defaults -> Container PValue
+getFactsOverride = fromMaybe mempty . (>>= _dfFactsOverride)
+
+getFactsDefault :: Maybe Defaults -> Container PValue
+getFactsDefault = fromMaybe mempty . (>>= _dfFactsDefault)

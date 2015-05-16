@@ -96,14 +96,14 @@ run cmdl = do
                    (Just l, PDBTest)   -> loadTestDB l
                    (_, x)              -> getDefaultDB x
     pdbapi <- case epdbapi of
-                  S.Left r -> error (show r)
-                  S.Right x -> return x
+                  Left r -> error (show r)
+                  Right x -> return x
     case _pdbcmd cmdl of
         DumpFacts -> if _pdbtype cmdl == PDBDummy
                          then puppetDBFacts "dummy"  pdbapi >>= mapM_ print . HM.toList
                          else do
                              allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
-                             tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= checkErrorS "load test db"
+                             tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= checkError "load test db"
                              let groupfacts = foldl' groupfact HM.empty allfacts
                                  groupfact curmap (PFactInfo ndname fctname fctval) =
                                      curmap & at ndname . non HM.empty %~ (at fctname ?~ fctval)
@@ -116,7 +116,7 @@ run cmdl = do
             runCheck "replace facts" (replaceFacts pdbapi [(n, fcts)])
             runCheck "commit db" (commitDB pdbapi)
         CreateTestDB destfile -> do
-            ndb <- loadTestDB destfile >>= checkErrorS "puppetdb load"
+            ndb <- loadTestDB destfile >>= checkError "puppetdb load"
             allnodes <- runCheck "get nodes" (getNodes pdbapi QEmpty)
             allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
             let factsGrouped = HM.toList $ HM.fromListWith (<>) $ map (\x -> (x ^. nodename, HM.singleton (x ^. factname) (x ^. factval))) allfacts

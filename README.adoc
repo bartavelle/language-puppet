@@ -95,11 +95,6 @@ When this flag is set, exported resources are saved in the PuppetDB. This is use
 
 Displays the catalog as a Puppet-compatible JSON file, that can then be used with `puppet apply`.
 
-`--facts-override` and `--facts-defaults`::
-
-Both options expect a path to a YAML file defining facts. The first option will override the facts that are collected locally, while the second will merely provide default values
-for them.
-
 `--strict`::
 
 Enable strict check.
