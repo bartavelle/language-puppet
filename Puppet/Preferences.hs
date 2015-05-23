@@ -56,6 +56,7 @@ data Preferences m = Preferences
     , _externalmodules :: HS.HashSet Text
     , _puppetSettings  :: Container Text
     , _factsOverride   :: Container PValue
+    , _factsDefault   :: Container PValue
     }
 
 data Defaults = Defaults
@@ -109,7 +110,8 @@ dfPreferences basedir = do
                          (getKnowngroups defaults)
                          (getExternalmodules defaults)
                          (getPuppetSettings dirpaths defaults)
-                         (getFactsOverride defaults `HM.union` getFactsDefault defaults)
+                         (getFactsOverride defaults)
+                         (getFactsDefault defaults)
 
 loadDefaults :: FilePath -> IO (Maybe Defaults)
 loadDefaults fp = do

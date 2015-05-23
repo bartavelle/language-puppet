@@ -182,9 +182,12 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                                     <&> (if _optStrictMode then strictness .~ Strict else id)
                                     <&> (if _optNoExtraTests then extraTests .~ False else id)
     q <- initDaemon prf
-    let queryfunc = \node -> fmap (`HM.union` (prf^.factsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
+    let queryfunc = \node -> fmap (unifyFacts (prf^.factsDefault) (prf^.factsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
-
+    where
+      -- merge 3 sets of facts : some defaults, the original set and some override
+      unifyFacts :: Container PValue -> Container PValue -> Container PValue -> Container PValue
+      unifyFacts defaults override c = override `HM.union` c `HM.union` defaults
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
 parseFile = fmap . runPParser puppetParser <*> T.readFile
