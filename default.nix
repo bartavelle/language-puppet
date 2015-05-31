@@ -10,7 +10,7 @@
 }:
 mkDerivation {
   pname = "language-puppet";
-  version = "1.1.0";
+  version = "1.1.3";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
@@ -24,7 +24,7 @@ mkDerivation {
     time transformers unix unordered-containers vector yaml
   ];
   testDepends = [
-    ansi-wl-pprint base Glob hspec HUnit lens parsec parsers
+    ansi-wl-pprint base either Glob hspec HUnit lens parsec parsers
     strict-base-types temporary text unix unordered-containers vector
   ];
   homepage = "http://lpuppet.banquise.net/";

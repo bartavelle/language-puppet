@@ -78,7 +78,7 @@ library
   ghc-options:         -Wall -funbox-strict-fields
   ghc-prof-options:    -auto-all -caf-all
   build-depends:       base >=4.6 && < 4.9
-                        , aeson                >= 0.8     && < 0.9
+                        , aeson                >= 0.8     && < 0.10
                         , ansi-wl-pprint       == 0.6.*
                         , attoparsec           >= 0.13    && < 0.14
                         , base16-bytestring    == 0.1.*
@@ -87,7 +87,7 @@ library
                         , containers           == 0.5.*
                         , cryptohash           >= 0.10    && < 0.12
                         , directory            == 1.2.*
-                        , either               == 4.3.*
+                        , either               >= 4.3     && < 4.5
                         , exceptions           >= 0.8     && < 0.9
                         , filecache            >= 0.2.8   && < 0.3
                         , hashable             == 1.2.*
