@@ -1,8 +1,10 @@
-# v1.1.2
+# v1.1.3 (2015/05/31)
 
 ## New features
 * Support for the `$settings` variables.
 * Support for the `to_yaml` function in templates.
+* Settings can now be altered in the default YAML file.
+* Defaults and overriden facts are now controlled in the YAML file too.
 
 # v1.1.1.2 (2015/04/28)
 
