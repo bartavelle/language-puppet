@@ -3,7 +3,6 @@ module Main where
 import Control.Monad
 import System.IO.Temp
 import Data.Monoid
-import qualified Data.Either.Strict as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Control.Lens
@@ -14,9 +13,9 @@ import PuppetDB.Common
 import PuppetDB.TestDB
 import Facter
 
-checkError :: Show x => String -> S.Either x a -> IO a
-checkError _ (S.Right x) = return x
-checkError step (S.Left rr) = error (step ++ ": " ++ show rr)
+checkError :: Show x => String -> Either x a -> IO a
+checkError _ (Right x) = return x
+checkError step (Left rr) = error (step ++ ": " ++ show rr)
 
 checkErrorE :: Show x => String -> EitherT x IO a -> IO a
 checkErrorE msg = runEitherT >=> either (error . ((msg ++ " ") ++) . show) return
@@ -46,4 +45,3 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
     -- and check for our facts again
     fdblines <- T.lines `fmap` T.readFile pdbfile
     unless ("    customfact: MyCustomFactValue" `elem` fdblines) (error "could not find my fact")
-
