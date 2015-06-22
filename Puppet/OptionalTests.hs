@@ -32,8 +32,8 @@ testCatalog prefs c = testFileSources (prefs^.puppetPaths.baseDir) c >> testUser
 -- | Tests that all users and groups are defined
 testUsersGroups :: [T.Text] -> [T.Text] -> FinalCatalog -> IO ()
 testUsersGroups kusers kgroups c = do
-    let users = HS.fromList $ "" : map (view (rid . iname)) (getResourceFrom "user") ++ kusers
-        groups = HS.fromList $ "" : map (view (rid . iname)) (getResourceFrom "group") ++ kgroups
+    let users = HS.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "user") ++ kusers
+        groups = HS.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "group") ++ kgroups
         checkResource lu lg = mapM_ (checkResource' lu lg)
         checkResource' lu lg res = do
             let msg att name = align (vsep [ "Resource" <+> ttext (res^.rid.itype)
