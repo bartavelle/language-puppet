@@ -29,39 +29,74 @@ module Puppet.Plugins (initLua, initLuaMaster, puppetFunc, closeLua, getFiles) w
 
 import Puppet.PP
 import qualified Scripting.Lua as Lua
-import Scripting.LuaUtils()
 import Control.Exception
+import Control.Applicative
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as Map
 import System.IO
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 import Control.Concurrent
 import Control.Monad.Except
 import Control.Monad.Operational (singleton)
 import Data.Scientific
+import qualified Data.ByteString as BS
+import Control.Lens
+import Prelude
+import Debug.Trace
 
 import Puppet.Interpreter.Types
 import Puppet.Utils
 
 instance Lua.StackValue PValue
     where
-        push l (PString s)               = Lua.push l s
+        push l (PString s)               = Lua.push l (T.encodeUtf8 s)
         push l (PBoolean b)              = Lua.push l b
-        push l (PResourceReference rr _) = Lua.push l rr
+        push l (PResourceReference rr _) = Lua.push l (T.encodeUtf8 rr)
         push l (PArray arr)              = Lua.push l (V.toList arr)
-        push l (PHash m)                 = Lua.push l (Map.fromList $ HM.toList m)
-        push l (PUndef)                  = Lua.push l ("undefined" :: T.Text)
+        push l (PHash m)                 = do
+            Lua.newtable l
+            forM_ (HM.toList m) $ \(k,v) -> do
+                Lua.push l (T.encodeUtf8 k)
+                Lua.push l v
+                Lua.settable l (-3)
+        push l (PUndef)                  = Lua.push l ("undefined" :: BS.ByteString)
         push l (PNumber b)               = Lua.push l (fromRational (toRational b) :: Double)
 
         peek l n = Lua.ltype l n >>= \case
                 Lua.TBOOLEAN -> fmap (fmap PBoolean) (Lua.peek l n)
-                Lua.TSTRING  -> fmap (fmap PString) (Lua.peek l n)
+                Lua.TSTRING  -> do
+                    cnt <- Lua.peek l n
+                    case fmap T.decodeUtf8' cnt of
+                       Just (Right t) -> return (Just $ PString t)
+                       _ -> return Nothing
                 Lua.TNUMBER  -> fmap (fmap (PNumber . fromFloatDigits)) (Lua.peek l n :: IO (Maybe Double))
                 Lua.TNIL     -> return (Just PUndef)
                 Lua.TNONE    -> return (Just PUndef)
-                Lua.TTABLE   -> fmap (fmap (PArray . V.fromList)) (Lua.peek l n)
+                Lua.TTABLE   -> do
+                    let go tidx m = do
+                            isnext <- Lua.next l tidx
+                            if isnext
+                                then do
+                                    mk <- Lua.peek l (-2)
+                                    mv <- Lua.peek l (-1)
+                                    traceShow (mk, mv) $ return ()
+                                    Lua.pop l 1
+                                    case HM.insert <$> (mk >>= preview _Right . T.decodeUtf8') <*> mv <*> pure m of
+                                        Just m' -> go tidx m'
+                                        Nothing -> return Nothing
+                                else return $ Just $ PHash m
+                    ln <- Lua.objlen l n
+                    if ln > 0
+                        then fmap (PArray . V.fromList) <$> Lua.tolist l n
+                        else do
+                            tidx <- if n >= 0
+                                        then return n
+                                        else fmap (\top -> top + n + 1) (Lua.gettop l)
+                            Lua.pushnil l
+                            go tidx mempty
+
                 _ -> return Nothing
 
         valuetype _ = Lua.TUSERDATA
@@ -110,7 +145,7 @@ initLua moduledir = do
     funcfiles <- getLuaFiles moduledir
     l <- Lua.newstate
     Lua.openlibs l
-    luafuncs <- fmap concat $ mapM (loadLuaFile l) funcfiles
+    luafuncs <- concat <$> mapM (loadLuaFile l) funcfiles
     return (l , luafuncs)
 
 initLuaMaster :: T.Text -> IO (HM.HashMap T.Text ([PValue] -> InterpreterMonad PValue))
