@@ -29,6 +29,7 @@ import           Puppet.NativeTypes
 import           Puppet.NativeTypes.Helpers
 import           Puppet.Plugins
 import           Puppet.Stdlib
+import qualified Puppet.Puppetlabs          as Puppetlabs
 import           Puppet.Utils
 import           PuppetDB.Dummy
 
@@ -101,7 +102,7 @@ dfPreferences basedir = do
     let dirpaths = PuppetDirPaths basedir manifestdir modulesdir templatedir testdir
     return $ Preferences dirpaths
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
-                         stdlibFunctions
+                         (HM.union stdlibFunctions Puppetlabs.extFunctions)
                          (Just (basedir <> "/hiera.yaml"))
                          (getIgnoredmodules defaults)
                          (getStrictness defaults)

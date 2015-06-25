@@ -52,6 +52,7 @@ library
                        , Puppet.Parser.Types
                        , Puppet.PP
                        , Puppet.Preferences
+                       , Puppet.Puppetlabs
                        , Puppet.Stats
                        , Puppet.Stdlib
                        , Puppet.OptionalTests
@@ -90,6 +91,7 @@ library
                         , either               >= 4.3     && < 4.5
                         , exceptions           >= 0.8     && < 0.9
                         , filecache            >= 0.2.8   && < 0.3
+                        , formatting
                         , hashable             == 1.2.*
                         , hruby                >= 0.3.1.4 && <0.4
                         , hslogger             == 1.2.*

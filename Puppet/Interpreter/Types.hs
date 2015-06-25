@@ -521,7 +521,7 @@ makeFields ''PNodeInfo
 rcurcontainer :: Resource -> CurContainerDesc
 rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
 
-class MonadThrowPos m where
+class Monad m => MonadThrowPos m where
     throwPosError :: Doc -> m a
 
 class MonadStack m where
