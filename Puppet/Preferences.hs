@@ -98,11 +98,12 @@ dfPreferences basedir = do
         testdir     = basedir <> "/tests"
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     defaults <- loadDefaults (testdir ++ "/defaults.yaml")
+    labsFunctions <- Puppetlabs.extFunctions modulesdir
     let loadedTypes = HM.fromList (map defaulttype typenames)
     let dirpaths = PuppetDirPaths basedir manifestdir modulesdir templatedir testdir
     return $ Preferences dirpaths
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
-                         (HM.union stdlibFunctions Puppetlabs.extFunctions)
+                         (HM.union stdlibFunctions labsFunctions)
                          (Just (basedir <> "/hiera.yaml"))
                          (getIgnoredmodules defaults)
                          (getStrictness defaults)

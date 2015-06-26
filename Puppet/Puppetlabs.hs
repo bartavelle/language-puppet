@@ -1,8 +1,8 @@
 -- | Contains an Haskell implementation of some ruby functions found in puppetlabs modules
--- There is currently no attempt for solving namespacing and implementation might be gross.
-module Puppet.Puppetlabs where
+module Puppet.Puppetlabs (extFunctions) where
 
 import           Control.Lens
+import           Data.Foldable                    (foldlM)
 import qualified Data.HashMap.Strict              as HM
 import           Data.Monoid
 import           Data.Scientific                  as Scientific
@@ -10,14 +10,28 @@ import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 import           Data.Vector                      (Vector)
 import           Formatting                       (left, scifmt, sformat, (%.))
+import           System.Posix.Files               (fileExist)
 
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
 import           Puppet.PP
 
-extFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
-extFunctions = HM.fromList [("postgresql_acls_to_resources_hash", pgAclsToHash)
-                           ]
+extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
+extFun =  [ ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
+          ]
+
+-- | Build the map of available ext functions
+-- If the ruby file is not found on the local filesystem the record is ignored. This is to avoid potential namespace conflict
+extFunctions :: FilePath -> IO (Container ( [PValue] -> InterpreterMonad PValue))
+extFunctions modpath = foldlM f HM.empty extFun
+  where
+    f acc (modname, fname, fn) = do
+      test <- testFile modname fname
+      if test
+         then return $ HM.insert fname fn acc
+         else return acc
+    testFile modname fname = fileExist (modpath <> modname <> "/lib/puppet/parser/functions/" <> T.unpack fname <>".rb")
+
 -- | Simple implemenation that does not handle all cases.
 -- For instance 'auth_option' is currently not implemented.
 -- Please add cases as needed.
