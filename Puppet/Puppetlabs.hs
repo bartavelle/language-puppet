@@ -2,13 +2,15 @@
 module Puppet.Puppetlabs (extFunctions) where
 
 import           Control.Lens
+import           Crypto.Hash                      as Crypto
+import           Data.ByteString                  (ByteString)
 import           Data.Foldable                    (foldlM)
 import qualified Data.HashMap.Strict              as HM
 import           Data.Monoid
 import           Data.Scientific                  as Scientific
 import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
-import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding               as Text
 import           Data.Vector                      (Vector)
 import           Formatting                       (left, scifmt, sformat, (%.))
 import           System.Posix.Files               (fileExist)
@@ -16,8 +18,6 @@ import           System.Posix.Files               (fileExist)
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
 import           Puppet.PP
-import Data.ByteString (ByteString)
-import Crypto.Hash as Crypto
 
 md5 :: Text -> Text
 md5 = Text.decodeUtf8 . digestToHexByteString . (Crypto.hash :: ByteString -> Digest MD5) . Text.encodeUtf8
