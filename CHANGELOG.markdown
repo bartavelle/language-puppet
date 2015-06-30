@@ -1,3 +1,8 @@
+# v1.1.4 ()
+
+## New features
+* The `regsubst` function now works with arrays.
+
 # v1.1.3 (2015/05/31)
 
 ## New features

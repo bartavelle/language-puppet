@@ -425,12 +425,16 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
     -- TODO handle all the flags
     -- http://docs.puppetlabs.com/references/latest/function.html#regsubst
     when (pflags /= "G") (use curPos >>= \p -> warn ("regsubst(): Currently only supports a single flag (G) " <> showPos (S.fst p)))
-    target      <- fmap T.encodeUtf8 (resolvePValueString ptarget)
     regexp      <- fmap T.encodeUtf8 (resolvePValueString pregexp)
     replacement <- fmap T.encodeUtf8 (resolvePValueString preplacement)
-    case substituteCompile' regexp target replacement of
-        Left rr -> throwPosError ("regsubst():" <+> string rr)
-        Right x -> fmap PString (safeDecodeUtf8 x)
+    let sub t = do
+            t' <- fmap T.encodeUtf8 (resolvePValueString t)
+            case substituteCompile' regexp t' replacement of
+                    Left rr -> throwPosError ("regsubst():" <+> string rr)
+                    Right x -> fmap PString (safeDecodeUtf8 x)
+    case ptarget of
+        PArray a -> fmap PArray (traverse sub a)
+        s -> sub s
 resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 arguments"
 resolveFunction' "split" [psrc, psplt] = do
     src  <- fmap T.encodeUtf8 (resolvePValueString psrc)
