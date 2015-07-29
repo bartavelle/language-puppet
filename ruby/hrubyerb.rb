@@ -3,9 +3,10 @@ require 'digest/md5'
 require 'yaml'
 
 class Scope
-    def initialize(context,variables)
+    def initialize(context,variables,filename)
         @context = context
         @variables = variables
+        @file = filename
     end
 
     def [](key)
@@ -20,6 +21,9 @@ class Scope
     end
 
     def lookupvar(name)
+        if name == "file"
+            return @file
+        end
         x = vl(name)
         if x == :undef
             throw("Unknown variable " + name)
@@ -78,8 +82,8 @@ end
 
 class ErbBinding
     @options = {}
-    def initialize(context,variables)
-        @scope = Scope.new(context,variables)
+    def initialize(context,variables,filename='x')
+        @scope = Scope.new(context,variables,filename)
     end
     def get_binding
         return binding()
@@ -103,7 +107,6 @@ class Controller
     end
     def self.runFromContent(content,binding)
         nerb = ERB.new(content, nil, "-")
-        # binding = ErbBinding.new(context,variables).get_binding
         nerb.result(binding.get_binding)
     end
 end

@@ -153,8 +153,11 @@ computeTemplateWRuby fileinfo curcontext variables = FR.freezeGC $ eitherDocIO $
     rvariables <- FR.embedHaskellValue variables
     let varlist = variables ^. ix curcontext . scopeVariables
     -- must be called from a "makeSafe" thingie
+    contentinfo <- case fileinfo of
+                       Right fname -> FR.toRuby fname
+                       Left _ -> FR.toRuby ("-" :: T.Text)
     let withBinding f = do
-            erbBinding <- FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables]
+            erbBinding <- FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables, contentinfo]
             case erbBinding of
                 Left x -> return (Left x)
                 Right v -> do
