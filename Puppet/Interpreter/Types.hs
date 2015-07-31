@@ -525,15 +525,15 @@ class Monad m => MonadThrowPos m where
     throwPosError :: Doc -> m a
 
 class MonadStack m where
-    getCallStack :: m [String]
+  getCurrentCallStack :: m [String]
 
 instance MonadStack InterpreterMonad where
-    getCallStack = singleton GetCurrentCallStack
+    getCurrentCallStack = singleton GetCurrentCallStack
 
 instance MonadThrowPos InterpreterMonad where
     throwPosError s = do
         p <- use (curPos . _1)
-        stack <- getCallStack
+        stack <- getCurrentCallStack
         let dstack = if null stack
                          then mempty
                          else mempty </> string (renderStack stack)
