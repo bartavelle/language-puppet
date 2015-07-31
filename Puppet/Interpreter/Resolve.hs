@@ -39,11 +39,12 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Operational        (singleton)
-import qualified Crypto.Hash.MD5                  as MD5
-import qualified Crypto.Hash.SHA1                 as SHA1
+import           Crypto.Hash
 import           Data.Aeson                       hiding ((.=))
 import           Data.Aeson.Lens                  hiding (key)
 import           Data.Bits
+import           Data.ByteString (ByteString)
+import           Data.ByteArray (convert)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base16           as B16
 import           Data.CaseInsensitive             (mk)
@@ -61,6 +62,12 @@ import           Text.ParserCombinators.ReadP     (readP_to_S)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
 import           Text.Regex.PCRE.ByteString.Utils
 import           Prelude
+
+sha1 :: ByteString -> ByteString
+sha1 = convert . (hash :: ByteString -> Digest SHA1)
+
+md5 :: ByteString -> ByteString
+md5 = convert . (hash :: ByteString -> Digest MD5)
 
 -- | A useful type that is used when trying to perform arithmetic on Puppet
 -- numbers.
@@ -383,7 +390,7 @@ resolveFunction "fqdn_rand" args = do
                  then [fqdn, ""]
                  else fqdn : targs
         val = fromIntegral (Prelude.fst (limitedRand (randInit myhash) (fromIntegral curmax)))
-        myhash = toint (MD5.hash (T.encodeUtf8 fullstring)) :: Integer
+        myhash = toint (md5 (T.encodeUtf8 fullstring)) :: Integer
         toint = BS.foldl' (\c nx -> c*256 + fromIntegral nx) 0
         fullstring = T.intercalate ":" rargs
     return (_Integer # val)
@@ -418,7 +425,7 @@ resolveFunction' "defined" x = throwPosError ("defined(): expects a single resou
 resolveFunction' "fail" x = throwPosError ("fail:" <+> pretty x)
 resolveFunction' "inline_template" [templatename] = calcTemplate Left templatename
 resolveFunction' "inline_template" _ = throwPosError "inline_template(): Expects a single argument"
-resolveFunction' "md5" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . MD5.hash  . T.encodeUtf8) (resolvePValueString pstr)
+resolveFunction' "md5" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . md5 . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "md5" _ = throwPosError "md5(): Expects a single argument"
 resolveFunction' "regsubst" [ptarget, pregexp, preplacement] = resolveFunction' "regsubst" [ptarget, pregexp, preplacement, PString "G"]
 resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
@@ -442,9 +449,9 @@ resolveFunction' "split" [psrc, psplt] = do
     case splitCompile' splt src of
         Left rr -> throwPosError ("splitCompile():" <+> string rr)
         Right x -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
-resolveFunction' "sha1" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . SHA1.hash  . T.encodeUtf8) (resolvePValueString pstr)
+resolveFunction' "sha1" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha1 . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
-resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . SHA1.hash . SHA1.hash  . T.encodeUtf8) (resolvePValueString pstr)
+resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha1 . sha1  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
 resolveFunction' "file" args = mapM resolvePValueString args >>= fmap PString . singleton . ReadFile
 resolveFunction' "tagged" ptags = do
