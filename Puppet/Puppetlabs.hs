@@ -1,4 +1,4 @@
--- | Contains an Haskell implementation of some ruby functions found in puppetlabs modules
+-- | Contains an Haskell implementation (or mock implementation) of some ruby functions found in puppetlabs modules
 module Puppet.Puppetlabs (extFunctions) where
 
 import           Control.Lens
@@ -7,7 +7,7 @@ import           Data.ByteString                  (ByteString)
 import           Data.Foldable                    (foldlM)
 import qualified Data.HashMap.Strict              as HM
 import           Data.Monoid
-import           Data.Scientific                  as Scientific
+import           Data.Scientific                  as Sci
 import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
@@ -16,6 +16,7 @@ import           Formatting                       (left, scifmt, sformat, (%),
                                                    (%.))
 import qualified Formatting                       as FMT
 import           System.Posix.Files               (fileExist)
+import           System.Random                    (mkStdGen, randomRs)
 
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
@@ -27,6 +28,8 @@ md5 = Text.decodeUtf8 . digestToHexByteString . (Crypto.hash :: ByteString -> Di
 extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
 extFun =  [ ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
           , ("/postgresql", "postgresql_password", pgPassword)
+          , ("/foreman", "random_password", randomPassword)
+          , ("/foreman", "cache_data", mockCacheData)
           ]
 
 -- | Build the map of available ext functions
@@ -46,6 +49,23 @@ pgPassword [PString username, PString pwd] =
     return $ PString $ "md5" <> md5 (pwd <> username)
 pgPassword _ = throwPosError "expects 2 string arguments"
 
+-- | The function is pure and always return the same "random" password
+randomPassword :: MonadThrowPos m => [PValue] -> m PValue
+randomPassword x@[PNumber s] =
+  PString . Text.pack . randomChars <$> toInt s
+  where
+    randomChars n = take n $ randomRs ('a', 'z') (mkStdGen 1)
+    toInt :: MonadThrowPos m => Scientific -> m Int
+    toInt s = maybe (throwPosError $ "Unable to convert" <+> pretty x <+> "into an int.")
+                    return
+                    (Sci.toBoundedInteger s)
+
+randomPassword _ = throwPosError "expect one single string arguments"
+
+
+mockCacheData :: MonadThrowPos m => [PValue] -> m PValue
+mockCacheData [_, b] = return b
+mockCacheData arg@_ = throwPosError $ "expect 2 string arguments" <+> pretty arg
 
 -- | Simple implemenation that does not handle all cases.
 -- For instance 'auth_option' is currently not implemented.
@@ -72,7 +92,7 @@ aclToHash [typ, db, usr, addr, auth] order =
   return $ PHash $ HM.fromList [ ("type", PString typ)
                       , ("database", PString db )
                       , ("user", PString usr)
-                      , ("order", PString (sformat (left 3 '0' %. scifmt Scientific.Fixed (Just 0))  order))
+                      , ("order", PString (sformat (left 3 '0' %. scifmt Sci.Fixed (Just 0))  order))
                       , ("address", PString addr)
                       , ("auth_method", PString auth)
                       ]

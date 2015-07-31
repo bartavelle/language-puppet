@@ -524,6 +524,10 @@ rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
 class Monad m => MonadThrowPos m where
     throwPosError :: Doc -> m a
 
+-- Useful for mocking for instance in a REPL
+instance MonadThrowPos (Either Doc) where
+  throwPosError = Left
+
 class MonadStack m where
   getCurrentCallStack :: m [String]
 
