@@ -12,8 +12,7 @@ import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
 import           Data.Vector                      (Vector)
-import           Formatting                       (left, scifmt, sformat, (%),
-                                                   (%.))
+import           Formatting                       (scifmt, sformat, (%), (%.))
 import qualified Formatting                       as FMT
 import           System.Posix.Files               (fileExist)
 import           System.Random                    (mkStdGen, randomRs)
@@ -92,7 +91,7 @@ aclToHash [typ, db, usr, addr, auth] order =
   return $ PHash $ HM.fromList [ ("type", PString typ)
                       , ("database", PString db )
                       , ("user", PString usr)
-                      , ("order", PString (sformat (left 3 '0' %. scifmt Sci.Fixed (Just 0))  order))
+                      , ("order", PString (sformat (FMT.left 3 '0' %. scifmt Sci.Fixed (Just 0))  order))
                       , ("address", PString addr)
                       , ("auth_method", PString auth)
                       ]
