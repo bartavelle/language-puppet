@@ -42,6 +42,7 @@ parameterfunctions =
     ,("sourceselect", [values ["first","all"]])
     ,("target"      , [string])
     ,("source"      , [rarray, strings, flip runarray checkSource])
+    ,("seluser"     , [string])
     ]
 
 validateMode :: NativeTypeValidate
