@@ -1,6 +1,5 @@
 module Puppet.PP
     ( ttext
-    , tshow
     , pshow
     , displayNocolor
       -- * Re-exports
@@ -12,9 +11,6 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 ttext :: T.Text -> Doc
 ttext = text . T.unpack
-
-tshow :: Show a => a -> T.Text
-tshow = T.pack . show
 
 pshow :: Doc -> String
 pshow d = displayS (renderPretty 0.4 120 d) ""

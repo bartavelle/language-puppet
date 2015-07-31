@@ -60,7 +60,7 @@ evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
 evalValue :: PValue -> Either Doc T.Text
 evalValue (PString x) = Right x
 evalValue (PNumber x) = Right (scientific2text x)
-evalValue x = Right $ tshow x
+evalValue x = Right $ T.pack $ show x
 
 a2i :: T.Text -> Maybe Integer
 a2i x = case text2Scientific x of

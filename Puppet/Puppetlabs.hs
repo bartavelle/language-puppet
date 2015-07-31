@@ -12,7 +12,9 @@ import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
 import           Data.Vector                      (Vector)
-import           Formatting                       (left, scifmt, sformat, (%.))
+import           Formatting                       (left, scifmt, sformat, (%),
+                                                   (%.))
+import qualified Formatting                       as FMT
 import           System.Posix.Files               (fileExist)
 
 import           Puppet.Interpreter.PrettyPrinter ()
@@ -60,8 +62,9 @@ aclsToHash vec ident offset = ifoldlM f HM.empty vec
     f :: MonadThrowPos m => Int -> Container PValue -> PValue -> m (Container PValue)
     f idx acc (PString acl) = do
       let order = offset + scientific (toInteger idx) 0
+          keymsg = sformat ("postgresql class generated rule " % FMT.stext % " " % FMT.int) ident idx
       x <- aclToHash (Text.words acl) order
-      return $ HM.insert ("postgresql class generated rule " <> ident <> " " <> tshow idx) x acc
+      return $ HM.insert keymsg x acc
     f _ _ pval = throwPosError $ "expect a string as acl but get" <+> pretty pval
 
 aclToHash :: (MonadThrowPos m) => [Text] -> Scientific -> m PValue
