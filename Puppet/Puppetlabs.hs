@@ -3,6 +3,7 @@ module Puppet.Puppetlabs (extFunctions) where
 
 import           Control.Lens
 import           Crypto.Hash                      as Crypto
+import           Data.ByteArray (convert)
 import           Data.ByteString                  (ByteString)
 import           Data.Foldable                    (foldlM)
 import qualified Data.HashMap.Strict              as HM
@@ -22,7 +23,7 @@ import           Puppet.Interpreter.Types
 import           Puppet.PP
 
 md5 :: Text -> Text
-md5 = Text.decodeUtf8 . digestToHexByteString . (Crypto.hash :: ByteString -> Digest MD5) . Text.encodeUtf8
+md5 = Text.pack . show . (Crypto.hash :: ByteString -> Digest MD5) . Text.encodeUtf8
 
 extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
 extFun =  [ ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)

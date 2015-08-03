@@ -86,7 +86,7 @@ library
                         , bytestring
                         , case-insensitive     == 1.2.*
                         , containers           == 0.5.*
-                        , cryptohash           >= 0.10    && < 0.12
+                        , cryptonite           >= 0.6
                         , directory            == 1.2.*
                         , either               >= 4.3     && < 4.5
                         , exceptions           >= 0.8     && < 0.9
@@ -98,6 +98,7 @@ library
                         , hslua                >= 0.4     && < 0.5
                         , lens                 >= 4.9     && < 5
                         , lens-aeson           >= 1.0
+                        , memory               >= 0.7
                         , mtl                  >= 2.2     && < 2.3
                         , operational          >= 0.2.3   && < 0.3
                         , parsec               == 3.1.*
