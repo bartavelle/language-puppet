@@ -129,7 +129,7 @@ variableName = do
 qualif :: Parser T.Text -> Parser T.Text
 qualif p = token $ do
     header <- T.pack <$> option "" (try (string "::"))
-    ( header <> ) . T.intercalate "::" <$> p `sepBy1` try (string "::")
+    ( header <> ) . T.intercalate "::" <$> try p `sepBy1` try (string "::")
 
 qualif1 :: Parser T.Text -> Parser T.Text
 qualif1 p = try $ do
