@@ -121,7 +121,8 @@ reserved = reserve identifierStyle
 
 variableName :: Parser T.Text
 variableName = do
-    let acceptablePart = T.pack <$> ident identifierStyle
+    let acceptablePart = T.pack <$> many (satisfy identifierAcceptable)
+        identifierAcceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_')
     out <- qualif acceptablePart
     when (out == "string") (fail "The special variable $string should never be used")
     return out
