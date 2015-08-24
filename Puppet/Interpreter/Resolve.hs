@@ -14,6 +14,7 @@ module Puppet.Interpreter.Resolve
       resolveExpressionString,
       resolveExpressionStrings,
       resolveArgument,
+      resolveFunction',
       runHiera,
       isNativeType,
       -- * Search expression management

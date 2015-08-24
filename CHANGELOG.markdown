@@ -3,6 +3,7 @@
 ## New features
 * The `regsubst` function now works with arrays.
 * The `file` variable is resolved in templates.
+* Support for `function_x` calls in templates.
 
 # v1.1.3 (2015/05/31)
 

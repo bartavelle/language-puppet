@@ -4,6 +4,8 @@
 module Erb.Compute(computeTemplate, initTemplateDaemon) where
 
 import           Puppet.Interpreter.Types
+import           Puppet.Interpreter.Pure
+import           Puppet.Interpreter.Resolve
 import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
@@ -11,6 +13,7 @@ import           Puppet.Utils
 
 import           Control.Concurrent
 import           Control.Monad.Except
+import           Control.Monad.Trans.Except
 import qualified Data.Either.Strict           as S
 import           Data.FileCache
 import qualified Data.Text                    as T
@@ -51,13 +54,13 @@ initTemplateDaemon intr prefs mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
     let returnError rs = return $ \_ _ _ -> return (S.Left (showRubyError rs))
-    getRubyScriptPath "hrubyerb.rb" >>= loadFile intr >>= \case
-        Left rs -> returnError rs
-        Right () -> registerGlobalFunction4 intr "varlookup" hrresolveVariable >>= \case
-            Right () -> do
-                void $ forkIO $ templateDaemon intr (T.pack (prefs^.puppetPaths.modulesPath)) (T.pack (prefs^.puppetPaths.templatesPath)) controlchan mvstats templatecache
-                return (templateQuery controlchan)
-            Left rs -> returnError rs
+    x <- runExceptT $ do
+        liftIO (getRubyScriptPath "hrubyerb.rb") >>= ExceptT . loadFile intr
+        ExceptT (registerGlobalFunction4 intr "varlookup" hrresolveVariable)
+        ExceptT (registerGlobalFunction3 intr "callextfunc" hrcallfunction)
+        liftIO $ void $ forkIO $ templateDaemon intr (T.pack (prefs^.puppetPaths.modulesPath)) (T.pack (prefs^.puppetPaths.templatesPath)) controlchan mvstats templatecache
+        return (templateQuery controlchan)
+    either returnError return x
 
 templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text)
 templateQuery qchan filename scope variables = do
@@ -146,6 +149,18 @@ hrresolveVariable _ rscp rvariables rtoresolve = do
     case answer of
         Left _  -> getSymbol "undef"
         Right r -> FR.toRuby r
+
+hrcallfunction :: RValue -> RValue -> RValue -> IO RValue
+hrcallfunction _ rfname rargs = do
+    efname <- FR.fromRuby rfname
+    eargs <- FR.fromRuby rargs
+    let err :: String -> IO RValue
+        err rr = fmap (either Prelude.snd id) (FR.toRuby (T.pack rr) >>= FR.safeMethodCall "MyError" "new" . (:[]))
+    case (,) <$> efname <*> eargs of
+        Right (fname, args) -> case dummyEval (resolveFunction' fname args) of
+                                   Right o -> FR.toRuby o
+                                   Left rr -> err (show rr)
+        Left rr -> err rr
 
 computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO TemplateAnswer
 computeTemplateWRuby fileinfo curcontext variables = FR.freezeGC $ eitherDocIO $ do

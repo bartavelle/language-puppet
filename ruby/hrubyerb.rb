@@ -48,35 +48,14 @@ class Scope
     def function_to_yaml(args)
         args.to_yaml
     end
+end
 
-    def function_versioncmp(args)
-        version_a = args[0]
-        version_b = args[1]
-        vre = /[-.]|\d+|[^-.\d]+/
-            ax = version_a.scan(vre)
-        bx = version_b.scan(vre)
-
-        while (ax.length>0 && bx.length>0)
-            a = ax.shift
-            b = bx.shift
-
-            if( a == b )                 then next
-            elsif (a == '-' && b == '-') then next
-            elsif (a == '-')             then return -1
-            elsif (b == '-')             then return 1
-            elsif (a == '.' && b == '.') then next
-            elsif (a == '.' )            then return -1
-            elsif (b == '.' )            then return 1
-            elsif (a =~ /^\d+$/ && b =~ /^\d+$/) then
-                if( a =~ /^0/ or b =~ /^0/ ) then
-                    return a.to_s.upcase <=> b.to_s.upcase
-                end
-                return a.to_i <=> b.to_i
-            else
-                return a.upcase <=> b.upcase
-            end
-        end
-        version_a <=> version_b;
+class MyError
+    def initialize(msg)
+        @msg = msg
+    end
+    def getError
+        @msg
     end
 end
 
@@ -91,9 +70,18 @@ class ErbBinding
     def has_variable?(name)
         @scope.has_variable?(name.to_s)
     end
-    def method_missing(sname)
+    def method_missing(sname,*args,&block)
         name = sname.to_s
-        if name == 'scope'
+        if name.start_with?('function_')
+            fname = name[9..1000]
+            o = callextfunc(fname, args)
+            case o
+            when MyError
+                throw o.getError()
+            else
+                return o
+            end
+        elsif name == 'scope'
             @scope
         else
             @scope.lookupvar(name)
