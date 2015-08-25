@@ -3,7 +3,6 @@ module Puppet.Puppetlabs (extFunctions) where
 
 import           Control.Lens
 import           Crypto.Hash                      as Crypto
-import           Data.ByteArray (convert)
 import           Data.ByteString                  (ByteString)
 import           Data.Foldable                    (foldlM)
 import qualified Data.HashMap.Strict              as HM
@@ -26,7 +25,8 @@ md5 :: Text -> Text
 md5 = Text.pack . show . (Crypto.hash :: ByteString -> Digest MD5) . Text.encodeUtf8
 
 extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
-extFun =  [ ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
+extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
+          , ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
           , ("/postgresql", "postgresql_password", pgPassword)
           , ("/foreman", "random_password", randomPassword)
           , ("/foreman", "cache_data", mockCacheData)
@@ -43,6 +43,12 @@ extFunctions modpath = foldlM f HM.empty extFun
          then return $ HM.insert fname fn acc
          else return acc
     testFile modname fname = fileExist (modpath <> modname <> "/lib/puppet/parser/functions/" <> Text.unpack fname <>".rb")
+
+apacheBool2httpd :: MonadThrowPos m => [PValue] -> m PValue
+apacheBool2httpd [PBoolean True] = return $ PString "On"
+apacheBool2httpd [PString "true"] = return $ PString "On"
+apacheBool2httpd [_] = return $ PString "Off"
+apacheBool2httpd arg@_ = throwPosError $ "expect one single argument" <+> pretty arg
 
 pgPassword :: MonadThrowPos m => [PValue] -> m PValue
 pgPassword [PString username, PString pwd] =
