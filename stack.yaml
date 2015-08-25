@@ -3,7 +3,7 @@ packages:
 - '.'
 extra-deps:
 - filecache-0.2.8
-- hruby-0.3.1.5
+- hruby-0.3.1.6
 - pcre-utils-0.1.5
 - strict-base-types-0.3.0
 resolver: lts-3.1
