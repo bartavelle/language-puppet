@@ -283,7 +283,7 @@ data InterpreterState = InterpreterState
 data InterpreterReader m = InterpreterReader
     { _nativeTypes             :: !(Container NativeTypeMethods)
     , _getStatement            :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
-    , _computeTemplateFunction :: Either T.Text T.Text -> InterpreterState -> m (S.Either PrettyError T.Text)
+    , _computeTemplateFunction :: Either T.Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
     , _pdbAPI                  :: PuppetDBAPI m
     , _externalFunctions       :: Container ([PValue] -> InterpreterMonad PValue)
     , _thisNodename            :: T.Text

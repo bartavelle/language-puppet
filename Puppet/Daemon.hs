@@ -87,7 +87,7 @@ initDaemon prefs = do
 
 gCatalog :: Preferences IO
          -> ( TopLevelType -> T.Text -> IO (S.Either PrettyError Statement) )
-         -> (Either T.Text T.Text -> InterpreterState -> IO (S.Either PrettyError T.Text))
+         -> (Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text))
          -> MStats
          -> HieraQueryFunc IO
          -> Nodename

@@ -4,7 +4,7 @@
 module Erb.Compute(computeTemplate, initTemplateDaemon) where
 
 import           Puppet.Interpreter.Types
-import           Puppet.Interpreter.Pure
+import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Resolve
 import           Puppet.PP
 import           Puppet.Preferences
@@ -13,10 +13,12 @@ import           Puppet.Utils
 
 import           Control.Concurrent
 import           Control.Monad.Except
+import           Data.Aeson.Lens
 import qualified Data.Either.Strict           as S
 import           Data.FileCache
 import qualified Data.Text                    as T
 import           Data.String
+import qualified Data.Vector                  as V
 import           Debug.Trace
 import           Erb.Evaluate
 import           Erb.Parser
@@ -40,7 +42,7 @@ instance IsString TemplateParseError where
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
 
-type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, InterpreterState)
+type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, InterpreterState, InterpreterReader IO)
 type TemplateAnswer = S.Either PrettyError T.Text
 
 showRubyError :: RubyError -> PrettyError
@@ -48,15 +50,15 @@ showRubyError (Stack msg stk) = PrettyError $ dullred (string msg) </> dullyello
 showRubyError (WithOutput str _) = PrettyError $ dullred (string str)
 showRubyError (OtherError rr) = PrettyError (dullred (text rr))
 
-initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either T.Text T.Text -> InterpreterState -> IO (S.Either PrettyError T.Text))
+initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text))
 initTemplateDaemon intr prefs mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
-    let returnError rs = return $ \_ _ -> return (S.Left (showRubyError rs))
+    let returnError rs = return $ \_ _ _ -> return (S.Left (showRubyError rs))
     x <- runExceptT $ do
         liftIO (getRubyScriptPath "hrubyerb.rb") >>= ExceptT . loadFile intr
         ExceptT (registerGlobalFunction4 intr "varlookup" hrresolveVariable)
-        ExceptT (registerGlobalFunction3 intr "callextfunc" hrcallfunction)
+        ExceptT (registerGlobalFunction5 intr "callextfunc" hrcallfunction)
         liftIO $ void $ forkIO $ templateDaemon intr
                                                 (T.pack (prefs^.puppetPaths.modulesPath))
                                                 (T.pack (prefs^.puppetPaths.templatesPath))
@@ -66,16 +68,16 @@ initTemplateDaemon intr prefs mvstats = do
         return (templateQuery controlchan)
     either returnError return x
 
-templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> InterpreterState -> IO (S.Either PrettyError T.Text)
-templateQuery qchan filename stt = do
+templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text)
+templateQuery qchan filename stt rdr = do
     rchan <- newChan
-    writeChan qchan (rchan, filename, stt)
+    writeChan qchan (rchan, filename, stt, rdr)
     readChan rchan
 
 templateDaemon :: RubyInterpreter -> T.Text -> T.Text -> Chan TemplateQuery -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO ()
 templateDaemon intr modpath templatepath qchan mvstats filecache = do
     nameThread "RubyTemplateDaemon"
-    (respchan, fileinfo, stt) <- readChan qchan
+    (respchan, fileinfo, stt, rdr) <- readChan qchan
     case fileinfo of
         Right filename -> do
             let prts = T.splitOn "/" filename
@@ -84,12 +86,12 @@ templateDaemon intr modpath templatepath qchan mvstats filecache = do
             acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
             if null acceptablefiles
                 then writeChan respchan (S.Left $ PrettyError $ "Can't find template file for" <+> ttext filename <+> ", looked in" <+> list (map ttext searchpathes))
-                else measure mvstats filename (computeTemplate intr (Right (head acceptablefiles)) stt mvstats filecache) >>= writeChan respchan
-        Left _ -> measure mvstats "inline" (computeTemplate intr fileinfo stt mvstats filecache) >>= writeChan respchan
+                else measure mvstats filename (computeTemplate intr (Right (head acceptablefiles)) stt rdr mvstats filecache) >>= writeChan respchan
+        Left _ -> measure mvstats "inline" (computeTemplate intr fileinfo stt rdr mvstats filecache) >>= writeChan respchan
     templateDaemon intr modpath templatepath qchan mvstats filecache
 
-computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> InterpreterState -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
-computeTemplate intr fileinfo stt mstats filecache = do
+computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
+computeTemplate intr fileinfo stt rdr mstats filecache = do
     let (curcontext, fvariables) = case extractFromState stt of
                                        Nothing -> (mempty, mempty)
                                        Just (c,v) -> (c,v)
@@ -112,14 +114,14 @@ computeTemplate intr fileinfo stt mstats filecache = do
             let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show (tgetError err)
             traceEventIO msg
             LOG.debugM "Erb.Compute" msg
-            measure mstats ("ruby - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables
+            measure mstats ("ruby - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
         Right ast -> case rubyEvaluate variables curcontext ast of
                 Right ev -> return (S.Right ev)
                 Left err -> do
                     let !msg = "template " ++ ufilename ++ " evaluation failed " ++ show err
                     traceEventIO msg
                     LOG.debugM "Erb.Compute" msg
-                    measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables
+                    measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
     traceEventIO ("STOP template " ++ T.unpack filename)
     return o
 
@@ -157,29 +159,41 @@ hrresolveVariable _ rscp rvariables rtoresolve = do
         Left _  -> getSymbol "undef"
         Right r -> FR.toRuby r
 
-hrcallfunction :: RValue -> RValue -> RValue -> IO RValue
-hrcallfunction _ rfname rargs = do
+hrcallfunction :: RValue -> RValue -> RValue -> RValue -> RValue -> IO RValue
+hrcallfunction _ rfname rargs rstt rrdr = do
     efname <- FR.fromRuby rfname
     eargs <- FR.fromRuby rargs
+    rdr <- FR.extractHaskellValue rrdr
+    stt <- FR.extractHaskellValue rstt
     let err :: String -> IO RValue
         err rr = fmap (either Prelude.snd id) (FR.toRuby (T.pack rr) >>= FR.safeMethodCall "MyError" "new" . (:[]))
     case (,) <$> efname <*> eargs of
-        Right (fname, args) -> case dummyEval (resolveFunction' fname args) of
-                                   Right o -> FR.toRuby o
-                                   Left rr -> err (show rr)
+        Right (fname, varray) -> do
+            let args = case varray of
+                           [PArray vargs] -> V.toList vargs
+                           _ -> varray
+            (x,_,_) <- interpretMonad rdr stt (resolveFunction' fname args)
+            print (fname, args, x)
+            case x of
+                Right o -> case o ^? _Number of
+                              Just n -> FR.toRuby n
+                              Nothing -> FR.toRuby o
+                Left rr -> err (show rr)
         Left rr -> err rr
 
-computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO TemplateAnswer
-computeTemplateWRuby fileinfo curcontext variables = FR.freezeGC $ eitherDocIO $ do
+computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> InterpreterState -> InterpreterReader IO -> IO TemplateAnswer
+computeTemplateWRuby fileinfo curcontext variables stt rdr = FR.freezeGC $ eitherDocIO $ do
     rscp <- FR.embedHaskellValue curcontext
     rvariables <- FR.embedHaskellValue variables
+    rstt <- FR.embedHaskellValue stt
+    rrdr <- FR.embedHaskellValue rdr
     let varlist = variables ^. ix curcontext . scopeVariables
     -- must be called from a "makeSafe" thingie
     contentinfo <- case fileinfo of
                        Right fname -> FR.toRuby fname
                        Left _ -> FR.toRuby ("-" :: T.Text)
     let withBinding f = do
-            erbBinding <- FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables, contentinfo]
+            erbBinding <- FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables,contentinfo,rstt, rrdr]
             case erbBinding of
                 Left x -> return (Left x)
                 Right v -> do
@@ -190,6 +204,8 @@ computeTemplateWRuby fileinfo curcontext variables = FR.freezeGC $ eitherDocIO $
                  rfname <- FR.toRuby fname
                  withBinding $ \v -> FR.safeMethodCall "Controller" "runFromFile" [rfname,v]
              Left content -> withBinding $ \v -> FR.toRuby content >>= FR.safeMethodCall "Controller" "runFromContent" . (:[v])
+    FR.freeHaskellValue rrdr
+    FR.freeHaskellValue rstt
     FR.freeHaskellValue rvariables
     FR.freeHaskellValue rscp
     case o of

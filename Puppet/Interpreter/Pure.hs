@@ -34,8 +34,8 @@ pureReader :: HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level state
            -> InterpreterReader Identity
 pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty mempty True
     where
-        templatedummy (Right _) _ = return (S.Left "Can't interpret files")
-        templatedummy (Left cnt) stt = return $ case extractFromState stt of
+        templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
+        templatedummy (Left cnt) stt _ = return $ case extractFromState stt of
             Nothing -> S.Left "Context retrieval error (pureReader)"
             Just (ctx, scope) -> case parseErbString (T.unpack cnt) of
                                      Left rr -> S.Left (PrettyError (text (show rr)))

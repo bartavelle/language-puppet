@@ -51,7 +51,7 @@ import qualified Data.ByteString.Base16           as B16
 import           Data.CaseInsensitive             (mk)
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
-import           Data.Maybe                       (fromMaybe, mapMaybe)
+import           Data.Maybe                       (mapMaybe)
 import qualified Data.Maybe.Strict                as S
 import           Data.Scientific
 import qualified Data.Text                        as T
@@ -513,7 +513,6 @@ pdbresourcequery q mkey = do
 calcTemplate :: (T.Text -> Either T.Text T.Text) -> PValue -> InterpreterMonad PValue
 calcTemplate templatetype templatename = do
     fname       <- resolvePValueString templatename
-    scp         <- getScopeName
     stt         <- use id
     PString `fmap` singleton (ComputeTemplate (templatetype fname) stt)
 

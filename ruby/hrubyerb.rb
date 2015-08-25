@@ -3,10 +3,12 @@ require 'digest/md5'
 require 'yaml'
 
 class Scope
-    def initialize(context,variables,filename)
+    def initialize(context,variables,filename,stt,rdr)
         @context = context
         @variables = variables
         @file = filename
+        @stt = stt
+        @rdr = rdr
     end
 
     def [](key)
@@ -53,7 +55,7 @@ class Scope
         name = sname.to_s
         if name.start_with?('function_')
             fname = name[9..1000]
-            o = callextfunc(fname, args)
+            o = callextfunc(fname, args, @stt, @rdr)
             case o
             when MyError
                 throw o.getError()
@@ -75,8 +77,10 @@ end
 
 class ErbBinding
     @options = {}
-    def initialize(context,variables,filename='x')
-        @scope = Scope.new(context,variables,filename)
+    def initialize(context,variables,filename='x',stt,rdr)
+        @stt = stt
+        @rdr = rdr
+        @scope = Scope.new(context,variables,filename,stt,rdr)
     end
     def get_binding
         return binding()
@@ -88,7 +92,7 @@ class ErbBinding
         name = sname.to_s
         if name.start_with?('function_')
             fname = name[9..1000]
-            o = callextfunc(fname, args)
+            o = callextfunc(fname, args, @stt, @rdr)
             case o
             when MyError
                 throw o.getError()
