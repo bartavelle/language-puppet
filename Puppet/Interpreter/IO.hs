@@ -80,7 +80,7 @@ eval r s (a :>>= k) =
                                                 Nothing -> thpe (PrettyError ("Unknown function: " <> ttext fname))
             GetStatement topleveltype toplevelname
                                          -> canFail ((r ^. getStatement) topleveltype toplevelname)
-            ComputeTemplate fn scp cscps -> canFail ((r ^. computeTemplateFunction) fn scp cscps)
+            ComputeTemplate fn stt       -> canFail ((r ^. computeTemplateFunction) fn stt)
             WriterTell t                 -> logStuff t (runInstr ())
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"

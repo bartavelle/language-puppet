@@ -283,7 +283,7 @@ data InterpreterState = InterpreterState
 data InterpreterReader m = InterpreterReader
     { _nativeTypes             :: !(Container NativeTypeMethods)
     , _getStatement            :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
-    , _computeTemplateFunction :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> m (S.Either PrettyError T.Text)
+    , _computeTemplateFunction :: Either T.Text T.Text -> InterpreterState -> m (S.Either PrettyError T.Text)
     , _pdbAPI                  :: PuppetDBAPI m
     , _externalFunctions       :: Container ([PValue] -> InterpreterMonad PValue)
     , _thisNodename            :: T.Text
@@ -305,7 +305,7 @@ data InterpreterInstr a where
     -- Utility for using what's in "InterpreterReader"
     GetNativeTypes      :: InterpreterInstr (Container NativeTypeMethods)
     GetStatement        :: TopLevelType -> T.Text -> InterpreterInstr Statement
-    ComputeTemplate     :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> InterpreterInstr T.Text
+    ComputeTemplate     :: Either T.Text T.Text -> InterpreterState -> InterpreterInstr T.Text
     ExternalFunction    :: T.Text -> [PValue] -> InterpreterInstr PValue
     GetNodeName         :: InterpreterInstr T.Text
     HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)

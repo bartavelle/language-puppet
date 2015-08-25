@@ -513,16 +513,9 @@ pdbresourcequery q mkey = do
 calcTemplate :: (T.Text -> Either T.Text T.Text) -> PValue -> InterpreterMonad PValue
 calcTemplate templatetype templatename = do
     fname       <- resolvePValueString templatename
-    classes     <- (PArray . V.fromList . map PString . HM.keys) `fmap` use loadedClasses
     scp         <- getScopeName
-    scps        <- use scopes
-    -- inject the special template variables (just classes for now)
-    let cd = fromMaybe ContRoot (scps ^? ix scp . scopeContainer . cctype) -- get the current containder description
-        -- Inject the classes variable. Note that we are relying on the
-        -- invariant that the scope is already entered, and hence present
-        -- in the scps container.
-        cscps = scps & ix scp . scopeVariables . at "classes" ?~ ( classes :!: dummypos :!: cd )
-    PString `fmap` singleton (ComputeTemplate (templatetype fname) scp cscps)
+    stt         <- use id
+    PString `fmap` singleton (ComputeTemplate (templatetype fname) stt)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
 resolveExpressionSE e = resolveExpression e >>=

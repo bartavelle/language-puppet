@@ -123,7 +123,7 @@ instance Pretty (InterpreterInstr a) where
     pretty IsStrict = pf "IsStrict" []
     pretty GetNativeTypes = pf "GetNativeTypes" []
     pretty (GetStatement tlt nm) = pf "GetStatement" [pretty tlt,ttext nm]
-    pretty (ComputeTemplate fn scp _) = pf "ComputeTemplate" [fn', ttext scp]
+    pretty (ComputeTemplate fn _) = pf "ComputeTemplate" [fn']
         where
             fn' = case fn of
                       Left content -> pretty (PString content)

@@ -48,6 +48,20 @@ class Scope
     def function_to_yaml(args)
         args.to_yaml
     end
+
+    def method_missing(sname,*args,&block)
+        name = sname.to_s
+        if name.start_with?('function_')
+            fname = name[9..1000]
+            o = callextfunc(fname, args)
+            case o
+            when MyError
+                throw o.getError()
+            else
+                return o
+            end
+        end
+    end
 end
 
 class MyError

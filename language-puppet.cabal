@@ -93,7 +93,7 @@ library
                         , filecache            >= 0.2.8   && < 0.3
                         , formatting
                         , hashable             == 1.2.*
-                        , hruby                >= 0.3.1.4 && <0.4
+                        , hruby                >= 0.3.1.6 && <0.4
                         , hslogger             == 1.2.*
                         , hslua                >= 0.4     && < 0.5
                         , lens                 >= 4.9     && < 5

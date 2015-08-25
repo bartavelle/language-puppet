@@ -75,19 +75,19 @@ initDaemon prefs = do
     parserStats   <- newStats
     catalogStats  <- newStats
     pfilecache    <- newFileCache
-    let getStatements = parseFunction prefs pfilecache parserStats
     intr          <- startRubyInterpreter
     hquery        <- case prefs ^. hieraPath of
                          Just p  -> either error id <$> startHiera p
                          Nothing -> return dummyHiera
     luacontainer <- initLuaMaster (T.pack (prefs ^. puppetPaths.modulesPath))
     let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
-    getTemplate   <- initTemplateDaemon intr myprefs templateStats
+        getStatements = parseFunction myprefs pfilecache parserStats
+    getTemplate <- initTemplateDaemon intr myprefs templateStats
     return (DaemonMethods (gCatalog myprefs getStatements getTemplate catalogStats hquery) parserStats catalogStats templateStats)
 
 gCatalog :: Preferences IO
          -> ( TopLevelType -> T.Text -> IO (S.Either PrettyError Statement) )
-         -> (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
+         -> (Either T.Text T.Text -> InterpreterState -> IO (S.Either PrettyError T.Text))
          -> MStats
          -> HieraQueryFunc IO
          -> Nodename

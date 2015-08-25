@@ -13,7 +13,6 @@ import           Puppet.Utils
 
 import           Control.Concurrent
 import           Control.Monad.Except
-import           Control.Monad.Trans.Except
 import qualified Data.Either.Strict           as S
 import           Data.FileCache
 import qualified Data.Text                    as T
@@ -41,7 +40,7 @@ instance IsString TemplateParseError where
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
 
-type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, T.Text, Container ScopeInformation)
+type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, InterpreterState)
 type TemplateAnswer = S.Either PrettyError T.Text
 
 showRubyError :: RubyError -> PrettyError
@@ -49,29 +48,34 @@ showRubyError (Stack msg stk) = PrettyError $ dullred (string msg) </> dullyello
 showRubyError (WithOutput str _) = PrettyError $ dullred (string str)
 showRubyError (OtherError rr) = PrettyError (dullred (text rr))
 
-initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text))
+initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either T.Text T.Text -> InterpreterState -> IO (S.Either PrettyError T.Text))
 initTemplateDaemon intr prefs mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
-    let returnError rs = return $ \_ _ _ -> return (S.Left (showRubyError rs))
+    let returnError rs = return $ \_ _ -> return (S.Left (showRubyError rs))
     x <- runExceptT $ do
         liftIO (getRubyScriptPath "hrubyerb.rb") >>= ExceptT . loadFile intr
         ExceptT (registerGlobalFunction4 intr "varlookup" hrresolveVariable)
         ExceptT (registerGlobalFunction3 intr "callextfunc" hrcallfunction)
-        liftIO $ void $ forkIO $ templateDaemon intr (T.pack (prefs^.puppetPaths.modulesPath)) (T.pack (prefs^.puppetPaths.templatesPath)) controlchan mvstats templatecache
+        liftIO $ void $ forkIO $ templateDaemon intr
+                                                (T.pack (prefs^.puppetPaths.modulesPath))
+                                                (T.pack (prefs^.puppetPaths.templatesPath))
+                                                controlchan
+                                                mvstats
+                                                templatecache
         return (templateQuery controlchan)
     either returnError return x
 
-templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> IO (S.Either PrettyError T.Text)
-templateQuery qchan filename scope variables = do
+templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> InterpreterState -> IO (S.Either PrettyError T.Text)
+templateQuery qchan filename stt = do
     rchan <- newChan
-    writeChan qchan (rchan, filename, scope, variables)
+    writeChan qchan (rchan, filename, stt)
     readChan rchan
 
 templateDaemon :: RubyInterpreter -> T.Text -> T.Text -> Chan TemplateQuery -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO ()
 templateDaemon intr modpath templatepath qchan mvstats filecache = do
     nameThread "RubyTemplateDaemon"
-    (respchan, fileinfo, scope, variables) <- readChan qchan
+    (respchan, fileinfo, stt) <- readChan qchan
     case fileinfo of
         Right filename -> do
             let prts = T.splitOn "/" filename
@@ -80,12 +84,15 @@ templateDaemon intr modpath templatepath qchan mvstats filecache = do
             acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
             if null acceptablefiles
                 then writeChan respchan (S.Left $ PrettyError $ "Can't find template file for" <+> ttext filename <+> ", looked in" <+> list (map ttext searchpathes))
-                else measure mvstats filename (computeTemplate intr (Right (head acceptablefiles)) scope variables mvstats filecache) >>= writeChan respchan
-        Left _ -> measure mvstats "inline" (computeTemplate intr fileinfo scope variables mvstats filecache) >>= writeChan respchan
+                else measure mvstats filename (computeTemplate intr (Right (head acceptablefiles)) stt mvstats filecache) >>= writeChan respchan
+        Left _ -> measure mvstats "inline" (computeTemplate intr fileinfo stt mvstats filecache) >>= writeChan respchan
     templateDaemon intr modpath templatepath qchan mvstats filecache
 
-computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> T.Text -> Container ScopeInformation -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
-computeTemplate intr fileinfo curcontext fvariables mstats filecache = do
+computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> InterpreterState -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
+computeTemplate intr fileinfo stt mstats filecache = do
+    let (curcontext, fvariables) = case extractFromState stt of
+                                       Nothing -> (mempty, mempty)
+                                       Just (c,v) -> (c,v)
     let (filename, ufilename) = case fileinfo of
                                     Left _ -> ("inline", "inline")
                                     Right x -> (x, T.unpack x)
