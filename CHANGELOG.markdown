@@ -7,6 +7,7 @@
 
 ## Bugs fixed
 * Expressions such as (-1) are now supported.
+* Selectors recognize the undef token now.
 
 # v1.1.3 (2015/05/31)
 

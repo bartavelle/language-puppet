@@ -57,9 +57,10 @@ expression = condExpression
         condExpression = do
             selectedExpression <- try (token terminal <* symbolic '?')
             let cas = do
-                c <- (symbol "default" *> return SelectorDefault) -- default case
+                c <- (SelectorDefault <$ symbol "default") -- default case
                         <|> fmap SelectorValue (fmap UVariableReference variableReference
                                                  <|> fmap UBoolean puppetBool
+                                                 <|> (UUndef <$ symbol "undef")
                                                  <|> literalValue
                                                  <|> fmap UInterpolable interpolableString
                                                  <|> (URegexp <$> termRegexp))
