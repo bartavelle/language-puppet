@@ -307,7 +307,7 @@ resolveExpression a@(FunctionApplication e (Terminal (UHFunctionCall hf))) = do
     unless (S.isNothing (hf ^. hfexpr)) (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
     resolveValue (UHFunctionCall (hf & hfexpr .~ S.Just e))
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
-resolveExpression x = throwPosError ("Don't know how to resolve this expression:" PP.<$> pretty x)
+resolveExpression (Negate x) = PNumber . negate <$> resolveExpressionNumber x
 
 -- | Resolves an 'UValue' (terminal for the 'Expression' data type) into
 -- a 'PValue'

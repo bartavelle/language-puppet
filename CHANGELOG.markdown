@@ -5,6 +5,9 @@
 * The `file` variable is resolved in templates.
 * Support for `function_x` calls in templates.
 
+## Bugs fixed
+* Expressions such as (-1) are now supported.
+
 # v1.1.3 (2015/05/31)
 
 ## New features
