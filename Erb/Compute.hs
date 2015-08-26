@@ -173,7 +173,6 @@ hrcallfunction _ rfname rargs rstt rrdr = do
                            [PArray vargs] -> V.toList vargs
                            _ -> varray
             (x,_,_) <- interpretMonad rdr stt (resolveFunction' fname args)
-            print (fname, args, x)
             case x of
                 Right o -> case o ^? _Number of
                               Just n -> FR.toRuby n
