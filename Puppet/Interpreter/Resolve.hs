@@ -51,7 +51,7 @@ import qualified Data.ByteString.Base16           as B16
 import           Data.CaseInsensitive             (mk)
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
-import           Data.Maybe                       (mapMaybe)
+import           Data.Maybe                       (mapMaybe,fromMaybe)
 import qualified Data.Maybe.Strict                as S
 import           Data.Scientific
 import qualified Data.Text                        as T
@@ -79,8 +79,8 @@ type NumberPair = Pair Scientific Scientific
 fixResourceName :: T.Text -- ^ Resource type
                 -> T.Text -- ^ Resource name
                 -> T.Text
-fixResourceName "class" = T.toLower
-fixResourceName _       = id
+fixResourceName "class" x = T.toLower $ fromMaybe x $ T.stripPrefix "::" x
+fixResourceName _       x = x
 
 -- | A hiera helper function, that will throw all Hiera errors and log
 -- messages to the main monad.
