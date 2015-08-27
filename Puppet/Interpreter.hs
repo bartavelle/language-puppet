@@ -94,16 +94,22 @@ finalize rlist = do
         addOverrides' r (ResRefOverride _ prms p) = do
             -- we used this override, so we discard it
             scopes . ix scp . scopeOverrides . at (r ^. rid) .= Nothing
-            let forb = throwPosError ("Override of parameters of the following resource is forbidden in the current context:" </> pretty r <+>  showPPos p)
+            let forb msg  = throwPosError ("Override of parameters ("
+                                          <> list (map (ttext . fst) $ itoList prms)
+                                          <> ") of the following resource is forbidden in the current context:"
+                                          </> pretty r
+                                          <+>  showPPos p
+                                          </> ":"
+                                          <+> msg)
             s <- getScope
             overrideType <- case r ^. rscope of
-                                [] -> forb -- we could not get the current resource context
+                                [] -> forb "Could not find the current resource context" -- we could not get the current resource context
                                 (x:_) -> if x == s
                                              then return CantOverride -- we are in the same context : can't replace, but add stuff
                                              else isParent (scopeName s) x >>= \i ->
-                                                if i
+                                                if i || (r ^. rid . itype == "class")
                                                     then return Replace -- we can override what's defined in a parent
-                                                    else forb
+                                                    else forb "Can't override something that was not defined in the parent."
             ifoldlM (addAttribute overrideType) r prms
     withDefaults <- mapM (addOverrides >=> addDefaults) rlist
     -- There might be some overrides that could not be applied. The only
@@ -688,14 +694,22 @@ addAttribute b t r v = case (r ^. rattributes . at t, b) of
                              (_, Replace)     -> return (r & rattributes . at t ?~ v)
                              (Nothing, _)     -> return (r & rattributes . at t ?~ v)
                              (_, CantReplace) -> return r
-                             _                -> do
+                             (Just curval, _) -> do
                                  -- we must check if the resource scope is
                                  -- a parent of the current scope
                                  curscope <- getScopeName
                                  i <- isParent curscope (rcurcontainer r)
                                  if i
                                      then return (r & rattributes . at t ?~ v)
-                                     else throwPosError ("Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty (r ^. rid) <+> showPPos (r ^. rpos))
+                                     else do
+                                         -- We will not bark if the same attribute
+                                         -- is defined multiple times with distinct
+                                         -- values.
+                                         let errmsg = "Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty (r ^. rid) <+> showPPos (r ^. rpos)
+                                         if curval == v
+                                             then checkStrict errmsg errmsg
+                                             else throwPosError errmsg
+                                         return r
 
 registerResource :: T.Text -> T.Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"
