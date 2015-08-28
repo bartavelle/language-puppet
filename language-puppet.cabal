@@ -74,6 +74,7 @@ library
                        , Puppet.NativeTypes.SshSecure
                        , Puppet.NativeTypes.User
                        , Puppet.NativeTypes.ZoneRecord
+                       , Puppet.Pathes
                        , Puppet.Plugins
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields -j1

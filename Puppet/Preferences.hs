@@ -29,19 +29,10 @@ import           Puppet.NativeTypes
 import           Puppet.NativeTypes.Helpers
 import           Puppet.Plugins
 import           Puppet.Stdlib
+import           Puppet.Pathes
 import qualified Puppet.Puppetlabs          as Puppetlabs
 import           Puppet.Utils
 import           PuppetDB.Dummy
-
-data PuppetDirPaths = PuppetDirPaths
-    { _baseDir       :: FilePath -- ^ Puppet base working directory
-    , _manifestPath  :: FilePath -- ^ The path to the manifests.
-    , _modulesPath   :: FilePath -- ^ The path to the modules.
-    , _templatesPath :: FilePath -- ^ The path to the template.
-    , _testPath      :: FilePath -- ^ The path to a tests folders to hold tests files such as the pdbfiles.
-    }
-
-makeClassy ''PuppetDirPaths
 
 data Preferences m = Preferences
     { _puppetPaths     :: PuppetDirPaths
@@ -92,15 +83,11 @@ instance FromJSON Defaults where
 dfPreferences :: FilePath
                -> IO (Preferences IO)
 dfPreferences basedir = do
-    let manifestdir = basedir <> "/manifests"
-        modulesdir  = basedir <> "/modules"
-        templatedir = basedir <> "/templates"
-        testdir     = basedir <> "/tests"
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     defaults <- loadDefaults (testdir ++ "/defaults.yaml")
     labsFunctions <- Puppetlabs.extFunctions modulesdir
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    let dirpaths = PuppetDirPaths basedir manifestdir modulesdir templatedir testdir
+    let dirpaths = defaultPathes basedir
     return $ Preferences dirpaths
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
                          (HM.union stdlibFunctions labsFunctions)
