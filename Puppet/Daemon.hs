@@ -107,7 +107,9 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
                                             defaultImpureMethods
                                             (prefs ^. ignoredmodules)
                                             (prefs ^. externalmodules)
-                                            (prefs ^. strictness == Strict))
+                                            (prefs ^. strictness == Strict)
+                                            (prefs ^. puppetPaths)
+                                        )
                                         ndename
                                         facts
                                         (prefs^.puppetSettings)

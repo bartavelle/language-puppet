@@ -13,6 +13,7 @@ import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Types
 import           Puppet.NativeTypes
 import           Puppet.Parser.Types
+import           Puppet.Pathes
 import           Puppet.PP
 import           PuppetDB.Dummy
 
@@ -32,7 +33,7 @@ impurePure = ImpureMethods (return []) (const (return (Left "Can't read file")))
 -- templates, and that can include only the supplied top level statements.
 pureReader :: HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level statement map
            -> InterpreterReader Identity
-pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty mempty True
+pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty mempty True (defaultPathes "/etc/puppet")
     where
         templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
         templatedummy (Left cnt) stt _ = return $ case extractFromState stt of

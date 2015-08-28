@@ -143,6 +143,7 @@ import           Text.Parsec.Pos
 import           Text.PrettyPrint.ANSI.Leijen hiding (rational, (<$>))
 import           Prelude
 
+import           Puppet.Pathes
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.Stats
@@ -292,6 +293,7 @@ data InterpreterReader m = InterpreterReader
     , _ignoredModules          :: HS.HashSet T.Text
     , _externalModules         :: HS.HashSet T.Text
     , _isStrict                :: Bool
+    , _ppathes                 :: PuppetDirPaths
     }
 
 data ImpureMethods m = ImpureMethods

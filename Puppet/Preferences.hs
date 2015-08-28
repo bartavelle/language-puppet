@@ -83,11 +83,13 @@ instance FromJSON Defaults where
 dfPreferences :: FilePath
                -> IO (Preferences IO)
 dfPreferences basedir = do
+    let dirpaths = defaultPathes basedir
+        modulesdir = dirpaths ^. modulesPath
+        testdir = dirpaths ^. testPath
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
     defaults <- loadDefaults (testdir ++ "/defaults.yaml")
     labsFunctions <- Puppetlabs.extFunctions modulesdir
     let loadedTypes = HM.fromList (map defaulttype typenames)
-    let dirpaths = defaultPathes basedir
     return $ Preferences dirpaths
                          dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
                          (HM.union stdlibFunctions labsFunctions)
