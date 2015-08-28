@@ -11,6 +11,7 @@ import           Puppet.Parser
 import           Puppet.Parser.PrettyPrinter ()
 import           Puppet.Parser.Types
 import           Text.Parser.Combinators
+import           Prelude
 
 testcases :: [(T.Text, Expression)]
 testcases =
@@ -21,7 +22,7 @@ testcases =
      \ undef   => 'undef',\
      \ default => 'default',\
     \ }",  ConditionalValue (Terminal (UVariableReference "y"))
-           (V.fromList [SelectorValue (UString "undef") :!: Terminal (UString "undef")
+           (V.fromList [SelectorValue UUndef :!: Terminal (UString "undef")
                        ,SelectorDefault :!: Terminal (UString "default")]))
     , ("$x", Terminal (UVariableReference "x"))
     , ("\"${x}\"", Terminal (UInterpolable (V.fromList [Terminal (UVariableReference "x")])))
