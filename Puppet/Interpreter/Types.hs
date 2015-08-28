@@ -85,6 +85,7 @@ module Puppet.Interpreter.Types (
  , safeDecodeUtf8
  , getScope
  , getScopeName
+ , getPuppetPathes
  , scopeName
  , resourceRelations
  , checkStrict
@@ -315,6 +316,7 @@ data InterpreterInstr a where
     IsIgnoredModule     :: T.Text -> InterpreterInstr Bool
     IsExternalModule    :: T.Text -> InterpreterInstr Bool
     IsStrict            :: InterpreterInstr Bool
+    PuppetPathes        :: InterpreterInstr PuppetDirPaths
     -- error
     ErrorThrow          :: PrettyError -> InterpreterInstr a
     ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a
@@ -342,6 +344,9 @@ data InterpreterInstr a where
 
 type InterpreterLog = Pair LOG.Priority Doc
 type InterpreterWriter = [InterpreterLog]
+
+getPuppetPathes :: InterpreterMonad PuppetDirPaths
+getPuppetPathes = singleton PuppetPathes
 
 warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
 warn d = tell [LOG.WARNING :!: d]

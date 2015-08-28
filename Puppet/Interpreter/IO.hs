@@ -84,6 +84,7 @@ eval r s (a :>>= k) =
             WriterTell t                 -> logStuff t (runInstr ())
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"
+            PuppetPathes                 -> runInstr (r ^. ppathes)
             GetNativeTypes               -> runInstr (r ^. nativeTypes)
             ErrorThrow d                 -> return (Left d, s, mempty)
             ErrorCatch _ _               -> thpe "ErrorCatch"

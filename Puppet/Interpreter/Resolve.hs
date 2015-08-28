@@ -33,6 +33,7 @@ import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.RubyRandom
 import           Puppet.Interpreter.Types
 import           Puppet.Parser.Types
+import           Puppet.Pathes
 import           Puppet.PP
 import           Puppet.Utils
 
@@ -454,7 +455,15 @@ resolveFunction' "sha1" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
 resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha1 . sha1  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
-resolveFunction' "file" args = mapM resolvePValueString args >>= fmap PString . singleton . ReadFile
+resolveFunction' "file" args = mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . singleton . ReadFile
+    where
+        fixFilePath s | T.null s = let rr = "Empty file path passed to the 'file' function" in checkStrict rr rr >> return s
+                      | T.head s == '/' = return s
+                      | otherwise = case T.splitOn "/" s of
+                                        (md:x:rst) -> do
+                                            moduledir <- view modulesPath <$> getPuppetPathes
+                                            return (T.intercalate "/" (T.pack moduledir : md : "files" : x : rst))
+                                        _ -> throwPosError ("file() argument invalid: " <> ttext s)
 resolveFunction' "tagged" ptags = do
     tags <- fmap HS.fromList (mapM resolvePValueString ptags)
     scp <- getScopeName
