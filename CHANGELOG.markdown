@@ -1,4 +1,4 @@
-# v1.1.4 ()
+# v1.1.4 (2015/09/07)
 
 ## New features
 * The `regsubst` function now works with arrays.
@@ -8,6 +8,9 @@
 ## Bugs fixed
 * Expressions such as (-1) are now supported.
 * Selectors recognize the undef token now.
+* Fixed a bug with parsing lines starting with `::`.
+* Sanitize resource names in some missing instances to fix bugs
+  when they were starting with `::`.
 
 # v1.1.3 (2015/05/31)
 
