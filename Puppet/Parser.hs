@@ -494,7 +494,7 @@ assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
 
 -- TODO
 searchExpression :: Parser SearchExpression
-searchExpression = parens searchExpression <|> check <|> combine
+searchExpression = try combine <|> parens searchExpression <|> check
     where
         combine = do
             e1  <- parens searchExpression <|> check
