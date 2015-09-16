@@ -492,15 +492,16 @@ assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
         bw = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Assignment key"
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
 
--- TODO
 searchExpression :: Parser SearchExpression
-searchExpression = try combine <|> parens searchExpression <|> check
+searchExpression = ParserT (buildExpressionParser searchTable (unParser (token searchterm)))
     where
-        combine = do
-            e1  <- parens searchExpression <|> check
-            opr <- (operator "and" *> return AndSearch) <|> (operator "or" *> return OrSearch)
-            e2  <- searchExpression
-            return (opr e1 e2)
+        searchTable :: [[Operator T.Text () Identity SearchExpression]]
+        searchTable = [ [ Infix ( reserved' "and"   >> return AndSearch ) AssocLeft
+                        , Infix ( reserved' "or"    >> return OrSearch  ) AssocLeft
+                        ] ]
+        reserved' :: String -> OP ()
+        reserved' = unParser . reserved
+        searchterm = parens searchExpression <|> check
         check = do
             attrib <- parameterName
             opr    <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
