@@ -26,6 +26,7 @@ md5 = Text.pack . show . (Crypto.hash :: ByteString -> Digest MD5) . Text.encode
 
 extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
 extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
+          , ("/docker", "docker_run_flags", mockDockerRunFlags)
           , ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
           , ("/postgresql", "postgresql_password", pgPassword)
           , ("/foreman", "random_password", randomPassword)
@@ -103,3 +104,8 @@ aclToHash [typ, db, usr, addr, auth] order =
                       , ("auth_method", PString auth)
                       ]
 aclToHash acl _ = throwPosError $ "Unable to parse acl line" <+> squotes (ttext (Text.unwords acl))
+
+-- faked implementation, replace by the correct one if you need so.
+mockDockerRunFlags :: MonadThrowPos m => [PValue] -> m PValue
+mockDockerRunFlags arg@[PHash _]= (return . PString . Text.pack . displayNocolor . pretty . head) arg
+mockDockerRunFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
