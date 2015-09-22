@@ -4,7 +4,7 @@
 module Main where
 
 import           Control.Concurrent.ParallelIO    (parallel)
-import           Control.Lens
+import           Control.Lens hiding (Strict)
 import           Control.Monad
 import           Control.Monad.Trans.Either
 import           Data.Aeson                       (encode)

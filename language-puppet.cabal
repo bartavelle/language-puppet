@@ -78,7 +78,7 @@ library
                        , Puppet.Plugins
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields -j1
-  ghc-prof-options:    -auto-all -caf-all
+  -- ghc-prof-options:    -auto-all -caf-all
   build-depends:       base >=4.8 && < 4.9
                         , aeson                >= 0.8     && < 0.10
                         , ansi-wl-pprint       == 0.6.*
@@ -168,7 +168,7 @@ executable puppetresources
   hs-source-dirs:      progs
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded -with-rtsopts "-A2M" -eventlog
-  ghc-prof-options:    -auto-all -caf-all -fprof-auto
+  -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9, either, servant-client
   main-is:             PuppetResources.hs
 
@@ -176,6 +176,6 @@ executable pdbquery
   hs-source-dirs:      progs
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded
-  ghc-prof-options:    -auto-all -caf-all -fprof-auto
+  -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       language-puppet,base,optparse-applicative >= 0.11,text,yaml,bytestring,strict-base-types,lens,unordered-containers,vector,either,servant-client
   main-is:             pdbQuery.hs

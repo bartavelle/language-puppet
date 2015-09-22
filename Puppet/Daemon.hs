@@ -5,7 +5,8 @@ module Puppet.Daemon (initDaemon) where
 
 import           Control.Exception
 import           Control.Exception.Lens
-import           Control.Lens
+import qualified Control.Lens as L
+import           Control.Lens.Operators
 import qualified Data.Either.Strict        as S
 import           Data.FileCache
 import qualified Data.HashMap.Strict       as HM
@@ -117,7 +118,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
        then runOptionalTests stmts
        else return stmts
     where
-      runOptionalTests stm = case stm^?S._Right._1 of
+      runOptionalTests stm = case stm^?S._Right.L._1 of
         Nothing -> return stm
         (Just c)  -> catching _PrettyError
                               (do {testCatalog prefs c; return stm})

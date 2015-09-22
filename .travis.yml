@@ -1,0 +1,37 @@
+language: haskell
+env:
+ - CABALVER=1.22 GHCVER=7.10.2
+cache:
+  apt: true
+  directories:
+    - $HOME/.cabal
+    - $HOME/.ghc
+before_install:
+  #RUBY
+ - travis_retry sudo apt-get -y install python-software-properties
+ - travis_retry sudo apt-add-repository -y ppa:brightbox/ruby-ng
+ - travis_retry sudo apt-get update
+ - travis_retry sudo apt-get install libgmp-dev ruby2.1 ruby2.1-dev ruby-switch
+ - sudo ruby-switch --set ruby2.1
+ # HVR
+ - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
+ - travis_retry sudo apt-get update
+ - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER # see note about happy/alex
+ - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+
+install:
+ - cabal --version
+ - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+ - travis_retry cabal update
+ - cabal install --only-dependencies --enable-tests --enable-benchmarks
+script:
+ - if [ -f configure.ac ]; then autoreconf -i; fi
+ - cabal configure --enable-tests --enable-benchmarks -v2  # -v2 provides useful information for debugging
+ - cabal build   # this builds all libraries and executables (including tests/benchmarks)
+ - cabal test
+ - cabal check
+branches:
+  only:
+    - master
+notifications:
+  email: false

@@ -1,5 +1,7 @@
 = Language-puppet
 
+image:https://travis-ci.org/PierreR/language-puppet.svg?branch=master["Build Status", link="https://travis-ci.org/PierreR/language-puppet"]
+
 A library to work with Puppet manifests, test them and eventually replace everything ruby.
 
 .Basic usage:
@@ -8,11 +10,11 @@ puppetresources -p /where/your/puppet/files/are -o node.name.com
 ```
 
 .Easy build instructions:
-```
+```bash
+git clone https://github.com/bartavelle/language-puppet.git
 cd language-puppet
-cabal update
-cabal sandbox init
-cabal install -j -p
+# Add ~/.local/bin to $PATH
+stack install
 ```
 
 There are also http://lpuppet.banquise.net/download/[binary packages available] and https://registry.hub.docker.com/u/pierrer/puppetresources[a docker images].
