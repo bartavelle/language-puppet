@@ -171,9 +171,9 @@ logDebug   = LOG.debugM   loggerName . T.unpack
 
 setupConsoleLogger :: IO ()
 setupConsoleLogger = do
-   hs <- for [LOG.DEBUG, LOG.INFO, LOG.NOTICE, LOG.WARNING] consoleLogHandler
-   LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers hs
+   hs <- consoleLogHandler
+   LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers [hs]
    where
-     consoleLogHandler p = LOG.setFormatter
-                          <$> LOG.streamHandler stdout p
+     consoleLogHandler = LOG.setFormatter
+                          <$> LOG.streamHandler stdout LOG.DEBUG
                           <*> pure (LOG.simpleLogFormatter "$prio: $msg")
