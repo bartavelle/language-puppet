@@ -799,6 +799,10 @@ mainFunctionCall "tag" args = do
     return []
 mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ttext <$> resolvePValueString x >>= throwPosError
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
+mainFunctionCall "contain" [PString x] = do
+    logWriter WARNING ("Contain" <+> squotes (ttext x) <> "; the function is not yet implemented")
+    return []
+mainFunctionCall "contain" _ = throwPosError "contain(): his function takes a single argument"
 mainFunctionCall "hiera_include" [x] = do
     ndname <- resolvePValueString x
     classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname ArrayMerge
