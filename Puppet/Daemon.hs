@@ -3,7 +3,6 @@
 {-# LANGUAGE LambdaCase #-}
 module Puppet.Daemon (initDaemon) where
 
-import           Control.Applicative
 import           Control.Exception
 import           Control.Exception.Lens
 import           Control.Lens
@@ -12,13 +11,11 @@ import           Data.FileCache
 import qualified Data.HashMap.Strict       as HM
 import qualified Data.Text                 as T
 import qualified Data.Text.IO              as T
-import           Data.Traversable          (for)
 import           Data.Tuple.Strict
 import qualified Data.Vector               as V
 import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
-import           Prelude
 import           System.IO                 (stdout)
 import           System.Log.Formatter      as LOG
 import           System.Log.Handler        as LOG

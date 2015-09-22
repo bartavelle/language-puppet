@@ -15,7 +15,6 @@ import           Puppet.Interpreter.Types
 import           Puppet.Plugins                   ()
 import           Puppet.PP
 
-import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
@@ -29,7 +28,6 @@ import qualified Data.Text.IO                     as T
 import           Debug.Trace                      (traceEventIO)
 import           GHC.Stack
 import qualified Scripting.Lua                    as Lua
-import           Prelude
 
 defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
 defaultImpureMethods = ImpureMethods (liftIO currentCallStack)

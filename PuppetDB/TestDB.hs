@@ -10,7 +10,6 @@ module PuppetDB.TestDB
        , initTestDB
 ) where
 
-import           Control.Applicative
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
@@ -27,7 +26,6 @@ import qualified Data.Text                as T
 import qualified Data.Vector              as V
 import           Data.Yaml
 import           Text.Parsec.Pos
-import           Prelude
 
 import           Puppet.Interpreter.Types
 import           Puppet.Lens

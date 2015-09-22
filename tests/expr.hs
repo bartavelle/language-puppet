@@ -1,6 +1,5 @@
 module Main where
 
-import           Control.Applicative
 import           Control.Arrow               (first)
 import           Control.Monad
 import           Data.Maybe
@@ -11,7 +10,6 @@ import           Puppet.Parser
 import           Puppet.Parser.PrettyPrinter ()
 import           Puppet.Parser.Types
 import           Text.Parser.Combinators
-import           Prelude
 
 testcases :: [(T.Text, Expression)]
 testcases =

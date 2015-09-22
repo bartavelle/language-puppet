@@ -3,19 +3,16 @@
 -- These exceptions can be caught (see the exceptions package).
 module Puppet.OptionalTests (testCatalog) where
 
-import           Control.Applicative
 import           Control.Lens
 import           Control.Monad                    (unless)
 import           Control.Monad.Catch
 import           Control.Monad.Trans              (liftIO)
 import           Control.Monad.Trans.Except
-import           Data.Foldable                    (asum, elem, toList,
-                                                   traverse_)
+import           Data.Foldable                    (asum, toList, traverse_)
 import qualified Data.HashSet                     as HS
 import           Data.Maybe                       (mapMaybe)
 import           Data.Monoid                      ((<>))
 import qualified Data.Text                        as T
-import           Prelude                          hiding (all, elem)
 
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types

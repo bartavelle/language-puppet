@@ -9,10 +9,8 @@ import Puppet.Interpreter.Resolve
 
 import System.Environment
 import Test.Hspec
-import Control.Applicative
 import Text.Parser.Combinators (eof)
 import Data.Foldable (forM_)
-import Prelude
 
 pureTests :: [T.Text]
 pureTests = [ "4 + 2 == 6"
@@ -48,5 +46,3 @@ main = do
     if null args
         then hspec $ describe "evaluation" $ forM_ pureTests $ \t -> it ("should evaluate " ++ show t) $ either error (const True) (check t)
         else mapM_ runcheck args
-
-

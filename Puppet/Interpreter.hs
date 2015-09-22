@@ -15,13 +15,11 @@ import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.PP
 
-import           Control.Applicative
 import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.Operational        hiding (view)
 import qualified Data.Either.Strict               as S
-import           Data.Foldable                    (Foldable, foldl', foldlM,
-                                                   toList)
+import           Data.Foldable                    (foldl', foldlM, toList)
 import qualified Data.Graph                       as G
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
@@ -31,14 +29,13 @@ import           Data.Maybe
 import qualified Data.Maybe.Strict                as S
 import           Data.Ord                         (comparing)
 import qualified Data.Text                        as T
-import           Data.Traversable                 (mapM, for)
+import           Data.Traversable                 (for)
 import qualified Data.Tree                        as T
 import           Data.Tuple.Strict                (Pair (..))
 import qualified Data.Tuple.Strict                as S
 import qualified Data.Vector                      as V
 import           Puppet.Utils
 import           System.Log.Logger
-import           Prelude                          hiding (mapM)
 
 -- helpers
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]

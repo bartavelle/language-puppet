@@ -105,48 +105,46 @@ module Puppet.Interpreter.Types (
  , eitherDocIO
 ) where
 
-import           Control.Applicative          hiding (empty)
-import           Control.Concurrent.MVar      (MVar)
+import           Control.Concurrent.MVar     (MVar)
 import           Control.Exception
-import           Control.Lens
+import           Control.Lens                hiding (Strict)
 import           Control.Monad.Except
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
 import           Control.Monad.Trans.Either
 import           Control.Monad.Writer.Class
-import           Data.Aeson                   as A
+import           Data.Aeson                  as A
 import           Data.Aeson.Lens
-import           Data.Attoparsec.Text         (parseOnly, rational)
-import qualified Data.ByteString              as BS
-import qualified Data.Either.Strict           as S
-import qualified Data.Foldable                as F
+import           Data.Attoparsec.Text        (parseOnly, rational)
+import qualified Data.ByteString             as BS
+import qualified Data.Either.Strict          as S
+import qualified Data.Foldable               as F
 import           Data.Hashable
-import qualified Data.HashMap.Strict          as HM
-import qualified Data.HashSet                 as HS
-import           Data.Maybe                   (fromMaybe)
-import qualified Data.Maybe.Strict            as S
-import           Data.Monoid                  hiding ((<>))
+import qualified Data.HashMap.Strict         as HM
+import qualified Data.HashSet                as HS
+import           Data.Maybe                  (fromMaybe)
+import qualified Data.Maybe.Strict           as S
+import           Data.Monoid
 import           Data.Scientific
-import           Data.String                  (IsString (..))
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
+import           Data.String                 (IsString (..))
+import qualified Data.Text                   as T
+import qualified Data.Text.Encoding          as T
 import           Data.Time.Clock
-import qualified Data.Traversable             as TR
+import qualified Data.Traversable            as TR
 import           Data.Tuple.Strict
-import qualified Data.Vector                  as V
+import qualified Data.Vector                 as V
 import           Foreign.Ruby.Helpers
-import           GHC.Generics                 hiding (to)
+import           GHC.Generics                hiding (to)
 import           GHC.Stack
-import qualified Scripting.Lua                as Lua
+import qualified Scripting.Lua               as Lua
 import           Servant.Common.Text
-import qualified System.Log.Logger            as LOG
+import qualified System.Log.Logger           as LOG
 import           Text.Parsec.Pos
-import           Text.PrettyPrint.ANSI.Leijen hiding (rational, (<$>))
-import           Prelude
 
-import           Puppet.Pathes
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
+import           Puppet.Pathes
+import           Puppet.PP                   hiding (rational)
 import           Puppet.Stats
 
 metaparameters :: HS.HashSet T.Text

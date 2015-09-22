@@ -12,7 +12,6 @@ module Puppet.Preferences (
   , HasPuppetDirPaths(..)
 ) where
 
-import           Control.Applicative
 import           Control.Lens
 import           Control.Monad              (mzero)
 import           Data.Aeson
@@ -22,7 +21,6 @@ import           Data.Maybe                 (fromMaybe)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           System.Posix               (fileExist)
-import           Prelude
 
 import           Puppet.Interpreter.Types
 import           Puppet.NativeTypes

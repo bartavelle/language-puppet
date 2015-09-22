@@ -79,7 +79,7 @@ library
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields -j1
   ghc-prof-options:    -auto-all -caf-all
-  build-depends:       base >=4.6 && < 4.9
+  build-depends:       base >=4.8 && < 4.9
                         , aeson                >= 0.8     && < 0.10
                         , ansi-wl-pprint       == 0.6.*
                         , attoparsec           >= 0.12    && < 0.14

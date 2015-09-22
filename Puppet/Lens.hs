@@ -71,7 +71,6 @@ module Puppet.Lens
  ) where
 
 import Control.Lens
-import Control.Applicative
 
 import Puppet.PP (displayNocolor)
 import Puppet.Parser.Types
@@ -88,7 +87,6 @@ import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict hiding (uncurry)
 import Text.Parser.Combinators (eof)
 import Control.Exception (SomeException, toException, fromException)
-import Prelude
 
 -- Prisms
 makePrisms ''PValue

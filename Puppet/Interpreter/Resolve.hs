@@ -37,7 +37,6 @@ import           Puppet.Pathes
 import           Puppet.PP
 import           Puppet.Utils
 
-import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Operational        (singleton)
@@ -63,7 +62,6 @@ import           Data.Version                     (parseVersion)
 import           Text.ParserCombinators.ReadP     (readP_to_S)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
 import           Text.Regex.PCRE.ByteString.Utils
-import           Prelude
 
 sha1 :: ByteString -> ByteString
 sha1 = convert . (hash :: ByteString -> Digest SHA1)

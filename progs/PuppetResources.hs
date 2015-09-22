@@ -11,7 +11,6 @@ import           Data.Aeson                       (encode)
 import qualified Data.ByteString.Lazy.Char8       as BSL
 import           Data.Either                      (partitionEithers)
 import qualified Data.Either.Strict               as S
-import           Data.Foldable
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
@@ -48,7 +47,6 @@ import           PuppetDB.Dummy
 import           PuppetDB.Remote
 import           PuppetDB.TestDB
 
-import           Prelude
 
 type QueryFunc = Nodename -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 

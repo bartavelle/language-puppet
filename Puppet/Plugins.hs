@@ -30,7 +30,6 @@ module Puppet.Plugins (initLua, initLuaMaster, puppetFunc, closeLua, getFiles) w
 import Puppet.PP
 import qualified Scripting.Lua as Lua
 import Control.Exception
-import Control.Applicative
 import qualified Data.HashMap.Strict as HM
 import System.IO
 import qualified Data.Text as T
@@ -43,7 +42,6 @@ import Control.Monad.Operational (singleton)
 import Data.Scientific
 import qualified Data.ByteString as BS
 import Control.Lens
-import Prelude
 import Debug.Trace
 
 import Puppet.Interpreter.Types
