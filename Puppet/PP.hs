@@ -2,17 +2,12 @@ module Puppet.PP
     ( ttext
     , pshow
     , displayNocolor
-    , beside
       -- * Re-exports
     , module Text.PrettyPrint.ANSI.Leijen
     ) where
 
 import qualified Data.Text                    as T
-import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
-
-beside :: Doc -> Doc -> Doc
-beside a b = a PP.<> b
 
 ttext :: T.Text -> Doc
 ttext = text . T.unpack
