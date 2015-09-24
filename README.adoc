@@ -1,6 +1,6 @@
 = Language-puppet
 
-image:https://travis-ci.org/PierreR/language-puppet.svg?branch=master["Build Status", link="https://travis-ci.org/PierreR/language-puppet"]
+image:https://travis-ci.org/bartavelle/language-puppet.svg?branch=master["Build Status", link="https://travis-ci.org/bartavelle/language-puppet"]
 
 A library to work with Puppet manifests, test them and eventually replace everything ruby.
 
