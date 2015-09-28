@@ -42,6 +42,7 @@ import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
 import           Text.Parser.Token hiding (stringLiteral')
 import           Text.Parser.Token.Highlight
+import           Text.Parser.Token.Style (buildSomeSpaceParser, CommentStyle(..))
 
 -- | Run a puppet parser against some 'T.Text' input.
 runPParser :: Parser a -> String -> T.Text -> Either ParseError a
@@ -49,7 +50,7 @@ runPParser (ParserT p) = PP.parse p
 
 -- | Parse a collection of puppet 'Statement'.
 puppetParser :: Parser (V.Vector Statement)
-puppetParser = someSpace >> statementList
+puppetParser = optional someSpace >> statementList
 
 -- | Parse a puppet 'Expression'.
 expression :: Parser Expression
@@ -101,14 +102,9 @@ getPosition :: Parser SourcePos
 getPosition = ParserT PP.getPosition
 
 instance TokenParsing Parser where
-    someSpace = skipMany (simpleSpace <|> oneLineComment <|> multiLineComment)
+    someSpace = buildSomeSpaceParser simpleSpace (CommentStyle "/*" "*/" "#" False)
       where
         simpleSpace = skipSome (satisfy isSpace)
-        oneLineComment = char '#' >> void (manyTill anyChar newline)
-        multiLineComment = try (string "/*") >> inComment
-        inComment =     void (try (string "*/"))
-                    <|> (skipSome (noneOf "*/") >> inComment)
-                    <|> (oneOf "*/" >> inComment)
 
 variable :: Parser Expression
 variable = Terminal . UVariableReference <$> variableReference
