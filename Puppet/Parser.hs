@@ -2,6 +2,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-| Parse puppet source code from text. -}
 module Puppet.Parser (
   -- * Runner
@@ -29,10 +30,12 @@ import           Puppet.Parser.Types
 import           Puppet.Utils
 
 import           Data.Scientific
-import           Text.Parsec.Error (ParseError)
-import           Text.Parsec.Pos (SourcePos,SourceName)
-import qualified Text.Parsec.Prim as PP
-import           Text.Parsec.Text ()
+import           Text.Megaparsec.Error (ParseError)
+import           Text.Megaparsec.Pos (SourcePos)
+import qualified Text.Megaparsec.Char as PP
+import qualified Text.Megaparsec.Prim as PP
+import qualified Text.Megaparsec.Combinator as PP
+import           Text.Megaparsec.Text ()
 import           Text.Parser.Expression
 import           Text.Parser.Char
 import           Text.Parser.Combinators
@@ -41,7 +44,7 @@ import           Text.Parser.Token hiding (stringLiteral')
 import           Text.Parser.Token.Highlight
 
 -- | Run a puppet parser against some 'T.Text' input.
-runPParser :: Parser a -> SourceName -> T.Text -> Either ParseError a
+runPParser :: Parser a -> String -> T.Text -> Either ParseError a
 runPParser (ParserT p) = PP.parse p
 
 -- | Parse a collection of puppet 'Statement'.
@@ -70,13 +73,29 @@ expression = condExpression
             cases <- braces (cas `sepEndBy1` comma)
             return (ConditionalValue selectedExpression (V.fromList cases))
 
-newtype Parser a = ParserT (PP.ParsecT T.Text () Identity a)
+newtype Parser a = ParserT { unParser :: PP.ParsecT T.Text Identity a }
                  deriving (Functor, Applicative, Alternative)
 
 deriving instance Monad Parser
-deriving instance Parsing Parser
-deriving instance CharParsing Parser
-deriving instance LookAheadParsing Parser
+
+instance CharParsing Parser where
+    satisfy   = ParserT . PP.satisfy
+    char      = ParserT . PP.char
+    notChar c = ParserT $ PP.satisfy (/= c)
+    anyChar   = ParserT PP.anyChar
+    string    = ParserT . PP.string
+
+instance LookAheadParsing Parser where
+    lookAhead = ParserT . PP.lookAhead . unParser
+
+instance Parsing Parser where
+    try               = ParserT . PP.try . unParser
+    (ParserT p) <?> f = ParserT (p PP.<?> f)
+    skipMany          = ParserT . PP.skipMany . unParser
+    skipSome          = PP.skipSome
+    unexpected        = ParserT . PP.unexpected
+    eof               = ParserT PP.eof
+    notFollowedBy     = ParserT . PP.notFollowedBy . unParser
 
 getPosition :: Parser SourcePos
 getPosition = ParserT PP.getPosition

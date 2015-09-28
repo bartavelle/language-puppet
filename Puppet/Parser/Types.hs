@@ -61,7 +61,7 @@ import qualified Data.Vector            as V
 
 import           GHC.Generics
 
-import           Text.Parsec.Pos
+import           Text.Megaparsec.Pos
 import           Text.Regex.PCRE.String
 
 -- | Properly capitalizes resource types
@@ -78,13 +78,13 @@ type PPosition = Pair Position Position
 -- | Position in a puppet file. Currently an alias to 'SourcePos'.
 type Position = SourcePos
 
-lSourceName :: Lens' Position SourceName
+lSourceName :: Lens' Position String
 lSourceName = lens sourceName setSourceName
 
-lSourceLine :: Lens' Position Line
+lSourceLine :: Lens' Position Int
 lSourceLine = lens sourceLine setSourceLine
 
-lSourceColumn :: Lens' Position Column
+lSourceColumn :: Lens' Position Int
 lSourceColumn = lens sourceColumn setSourceColumn
 
 -- | Generates an initial position based on a filename.

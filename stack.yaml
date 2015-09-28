@@ -6,4 +6,5 @@ extra-deps:
 - hruby-0.3.1.6
 - pcre-utils-0.1.7
 - strict-base-types-0.3.0
+- megaparsec-4.0.0
 resolver: lts-3.6

@@ -102,6 +102,7 @@ library
                         , memory               >= 0.7
                         , mtl                  >= 2.2     && < 2.3
                         , operational          >= 0.2.3   && < 0.3
+                        , megaparsec           == 4.0.*
                         , parsec               == 3.1.*
                         , parsers              >= 0.11    && < 0.13
                         , pcre-utils           >= 0.1.7   && < 0.2
@@ -133,7 +134,7 @@ Test-Suite test-lexer
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -rtsopts -threaded
   extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,Glob,text,parsec,vector,ansi-wl-pprint,unix
+  build-depends:  language-puppet,base,Glob,text,megaparsec,vector,ansi-wl-pprint,unix
   main-is:        lexer.hs
 Test-Suite test-expr
   hs-source-dirs: tests
@@ -169,7 +170,7 @@ executable puppetresources
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded -with-rtsopts "-A2M" -eventlog
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,text,parsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9, either, servant-client
+  build-depends:       language-puppet,base,text,megaparsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9, either, servant-client
   main-is:             PuppetResources.hs
 
 executable pdbquery
