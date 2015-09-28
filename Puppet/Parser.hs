@@ -30,10 +30,10 @@ import           Puppet.Utils
 
 import           Data.Scientific
 import           Text.Parsec.Error (ParseError)
-import           Text.Parsec.Expr
 import           Text.Parsec.Pos (SourcePos,SourceName)
 import qualified Text.Parsec.Prim as PP
 import           Text.Parsec.Text ()
+import           Text.Parser.Expression
 import           Text.Parser.Char
 import           Text.Parser.Combinators
 import           Text.Parser.LookAhead
@@ -51,7 +51,7 @@ puppetParser = someSpace >> statementList
 -- | Parse a puppet 'Expression'.
 expression :: Parser Expression
 expression = condExpression
-             <|> ParserT (buildExpressionParser expressionTable (unParser (token terminal)))
+             <|> buildExpressionParser expressionTable (token terminal)
              <?> "expression"
     where
         condExpression = do
@@ -70,7 +70,7 @@ expression = condExpression
             cases <- braces (cas `sepEndBy1` comma)
             return (ConditionalValue selectedExpression (V.fromList cases))
 
-newtype Parser a = ParserT { unParser :: PP.ParsecT T.Text () Identity a}
+newtype Parser a = ParserT (PP.ParsecT T.Text () Identity a)
                  deriving (Functor, Applicative, Alternative)
 
 deriving instance Monad Parser
@@ -80,8 +80,6 @@ deriving instance LookAheadParsing Parser
 
 getPosition :: Parser SourcePos
 getPosition = ParserT PP.getPosition
-
-type OP = PP.ParsecT T.Text () Identity
 
 instance TokenParsing Parser where
     someSpace = skipMany (simpleSpace <|> oneLineComment <|> multiLineComment)
@@ -251,7 +249,7 @@ genFunctionCall nonparens = do
     -- include foo::bar
     let argsc sep e = (fmap (Terminal . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
-        expressionF = ParserT (buildExpressionParser expressionTable (unParser (token terminalF)) <?> "function expression")
+        expressionF = buildExpressionParser expressionTable (token terminalF) <?> "function expression"
         withparens = parens (argsc sepEndBy expression)
         withoutparens = argsc sepEndBy1 expressionF
     args  <- withparens <|> if nonparens
@@ -298,43 +296,38 @@ terminal = terminalG (fmap Terminal (fmap UHFunctionCall (try hfunctionCall) <|>
 
 
 
-expressionTable :: [[Operator T.Text () Identity Expression]]
+expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
-                  , [ Prefix ( operator' "-"   >> return Negate           ) ]
-                  , [ Prefix ( operator' "!"   >> return Not              ) ]
-                  , [ Infix  ( operator' "."   >> return FunctionApplication ) AssocLeft ]
-                  , [ Infix  ( reserved' "in"  >> return Contains         ) AssocLeft ]
-                  , [ Infix  ( operator' "/"   >> return Division         ) AssocLeft
-                    , Infix  ( operator' "*"   >> return Multiplication   ) AssocLeft
+                  , [ Prefix ( operator "-"   >> return Negate           ) ]
+                  , [ Prefix ( operator "!"   >> return Not              ) ]
+                  , [ Infix  ( operator "."   >> return FunctionApplication ) AssocLeft ]
+                  , [ Infix  ( reserved "in"  >> return Contains         ) AssocLeft ]
+                  , [ Infix  ( operator "/"   >> return Division         ) AssocLeft
+                    , Infix  ( operator "*"   >> return Multiplication   ) AssocLeft
                     ]
-                  , [ Infix  ( operator' "+"   >> return Addition     ) AssocLeft
-                    , Infix  ( operator' "-"   >> return Substraction ) AssocLeft
+                  , [ Infix  ( operator "+"   >> return Addition     ) AssocLeft
+                    , Infix  ( operator "-"   >> return Substraction ) AssocLeft
                     ]
-                  , [ Infix  ( operator' "<<"  >> return LeftShift  ) AssocLeft
-                    , Infix  ( operator' ">>"  >> return RightShift ) AssocLeft
+                  , [ Infix  ( operator "<<"  >> return LeftShift  ) AssocLeft
+                    , Infix  ( operator ">>"  >> return RightShift ) AssocLeft
                     ]
-                  , [ Infix  ( operator' "=="  >> return Equal     ) AssocLeft
-                    , Infix  ( operator' "!="  >> return Different ) AssocLeft
+                  , [ Infix  ( operator "=="  >> return Equal     ) AssocLeft
+                    , Infix  ( operator "!="  >> return Different ) AssocLeft
                     ]
-                  , [ Infix  ( operator' "=~"  >> return RegexMatch    ) AssocLeft
-                    , Infix  ( operator' "!~"  >> return NotRegexMatch ) AssocLeft
+                  , [ Infix  ( operator "=~"  >> return RegexMatch    ) AssocLeft
+                    , Infix  ( operator "!~"  >> return NotRegexMatch ) AssocLeft
                     ]
-                  , [ Infix  ( operator' ">="  >> return MoreEqualThan ) AssocLeft
-                    , Infix  ( operator' "<="  >> return LessEqualThan ) AssocLeft
-                    , Infix  ( operator' ">"   >> return MoreThan      ) AssocLeft
-                    , Infix  ( operator' "<"   >> return LessThan      ) AssocLeft
+                  , [ Infix  ( operator ">="  >> return MoreEqualThan ) AssocLeft
+                    , Infix  ( operator "<="  >> return LessEqualThan ) AssocLeft
+                    , Infix  ( operator ">"   >> return MoreThan      ) AssocLeft
+                    , Infix  ( operator "<"   >> return LessThan      ) AssocLeft
                     ]
-                  , [ Infix  ( reserved' "and" >> return And ) AssocLeft
-                    , Infix  ( reserved' "or"  >> return Or  ) AssocLeft
+                  , [ Infix  ( reserved "and" >> return And ) AssocLeft
+                    , Infix  ( reserved "or"  >> return Or  ) AssocLeft
                     ]
                   ]
     where
-        checkLookup :: OP (Expression -> Expression)
-        checkLookup = flip Lookup <$> unParser (between (operator "[") (operator "]") expression)
-        operator' :: String -> OP ()
-        operator' = unParser . operator
-        reserved' :: String -> OP ()
-        reserved' = unParser . reserved
+        checkLookup = flip Lookup <$> between (operator "[") (operator "]") expression
 
 stringExpression :: Parser Expression
 stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reserved "undef" *> return (Terminal UUndef)) <|> fmap (Terminal . UBoolean) puppetBool <|> variable <|> fmap Terminal literalValue
@@ -493,14 +486,12 @@ assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
 
 searchExpression :: Parser SearchExpression
-searchExpression = ParserT (buildExpressionParser searchTable (unParser (token searchterm)))
+searchExpression = buildExpressionParser searchTable (token searchterm)
     where
-        searchTable :: [[Operator T.Text () Identity SearchExpression]]
-        searchTable = [ [ Infix ( reserved' "and"   >> return AndSearch ) AssocLeft
-                        , Infix ( reserved' "or"    >> return OrSearch  ) AssocLeft
+        searchTable :: [[Operator Parser SearchExpression]]
+        searchTable = [ [ Infix ( reserved "and"   >> return AndSearch ) AssocLeft
+                        , Infix ( reserved "or"    >> return OrSearch  ) AssocLeft
                         ] ]
-        reserved' :: String -> OP ()
-        reserved' = unParser . reserved
         searchterm = parens searchExpression <|> check
         check = do
             attrib <- parameterName
