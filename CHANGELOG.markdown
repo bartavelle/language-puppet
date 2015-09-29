@@ -1,3 +1,17 @@
+# v1.1.4.1 (next release)
+
+## New features
+
+## Bugs fixed
+* Fix parser for search expression (see #132)
+* Fix logger set up (see #136)
+* Fix some regsubst (see #119)
+
+## Changes
+* Add support for `garethr-docker` puppetlabs module
+* Add CI using travis
+* Drop support for ghc < 7.10 explicitly
+
 # v1.1.4 (2015/09/07)
 
 ## New features
