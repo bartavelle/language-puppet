@@ -9,7 +9,7 @@ import qualified Data.Vector                 as V
 import           Puppet.Parser
 import           Puppet.Parser.PrettyPrinter ()
 import           Puppet.Parser.Types
-import           Text.Parser.Combinators
+import           Text.Megaparsec
 
 testcases :: [(T.Text, Expression)]
 testcases =

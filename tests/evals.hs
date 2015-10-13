@@ -9,7 +9,7 @@ import Puppet.Interpreter.Resolve
 
 import System.Environment
 import Test.Hspec
-import Text.Parser.Combinators (eof)
+import Text.Megaparsec (eof)
 import Data.Foldable (forM_)
 
 pureTests :: [T.Text]

@@ -15,7 +15,6 @@ module Puppet.Parser (
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
-import qualified Data.HashSet as HS
 import qualified Data.Maybe.Strict as S
 import qualified Data.Foldable as F
 import           Data.Tuple.Strict hiding (fst,zip)
@@ -30,23 +29,48 @@ import           Puppet.Parser.Types
 import           Puppet.Utils
 
 import           Data.Scientific
-import           Text.Megaparsec.Error (ParseError)
-import           Text.Megaparsec.Pos (SourcePos)
-import qualified Text.Megaparsec.Char as PP
-import qualified Text.Megaparsec.Prim as PP
-import qualified Text.Megaparsec.Combinator as PP
-import           Text.Megaparsec.Text ()
-import           Text.Parser.Expression
-import           Text.Parser.Char
-import           Text.Parser.Combinators
-import           Text.Parser.LookAhead
-import           Text.Parser.Token hiding (stringLiteral')
-import           Text.Parser.Token.Highlight
-import           Text.Parser.Token.Style (buildSomeSpaceParser, CommentStyle(..))
+
+import           Text.Megaparsec hiding (token)
+import           Text.Megaparsec.Expr
+import           Text.Megaparsec.Text
+import qualified Text.Megaparsec.Lexer as L
 
 -- | Run a puppet parser against some 'T.Text' input.
 runPParser :: Parser a -> String -> T.Text -> Either ParseError a
-runPParser (ParserT p) = PP.parse p
+runPParser = parse
+
+someSpace :: Parser ()
+someSpace = L.space (skipSome spaceChar) (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
+
+token :: Parser a -> Parser a
+token = L.lexeme someSpace
+
+integerOrDouble :: Parser (Either Integer Double)
+integerOrDouble = fmap Left (L.signed someSpace L.integer) <|> fmap Right (L.signed someSpace L.float)
+
+symbol :: String -> Parser ()
+symbol = void . try . L.symbol someSpace
+
+symbolic :: Char -> Parser ()
+symbolic = symbol . pure
+
+braces :: Parser a -> Parser a
+braces = between (symbol "{") (symbol "}")
+
+parens :: Parser a -> Parser a
+parens = between (symbol "(") (symbol ")")
+
+brackets :: Parser a -> Parser a
+brackets = between (symbol "[") (symbol "]")
+
+comma :: Parser ()
+comma = symbol ","
+
+sepComma :: Parser a -> Parser [a]
+sepComma p = p `sepBy` comma <* optional comma
+
+sepComma1 :: Parser a -> Parser [a]
+sepComma1 p = p `sepBy1` comma <* optional comma
 
 -- | Parse a collection of puppet 'Statement'.
 puppetParser :: Parser (V.Vector Statement)
@@ -55,7 +79,7 @@ puppetParser = optional someSpace >> statementList
 -- | Parse a puppet 'Expression'.
 expression :: Parser Expression
 expression = condExpression
-             <|> buildExpressionParser expressionTable (token terminal)
+             <|> makeExprParser (token terminal) expressionTable
              <?> "expression"
     where
         condExpression = do
@@ -71,40 +95,8 @@ expression = condExpression
                 void $ symbol "=>"
                 e <- expression
                 return (c :!: e)
-            cases <- braces (cas `sepEndBy1` comma)
+            cases <- braces (sepComma1 cas)
             return (ConditionalValue selectedExpression (V.fromList cases))
-
-newtype Parser a = ParserT { unParser :: PP.ParsecT T.Text Identity a }
-                 deriving (Functor, Applicative, Alternative)
-
-deriving instance Monad Parser
-
-instance CharParsing Parser where
-    satisfy   = ParserT . PP.satisfy
-    char      = ParserT . PP.char
-    notChar c = ParserT $ PP.satisfy (/= c)
-    anyChar   = ParserT PP.anyChar
-    string    = ParserT . PP.string
-
-instance LookAheadParsing Parser where
-    lookAhead = ParserT . PP.lookAhead . unParser
-
-instance Parsing Parser where
-    try               = ParserT . PP.try . unParser
-    (ParserT p) <?> f = ParserT (p PP.<?> f)
-    skipMany          = ParserT . PP.skipMany . unParser
-    skipSome          = PP.skipSome
-    unexpected        = ParserT . PP.unexpected
-    eof               = ParserT PP.eof
-    notFollowedBy     = ParserT . PP.notFollowedBy . unParser
-
-getPosition :: Parser SourcePos
-getPosition = ParserT PP.getPosition
-
-instance TokenParsing Parser where
-    someSpace = buildSomeSpaceParser simpleSpace (CommentStyle "/*" "*/" "#" False)
-      where
-        simpleSpace = skipSome (satisfy isSpace)
 
 variable :: Parser Expression
 variable = Terminal . UVariableReference <$> variableReference
@@ -116,8 +108,8 @@ stringLiteral' = char '\'' *> interior <* symbolic '\''
         escape '\'' = "'"
         escape x = ['\\',x]
 
-identifierStyle :: IdentifierStyle Parser
-identifierStyle = IdentifierStyle "Identifier" (satisfy acceptable) (satisfy acceptable) HS.empty Identifier ReservedIdentifier
+identifier :: Parser String
+identifier = some (satisfy acceptable)
     where
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_')
 
@@ -128,10 +120,10 @@ identl fstl nxtl = do
         return $ T.pack $ f : nxt
 
 operator :: String -> Parser ()
-operator = void . highlight Operator . try . symbol
+operator = void . try . symbol
 
 reserved :: String -> Parser ()
-reserved = reserve identifierStyle
+reserved = symbol
 
 variableName :: Parser T.Text
 variableName = do
@@ -224,10 +216,10 @@ regexp = do
         <* symbolic '/'
 
 puppetArray :: Parser UValue
-puppetArray = fmap (UArray . V.fromList) (brackets (expression `sepEndBy` comma)) <?> "Array"
+puppetArray = fmap (UArray . V.fromList) (brackets (sepComma expression)) <?> "Array"
 
 puppetHash :: Parser UValue
-puppetHash = fmap (UHash . V.fromList) (braces (hashPart `sepEndBy` comma)) <?> "Hash"
+puppetHash = fmap (UHash . V.fromList) (braces (sepComma hashPart)) <?> "Hash"
     where
         hashPart = (:!:) <$> (expression <* operator "=>")
                          <*> expression
@@ -264,9 +256,9 @@ genFunctionCall nonparens = do
     -- include foo::bar
     let argsc sep e = (fmap (Terminal . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
-        expressionF = buildExpressionParser expressionTable (token terminalF) <?> "function expression"
-        withparens = parens (argsc sepEndBy expression)
-        withoutparens = argsc sepEndBy1 expressionF
+        expressionF = makeExprParser (token terminalF) expressionTable <?> "function expression"
+        withparens = parens (argsc sepBy expression <* optional expression)
+        withoutparens = argsc sepBy1 expressionF <* optional expressionF
     args  <- withparens <|> if nonparens
                                 then withoutparens <?> "Function arguments B"
                                 else fail "Function arguments C"
@@ -315,30 +307,30 @@ expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
                   , [ Prefix ( operator "-"   >> return Negate           ) ]
                   , [ Prefix ( operator "!"   >> return Not              ) ]
-                  , [ Infix  ( operator "."   >> return FunctionApplication ) AssocLeft ]
-                  , [ Infix  ( reserved "in"  >> return Contains         ) AssocLeft ]
-                  , [ Infix  ( operator "/"   >> return Division         ) AssocLeft
-                    , Infix  ( operator "*"   >> return Multiplication   ) AssocLeft
+                  , [ InfixL  ( operator "."   >> return FunctionApplication ) ]
+                  , [ InfixL  ( reserved "in"  >> return Contains         ) ]
+                  , [ InfixL  ( operator "/"   >> return Division         )
+                    , InfixL  ( operator "*"   >> return Multiplication   )
                     ]
-                  , [ Infix  ( operator "+"   >> return Addition     ) AssocLeft
-                    , Infix  ( operator "-"   >> return Substraction ) AssocLeft
+                  , [ InfixL  ( operator "+"   >> return Addition     )
+                    , InfixL  ( operator "-"   >> return Substraction )
                     ]
-                  , [ Infix  ( operator "<<"  >> return LeftShift  ) AssocLeft
-                    , Infix  ( operator ">>"  >> return RightShift ) AssocLeft
+                  , [ InfixL  ( operator "<<"  >> return LeftShift  )
+                    , InfixL  ( operator ">>"  >> return RightShift )
                     ]
-                  , [ Infix  ( operator "=="  >> return Equal     ) AssocLeft
-                    , Infix  ( operator "!="  >> return Different ) AssocLeft
+                  , [ InfixL  ( operator "=="  >> return Equal     )
+                    , InfixL  ( operator "!="  >> return Different )
                     ]
-                  , [ Infix  ( operator "=~"  >> return RegexMatch    ) AssocLeft
-                    , Infix  ( operator "!~"  >> return NotRegexMatch ) AssocLeft
+                  , [ InfixL  ( operator "=~"  >> return RegexMatch    )
+                    , InfixL  ( operator "!~"  >> return NotRegexMatch )
                     ]
-                  , [ Infix  ( operator ">="  >> return MoreEqualThan ) AssocLeft
-                    , Infix  ( operator "<="  >> return LessEqualThan ) AssocLeft
-                    , Infix  ( operator ">"   >> return MoreThan      ) AssocLeft
-                    , Infix  ( operator "<"   >> return LessThan      ) AssocLeft
+                  , [ InfixL  ( operator ">="  >> return MoreEqualThan )
+                    , InfixL  ( operator "<="  >> return LessEqualThan )
+                    , InfixL  ( operator ">"   >> return MoreThan      )
+                    , InfixL  ( operator "<"   >> return LessThan      )
                     ]
-                  , [ Infix  ( reserved "and" >> return And ) AssocLeft
-                    , Infix  ( reserved "or"  >> return Or  ) AssocLeft
+                  , [ InfixL  ( reserved "and" >> return And )
+                    , InfixL  ( reserved "or"  >> return Or  )
                     ]
                   ]
     where
@@ -372,7 +364,7 @@ nodeStmt = do
     return [Nd n st inheritance (p :!: pe) | n <- ns]
 
 puppetClassParameters :: Parser (V.Vector (Pair T.Text (S.Maybe Expression)))
-puppetClassParameters = V.fromList <$> parens (var `sepEndBy` comma)
+puppetClassParameters = V.fromList <$> parens (sepComma var)
     where
         toStrictMaybe (Just x) = S.Just x
         toStrictMaybe Nothing  = S.Nothing
@@ -478,14 +470,15 @@ resourceGroup' = do
     let resourceName = token stringExpression
         resourceDeclaration = do
             p <- getPosition
-            names <- brackets (resourceName `sepEndBy1` comma) <|> fmap return resourceName
+            names <- brackets (sepComma1 resourceName) <|> fmap return resourceName
             void $ symbolic ':'
-            vals  <- fmap V.fromList (assignment `sepEndBy` comma)
+            vals  <- fmap V.fromList (sepComma assignment)
             pe <- getPosition
             return [(n, vals, p :!: pe) | n <- names ]
         groupDeclaration = (,) <$> many (char '@') <*> typeName <* symbolic '{'
     (virts, rtype) <- try groupDeclaration -- for matching reasons, this gets a try until the opening brace
-    x <- resourceDeclaration `sepEndBy1` (symbolic ';' <|> comma)
+    let sep = symbolic ';' <|> comma
+    x <- resourceDeclaration `sepBy1` sep <* optional sep
     void $ symbolic '}'
     virtuality <- case virts of
                       ""   -> return Normal
@@ -501,11 +494,11 @@ assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
 
 searchExpression :: Parser SearchExpression
-searchExpression = buildExpressionParser searchTable (token searchterm)
+searchExpression = makeExprParser (token searchterm) searchTable
     where
         searchTable :: [[Operator Parser SearchExpression]]
-        searchTable = [ [ Infix ( reserved "and"   >> return AndSearch ) AssocLeft
-                        , Infix ( reserved "or"    >> return OrSearch  ) AssocLeft
+        searchTable = [ [ InfixL ( reserved "and"   >> return AndSearch )
+                        , InfixL ( reserved "or"    >> return OrSearch  )
                         ] ]
         searchterm = parens searchExpression <|> check
         check = do
@@ -523,7 +516,7 @@ resourceCollection p restype = do
     void (char '|')
     void (count (length openchev) (char '>'))
     someSpace
-    overrides <- option [] $ braces (assignment `sepEndBy` comma)
+    overrides <- option [] $ braces (sepComma assignment)
     let collectortype = if length openchev == 1
                             then Collector
                             else ExportedCollector
@@ -578,7 +571,7 @@ resourceDefaults :: Parser DefaultDec
 resourceDefaults = do
     p <- getPosition
     rnd  <- resourceNameRef
-    let assignmentList = V.fromList <$> assignment `sepEndBy1` comma
+    let assignmentList = V.fromList <$> sepComma1 assignment
     asl <- braces assignmentList
     pe <- getPosition
     return (DefaultDec rnd asl (p :!: pe))
@@ -588,7 +581,7 @@ resourceOverride = do
     p <- getPosition
     restype  <- resourceNameRef
     names <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
-    assignments <- V.fromList <$> braces (assignment `sepEndBy` comma)
+    assignments <- V.fromList <$> braces (sepComma assignment)
     pe <- getPosition
     return [ ResOver restype n assignments (p :!: pe) | n <- names ]
 
@@ -659,7 +652,7 @@ parseHFunction =   (reserved "each"   *> pure HFEach)
 parseHParams :: Parser BlockParameters
 parseHParams = between (symbolic '|') (symbolic '|') hp
     where
-        acceptablePart = T.pack <$> ident identifierStyle
+        acceptablePart = T.pack <$> identifier
         hp = do
             vars <- (char '$' *> acceptablePart) `sepBy1` comma
             case vars of
