@@ -41,6 +41,11 @@ import           System.Log.Logger
 vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
 vmapM f = mapM f . toList
 
+fridentifier :: T.Text -> T.Text -> RIdentifier
+fridentifier t n = RIdentifier rt n
+    where
+        rt = fromMaybe t (T.stripPrefix "::" t)
+
 getModulename :: RIdentifier -> T.Text
 getModulename (RIdentifier t n) =
     let gm x = case T.splitOn "::" x of
@@ -242,7 +247,7 @@ makeEdgeMap ct = do
             let checkExists r msg = do
                     let modulename = getModulename r
                     ign <- singleton (IsIgnoredModule modulename)
-                    unless ((defs & has (ix r)) || ign) (throwPosError msg)
+                    unless (has (ix r) defs || ign) (throwPosError msg)
                 errmsg = "Unknown resource" <+> pretty ri <+> "used in the following relationships:" <+> vcat (map pretty lifs)
             checkExists ri errmsg
             let genlnk :: LinkInformation -> InterpreterMonad RIdentifier
@@ -377,7 +382,7 @@ evaluateStatement (Dependency (Dep (t1 :!: n1) (t2 :!: n2) lt p)) = do
     curPos .= p
     rn1 <- map (fixResourceName t1) <$> resolveExpressionStrings n1
     rn2 <- map (fixResourceName t2) <$> resolveExpressionStrings n2
-    extraRelations <>= [ LinkInformation (RIdentifier t1 an1) (RIdentifier t2 an2) lt p | an1 <- rn1, an2 <- rn2 ]
+    extraRelations <>= [ LinkInformation (fridentifier t1 an1) (fridentifier t2 an2) lt p | an1 <- rn1, an2 <- rn2 ]
     return []
 evaluateStatement (ResourceDeclaration (ResDec rt ern eargs virt p)) = do
     curPos .= p
@@ -424,7 +429,7 @@ evaluateStatement (ResourceOverride (ResOver rt urn eargs p)) = do
     rn <- resolveExpressionString urn
     scp <- getScopeName
     curoverrides <- use (scopes . ix scp . scopeOverrides)
-    let rident = RIdentifier rt rn
+    let rident = fridentifier rt rn
     -- check that we didn't already override those values
     withAssignements <- case curoverrides ^. at rident of
                             Just (ResRefOverride _ prevass prevpos) -> do
@@ -667,7 +672,7 @@ loadClass rclassname loadedfrom params cincludetype = do
 addRelationship :: LinkType -> PValue -> Resource -> InterpreterMonad Resource
 addRelationship lt (PResourceReference dt dn) r = return (r & rrelations %~ insertLt)
     where
-        insertLt = iinsertWith (<>) (RIdentifier dt dn) (HS.singleton lt)
+        insertLt = iinsertWith (<>) (fridentifier dt dn) (HS.singleton lt)
 addRelationship lt (PArray vals) r = foldlM (flip (addRelationship lt)) r vals
 addRelationship _ PUndef r = return r
 addRelationship _ notrr _ = throwPosError ("Expected a resource reference, not:" <+> pretty notrr)
@@ -721,16 +726,16 @@ registerResource rt rn arg vrt p = do
         allsegs x = x : T.splitOn "::" x
         (!classtags, !defaultLink) = getClassTags cnt
         getClassTags (ContClass cn      ) = (allsegs cn,RIdentifier "class" cn)
-        getClassTags (ContDefine dt dn _) = (allsegs dt,RIdentifier dt dn)
+        getClassTags (ContDefine dt dn _) = (allsegs dt,fridentifier dt dn)
         getClassTags (ContRoot          ) = ([],RIdentifier "class" "::")
         getClassTags (ContImported _    ) = ([],RIdentifier "class" "::")
         getClassTags (ContImport _ _    ) = ([],RIdentifier "class" "::")
         defaultRelation = HM.singleton defaultLink (HS.singleton RRequire)
     allScope <- use curScope
     fqdn <- singleton GetNodeName
-    let baseresource = Resource (RIdentifier rt rn) (HS.singleton rn) mempty defaultRelation allScope vrt defaulttags p fqdn
+    let baseresource = Resource (fridentifier rt rn) (HS.singleton rn) mempty defaultRelation allScope vrt defaulttags p fqdn
     r <- ifoldlM (addAttribute CantOverride) baseresource arg
-    let resid = RIdentifier rt rn
+    let resid = fridentifier rt rn
     case rt of
         "class" -> {-# SCC "rrClass" #-} do
             definedResources . at resid ?= r
@@ -851,7 +856,7 @@ ensureResource _ = throwPosError "ensureResource(): expects 2 or 3 arguments."
 
 ensureResource' :: T.Text -> HM.HashMap T.Text PValue -> T.Text -> InterpreterMonad [Resource]
 ensureResource' tp params ttl = do
-    def <- has (ix (RIdentifier tp ttl)) <$> use definedResources
+    def <- has (ix (fridentifier tp ttl)) <$> use definedResources
     if def
        then return []
        else use curPos >>= registerResource tp ttl params Normal
