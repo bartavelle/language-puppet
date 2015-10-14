@@ -775,6 +775,13 @@ mainFunctionCall "err"     a = logWithModifier ERROR        dullred     a
 mainFunctionCall "info"    a = logWithModifier INFO         green       a
 mainFunctionCall "notice"  a = logWithModifier NOTICE       white       a
 mainFunctionCall "warning" a = logWithModifier WARNING      dullyellow  a
+mainFunctionCall "contain" includes = concat <$> mapM doContain includes
+    where doContain e = do
+            classname <- resolvePValueString e
+            use (loadedClasses . at classname) >>= \case
+                Nothing -> loadClass classname S.Nothing mempty IncludeStandard
+                Just (IncludeStandard :!: pp) -> throwPosError ("Class " <+> ttext classname <+> " was already included using the 'include' keyword at " <+> showPPos pp <+> ". This is not allowed, you should only use require")
+                Just _ -> return [] -- TODO check that this happened after class declaration
 mainFunctionCall "include" includes = concat <$> mapM doInclude includes
     where doInclude e = do
             classname <- resolvePValueString e
@@ -801,10 +808,6 @@ mainFunctionCall "tag" args = do
     return []
 mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ttext <$> resolvePValueString x >>= throwPosError
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
-mainFunctionCall "contain" [PString x] = do
-    logWriter WARNING ("Contain" <+> squotes (ttext x) <> "; the function is not yet implemented")
-    return []
-mainFunctionCall "contain" _ = throwPosError "contain(): his function takes a single argument"
 mainFunctionCall "hiera_include" [x] = do
     ndname <- resolvePValueString x
     classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname ArrayMerge
