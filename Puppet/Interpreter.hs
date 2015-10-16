@@ -42,7 +42,7 @@ vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
 vmapM f = mapM f . toList
 
 fridentifier :: T.Text -> T.Text -> RIdentifier
-fridentifier t n = RIdentifier rt n
+fridentifier t = RIdentifier rt
     where
         rt = fromMaybe t (T.stripPrefix "::" t)
 
@@ -780,7 +780,6 @@ mainFunctionCall "contain" includes = concat <$> mapM doContain includes
             classname <- resolvePValueString e
             use (loadedClasses . at classname) >>= \case
                 Nothing -> loadClass classname S.Nothing mempty IncludeStandard
-                Just (IncludeStandard :!: pp) -> throwPosError ("Class " <+> ttext classname <+> " was already included using the 'include' keyword at " <+> showPPos pp <+> ". This is not allowed, you should only use require")
                 Just _ -> return [] -- TODO check that this happened after class declaration
 mainFunctionCall "include" includes = concat <$> mapM doInclude includes
     where doInclude e = do
