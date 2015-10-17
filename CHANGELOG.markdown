@@ -8,6 +8,7 @@
 * Fix some regsubst (see #119)
 
 ## Changes
+* All resource names are normalized. The leading `::` is ignored (see #140)
 * Add support for `garethr-docker` puppetlabs module
 * Add CI using travis
 * Drop support for ghc < 7.10 explicitly
