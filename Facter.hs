@@ -167,29 +167,28 @@ factProcessor = do
         modelnames = mapMaybe (fmap (dropWhile (`elem` ("\t :" :: String))) . stripPrefix "model name") (lines cpuinfo)
     return $ ("processorcount", show (length cpuinfos)) : cpuinfos
 
-puppetDBFacts :: T.Text -> PuppetDBAPI IO -> IO (Container PValue)
-puppetDBFacts ndename pdbapi =
-    runEitherT (getFacts pdbapi (QEqual FCertname ndename)) >>= \case
+puppetDBFacts :: Nodename -> PuppetDBAPI IO -> IO (Container PValue)
+puppetDBFacts node pdbapi =
+    runEitherT (getFacts pdbapi (QEqual FCertname node)) >>= \case
         Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
         _ -> do
             rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv, factProcessor])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
-                (hostname, ddomainname) = T.break (== '.') ndename
+                (hostname, ddomainname) = T.break (== '.') node
                 domainname = if T.null ddomainname
                                  then ""
                                  else T.tail ddomainname
-                nfacts = genFacts [ ("fqdn", ndename)
+                nfacts = genFacts [ ("fqdn", node)
                                   , ("hostname", hostname)
                                   , ("domain", domainname)
                                   , ("rootrsa", "xxx")
                                   , ("operatingsystem", "Ubuntu")
                                   , ("puppetversion", "language-puppet")
                                   , ("virtual", "xenu")
-                                  , ("clientcert", ndename)
+                                  , ("clientcert", node)
                                   , ("is_virtual", "true")
                                   , ("concat_basedir", "/var/lib/puppet/concat")
                                   ]
                 allfacts = nfacts `HM.union` ofacts
                 genFacts = HM.fromList
             return (allfacts & traverse %~ PString)
-
