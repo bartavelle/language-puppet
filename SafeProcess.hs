@@ -25,20 +25,17 @@ safeCreateProcess :: String -> [String] -> StdStream -> StdStream -> StdStream
                        , ProcessHandle
                        ) -> IO a )
                   -> IO a
-safeCreateProcess prog args streamIn streamOut streamErr fun = bracket
-    ( do
-        h <- createProcess (proc prog args)
-                 { std_in  = streamIn
-                 , std_out = streamOut
-                 , std_err = streamErr
-                 , create_group = True }
-        return h
+safeCreateProcess prog args streamIn streamOut streamErr = bracket
+    ( createProcess (proc prog args) { std_in  = streamIn
+                                     , std_out = streamOut
+                                     , std_err = streamErr
+                                     , create_group = True }
     )
 -- "interruptProcessGroupOf" is in the new System.Process. Since some
 -- programs return funny exit codes i implemented a "terminateProcessGroupOf".
 --    (\(_, _, _, ph) -> interruptProcessGroupOf ph >> waitForProcess ph)
     (\(_, _, _, ph) -> terminateProcessGroup ph >> waitForProcess ph)
-    fun
+
 {-# NOINLINE safeCreateProcess #-}
 
 safeReadProcess :: String -> [String] -> TL.Text -> IO (Either String T.Text)
@@ -63,12 +60,8 @@ safeReadProcess prog args str =
 
 terminateProcessGroup :: ProcessHandle -> IO ()
 terminateProcessGroup ph = do
-#if MIN_VERSION_base(4,7,0)
     let (ProcessHandle pmvar _) = ph
-#else
-    let (ProcessHandle pmvar) = ph
-#endif
     readMVar pmvar >>= \case
-        OpenHandle pid -> do  -- pid is a POSIX pid
-            signalProcessGroup 15 pid
-        _ -> return ()
+        -- pid is a POSIX pid
+        OpenHandle pid -> signalProcessGroup 15 pid
+        _              -> return ()
