@@ -35,7 +35,6 @@ safeCreateProcess prog args streamIn streamOut streamErr = bracket
 -- programs return funny exit codes i implemented a "terminateProcessGroupOf".
 --    (\(_, _, _, ph) -> interruptProcessGroupOf ph >> waitForProcess ph)
     (\(_, _, _, ph) -> terminateProcessGroup ph >> waitForProcess ph)
-
 {-# NOINLINE safeCreateProcess #-}
 
 safeReadProcess :: String -> [String] -> TL.Text -> IO (Either String T.Text)
