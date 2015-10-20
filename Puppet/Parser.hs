@@ -30,7 +30,7 @@ import           Puppet.Utils
 
 import           Data.Scientific
 
-import           Text.Megaparsec hiding (token)
+import           Text.Megaparsec hiding (token, sepEndBy, sepEndBy1)
 import           Text.Megaparsec.Expr
 import           Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
@@ -46,7 +46,11 @@ token :: Parser a -> Parser a
 token = L.lexeme someSpace
 
 integerOrDouble :: Parser (Either Integer Double)
-integerOrDouble = fmap Left (L.signed someSpace L.integer) <|> fmap Right (L.signed someSpace L.float)
+integerOrDouble = fmap Right (try (L.signed someSpace L.float)) <|> fmap Left (hex <|> dec)
+    where
+        dec = L.signed someSpace L.integer
+        hex = try (string "0x") *> L.hexadecimal
+
 
 symbol :: String -> Parser ()
 symbol = void . try . L.symbol someSpace
@@ -66,11 +70,22 @@ brackets = between (symbol "[") (symbol "]")
 comma :: Parser ()
 comma = symbol ","
 
+sepEndBy :: Parser a -> Parser b -> Parser [a]
+sepEndBy a b = sepEndBy1 a b <|> pure []
+
+sepEndBy1 :: Parser a -> Parser b -> Parser [a]
+sepEndBy1 p sep = do
+    x <- p
+    ms <- optional sep
+    case ms of
+        Nothing -> return [x]
+        Just _ -> (x:) <$> sepEndBy p sep
+
 sepComma :: Parser a -> Parser [a]
-sepComma p = p `sepBy` comma <* optional comma
+sepComma p = p `sepEndBy` comma
 
 sepComma1 :: Parser a -> Parser [a]
-sepComma1 p = p `sepBy1` comma <* optional comma
+sepComma1 p = p `sepEndBy1` comma
 
 -- | Parse a collection of puppet 'Statement'.
 puppetParser :: Parser (V.Vector Statement)
@@ -109,9 +124,10 @@ stringLiteral' = char '\'' *> interior <* symbolic '\''
         escape x = ['\\',x]
 
 identifier :: Parser String
-identifier = some (satisfy acceptable)
-    where
-        acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_')
+identifier = some (satisfy identifierPart)
+
+identifierPart :: Char -> Bool
+identifierPart x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_')
 
 identl :: Parser Char -> Parser Char -> Parser T.Text
 identl fstl nxtl = do
@@ -123,7 +139,10 @@ operator :: String -> Parser ()
 operator = void . try . symbol
 
 reserved :: String -> Parser ()
-reserved = symbol
+reserved s = try $ do
+    void (string s)
+    notFollowedBy (satisfy identifierPart)
+    someSpace
 
 variableName :: Parser T.Text
 variableName = do
@@ -257,8 +276,8 @@ genFunctionCall nonparens = do
     let argsc sep e = (fmap (Terminal . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
         expressionF = makeExprParser (token terminalF) expressionTable <?> "function expression"
-        withparens = parens (argsc sepBy expression <* optional expression)
-        withoutparens = argsc sepBy1 expressionF <* optional expressionF
+        withparens = parens (argsc sepEndBy expression)
+        withoutparens = argsc sepEndBy1 expressionF
     args  <- withparens <|> if nonparens
                                 then withoutparens <?> "Function arguments B"
                                 else fail "Function arguments C"
@@ -300,8 +319,6 @@ termRegexp = regexp >>= compileRegexp
 
 terminal :: Parser Expression
 terminal = terminalG (fmap Terminal (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
-
-
 
 expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
@@ -478,7 +495,7 @@ resourceGroup' = do
         groupDeclaration = (,) <$> many (char '@') <*> typeName <* symbolic '{'
     (virts, rtype) <- try groupDeclaration -- for matching reasons, this gets a try until the opening brace
     let sep = symbolic ';' <|> comma
-    x <- resourceDeclaration `sepBy1` sep <* optional sep
+    x <- resourceDeclaration `sepEndBy1` sep
     void $ symbolic '}'
     virtuality <- case virts of
                       ""   -> return Normal
