@@ -30,7 +30,7 @@ import           Puppet.Utils
 
 import           Data.Scientific
 
-import           Text.Megaparsec hiding (token, sepEndBy, sepEndBy1)
+import           Text.Megaparsec hiding (token)
 import           Text.Megaparsec.Expr
 import           Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
@@ -69,17 +69,6 @@ brackets = between (symbol "[") (symbol "]")
 
 comma :: Parser ()
 comma = symbol ","
-
-sepEndBy :: Parser a -> Parser b -> Parser [a]
-sepEndBy a b = sepEndBy1 a b <|> pure []
-
-sepEndBy1 :: Parser a -> Parser b -> Parser [a]
-sepEndBy1 p sep = do
-    x <- p
-    ms <- optional sep
-    case ms of
-        Nothing -> return [x]
-        Just _ -> (x:) <$> sepEndBy p sep
 
 sepComma :: Parser a -> Parser [a]
 sepComma p = p `sepEndBy` comma
