@@ -177,11 +177,7 @@ parameterName :: Parser T.Text
 parameterName = moduleName
 
 variableReference :: Parser T.Text
-variableReference = do
-    void (char '$')
-    v <- variableName
-    when (v == "string") (fail "The special variable $string must not be used")
-    return v
+variableReference = char '$' *> variableName
 
 interpolableString :: Parser (V.Vector Expression)
 interpolableString = V.fromList <$> between (char '"') (symbolic '"')
@@ -471,8 +467,8 @@ parseRelationships p = do
         Just o' -> OperatorChain g o' <$> parseRelationships p
         Nothing -> pure (EndOfChain g)
 
-resourceGroup' :: Parser [ResDec]
-resourceGroup' = do
+resourceGroup :: Parser [ResDec]
+resourceGroup = do
     let resourceName = token stringExpression
         resourceDeclaration = do
             p <- getPosition
@@ -612,7 +608,7 @@ chainableStuff = do
                     pe <- getPosition
                     pure (ChainResRefr restype resnames (p :!: pe))
                 _ -> ChainResColl <$> resourceCollection p restype
-    chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resourceGroup'
+    chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resourceGroup
     let relations = do
             (g1, g2, lt) <- zipChain chain
             (rt1, rn1, _   :!: pe1) <- concatMap extractResRef g1

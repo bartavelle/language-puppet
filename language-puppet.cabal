@@ -102,7 +102,7 @@ library
                         , memory               >= 0.7
                         , mtl                  >= 2.2     && < 2.3
                         , operational          >= 0.2.3   && < 0.3
-                        , megaparsec           >= 4.1.1
+                        , megaparsec           == 4.1.*
                         , parsec               == 3.1.*
                         , parsers              >= 0.11    && < 0.13
                         , pcre-utils           >= 0.1.7   && < 0.2
