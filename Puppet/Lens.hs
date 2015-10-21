@@ -12,7 +12,6 @@ module Puppet.Lens
  , _PUndef
  , _PArray
  -- * Parsing prism
- , _PParse
  -- * Lenses and Prisms for 'Statement's
  , _ResourceDeclaration
  , _DefaultDeclaration
@@ -72,20 +71,16 @@ module Puppet.Lens
 
 import Control.Lens
 
-import Puppet.PP (displayNocolor)
 import Puppet.Parser.Types
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.Pure
 import Puppet.Interpreter.Resolve
-import Puppet.Parser
-import Puppet.Parser.PrettyPrinter (ppStatements)
 
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Maybe.Strict as S
 import Data.Tuple.Strict hiding (uncurry)
-import Text.Megaparsec (eof)
 import Control.Exception (SomeException, toException, fromException)
 
 -- Prisms
@@ -210,14 +205,6 @@ _PResolveValue = prism toU toP
         toU (PResourceReference t n) = UResourceReference t (Terminal (UString n))
         toU (PArray r) = UArray (fmap (Terminal . toU) r)
         toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (Terminal (UString k) :!: Terminal (toU v))) $ HM.toList h)
-
-_PParse :: Prism' T.Text (V.Vector Statement)
-_PParse = prism dspl prs
-    where
-        prs i = case runPParser (puppetParser <* eof) "dummy" i of
-                Left _  -> Left i
-                Right x -> Right x
-        dspl = T.pack . displayNocolor . ppStatements
 
 -- | Extracts the statements from 'ClassDeclaration', 'DefineDeclaration',
 -- 'Node' and the spurious statements of 'TopContainer'.

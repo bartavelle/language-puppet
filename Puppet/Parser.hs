@@ -1,8 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-| Parse puppet source code from text. -}
 module Puppet.Parser (
   -- * Runner
@@ -36,8 +32,8 @@ import           Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 
 -- | Run a puppet parser against some 'T.Text' input.
-runPParser :: Parser a -> String -> T.Text -> Either ParseError a
-runPParser = parse
+runPParser :: String -> T.Text -> Either ParseError (V.Vector Statement)
+runPParser = parse puppetParser
 
 someSpace :: Parser ()
 someSpace = L.space (skipSome spaceChar) (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")

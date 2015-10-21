@@ -30,7 +30,7 @@ testcases =
 
 main :: IO ()
 main = do
-    let testres = map (first (runPParser (expression <* eof) "tests")) testcases
+    let testres = map (first (parse (expression <* eof) "tests")) testcases
         isFailure (Left x, _) = Just (show x)
         isFailure (Right x, e) = if x == e
                                      then Nothing
