@@ -7,6 +7,7 @@ import Puppet.Parser
 import System.Environment
 import Puppet.Parser.PrettyPrinter
 import Text.PrettyPrint.ANSI.Leijen
+import Text.Megaparsec (parse)
 import System.Posix.Terminal
 import System.Posix.Types
 import System.IO
@@ -24,8 +25,8 @@ allchecks = do
 
 -- returns errors
 testparser :: FilePath -> IO (String, Bool)
-testparser fp = do
-    fmap (runPParser puppetParser fp) (T.readFile fp) >>= \case
+testparser fp =
+    fmap (parse puppetParser fp) (T.readFile fp) >>= \case
         Right _ -> return ("PASS", True)
         Left rr -> return (show rr, False)
 
@@ -33,7 +34,7 @@ check :: String -> IO ()
 check fname = do
     putStr fname
     putStr ": "
-    res <- fmap (runPParser puppetParser fname) (T.readFile fname)
+    res <- fmap (parse puppetParser fname) (T.readFile fname)
     is <- queryTerminal (Fd 1)
     let rfunc = if is
                     then renderPretty 0.2 200

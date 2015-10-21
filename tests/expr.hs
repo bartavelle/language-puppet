@@ -9,7 +9,7 @@ import qualified Data.Vector                 as V
 import           Puppet.Parser
 import           Puppet.Parser.PrettyPrinter ()
 import           Puppet.Parser.Types
-import           Text.Parser.Combinators
+import           Text.Megaparsec
 
 testcases :: [(T.Text, Expression)]
 testcases =
@@ -30,7 +30,7 @@ testcases =
 
 main :: IO ()
 main = do
-    let testres = map (first (runPParser (expression <* eof) "tests")) testcases
+    let testres = map (first (parse (expression <* eof) "tests")) testcases
         isFailure (Left x, _) = Just (show x)
         isFailure (Right x, e) = if x == e
                                      then Nothing

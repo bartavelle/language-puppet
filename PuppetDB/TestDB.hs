@@ -25,7 +25,7 @@ import           Data.Monoid
 import qualified Data.Text                as T
 import qualified Data.Vector              as V
 import           Data.Yaml
-import           Text.Parsec.Pos
+import           Text.Megaparsec.Pos
 
 import           Puppet.Interpreter.Types
 import           Puppet.Lens

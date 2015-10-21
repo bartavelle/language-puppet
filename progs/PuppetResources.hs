@@ -28,7 +28,7 @@ import           System.Exit                      (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob             as G
 import           System.IO
 import qualified System.Log.Logger                as LOG
-import qualified Text.Parsec                      as P
+import qualified Text.Megaparsec                  as P
 import           Text.Regex.PCRE.String
 
 import           Facter
@@ -188,7 +188,7 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
       unifyFacts defaults override c = override `HM.union` c `HM.union` defaults
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
-parseFile = fmap . runPParser puppetParser <*> T.readFile
+parseFile = fmap . runPParser <*> T.readFile
 
 printContent :: T.Text -> FinalCatalog -> IO ()
 printContent filename catalog =

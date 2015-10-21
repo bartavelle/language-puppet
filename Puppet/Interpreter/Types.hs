@@ -139,7 +139,7 @@ import           GHC.Stack
 import qualified Scripting.Lua               as Lua
 import           Servant.Common.Text
 import qualified System.Log.Logger           as LOG
-import           Text.Parsec.Pos
+import           Text.Megaparsec.Pos
 
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types

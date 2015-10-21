@@ -9,7 +9,7 @@ import Puppet.Interpreter.Resolve
 
 import System.Environment
 import Test.Hspec
-import Text.Parser.Combinators (eof)
+import Text.Megaparsec (eof, parse)
 import Data.Foldable (forM_)
 
 pureTests :: [T.Text]
@@ -30,14 +30,14 @@ pureTests = [ "4 + 2 == 6"
 main :: IO ()
 main = do
     let check :: T.Text -> Either String ()
-        check t = case runPParser (expression <* eof) "dummy" t of
+        check t = case parse (expression <* eof) "dummy" t of
                       Left rr -> Left (T.unpack t ++ " -> " ++ show rr)
                       Right e -> case dummyEval (resolveExpression e) of
                                      Right (PBoolean True) -> Right ()
                                      Right x -> Left (T.unpack t ++ " -> " ++ show (pretty x))
                                      Left rr -> Left (T.unpack t ++ " -> " ++ show rr)
         runcheck :: String -> IO ()
-        runcheck t = case runPParser (expression <* eof) "dummy" (T.pack t) of
+        runcheck t = case parse (expression <* eof) "dummy" (T.pack t) of
                          Left rr -> error ("Can't parse: " ++ show rr)
                          Right e -> case dummyEval (resolveExpression e) of
                                         Right x -> print (pretty x)

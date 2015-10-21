@@ -153,7 +153,7 @@ parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
     traceEventIO ("START parsing " ++ fname)
     cnt <- T.readFile fname
-    o <- case runPParser puppetParser fname cnt of
+    o <- case runPParser fname cnt of
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
         Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
     traceEventIO ("STOP parsing " ++ fname)
