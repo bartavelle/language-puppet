@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP        #-}
 {-# LANGUAGE GADTs      #-}
 {-# LANGUAGE LambdaCase #-}
-module Puppet.Daemon (initDaemon) where
+module Puppet.Daemon (initDaemon, checkError) where
 
 import           Control.Exception
 import           Control.Exception.Lens
@@ -17,6 +17,7 @@ import qualified Data.Vector               as V
 import           Debug.Trace
 import           Erb.Compute
 import           Foreign.Ruby.Safe
+import           System.Exit               (exitFailure)
 import           System.IO                 (stdout)
 import           System.Log.Formatter      as LOG
 import           System.Log.Handler        as LOG
@@ -82,6 +83,19 @@ initDaemon prefs = do
         getStatements = parseFunction myprefs pfilecache parserStats
     getTemplate <- initTemplateDaemon intr myprefs templateStats
     return (DaemonMethods (gCatalog myprefs getStatements getTemplate catalogStats hquery) parserStats catalogStats templateStats)
+
+
+-- Public utils func to work with the daemon --
+
+-- | In case of a Left value, print the error and exit immediately
+checkError :: Show e => Doc -> Either e a -> IO a
+checkError desc = either exit return
+    where
+      exit = \err -> putDoc (display err) >> exitFailure
+      display err = red desc <> ": " <+> (string . show) err
+
+
+-- Some utils func internal to this module --
 
 gCatalog :: Preferences IO
          -> ( TopLevelType -> T.Text -> IO (S.Either PrettyError Statement) )
@@ -160,7 +174,6 @@ parseFile fname = do
     return o
 
 
--- Some utils func internal to this module
 loggerName :: String
 loggerName = "Puppet.Daemon"
 

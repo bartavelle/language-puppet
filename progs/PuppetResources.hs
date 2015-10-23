@@ -146,9 +146,6 @@ options = Options
        (  long "noextratests"
        <> help "Disable extra tests (eg.: check that files exist on local disk")
 
-checkError :: Show e => Doc -> Either e a -> IO a
-checkError r (Left rr) = error (show (red r <> ": " <+> (string . show) rr))
-checkError _ (Right x) = return x
 
 -- | Like catMaybes, but it counts the Nothing values
 catMaybesCount :: [Maybe a] -> ([a], Sum Int)
