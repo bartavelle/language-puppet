@@ -9,3 +9,4 @@
 /cabal.sandbox.config
 TAGS
 /.stack-work/
+*.orig
