@@ -4,7 +4,7 @@
 module Main where
 
 import           Control.Concurrent.ParallelIO    (parallel)
-import           Control.Lens hiding (Strict)
+import           Control.Lens                     hiding (Strict)
 import           Control.Monad
 import           Control.Monad.Trans.Either
 import           Data.Aeson                       (encode)
@@ -14,7 +14,8 @@ import qualified Data.Either.Strict               as S
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.List                        (isInfixOf)
-import           Data.Maybe                       (fromMaybe, isNothing, mapMaybe)
+import           Data.Maybe                       (fromMaybe, isNothing,
+                                                   mapMaybe)
 import           Data.Monoid                      hiding (First)
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
@@ -32,6 +33,7 @@ import qualified Text.Megaparsec                  as P
 import           Text.Regex.PCRE.String
 
 import           Facter
+import           Hiera.Server                     (hieraLoggerName)
 import           Puppet.Daemon
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
@@ -162,8 +164,8 @@ initializedaemonWithPuppet :: FilePath
                            -> Options
                            -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
 initializedaemonWithPuppet workingdir (Options {..}) = do
-    LOG.updateGlobalLogger "Puppet.Daemon" (LOG.setLevel _optLoglevel)
-    LOG.updateGlobalLogger "Hiera.Server" (LOG.setLevel _optLoglevel)
+    LOG.updateGlobalLogger daemonLoggerName (LOG.setLevel _optLoglevel)
+    LOG.updateGlobalLogger hieraLoggerName (LOG.setLevel _optLoglevel)
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"

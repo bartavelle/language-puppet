@@ -13,6 +13,7 @@ A minor bug is that interpolation will not work for inputs containing the % char
 module Hiera.Server (
     startHiera
   , dummyHiera
+  , hieraLoggerName
     -- * Re-export (query API)
   , HieraQueryFunc
 ) where
@@ -41,8 +42,8 @@ import           Puppet.Interpreter.Types
 import           Puppet.PP
 import           Puppet.Utils                (strictifyEither)
 
-loggerName :: String
-loggerName = "Hiera.Server"
+hieraLoggerName :: String
+hieraLoggerName = "Hiera.Server"
 
 data HieraConfigFile = HieraConfigFile
     { _backends  :: [Backend]
@@ -159,7 +160,7 @@ query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
             case resolveInterpolable vars strs of
                 Just s  -> queryCombinator qtype (map (query'' s) _backends)
                 Nothing -> do
-                    LOG.infoM loggerName (show $ "Hiera lookup: skipping using hierarchy level" <+> pretty strs
+                    LOG.infoM hieraLoggerName (show $ "Hiera lookup: skipping using hierarchy level" <+> pretty strs
                                             <$$> "It couldn't be interpolated with known variables:" <+> varlist)
                     return Nothing
         query'' :: T.Text -> Backend -> IO (Maybe PValue)
@@ -177,14 +178,14 @@ query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
                 mfromJSON (Just v) = case A.fromJSON v of
                                          A.Success a -> return (Just (interpolatePValue vars a))
                                          _           -> do
-                                             LOG.warningM loggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v))
+                                             LOG.warningM hieraLoggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v))
                                              return Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
                 S.Left r -> do
                     let errs = "Hiera: error when reading file " <> string filename <+> string r
                     if "Yaml file not found: " `L.isInfixOf` r
-                        then LOG.debugM loggerName (show errs)
-                        else LOG.warningM loggerName (show errs)
+                        then LOG.debugM hieraLoggerName (show errs)
+                        else LOG.warningM hieraLoggerName (show errs)
                     return Nothing
                 S.Right x -> mfromJSON (x ^? key hquery)

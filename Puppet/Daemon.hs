@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP        #-}
 {-# LANGUAGE GADTs      #-}
 {-# LANGUAGE LambdaCase #-}
-module Puppet.Daemon (initDaemon, checkError) where
+module Puppet.Daemon (initDaemon, checkError, daemonLoggerName) where
 
 import           Control.Exception
 import           Control.Exception.Lens
@@ -126,7 +126,7 @@ gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
                                         facts
                                         (prefs^.puppetSettings)
     (stmts :!: warnings) <- measure stats ndename catalogComputation
-    mapM_ (\(p :!: m) -> LOG.logM loggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
+    mapM_ (\(p :!: m) -> LOG.logM daemonLoggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP gCatalog " <> T.unpack ndename)
     if prefs ^. extraTests
        then runOptionalTests stmts
@@ -174,11 +174,11 @@ parseFile fname = do
     return o
 
 
-loggerName :: String
-loggerName = "Puppet.Daemon"
+daemonLoggerName :: String
+daemonLoggerName = "Puppet.Daemon"
 
 logDebug :: T.Text -> IO ()
-logDebug   = LOG.debugM   loggerName . T.unpack
+logDebug   = LOG.debugM   daemonLoggerName . T.unpack
 
 setupConsoleLogger :: IO ()
 setupConsoleLogger = do
