@@ -8,6 +8,7 @@
 * Fix logger set up (see #136)
 * Fix some regsubst (see #119)
 * Fix the `template` and `inline_template` functions (see #142)
+* Support lookups for expressions used in selector (TODO: arbitrary expression)
 
 ## Changes
 * Replace `parsec` `megaparsec` (see #138)

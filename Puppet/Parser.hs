@@ -83,7 +83,11 @@ expression = condExpression
              <?> "expression"
     where
         condExpression = do
-            selectedExpression <- try (token terminal <* symbolic '?')
+            selectedExpression <- try $ do
+                trm <- token terminal
+                lookups <- optional indexLookupChain
+                symbolic '?'
+                return $ maybe trm ($ trm) lookups
             let cas = do
                 c <- (SelectorDefault <$ symbol "default") -- default case
                         <|> fmap SelectorValue (fmap UVariableReference variableReference
@@ -302,7 +306,7 @@ terminal :: Parser Expression
 terminal = terminalG (fmap Terminal (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
 
 expressionTable :: [[Operator Parser Expression]]
-expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
+expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
                   , [ Prefix ( operator "-"   >> return Negate           ) ]
                   , [ Prefix ( operator "!"   >> return Not              ) ]
                   , [ InfixL  ( operator "."   >> return FunctionApplication ) ]
@@ -331,6 +335,9 @@ expressionTable = [ [ Postfix (chainl1 checkLookup (return (flip (.)))) ] -- htt
                     , InfixL  ( reserved "or"  >> return Or  )
                     ]
                   ]
+
+indexLookupChain :: Parser (Expression -> Expression)
+indexLookupChain = chainl1 checkLookup (return (flip (.)))
     where
         checkLookup = flip Lookup <$> between (operator "[") (operator "]") expression
 

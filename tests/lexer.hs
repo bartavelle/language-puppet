@@ -7,7 +7,7 @@ import Puppet.Parser
 import System.Environment
 import Puppet.Parser.PrettyPrinter
 import Text.PrettyPrint.ANSI.Leijen
-import Text.Megaparsec (parse)
+import Text.Megaparsec (parse, eof)
 import System.Posix.Terminal
 import System.Posix.Types
 import System.IO
@@ -19,14 +19,13 @@ allchecks = do
     testres <- mapM testparser filelist
     let testsrs = map fst testres
         isgood = all snd testres
-        outlist = zip [1..(length testres)] testsrs
-    mapM_ (\(n,t) -> putStrLn $ show n ++ " " ++ t) outlist
+    mapM_ (\(rr, t) -> unless t (putStrLn rr)) testres
     unless isgood (error "fail")
 
 -- returns errors
 testparser :: FilePath -> IO (String, Bool)
 testparser fp =
-    fmap (parse puppetParser fp) (T.readFile fp) >>= \case
+    fmap (parse (puppetParser <* eof) fp) (T.readFile fp) >>= \case
         Right _ -> return ("PASS", True)
         Left rr -> return (show rr, False)
 
