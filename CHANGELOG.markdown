@@ -7,6 +7,7 @@
 * Fix parser for search expression (see #132)
 * Fix logger set up (see #136)
 * Fix some regsubst (see #119)
+* Fix the `template` and `inline_template` functions (see #142)
 
 ## Changes
 * Replace `parsec` `megaparsec` (see #138)

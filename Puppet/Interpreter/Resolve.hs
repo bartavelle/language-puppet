@@ -423,8 +423,8 @@ resolveFunction' "defined" [ut] = do
                 else fmap PBoolean (isNativeType t)
 resolveFunction' "defined" x = throwPosError ("defined(): expects a single resource reference, type or class name, and not" <+> pretty x)
 resolveFunction' "fail" x = throwPosError ("fail:" <+> pretty x)
-resolveFunction' "inline_template" [templatename] = calcTemplate Left templatename
-resolveFunction' "inline_template" _ = throwPosError "inline_template(): Expects a single argument"
+resolveFunction' "inline_template" [] = throwPosError "inline_template(): Expects at least one argument"
+resolveFunction' "inline_template" templates = PString . mconcat <$> mapM (calcTemplate Left) templates
 resolveFunction' "md5" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . md5 . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "md5" _ = throwPosError "md5(): Expects a single argument"
 resolveFunction' "regsubst" [ptarget, pregexp, preplacement] = resolveFunction' "regsubst" [ptarget, pregexp, preplacement, PString "G"]
@@ -467,8 +467,8 @@ resolveFunction' "tagged" ptags = do
     scp <- getScopeName
     scpset <- use (scopes . ix scp . scopeExtraTags)
     return (PBoolean (scpset `HS.intersection` tags == tags))
-resolveFunction' "template" [templatename] = calcTemplate Right templatename
-resolveFunction' "template" _ = throwPosError "template(): Expects a single argument"
+resolveFunction' "template" [] = throwPosError "template(): Expects at least one argument"
+resolveFunction' "template" templates = PString . mconcat <$> mapM (calcTemplate Right) templates
 resolveFunction' "versioncmp" [pa,pb] = do
     a <- resolvePValueString pa
     b <- resolvePValueString pb
@@ -517,11 +517,11 @@ pdbresourcequery q mkey = do
         Nothing -> return (PArray rv)
         (Just k) -> fmap PArray (V.mapM (extractSubHash k) rv)
 
-calcTemplate :: (T.Text -> Either T.Text T.Text) -> PValue -> InterpreterMonad PValue
+calcTemplate :: (T.Text -> Either T.Text T.Text) -> PValue -> InterpreterMonad T.Text
 calcTemplate templatetype templatename = do
     fname       <- resolvePValueString templatename
     stt         <- use id
-    PString `fmap` singleton (ComputeTemplate (templatetype fname) stt)
+    singleton (ComputeTemplate (templatetype fname) stt)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
 resolveExpressionSE e = resolveExpression e >>=
