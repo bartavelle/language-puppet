@@ -192,7 +192,7 @@ computeTemplateWRuby fileinfo curcontext variables stt rdr = FR.freezeGC $ eithe
                        Right fname -> FR.toRuby fname
                        Left _ -> FR.toRuby ("-" :: T.Text)
     let withBinding f = do
-            erbBinding <- FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables,contentinfo,rstt, rrdr]
+            erbBinding <- FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables,rstt,rrdr,contentinfo]
             case erbBinding of
                 Left x -> return (Left x)
                 Right v -> do

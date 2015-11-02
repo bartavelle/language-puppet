@@ -9,6 +9,7 @@
 * Fix some regsubst (see #119)
 * Fix the `template` and `inline_template` functions (see #142)
 * Support lookups for expressions used in selector (TODO: arbitrary expression)
+* Fix a ruby 1.8 syntax error
 
 ## Changes
 * Replace `parsec` `megaparsec` (see #138)

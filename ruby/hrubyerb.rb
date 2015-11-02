@@ -77,7 +77,7 @@ end
 
 class ErbBinding
     @options = {}
-    def initialize(context,variables,filename='x',stt,rdr)
+    def initialize(context,variables,stt,rdr,filename='x')
         @stt = stt
         @rdr = rdr
         @scope = Scope.new(context,variables,filename,stt,rdr)
