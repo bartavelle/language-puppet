@@ -11,6 +11,7 @@
 * Support lookups for expressions used in selector (TODO: arbitrary expression)
 * Fix a ruby 1.8 syntax error
 * Fix a case where resource overrides were not applied to the correct resource
+* Fix a bug where a class value would be incorrectly inferred as having a default value whereas it doesn't
 
 ## Changes
 * Replace `parsec` `megaparsec` (see #138)
