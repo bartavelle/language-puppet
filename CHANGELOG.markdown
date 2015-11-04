@@ -10,6 +10,7 @@
 * Fix the `template` and `inline_template` functions (see #142)
 * Support lookups for expressions used in selector (TODO: arbitrary expression)
 * Fix a ruby 1.8 syntax error
+* Fix a case where resource overrides were not applied to the correct resource
 
 ## Changes
 * Replace `parsec` `megaparsec` (see #138)

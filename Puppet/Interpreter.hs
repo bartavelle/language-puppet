@@ -92,7 +92,7 @@ finalize rlist = do
     let getOver = use (scopes . ix scp . scopeOverrides) -- retrieves current overrides
         addDefaults r = ifoldlM (addAttribute CantReplace) r thisresdefaults
             where thisresdefaults = defs ^. ix (r ^. rid . itype) . defValues
-        addOverrides r = getOver >>= foldlM addOverrides' r
+        addOverrides r = getOver >>= foldlM addOverrides' r . view (at (r ^. rid))
         addOverrides' r (ResRefOverride _ prms p) = do
             -- we used this override, so we discard it
             scopes . ix scp . scopeOverrides . at (r ^. rid) .= Nothing
@@ -707,7 +707,7 @@ addAttribute b t r v = case (r ^. rattributes . at t, b) of
                                          -- We will not bark if the same attribute
                                          -- is defined multiple times with distinct
                                          -- values.
-                                         let errmsg = "Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty (r ^. rid) <+> showPPos (r ^. rpos)
+                                         let errmsg = "Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty r
                                          if curval == v
                                              then checkStrict errmsg errmsg
                                              else throwPosError errmsg
