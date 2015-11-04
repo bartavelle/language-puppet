@@ -115,7 +115,7 @@ getKnownusers :: Maybe Defaults -> [Text]
 getKnownusers = fromMaybe ["mysql", "vagrant","nginx", "nagios", "postgres", "puppet", "root", "syslog", "www-data"] . (>>= _dfKnownusers)
 
 getKnowngroups :: Maybe Defaults -> [Text]
-getKnowngroups = fromMaybe ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data"] . (>>= _dfKnowngroups)
+getKnowngroups = fromMaybe ["adm", "syslog", "mysql", "nagios","postgres", "puppet", "root", "www-data", "postfix"] . (>>= _dfKnowngroups)
 
 getStrictness :: Maybe Defaults -> Strictness
 getStrictness = fromMaybe Permissive . (>>= _dfStrictness)
