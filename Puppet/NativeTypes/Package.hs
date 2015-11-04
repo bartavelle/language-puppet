@@ -98,12 +98,12 @@ checkFeatures =
         checkAdminFile = Right -- TODO, check that it only works for aix
         checkEnsure :: (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
         checkEnsure (s, res) = case res ^. rattributes . at "ensure" of
-                                   Just (PString "latest")    -> checkFeature s res Installable >> checkFeature s res Versionable
+                                   Just (PString "latest")    -> checkFeature s res Installable
                                    Just (PString "purged")    -> checkFeature s res Purgeable
                                    Just (PString "absent")    -> checkFeature s res Uninstallable
                                    Just (PString "installed") -> checkFeature s res Installable
                                    Just (PString "present")   -> checkFeature s res Installable
                                    Just (PString "held")      -> checkFeature s res Installable >> checkFeature s res Holdable
-                                   _ -> Right (s, res)
+                                   _ -> checkFeature s res Versionable
         decap :: (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError Resource
         decap = Right . snd
