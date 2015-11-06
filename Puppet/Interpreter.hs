@@ -23,7 +23,6 @@ import           Data.Foldable                    (foldl', foldlM, toList)
 import qualified Data.Graph                       as G
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
-import           Data.HashSet.Lens
 import           Data.List                        (nubBy, sortBy)
 import           Data.Maybe
 import qualified Data.Maybe.Strict                as S
@@ -496,9 +495,14 @@ loadParameters params classParams defaultPos wHiera = do
     let classParamSet        = HS.fromList (classParams ^.. folded . _1)
         mandatoryParamSet    = HS.fromList (classParams ^.. folded . filtered (S.isNothing . S.snd) . _1)
         definedParamSet      = ikeys params'
+        -- the set of parameters that were not defined by the caller
         unsetParams          = mandatoryParamSet `HS.difference` definedParamSet
-        defaultParams        = setOf (folded . _1) classParams
-        undefParamsWdefaults = unsetParams `HS.intersection` defaultParams
+        -- the set of parameters with default values
+        defaultParams        = classParamSet `HS.difference` mandatoryParamSet
+        -- parameters whose value is defined, but set to undef, *can* be
+        -- overriden by default or hiera values
+        undefParams          = ikeys (HM.filter (== PUndef) params')
+        undefParamsWdefaults = (unsetParams `HS.union` undefParams) `HS.intersection` defaultParams
         spuriousParams       = definedParamSet `HS.difference` classParamSet
         mclassdesc           = S.maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ttext) wHiera
     unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ttext $ toList unsetParams) <> mclassdesc)
@@ -516,6 +520,7 @@ loadParameters params classParams defaultPos wHiera = do
                   S.Nothing -> throwPosError ("Internal error: invalid invariant at loadParameters, for parameter" <+> ttext k <+> "and all parameters are:" <+> list (map mkprettyparams $ toList classParams)
                                                 </> "definedParamSet" <+> list (map ttext $ toList definedParamSet)
                                                 </> "undefParamsWdefaults" <+> list (map ttext $ toList undefParamsWdefaults)
+                                                </> "defaultParams" <+> list (map ttext $ toList defaultParams)
                                              )
                   S.Just e  -> resolveExpression e
         loadVariable k rv
