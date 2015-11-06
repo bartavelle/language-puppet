@@ -15,9 +15,11 @@ import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.PP
 
+import           Control.Applicative
 import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.Operational        hiding (view)
+import           Control.Monad.Trans.Except
 import qualified Data.Either.Strict               as S
 import           Data.Foldable                    (foldl', foldlM, toList)
 import qualified Data.Graph                       as G
@@ -27,11 +29,11 @@ import           Data.List                        (nubBy, sortBy)
 import           Data.Maybe
 import qualified Data.Maybe.Strict                as S
 import           Data.Ord                         (comparing)
+import           Data.Semigroup                   (Max(..))
 import qualified Data.Text                        as T
 import           Data.Traversable                 (for)
 import qualified Data.Tree                        as T
 import           Data.Tuple.Strict                (Pair (..))
-import qualified Data.Tuple.Strict                as S
 import qualified Data.Vector                      as V
 import           Puppet.Utils
 import           System.Log.Logger
@@ -477,53 +479,45 @@ loadVariable varname varval = do
 -- only) or default values.
 loadParameters :: Foldable f => Container PValue -> f (Pair T.Text (S.Maybe Expression)) -> PPosition -> S.Maybe T.Text -> InterpreterMonad ()
 loadParameters params classParams defaultPos wHiera = do
-    params' <- case wHiera of
-        S.Just classname -> do
-            -- pass 1 : with classes, we retrieve the parameters that have no default values and
-            -- that are not set, to try to get them with Hiera
-            let !classParamSet   = HS.fromList (S.fst <$> classParams ^.. folded)
-                !definedParamSet = ikeys params
-                !unsetParams     = classParamSet `HS.difference` definedParamSet
-                loadHieraParam curprms paramname = do
-                    v <- runHiera (classname <> "::" <> paramname) Priority
-                    case v of
-                        Nothing -> return curprms
-                        Just vl -> return (curprms & at paramname ?~ vl)
-            foldM loadHieraParam params (toList unsetParams)
-        S.Nothing -> return params
-    -- pass 2 : we check that everything is right
-    let classParamSet        = HS.fromList (classParams ^.. folded . _1)
-        mandatoryParamSet    = HS.fromList (classParams ^.. folded . filtered (S.isNothing . S.snd) . _1)
-        definedParamSet      = ikeys params'
-        -- the set of parameters that were not defined by the caller
-        unsetParams          = mandatoryParamSet `HS.difference` definedParamSet
-        -- the set of parameters with default values
-        defaultParams        = classParamSet `HS.difference` mandatoryParamSet
-        -- parameters whose value is defined, but set to undef, *can* be
-        -- overriden by default or hiera values
-        undefParams          = ikeys (HM.filter (== PUndef) params')
-        undefParamsWdefaults = (unsetParams `HS.union` undefParams) `HS.intersection` defaultParams
-        spuriousParams       = definedParamSet `HS.difference` classParamSet
-        mclassdesc           = S.maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ttext) wHiera
-    unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ttext $ toList unsetParams) <> mclassdesc)
-    unless (fnull spuriousParams) $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ttext) $ toList spuriousParams) <> mclassdesc)
-    -- a default can override an undefined value
-    let isDefault (k :!: _) = not (k `HS.member` definedParamSet) || k `HS.member` undefParamsWdefaults
-        defaultPairs = filter isDefault (toList classParams)
-    -- we load all parameters that are set, except thos that are set as
-    -- undefined and have a default value
-    itraverse_ loadVariable (HM.filterWithKey (\k _ -> not (k `HS.member` undefParamsWdefaults)) params' )
+    p <- use curPos
     curPos .= defaultPos
-    let mkprettyparams a@(k :!: md) = ttext k <+> S.maybe (pretty (isDefault a)) pretty md
-    forM_ defaultPairs $ \(k :!: v) -> do
-        rv <- case v of
-                  S.Nothing -> throwPosError ("Internal error: invalid invariant at loadParameters, for parameter" <+> ttext k <+> "and all parameters are:" <+> list (map mkprettyparams $ toList classParams)
-                                                </> "definedParamSet" <+> list (map ttext $ toList definedParamSet)
-                                                </> "undefParamsWdefaults" <+> list (map ttext $ toList undefParamsWdefaults)
-                                                </> "defaultParams" <+> list (map ttext $ toList defaultParams)
-                                             )
-                  S.Just e  -> resolveExpression e
-        loadVariable k rv
+    let classParamSet        = HS.fromList (classParams ^.. folded . _1)
+        spuriousParams       = ikeys params `HS.difference` classParamSet
+        mclassdesc           = S.maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ttext) wHiera
+
+        -- the following functions `throwE (Max False)` when there is no value, and `throwE (Max True)` when this value
+        -- in PUndef.
+        checkUndef :: Maybe PValue -> ExceptT (Max Bool) InterpreterMonad PValue
+        checkUndef Nothing = throwE (Max False)
+        checkUndef (Just PUndef) = throwE (Max True)
+        checkUndef (Just v) = return v
+
+        checkHiera :: T.Text -> ExceptT (Max Bool) InterpreterMonad PValue
+        checkHiera k = case wHiera of
+                           S.Nothing -> throwE (Max False)
+                           S.Just classname -> lift (runHiera (classname <> "::" <> k) Priority) >>= checkUndef
+
+        checkDef :: T.Text -> ExceptT (Max Bool) InterpreterMonad PValue
+        checkDef k = checkUndef (params ^. at k)
+
+        checkDefault :: S.Maybe Expression -> ExceptT (Max Bool) InterpreterMonad PValue
+        checkDefault S.Nothing = throwE (Max False)
+        checkDefault (S.Just expr) = lift (resolveExpression expr)
+
+    unless (fnull spuriousParams) $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ttext) $ toList spuriousParams) <> mclassdesc)
+
+    -- try to set a value to all parameters
+    -- The order of evaluation is defined / hiera / default
+    paramSetResult <- for (toList classParams) $ \(k :!: defValue) ->
+        (k :!:) <$> runExceptT (checkDef k <|> checkHiera k <|> checkDefault defValue)
+
+    curPos .= p
+    -- check if all parameters were set
+    let unsetParams = paramSetResult ^.. folded . filtered ((== Just False) .  preview (_2 . _Left . to getMax)) . _1
+    unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ttext $ toList unsetParams) <> mclassdesc)
+
+    -- load all variables
+    forM_ paramSetResult $ \(k :!: erv) -> loadVariable k $ either (const PUndef) id erv
 
 data ScopeEnteringContext = SENormal
                           | SEChild  !T.Text -- ^ We enter the scope as the child of another class

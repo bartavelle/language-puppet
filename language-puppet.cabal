@@ -112,6 +112,7 @@ library
                         , scientific           >= 0.2   && < 0.4
                         , servant              == 0.4.*
                         , servant-client       == 0.4.*
+                        , semigroups
                         , split                == 0.2.*
                         , stm                  == 2.4.*
                         , strict-base-types    >= 0.2.2
