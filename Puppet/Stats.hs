@@ -3,10 +3,9 @@ statistics. All statistics are stored in a MVar holding a HashMap.
 
 This is not accurate in the presence of lazy evaluation. Nothing is forced.
 -}
-module Puppet.Stats (measure, measure_, newStats, getStats, StatsTable, StatsPoint(..), MStats) where
+module Puppet.Stats (measure, newStats, getStats, StatsTable, StatsPoint(..), MStats) where
 
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Control.Monad
 import Control.Concurrent
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
@@ -52,11 +51,7 @@ measure (MStats mtable) statsname action = do
                                           else smi
                           in stats & at statsname ?~ StatsPoint (sc+1) (st+tm) nmin nmax
     putMVar mtable nstats
-    return out
-
--- | Just like 'measure', discarding the result value.
-measure_ :: MStats -> T.Text -> IO a -> IO ()
-measure_ mtable statsname action = void ( measure mtable statsname action )
+    return $! out
 
 getTime :: IO Double
 getTime = realToFrac `fmap` getPOSIXTime
@@ -68,4 +63,3 @@ time action = do
     end <- getTime
     let !delta = end - start
     return (delta, result)
-
