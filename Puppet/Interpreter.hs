@@ -508,16 +508,14 @@ loadParameters params classParams defaultPos wHiera = do
 
     -- try to set a value to all parameters
     -- The order of evaluation is defined / hiera / default
-    paramSetResult <- for (toList classParams) $ \(k :!: defValue) ->
-        (k :!:) <$> runExceptT (checkDef k <|> checkHiera k <|> checkDefault defValue)
-
+    unsetParams <- fmap concat $ for (toList classParams) $ \(k :!: defValue) -> do
+        ev <- runExceptT (checkDef k <|> checkHiera k <|> checkDefault defValue)
+        case ev of
+            Right v          -> loadVariable k v >> return []
+            Left (Max True)  -> loadVariable k PUndef >> return []
+            Left (Max False) -> return [k]
     curPos .= p
-    -- check if all parameters were set
-    let unsetParams = paramSetResult ^.. folded . filtered ((== Just False) .  preview (_2 . _Left . to getMax)) . _1
     unless (fnull unsetParams) $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ttext $ toList unsetParams) <> mclassdesc)
-
-    -- load all variables
-    forM_ paramSetResult $ \(k :!: erv) -> loadVariable k $ either (const PUndef) id erv
 
 data ScopeEnteringContext = SENormal
                           | SEChild  !T.Text -- ^ We enter the scope as the child of another class
