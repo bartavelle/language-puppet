@@ -134,6 +134,7 @@ getPuppetSettings dirpaths = fromMaybe df . (>>= _dfPuppetSettings)
     where
       df :: Container Text
       df = HM.fromList [ ("confdir", T.pack $ dirpaths^.baseDir)
+                       , ("strict_variables", "true")
                        ]
 
 getFactsOverride :: Maybe Defaults -> Container PValue
