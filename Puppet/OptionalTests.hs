@@ -24,7 +24,7 @@ import           System.Posix.Files
 
 -- | Entry point for all optional tests
 testCatalog :: Preferences IO -> FinalCatalog -> IO ()
-testCatalog prefs c = testFileSources (prefs^.puppetPaths.baseDir) c >> testUsersGroups (prefs^.knownusers) (prefs^.knowngroups) c
+testCatalog prefs c = testFileSources (prefs ^. prefPuppetPaths.baseDir) c >> testUsersGroups (prefs ^. prefKnownusers) (prefs ^. prefKnowngroups) c
 
 -- | Tests that all users and groups are defined
 testUsersGroups :: [T.Text] -> [T.Text] -> FinalCatalog -> IO ()

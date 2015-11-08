@@ -14,6 +14,7 @@ import           Puppet.NativeTypes
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.PP
+import           Puppet.Utils
 
 import           Control.Applicative
 import           Control.Lens
@@ -35,7 +36,6 @@ import           Data.Traversable                 (for)
 import qualified Data.Tree                        as T
 import           Data.Tuple.Strict                (Pair (..))
 import qualified Data.Vector                      as V
-import           Puppet.Utils
 import           System.Log.Logger
 
 -- helpers

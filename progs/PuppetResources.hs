@@ -3,51 +3,46 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import           Control.Concurrent.ParallelIO    (parallel)
-import           Control.Lens                     hiding (Strict)
+import           Control.Concurrent.ParallelIO (parallel)
+import           Control.Lens                  hiding (Strict)
 import           Control.Monad
 import           Control.Monad.Trans.Either
-import           Data.Aeson                       (encode)
-import qualified Data.ByteString.Lazy.Char8       as BSL
-import           Data.Either                      (partitionEithers)
-import qualified Data.Either.Strict               as S
-import qualified Data.HashMap.Strict              as HM
-import qualified Data.HashSet                     as HS
-import           Data.List                        (isInfixOf)
-import           Data.Maybe                       (fromMaybe, isNothing,
-                                                   mapMaybe)
-import           Data.Monoid                      hiding (First)
-import qualified Data.Set                         as Set
-import qualified Data.Text                        as T
-import qualified Data.Text.IO                     as T
+import           Data.Aeson                    (encode)
+import qualified Data.ByteString.Lazy.Char8    as BSL
+import           Data.Either                   (partitionEithers)
+import qualified Data.Either.Strict            as S
+import qualified Data.HashMap.Strict           as HM
+import qualified Data.HashSet                  as HS
+import           Data.List                     (isInfixOf)
+import           Data.Maybe                    (fromMaybe, isNothing, mapMaybe)
+import           Data.Monoid                   hiding (First)
+import qualified Data.Set                      as Set
+import qualified Data.Text                     as T
+import qualified Data.Text.IO                  as T
 import           Data.Text.Strict.Lens
-import           Data.Tuple                       (swap)
-import qualified Data.Vector                      as V
+import           Data.Tuple                    (swap)
+import qualified Data.Vector                   as V
 import           Options.Applicative
-import           Servant.Common.BaseUrl
-import           System.Exit                      (exitFailure, exitSuccess)
-import qualified System.FilePath.Glob             as G
-import           System.IO
-import qualified System.Log.Logger                as LOG
-import qualified Text.Megaparsec                  as P
-import           Text.Regex.PCRE.String
+import           Servant.Common.BaseUrl        (parseBaseUrl)
+import           System.Exit                   (exitFailure, exitSuccess)
+import qualified System.FilePath.Glob          as G
+import           System.IO                     (hIsTerminalDevice, stdout)
+import qualified System.Log.Logger             as LOG
+import qualified Text.Megaparsec               as P
+import qualified Text.Regex.PCRE.String        as REG
 
 import           Facter
-import           Hiera.Server                     (hieraLoggerName)
 import           Puppet.Daemon
-import           Puppet.Interpreter.PrettyPrinter ()
-import           Puppet.Interpreter.Types
 import           Puppet.Lens
 import           Puppet.Parser
-import           Puppet.Parser.PrettyPrinter      (ppStatements)
+import           Puppet.Parser.PrettyPrinter   (ppStatements)
 import           Puppet.Parser.Types
-import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
-import           PuppetDB.Common
-import           PuppetDB.Dummy
-import           PuppetDB.Remote
-import           PuppetDB.TestDB
+import           PuppetDB.Common               (generateWireCatalog)
+import           PuppetDB.Dummy                (dummyPuppetDB)
+import           PuppetDB.Remote               (pdbConnect)
+import           PuppetDB.TestDB               (loadTestDB)
 
 
 type QueryFunc = Nodename -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
@@ -164,8 +159,6 @@ initializedaemonWithPuppet :: FilePath
                            -> Options
                            -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
 initializedaemonWithPuppet workingdir (Options {..}) = do
-    LOG.updateGlobalLogger daemonLoggerName (LOG.setLevel _optLoglevel)
-    LOG.updateGlobalLogger hieraLoggerName (LOG.setLevel _optLoglevel)
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
@@ -174,12 +167,13 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                                             >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     prf <- dfPreferences workingdir <&> prefPDB .~ pdbapi
-                                    <&> hieraPath .~ _optHieraFile
-                                    <&> ignoredmodules %~ (`fromMaybe` _optIgnoredMods)
-                                    <&> (if _optStrictMode then strictness .~ Strict else id)
-                                    <&> (if _optNoExtraTests then extraTests .~ False else id)
+                                    <&> prefHieraPath .~ _optHieraFile
+                                    <&> prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods)
+                                    <&> (if _optStrictMode then prefStrictness .~ Strict else id)
+                                    <&> (if _optNoExtraTests then prefExtraTests .~ False else id)
+                                    <&> prefLogLevel .~ _optLoglevel
     q <- initDaemon prf
-    let queryfunc = \node -> fmap (unifyFacts (prf^.factsDefault) (prf^.factsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
+    let queryfunc = \node -> fmap (unifyFacts (prf ^. prefFactsDefault) (prf ^. prefFactsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
     return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
     where
       -- merge 3 sets of facts : some defaults, the original set and some override
@@ -301,7 +295,7 @@ computeStats workingdir (Options {..})
     putStr ("\nTested " ++ show nbnodes ++ " nodes. ")
     unless (nbnodes == 0) $ do
         putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
-        when (_optLoglevel <= LOG.INFO) $ do
+        when (_optLoglevel <= LOG.NOTICE) $ do
             putStrLn ("Slowest template:           " <> T.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
             putStrLn ("Slowest file to parse:      " <> T.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
             putStrLn ("Slowest catalog to compute: " <> T.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
@@ -356,13 +350,13 @@ filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked)
     where
        -- filter catalog using the adhoc lens
        filterC Nothing _ c = return c
-       filterC (Just regexp) l c = compile compBlank execBlank (T.unpack regexp) >>= \case
+       filterC (Just regexp) l c = REG.compile REG.compBlank REG.execBlank (T.unpack regexp) >>= \case
           Left rr   -> error ("Error compiling regexp 're': "  ++ show rr)
           Right reg -> HM.fromList <$> filterM (filterResource reg l) (HM.toList c)
-       filterResource reg l v = execute reg (v ^. l) >>= \case
-                                         Left rr -> error ("Error when applying regexp: " ++ show rr)
-                                         Right Nothing -> return False
-                                         _ -> return True
+       filterResource reg l v = REG.execute reg (v ^. l) >>= \case
+                                    Left rr -> error ("Error when applying regexp: " ++ show rr)
+                                    Right Nothing -> return False
+                                    _ -> return True
 
 
 run :: Options -> IO ()
@@ -384,12 +378,8 @@ run cmd@(Options {_optNodename = Just node, _optPuppetdir = Just workingdir, ..}
 
 -- | Multiple nodes mode (`--all`) option
 run cmd@(Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppetdir = Just workingdir}) = do
-    -- it would be really noisy to run this mode with loglevel < LOG.ERROR;
-    -- even the default LOG.WARNING would clutter the output.
-    -- That's why we force LOG.ERROR for the puppet daemon.
-    (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir (cmd {_optLoglevel = LOG.ERROR})
+    (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir cmd
     computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
-
   where
       retrieveNodes :: MultNodes -> IO [Nodename]
       retrieveNodes AllNodes = do

@@ -60,8 +60,8 @@ initTemplateDaemon intr prefs mvstats = do
         ExceptT (registerGlobalFunction4 intr "varlookup" hrresolveVariable)
         ExceptT (registerGlobalFunction5 intr "callextfunc" hrcallfunction)
         liftIO $ void $ forkIO $ templateDaemon intr
-                                                (T.pack (prefs^.puppetPaths.modulesPath))
-                                                (T.pack (prefs^.puppetPaths.templatesPath))
+                                                (T.pack (prefs ^. prefPuppetPaths.modulesPath))
+                                                (T.pack (prefs ^. prefPuppetPaths.templatesPath))
                                                 controlchan
                                                 mvstats
                                                 templatecache

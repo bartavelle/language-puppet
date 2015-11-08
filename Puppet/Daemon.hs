@@ -1,11 +1,17 @@
 {-# LANGUAGE CPP        #-}
 {-# LANGUAGE GADTs      #-}
 {-# LANGUAGE LambdaCase #-}
-module Puppet.Daemon (initDaemon, checkError, daemonLoggerName) where
+module Puppet.Daemon (
+    initDaemon
+  , checkError
+  -- * Re-exports
+  , module Puppet.Interpreter.Types
+  , module Puppet.PP
+) where
 
 import           Control.Exception
 import           Control.Exception.Lens
-import qualified Control.Lens as L
+import qualified Control.Lens              as L
 import           Control.Lens.Operators
 import qualified Data.Either.Strict        as S
 import           Data.FileCache
@@ -14,16 +20,16 @@ import qualified Data.Text                 as T
 import qualified Data.Text.IO              as T
 import           Data.Tuple.Strict
 import qualified Data.Vector               as V
-import           Debug.Trace
-import           Erb.Compute
+import           Debug.Trace               (traceEventIO)
 import           Foreign.Ruby.Safe
 import           System.Exit               (exitFailure)
 import           System.IO                 (stdout)
-import           System.Log.Formatter      as LOG
-import           System.Log.Handler        as LOG
-import           System.Log.Handler.Simple as LOG
+import qualified System.Log.Formatter      as LOG (simpleLogFormatter)
+import           System.Log.Handler        (setFormatter)
+import qualified System.Log.Handler.Simple as LOG (streamHandler)
 import qualified System.Log.Logger         as LOG
 
+import           Erb.Compute
 import           Hiera.Server
 import           Puppet.Interpreter
 import           Puppet.Interpreter.IO
@@ -67,7 +73,7 @@ For instance, unknown variables are always an error. Querying a dictionary with 
 -}
 initDaemon :: Preferences IO -> IO DaemonMethods
 initDaemon prefs = do
-    setupConsoleLogger
+    setupLogger (prefs ^. prefLogLevel)
     logDebug "initDaemon"
     traceEventIO "initDaemon"
     templateStats <- newStats
@@ -75,10 +81,10 @@ initDaemon prefs = do
     catalogStats  <- newStats
     pfilecache    <- newFileCache
     intr          <- startRubyInterpreter
-    hquery        <- case prefs ^. hieraPath of
+    hquery        <- case prefs ^. prefHieraPath of
                          Just p  -> either error id <$> startHiera p
                          Nothing -> return dummyHiera
-    luacontainer <- initLuaMaster (T.pack (prefs ^. puppetPaths.modulesPath))
+    luacontainer <- initLuaMaster (T.pack (prefs ^. prefPuppetPaths.modulesPath))
     let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
         getStatements = parseFunction myprefs pfilecache parserStats
     getTemplate <- initTemplateDaemon intr myprefs templateStats
@@ -105,30 +111,30 @@ gCatalog :: Preferences IO
          -> Nodename
          -> Facts
          -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
-gCatalog prefs getStatements getTemplate stats hquery ndename facts = do
-    logDebug ("Received query for node " <> ndename)
-    traceEventIO ("START gCatalog " <> T.unpack ndename)
+gCatalog prefs getStatements getTemplate stats hquery node facts = do
+    logDebug ("Received query for node " <> node)
+    traceEventIO ("START gCatalog " <> T.unpack node)
     let catalogComputation = getCatalog (InterpreterReader
-                                            (prefs ^. natTypes)
+                                            (prefs ^. prefNatTypes)
                                             getStatements
                                             getTemplate
                                             (prefs ^. prefPDB)
                                             (prefs ^. prefExtFuncs)
-                                            ndename
+                                            node
                                             hquery
                                             defaultImpureMethods
-                                            (prefs ^. ignoredmodules)
-                                            (prefs ^. externalmodules)
-                                            (prefs ^. strictness == Strict)
-                                            (prefs ^. puppetPaths)
+                                            (prefs ^. prefIgnoredmodules)
+                                            (prefs ^. prefExternalmodules)
+                                            (prefs ^. prefStrictness == Strict)
+                                            (prefs ^. prefPuppetPaths)
                                         )
-                                        ndename
+                                        node
                                         facts
-                                        (prefs^.puppetSettings)
-    (stmts :!: warnings) <- measure stats ndename catalogComputation
-    mapM_ (\(p :!: m) -> LOG.logM daemonLoggerName p (displayS (renderCompact (ttext ndename <> ":" <+> m)) "")) warnings
-    traceEventIO ("STOP gCatalog " <> T.unpack ndename)
-    if prefs ^. extraTests
+                                        (prefs ^. prefPuppetSettings)
+    (stmts :!: warnings) <- measure stats node catalogComputation
+    mapM_ (\(p :!: m) -> LOG.logM daemonLoggerName p (displayS (renderCompact (ttext node <> ":" <+> m)) "")) warnings
+    traceEventIO ("STOP gCatalog " <> T.unpack node)
+    if prefs ^. prefExtraTests
        then runOptionalTests stmts
        else return stmts
     where
@@ -154,13 +160,13 @@ parseFunction prefs filecache stats topleveltype toplevelname =
 -- TODO this is wrong, see
 -- http://docs.puppetlabs.com/puppet/3/reference/lang_namespaces.html#behavior
 compileFileList :: Preferences IO -> TopLevelType -> T.Text -> S.Either PrettyError T.Text
-compileFileList prefs TopNode _ = S.Right (T.pack (prefs ^. puppetPaths.manifestPath) <> "/site.pp")
+compileFileList prefs TopNode _ = S.Right (T.pack (prefs ^. prefPuppetPaths.manifestPath) <> "/site.pp")
 compileFileList prefs _ name = moduleInfo
     where
         moduleInfo | length nameparts == 1 = S.Right (mpath <> "/" <> name <> "/manifests/init.pp")
                    | null nameparts = S.Left "no name parts, error in compilefilelist"
                    | otherwise = S.Right (mpath <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp")
-        mpath = T.pack (prefs ^. puppetPaths.modulesPath)
+        mpath = T.pack (prefs ^. prefPuppetPaths.modulesPath)
         nameparts = T.splitOn "::" name
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
@@ -180,11 +186,13 @@ daemonLoggerName = "Puppet.Daemon"
 logDebug :: T.Text -> IO ()
 logDebug   = LOG.debugM   daemonLoggerName . T.unpack
 
-setupConsoleLogger :: IO ()
-setupConsoleLogger = do
-   hs <- consoleLogHandler
-   LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers [hs]
-   where
-     consoleLogHandler = LOG.setFormatter
-                          <$> LOG.streamHandler stdout LOG.DEBUG
-                          <*> pure (LOG.simpleLogFormatter "$prio: $msg")
+setupLogger :: LOG.Priority -> IO ()
+setupLogger p = do
+    LOG.updateGlobalLogger daemonLoggerName (LOG.setLevel p)
+    LOG.updateGlobalLogger hieraLoggerName (LOG.setLevel p)
+    hs <- consoleLogHandler
+    LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers [hs]
+    where
+      consoleLogHandler = setFormatter
+                         <$> LOG.streamHandler stdout LOG.DEBUG
+                         <*> pure (LOG.simpleLogFormatter "$prio: $msg")

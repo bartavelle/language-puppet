@@ -21,6 +21,7 @@ import           Data.Maybe                 (fromMaybe)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           System.Posix               (fileExist)
+import qualified System.Log.Logger         as LOG
 
 import           Puppet.Interpreter.Types
 import           Puppet.NativeTypes
@@ -33,20 +34,21 @@ import           Puppet.Utils
 import           PuppetDB.Dummy
 
 data Preferences m = Preferences
-    { _puppetPaths     :: PuppetDirPaths
-    , _prefPDB         :: PuppetDBAPI m
-    , _natTypes        :: Container NativeTypeMethods -- ^ The list of native types.
-    , _prefExtFuncs    :: Container ( [PValue] -> InterpreterMonad PValue )
-    , _hieraPath       :: Maybe FilePath
-    , _ignoredmodules  :: HS.HashSet Text
-    , _strictness      :: Strictness
-    , _extraTests      :: Bool
-    , _knownusers      :: [Text]
-    , _knowngroups     :: [Text]
-    , _externalmodules :: HS.HashSet Text
-    , _puppetSettings  :: Container Text
-    , _factsOverride   :: Container PValue
-    , _factsDefault   :: Container PValue
+    { _prefPuppetPaths     :: PuppetDirPaths
+    , _prefPDB             :: PuppetDBAPI m
+    , _prefNatTypes        :: Container NativeTypeMethods -- ^ The list of native types.
+    , _prefExtFuncs        :: Container ( [PValue] -> InterpreterMonad PValue )
+    , _prefHieraPath       :: Maybe FilePath
+    , _prefIgnoredmodules  :: HS.HashSet Text
+    , _prefStrictness      :: Strictness
+    , _prefExtraTests      :: Bool
+    , _prefKnownusers      :: [Text]
+    , _prefKnowngroups     :: [Text]
+    , _prefExternalmodules :: HS.HashSet Text
+    , _prefPuppetSettings  :: Container Text
+    , _prefFactsOverride   :: Container PValue
+    , _prefFactsDefault    :: Container PValue
+    , _prefLogLevel        :: LOG.Priority
     }
 
 data Defaults = Defaults
@@ -101,6 +103,7 @@ dfPreferences basedir = do
                          (getPuppetSettings dirpaths defaults)
                          (getFactsOverride defaults)
                          (getFactsDefault defaults)
+                         LOG.NOTICE -- good default as INFO is quite noisy
 
 loadDefaults :: FilePath -> IO (Maybe Defaults)
 loadDefaults fp = do
