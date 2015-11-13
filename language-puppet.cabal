@@ -84,6 +84,7 @@ library
                         , ansi-wl-pprint       == 0.6.*
                         , attoparsec           >= 0.12    && < 0.14
                         , base16-bytestring    == 0.1.*
+                        , bifunctors           == 5
                         , bytestring
                         , case-insensitive     == 1.2.*
                         , containers           == 0.5.*
@@ -117,7 +118,7 @@ library
                         , stm                  == 2.4.*
                         , strict-base-types    == 0.3.*
                         , text                 >= 0.11
-                        , time                 >= 1.4  && < 2
+                        , time                 >= 1.5  && < 2
                         , transformers         == 0.4.*
                         , unix                 >= 2.6     && < 2.8
                         , unordered-containers == 0.2.*
