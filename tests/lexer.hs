@@ -17,8 +17,7 @@ allchecks :: IO ()
 allchecks = do
     filelist <- fmap (head . fst) (globDir [compile "*.pp"] "tests/lexer")
     testres <- mapM testparser filelist
-    let testsrs = map fst testres
-        isgood = all snd testres
+    let isgood = all snd testres
     mapM_ (\(rr, t) -> unless t (putStrLn rr)) testres
     unless isgood (error "fail")
 
