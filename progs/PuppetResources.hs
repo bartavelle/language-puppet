@@ -358,12 +358,13 @@ filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked)
                                     Right Nothing -> return False
                                     _ -> return True
 
-
 run :: Options -> IO ()
 -- | Parse mode
-run (Options {_optParse = Just fp}) = parseFile fp >>= \case
+run (Options {_optParse = Just fp, ..}) = parseFile fp >>= \case
             Left rr -> error ("parse error:" ++ show rr)
-            Right s -> putDoc $ ppStatements s
+            Right s -> if _optLoglevel == LOG.DEBUG
+                          then mapM_ print  s
+                          else putDoc $ ppStatements s
 
 run (Options {_optPuppetdir = Nothing, _optParse = Nothing }) =
     error "Without a puppet dir, only the `--parse` option can be supported"
