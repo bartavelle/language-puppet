@@ -181,7 +181,7 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
       unifyFacts defaults override c = override `HM.union` c `HM.union` defaults
 
 parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
-parseFile = fmap . runPParser <*> T.readFile
+parseFile fp = runPParser fp <$> T.readFile fp
 
 printContent :: T.Text -> FinalCatalog -> IO ()
 printContent filename catalog =
