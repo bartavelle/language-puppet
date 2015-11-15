@@ -1,4 +1,4 @@
-# v1.1.4.1 (next release)
+# v1.1.4.1 (2015/11/15)
 
 ## New features
 * Support for the new puppet `contain` function
