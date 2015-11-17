@@ -58,14 +58,10 @@ pgPassword _ = throwPosError "expects 2 string arguments"
 
 -- | The function is pure and always return the same "random" password
 randomPassword :: MonadThrowPos m => [PValue] -> m PValue
-randomPassword x@[PNumber s] =
-  PString . Text.pack . randomChars <$> toInt s
+randomPassword [PNumber s] =
+  PString . Text.pack . randomChars <$> scientificToInt s
   where
     randomChars n = take n $ randomRs ('a', 'z') (mkStdGen 1)
-    toInt :: MonadThrowPos m => Scientific -> m Int
-    toInt s = maybe (throwPosError $ "Unable to convert" <+> pretty x <+> "into an int.")
-                    return
-                    (Sci.toBoundedInteger s)
 
 randomPassword _ = throwPosError "expect one single string arguments"
 
@@ -109,3 +105,9 @@ aclToHash acl _ = throwPosError $ "Unable to parse acl line" <+> squotes (ttext 
 mockDockerRunFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerRunFlags arg@[PHash _]= (return . PString . Text.pack . displayNocolor . pretty . head) arg
 mockDockerRunFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+
+-- utils
+scientificToInt :: MonadThrowPos m => Scientific -> m Int
+scientificToInt s = maybe (throwPosError $ "Unable to convert" <+> string (show s) <+> "into an int.")
+                          return
+                          (Sci.toBoundedInteger s)

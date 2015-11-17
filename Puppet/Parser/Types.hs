@@ -21,6 +21,7 @@ module Puppet.Parser.Types
    UValue(..),
    HigherFuncType(..),
    HFunctionCall(..),
+   ChainableRes(..),
    HasHFunctionCall(..),
    BlockParameters(..),
    CompRegex(..),
@@ -31,19 +32,21 @@ module Puppet.Parser.Types
    -- ** Search Expressions
    SearchExpression(..),
    -- ** Statements
-   Statement(..),
-   ResDec(..),
-   DefaultDec(..),
-   ResOver(..),
+   ArrowOp(..),
+   AttributeDecl(..),
    CondStatement(..),
    ClassDecl(..),
+   DefaultDec(..),
+   Dep(..),
+   Statement(..),
+   ResDec(..),
+   ResOver(..),
    DefineDec(..),
    Nd(..),
    VarAss(..),
    MFC(..),
    SFC(..),
-   RColl(..),
-   Dep(..)
+   RColl(..)
    ) where
 
 
@@ -55,6 +58,7 @@ import           Data.Hashable
 import qualified Data.Maybe.Strict      as S
 import           Data.Scientific
 import           Data.String
+import           Data.Text             (Text)
 import qualified Data.Text              as T
 import           Data.Tuple.Strict
 import qualified Data.Vector            as V
@@ -65,10 +69,10 @@ import           Text.Megaparsec.Pos
 import           Text.Regex.PCRE.String
 
 -- | Properly capitalizes resource types
-capitalizeRT :: T.Text -> T.Text
+capitalizeRT :: Text -> T.Text
 capitalizeRT = T.intercalate "::" . map capitalize' . T.splitOn "::"
     where
-        capitalize' :: T.Text -> T.Text
+        capitalize' :: Text -> T.Text
         capitalize' t | T.null t = T.empty
                       | otherwise = T.cons (toUpper (T.head t)) (T.tail t)
 
@@ -88,30 +92,32 @@ lSourceColumn :: Lens' Position Int
 lSourceColumn = lens sourceColumn setSourceColumn
 
 -- | Generates an initial position based on a filename.
-initialPPos :: T.Text -> PPosition
+initialPPos :: Text -> PPosition
 initialPPos x =
     let i = initialPos (T.unpack x)
     in (i :!: i)
 
 -- | Generates a 'PPosition' based on a filename and line number.
-toPPos :: T.Text -> Int -> PPosition
+toPPos :: Text -> Int -> PPosition
 toPPos fl ln =
     let p = newPos (T.unpack fl) ln (-1)
     in  (p :!: p)
 
 -- | The distinct Puppet /higher order functions/
-data HigherFuncType = HFEach
-                    | HFMap
-                    | HFReduce
-                    | HFFilter
-                    | HFSlice
-                    deriving (Eq, Show)
+data HigherFuncType
+    = HFEach
+    | HFMap
+    | HFReduce
+    | HFFilter
+    | HFSlice
+    deriving (Eq, Show)
 
--- | Currently only two types of block parameters are supported, single
--- values and pairs.
-data BlockParameters = BPSingle !T.Text -- ^ @|k|@
-                     | BPPair   !T.Text !T.Text -- ^ @|k,v|@
-                     deriving (Eq, Show)
+-- | Currently only two types of block parameters are supported:
+-- single values and pairs.
+data BlockParameters
+    = BPSingle !Text -- ^ @|k|@
+    | BPPair   !Text !T.Text -- ^ @|k,v|@
+    deriving (Eq, Show)
 
 -- The description of the /higher level function/ call.
 data HFunctionCall = HFunctionCall
@@ -122,7 +128,20 @@ data HFunctionCall = HFunctionCall
     , _hfexpression :: !(S.Maybe Expression)
     } deriving (Eq,Show)
 
-data CompRegex = CompRegex !T.Text !Regex
+data ChainableRes
+    = ChainResColl !RColl
+    | ChainResDecl !ResDec
+    | ChainResRefr !Text [Expression] PPosition
+    deriving (Show, Eq)
+
+data AttributeDecl = AttributeDecl !Text !ArrowOp !Expression
+    deriving (Show, Eq)
+data ArrowOp
+    = AppendArrow -- ^ `+>`
+    | AssignArrow -- ^ `=>`
+    deriving (Show, Eq)
+
+data CompRegex = CompRegex !Text !Regex
 instance Show CompRegex where
   show (CompRegex t _) = show t
 instance Eq CompRegex where
@@ -131,15 +150,15 @@ instance Eq CompRegex where
 -- | An unresolved value, typically the parser's output.
 data UValue
     = UBoolean !Bool -- ^ Special tokens generated when parsing the @true@ or @false@ literals.
-    | UString !T.Text -- ^ Raw string.
+    | UString !Text -- ^ Raw string.
     | UInterpolable !(V.Vector Expression) -- ^ A string that might contain variable references. The type should be refined at one point.
     | UUndef -- ^ Special token that is generated when parsing the @undef@ literal.
-    | UResourceReference !T.Text !Expression -- ^ A Resource[reference]
+    | UResourceReference !Text !Expression -- ^ A Resource[reference]
     | UArray !(V.Vector Expression)
     | UHash !(V.Vector (Pair Expression Expression))
     | URegexp !CompRegex -- ^ The regular expression compilation is performed during parsing.
-    | UVariableReference !T.Text
-    | UFunctionCall !T.Text !(V.Vector Expression)
+    | UVariableReference !Text
+    | UFunctionCall !Text !(V.Vector Expression)
     | UHFunctionCall !HFunctionCall
     | UNumber Scientific
     deriving (Show, Eq)
@@ -148,11 +167,10 @@ data UValue
 instance IsString UValue where
     fromString = UString . T.pack
 
-
-
-data SelectorCase = SelectorValue UValue
-                  | SelectorDefault
-                  deriving (Eq, Show)
+data SelectorCase
+    = SelectorValue UValue
+    | SelectorDefault
+    deriving (Eq, Show)
 
 -- | The 'Expression's
 data Expression
@@ -201,32 +219,41 @@ instance IsString Expression where
     fromString = Terminal . fromString
 
 data SearchExpression
-    = EqualitySearch !T.Text !Expression
-    | NonEqualitySearch !T.Text !Expression
+    = EqualitySearch !Text !Expression
+    | NonEqualitySearch !Text !Expression
     | AndSearch !SearchExpression !SearchExpression
     | OrSearch !SearchExpression !SearchExpression
     | AlwaysTrue
     deriving (Eq, Show)
 
-data CollectorType = Collector | ExportedCollector
+data CollectorType
+    = Collector
+    | ExportedCollector
     deriving (Eq, Show)
 
-data Virtuality = Normal -- ^ Normal resource, that will be included in the catalog
-                | Virtual -- ^ Type for virtual resources
-                | Exported -- ^ Type for exported resources
-                | ExportedRealized -- ^ These are resources that are exported AND included in the catalog
-    deriving (Generic, Eq, Show)
+data Virtuality
+    = Normal -- ^ Normal resource, that will be included in the catalog
+    | Virtual -- ^ Type for virtual resources
+    | Exported -- ^ Type for exported resources
+    | ExportedRealized -- ^ These are resources that are exported AND included in the catalogderiving (Generic, Eq, Show)
+    deriving (Eq, Show)
 
-data NodeDesc = NodeName !T.Text
-              | NodeMatch !CompRegex
-              | NodeDefault
-              deriving (Show, Eq)
+data NodeDesc
+    = NodeName !Text
+    | NodeMatch !CompRegex
+    | NodeDefault
+    deriving (Show, Eq)
 
 -- | Relationship link type.
-data LinkType = RNotify | RRequire | RBefore | RSubscribe deriving(Show, Eq,Generic)
+data LinkType
+    = RNotify
+    | RRequire
+    | RBefore
+    | RSubscribe
+    deriving(Show, Eq,Generic)
 instance Hashable LinkType
 
-rel2text :: LinkType -> T.Text
+rel2text :: LinkType -> Text
 rel2text RNotify = "notify"
 rel2text RRequire = "require"
 rel2text RBefore = "before"
@@ -242,22 +269,22 @@ instance FromJSON LinkType where
 instance ToJSON LinkType where
     toJSON = String . rel2text
 
-data ResDec        = ResDec !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !Virtuality !PPosition deriving (Eq, Show)
-data DefaultDec    = DefaultDec !T.Text !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
-data ResOver       = ResOver !T.Text !Expression !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
+data ResDec        = ResDec !Text !Expression !(V.Vector AttributeDecl) !Virtuality !PPosition deriving (Eq, Show)
+data DefaultDec    = DefaultDec !Text !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+data ResOver       = ResOver !Text !Expression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
 -- | All types of conditional statements (@case@, @if@, etc.) are stored as an ordered list of pair (condition, statements)
 -- (interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ...")
 data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
-data ClassDecl     = ClassDecl !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
-data DefineDec     = DefineDec !T.Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data ClassDecl     = ClassDecl !Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data DefineDec     = DefineDec !Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
-data VarAss        = VarAss !T.Text !Expression !PPosition deriving (Eq, Show)
-data MFC           = MFC !T.Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
+data VarAss        = VarAss !Text !Expression !PPosition deriving (Eq, Show)
+data MFC           = MFC !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
 -- | /Higher order function/ call.
 data SFC           = SFC !HFunctionCall !PPosition deriving (Eq, Show)
 -- | For all types of collectors.
-data RColl         = RColl !CollectorType !T.Text !SearchExpression !(V.Vector (Pair T.Text Expression)) !PPosition deriving (Eq, Show)
-data Dep           = Dep !(Pair T.Text Expression) !(Pair T.Text Expression) !LinkType !PPosition deriving (Eq, Show)
+data RColl         = RColl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+data Dep           = Dep !(Pair Text Expression) !(Pair T.Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
 -- | All the possible statements
 data Statement

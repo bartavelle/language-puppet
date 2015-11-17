@@ -409,7 +409,8 @@ evaluateStatement (ConditionalStatement (CondStatement conds p)) = do
     checkCond (toList conds)
 evaluateStatement (DefaultDeclaration (DefaultDec resType decls p)) = do
     curPos .= p
-    let resolveDefaultValue (prm :!: v) = (prm :!:) <$> resolveExpression v
+    -- TODO resolve AttributeDecl correctly
+    let resolveDefaultValue (AttributeDecl k _ v) = (k:!:) <$> resolveExpression v
     rdecls <- vmapM resolveDefaultValue decls >>= fromArgumentList
     scp <- getScopeName
     -- invariant that must be respected : the current scope must me create

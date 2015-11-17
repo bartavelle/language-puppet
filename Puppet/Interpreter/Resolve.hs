@@ -365,8 +365,9 @@ resolveExpressionStrings x =
         y -> fmap return (resolvePValueString y)
 
 -- | A special helper function for argument like argument like pairs.
-resolveArgument :: Pair T.Text Expression -> InterpreterMonad (Pair T.Text PValue)
-resolveArgument (argname :!: argval) = (:!:) `fmap` pure argname <*> resolveExpression argval
+-- TODO Resolve AttributeDecl correctly
+resolveArgument :: AttributeDecl -> InterpreterMonad (Pair T.Text PValue)
+resolveArgument (AttributeDecl k _ v) = (:!:) `fmap` pure k <*> resolveExpression v
 
 -- | Turns a 'PValue' into a 'Bool', as explained in the reference
 -- documentation.

@@ -13,9 +13,6 @@ module Puppet.Lens
  , _PArray
  -- * Parsing prism
  -- * Lenses and Prisms for 'Statement's
- , _ResourceDeclaration
- , _DefaultDeclaration
- , _ResourceOverride
  , _ConditionalStatement
  , _ClassDeclaration
  , _DefineDeclaration
@@ -23,7 +20,6 @@ module Puppet.Lens
  , _VariableAssignment
  , _MainFunctionCall
  , _SHFunctionCall
- , _ResourceCollection
  , _Dependency
  , _TopContainer
  , _Statements
@@ -38,7 +34,6 @@ module Puppet.Lens
  , _VariableAssignment'
  , _MainFunctionCall'
  , _SHFunctionCall'
- , _ResourceCollection'
  , _Dependency'
  -- * Lenses and Prisms for 'Expression's
  , _Equal
@@ -145,10 +140,6 @@ _SHFunctionCall' :: Prism' Statement SFC
 _SHFunctionCall' = prism SHFunctionCall $ \x -> case x of
                                                     SHFunctionCall a -> Right a
                                                     _ -> Left x
-_ResourceCollection' :: Prism' Statement RColl
-_ResourceCollection' = prism ResourceCollection $ \x -> case x of
-                                                            ResourceCollection a -> Right a
-                                                            _ -> Left x
 _Dependency' :: Prism' Statement Dep
 _Dependency' = prism Dependency $ \x -> case x of
                                             Dependency a -> Right a
@@ -158,12 +149,6 @@ _TopContainer = prism (uncurry TopContainer) $ \x -> case x of
                                                          TopContainer vs s -> Right (vs,s)
                                                          _ -> Left x
 
-_ResourceDeclaration :: Prism' Statement (T.Text, Expression, V.Vector (Pair T.Text Expression), Virtuality, PPosition)
-_ResourceDeclaration = _ResourceDeclaration' . _ResDec
-_DefaultDeclaration :: Prism' Statement (T.Text, V.Vector (Pair T.Text Expression), PPosition)
-_DefaultDeclaration = _DefaultDeclaration' . _DefaultDec
-_ResourceOverride :: Prism' Statement (T.Text, Expression, V.Vector (Pair T.Text Expression), PPosition)
-_ResourceOverride = _ResourceOverride' . _ResOver
 _ConditionalStatement :: Prism' Statement (V.Vector (Pair Expression (V.Vector Statement)), PPosition)
 _ConditionalStatement = _ConditionalStatement' . _CondStatement
 _ClassDeclaration :: Prism' Statement (T.Text, V.Vector (Pair T.Text (S.Maybe Expression)), S.Maybe T.Text, V.Vector Statement, PPosition)
@@ -178,8 +163,6 @@ _MainFunctionCall :: Prism' Statement (T.Text, V.Vector Expression, PPosition)
 _MainFunctionCall = _MainFunctionCall' . _MFC
 _SHFunctionCall :: Prism' Statement (HFunctionCall, PPosition)
 _SHFunctionCall = _SHFunctionCall' . _SFC
-_ResourceCollection :: Prism' Statement (CollectorType, T.Text, SearchExpression, V.Vector (Pair T.Text Expression), PPosition)
-_ResourceCollection = _ResourceCollection' . _RColl
 _Dependency :: Prism' Statement (Pair T.Text Expression, Pair T.Text Expression, LinkType, PPosition)
 _Dependency = _Dependency' . _Dep
 
