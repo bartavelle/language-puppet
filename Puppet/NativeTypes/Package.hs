@@ -14,6 +14,7 @@ import Data.Hashable
 nativePackage :: (NativeTypeName, NativeTypeMethods)
 nativePackage = ("package", nativetypemethods parameterfunctions (getFeature >=> checkFeatures))
 
+-- Features are abilities that some providers may not support.
 data PackagingFeatures = Holdable | InstallOptions | Installable | Purgeable | UninstallOptions | Uninstallable | Upgradeable | Versionable deriving (Show, Eq, Generic)
 
 instance Hashable PackagingFeatures
@@ -22,7 +23,7 @@ isFeatureSupported :: HM.HashMap T.Text (HS.HashSet PackagingFeatures)
 isFeatureSupported = HM.fromList [ ("aix", HS.fromList [Installable, Uninstallable, Upgradeable, Versionable])
                                   , ("appdmg", HS.fromList [Installable])
                                   , ("apple", HS.fromList [Installable])
-                                  , ("apt", HS.fromList [Holdable, Installable, Purgeable, Uninstallable, Upgradeable, Versionable])
+                                  , ("apt", HS.fromList [Holdable, InstallOptions, Installable, Purgeable, Uninstallable, Upgradeable, Versionable])
                                   , ("aptitude", HS.fromList [Holdable, Installable, Purgeable, Uninstallable, Upgradeable, Versionable])
                                   , ("aptrpm", HS.fromList [Installable, Purgeable, Uninstallable, Upgradeable, Versionable])
                                   , ("blastwave", HS.fromList [Installable, Uninstallable, Upgradeable])

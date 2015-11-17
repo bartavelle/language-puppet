@@ -7,4 +7,4 @@ extra-deps:
 - pcre-utils-0.1.7
 - strict-base-types-0.3.0
 - megaparsec-4.1.1
-resolver: lts-3.11
+resolver: lts-3.14
