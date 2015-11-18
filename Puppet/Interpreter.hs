@@ -38,10 +38,6 @@ import           Data.Tuple.Strict                (Pair (..))
 import qualified Data.Vector                      as V
 import           System.Log.Logger
 
--- helpers
-vmapM :: (Monad m, Foldable t) => (a -> m b) -> t a -> m [b]
-vmapM f = mapM f . toList
-
 normalizeRIdentifier :: T.Text -> T.Text -> RIdentifier
 normalizeRIdentifier t = RIdentifier rt
     where
@@ -86,7 +82,7 @@ isParent cur (ContClass possibleparent) = preuse (scopes . ix cur . scopeParent)
 isParent _ _ = return False
 
 finalize :: [Resource] -> InterpreterMonad [Resource]
-finalize rlist = do
+finalize rx = do
     -- step 1, apply defaults
     scp  <- getScopeName
     defs <- use (scopes . ix scp . scopeDefaults)
@@ -114,7 +110,7 @@ finalize rlist = do
                                                     then return Replace -- we can override what's defined in a parent
                                                     else forb "Can't override something that was not defined in the parent."
             ifoldlM (addAttribute overrideType) r prms
-    withDefaults <- mapM (addOverrides >=> addDefaults) rlist
+    withDefaults <- mapM (addOverrides >=> addDefaults) rx
     -- There might be some overrides that could not be applied. The only
     -- valid reason is that they override something in exported resources.
     --
@@ -146,7 +142,7 @@ pushScope s = curScope %= (s :)
 evalTopLevel :: Statement -> InterpreterMonad ([Resource], Statement)
 evalTopLevel (TopContainer tops s) = do
     pushScope ContRoot
-    r <- vmapM evaluateStatement tops >>= finalize . concat
+    r <- mapM evaluateStatement tops >>= finalize . concat
     -- popScope
     (nr, ns) <- evalTopLevel s
     popScope
@@ -268,8 +264,8 @@ makeEdgeMap ct = do
             mkp (a,_,links) = resdesc <+> lnks
                 where
                    resdesc = case ct ^. at a of
-                                 Just r -> pretty r
-                                 _ -> pretty a
+                       Just r -> pretty r
+                       _      -> pretty a
                    lnks = pretty links
         throwPosError $ "Dependency error, the following resources are strongly connected!" </> trees
         -- let edgePairs = concatMap (\(_,k,ls) -> [(k,l) | l <- ls]) edgeList
@@ -294,9 +290,9 @@ realize rs = do
             let filtrd = curmap ^.. folded . filtered fmod -- all the resources that match the selector/realize criteria
                 vcheck f r = f (r ^. rvirtuality)
                 (isGoodvirtuality, alterVirtuality) = case rmod ^. rmType of
-                                                          RealizeVirtual   -> (vcheck (/= Exported), \r -> return (r & rvirtuality .~ Normal))
-                                                          RealizeCollected -> (vcheck (`elem` [Exported, ExportedRealized]), \r -> return (r & rvirtuality .~ ExportedRealized))
-                                                          DontRealize      -> (vcheck (`elem` [Normal, ExportedRealized]), return)
+                    RealizeVirtual   -> (vcheck (/= Exported), \r -> return (r & rvirtuality .~ Normal))
+                    RealizeCollected -> (vcheck (`elem` [Exported, ExportedRealized]), \r -> return (r & rvirtuality .~ ExportedRealized))
+                    DontRealize      -> (vcheck (`elem` [Normal, ExportedRealized]), return)
                 fmod r = (r ^. rid . itype == rmod ^. rmResType) && checkSearchExpression (rmod ^. rmSearch) r && isGoodvirtuality r
                 mutation = alterVirtuality >=> rmod ^. rmMutation
                 applyModification :: Pair FinalCatalog FinalCatalog -> Resource -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
@@ -319,20 +315,22 @@ evaluateNode (Nd _ stmts inheritance p) = do
     curPos .= p
     pushScope ContRoot
     unless (S.isNothing inheritance) $ throwPosError "Node inheritance is not handled yet, and will probably never be"
-    vmapM evaluateStatement stmts >>= finalize . concat
+    mapM evaluateStatement stmts >>= finalize . concat
 
 evaluateStatementsFoldable :: Foldable f => f Statement -> InterpreterMonad [Resource]
-evaluateStatementsFoldable = fmap concat . vmapM evaluateStatement
+evaluateStatementsFoldable = fmap concat . mapM evaluateStatement . toList
 
--- | Converts a list of pairs into a container, checking there is no
--- duplicate
-fromArgumentList :: [Pair T.Text a] -> InterpreterMonad (Container a)
-fromArgumentList = foldM insertArgument mempty
+-- | Fold all attribute declarations
+-- checking for duplicates key locally inside a same resource.
+fromAttributeDecls :: V.Vector AttributeDecl -> InterpreterMonad (Container PValue)
+fromAttributeDecls = foldM resolve mempty
     where
-        insertArgument curmap (k :!: v) =
-            case curmap ^. at k of
+        resolve acc (AttributeDecl k _ v) =
+            case acc ^. at k of
                 Just _ -> throwPosError ("Parameter" <+> dullyellow (ttext k) <+> "already defined!")
-                Nothing -> return (curmap & at k ?~ v)
+                Nothing -> do
+                  pv <- resolveExpression v
+                  return (acc & at k ?~ pv)
 
 evaluateStatement :: Statement -> InterpreterMonad [Resource]
 evaluateStatement r@(ClassDeclaration (ClassDecl cname _ _ _ _)) =
@@ -388,11 +386,11 @@ evaluateStatement (Dependency (Dep (t1 :!: n1) (t2 :!: n2) lt p)) = do
 evaluateStatement (ResourceDeclaration (ResDec rt ern eargs virt p)) = do
     curPos .= p
     resnames <- resolveExpressionStrings ern
-    args <- vmapM resolveArgument eargs >>= fromArgumentList
+    args <- fromAttributeDecls eargs
     concat <$> mapM (\n -> registerResource rt n args virt p) resnames
 evaluateStatement (MainFunctionCall (MFC funcname funcargs p)) = do
     curPos .= p
-    vmapM resolveExpression funcargs >>= mainFunctionCall funcname
+    mapM resolveExpression (toList funcargs) >>= mainFunctionCall funcname
 evaluateStatement (VariableAssignment (VarAss varname varexpr p)) = do
     curPos .= p
     varval <- resolveExpression varexpr
@@ -409,9 +407,7 @@ evaluateStatement (ConditionalStatement (CondStatement conds p)) = do
     checkCond (toList conds)
 evaluateStatement (DefaultDeclaration (DefaultDec resType decls p)) = do
     curPos .= p
-    -- TODO resolve AttributeDecl correctly
-    let resolveDefaultValue (AttributeDecl k _ v) = (k:!:) <$> resolveExpression v
-    rdecls <- vmapM resolveDefaultValue decls >>= fromArgumentList
+    rdecls <- fromAttributeDecls decls
     scp <- getScopeName
     -- invariant that must be respected : the current scope must me create
     -- in "scopes", or nothing gets saved
@@ -427,7 +423,7 @@ evaluateStatement (DefaultDeclaration (DefaultDec resType decls p)) = do
     return []
 evaluateStatement (ResourceOverride (ResOver rt urn eargs p)) = do
     curPos .= p
-    raassignements <- vmapM resolveArgument eargs >>= fromArgumentList
+    raassignements <- fromAttributeDecls eargs
     rn <- resolveExpressionString urn
     scp <- getScopeName
     curoverrides <- use (scopes . ix scp . scopeOverrides)
@@ -695,25 +691,25 @@ addAttribute _ "notify"    r d = addRelationship RNotify d r
 addAttribute _ "require"   r d = addRelationship RRequire d r
 addAttribute _ "subscribe" r d = addRelationship RSubscribe d r
 addAttribute b t r v = case (r ^. rattributes . at t, b) of
-                             (_, Replace)     -> return (r & rattributes . at t ?~ v)
-                             (Nothing, _)     -> return (r & rattributes . at t ?~ v)
-                             (_, CantReplace) -> return r
-                             (Just curval, _) -> do
-                                 -- we must check if the resource scope is
-                                 -- a parent of the current scope
-                                 curscope <- getScopeName
-                                 i <- isParent curscope (rcurcontainer r)
-                                 if i
-                                     then return (r & rattributes . at t ?~ v)
-                                     else do
-                                         -- We will not bark if the same attribute
-                                         -- is defined multiple times with distinct
-                                         -- values.
-                                         let errmsg = "Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty r
-                                         if curval == v
-                                             then checkStrict errmsg errmsg
-                                             else throwPosError errmsg
-                                         return r
+    (_, Replace)     -> return (r & rattributes . at t ?~ v)
+    (Nothing, _)     -> return (r & rattributes . at t ?~ v)
+    (_, CantReplace) -> return r
+    (Just curval, _) -> do
+        -- we must check if the resource scope is
+        -- a parent of the current scope
+        curscope <- getScopeName
+        i <- isParent curscope (rcurcontainer r)
+        if i
+            then return (r & rattributes . at t ?~ v)
+            else do
+                -- We will not bark if the same attribute
+                -- is defined multiple times with distinct
+                -- values.
+                let errmsg = "Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty r
+                if curval == v
+                    then checkStrict errmsg errmsg
+                    else throwPosError errmsg
+                return r
 
 registerResource :: T.Text -> T.Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"

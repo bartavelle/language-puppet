@@ -646,7 +646,6 @@ statementList = fmap (V.fromList . concat) (many statement)
 {-
 - Stuff related to the new functions with "lambdas"
 -}
-
 parseHFunction :: Parser HigherFuncType
 parseHFunction =   (reserved "each"   *> pure HFEach)
                <|> (reserved "map"    *> pure HFMap )

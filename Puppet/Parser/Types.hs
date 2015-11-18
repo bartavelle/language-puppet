@@ -49,9 +49,7 @@ module Puppet.Parser.Types
    RColl(..)
    ) where
 
-
 import           Control.Lens
-
 import           Data.Aeson
 import           Data.Char              (toUpper)
 import           Data.Hashable
@@ -69,10 +67,10 @@ import           Text.Megaparsec.Pos
 import           Text.Regex.PCRE.String
 
 -- | Properly capitalizes resource types
-capitalizeRT :: Text -> T.Text
+capitalizeRT :: Text -> Text
 capitalizeRT = T.intercalate "::" . map capitalize' . T.splitOn "::"
     where
-        capitalize' :: Text -> T.Text
+        capitalize' :: Text -> Text
         capitalize' t | T.null t = T.empty
                       | otherwise = T.cons (toUpper (T.head t)) (T.tail t)
 
@@ -116,7 +114,7 @@ data HigherFuncType
 -- single values and pairs.
 data BlockParameters
     = BPSingle !Text -- ^ @|k|@
-    | BPPair   !Text !T.Text -- ^ @|k,v|@
+    | BPPair   !Text !Text -- ^ @|k,v|@
     deriving (Eq, Show)
 
 -- The description of the /higher level function/ call.
@@ -131,7 +129,7 @@ data HFunctionCall = HFunctionCall
 data ChainableRes
     = ChainResColl !RColl
     | ChainResDecl !ResDec
-    | ChainResRefr !Text [Expression] PPosition
+    | ChainResRefr !Text [Expression] !PPosition
     deriving (Show, Eq)
 
 data AttributeDecl = AttributeDecl !Text !ArrowOp !Expression
@@ -160,7 +158,7 @@ data UValue
     | UVariableReference !Text
     | UFunctionCall !Text !(V.Vector Expression)
     | UHFunctionCall !HFunctionCall
-    | UNumber Scientific
+    | UNumber !Scientific
     deriving (Show, Eq)
 
 
@@ -168,7 +166,7 @@ instance IsString UValue where
     fromString = UString . T.pack
 
 data SelectorCase
-    = SelectorValue UValue
+    = SelectorValue !UValue
     | SelectorDefault
     deriving (Eq, Show)
 
@@ -275,8 +273,8 @@ data ResOver       = ResOver !Text !Expression !(V.Vector AttributeDecl) !PPosit
 -- | All types of conditional statements (@case@, @if@, etc.) are stored as an ordered list of pair (condition, statements)
 -- (interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ...")
 data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
-data ClassDecl     = ClassDecl !Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(S.Maybe T.Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
-data DefineDec     = DefineDec !Text !(V.Vector (Pair T.Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data ClassDecl     = ClassDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data DefineDec     = DefineDec !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
 data VarAss        = VarAss !Text !Expression !PPosition deriving (Eq, Show)
 data MFC           = MFC !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
@@ -284,7 +282,7 @@ data MFC           = MFC !Text !(V.Vector Expression) !PPosition deriving (Eq, S
 data SFC           = SFC !HFunctionCall !PPosition deriving (Eq, Show)
 -- | For all types of collectors.
 data RColl         = RColl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
-data Dep           = Dep !(Pair Text Expression) !(Pair T.Text Expression) !LinkType !PPosition deriving (Eq, Show)
+data Dep           = Dep !(Pair Text Expression) !(Pair Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
 -- | All the possible statements
 data Statement

@@ -170,7 +170,7 @@ Test-Suite erbparser
 executable puppetresources
   hs-source-dirs:      progs
   extensions:          BangPatterns, OverloadedStrings
-  ghc-options:         -Wall -rtsopts -funbox-strict-fields -O2 -threaded -with-rtsopts "-A2M" -eventlog
+  ghc-options:         -Wall -rtsopts -funbox-strict-fields -threaded -with-rtsopts "-A2M" -eventlog
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       language-puppet,base,text,megaparsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9, either, servant-client
   main-is:             PuppetResources.hs
