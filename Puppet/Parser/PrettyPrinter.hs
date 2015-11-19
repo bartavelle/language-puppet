@@ -120,20 +120,23 @@ instance Pretty LinkType where
     pretty RBefore    = "->"
     pretty RSubscribe = "<~"
 
+instance Pretty ArrowOp where
+    pretty AssignArrow = "=>"
+    pretty AppendArrow = "+>"
+
 showPos :: Position -> Doc
 showPos p = green (char '#' <+> string (show p))
 
 showPPos :: PPosition -> Doc
 showPPos p = green (char '#' <+> string (show (S.fst p)))
 
-showAss :: V.Vector (Pair T.Text Expression) -> Doc
-showAss v = folddoc (\a b -> a <> char ',' <$> b) rh lst
+showAss :: V.Vector AttributeDecl -> Doc
+showAss vx = folddoc (\a b -> a <> char ',' <$> b) prettyDecl (V.toList vx)
     where
         folddoc _ _ [] = empty
-        folddoc docAppend docGen (x:xs) = foldl docAppend (docGen x) (map docGen xs)
-        lst = V.toList v
-        maxlen = maximum (map (T.length . S.fst) lst)
-        rh (k :!: val) = dullblue (fill maxlen (text (T.unpack k))) <+> text "=>" <+> pretty val
+        folddoc acc docGen (x:xs) = foldl acc (docGen x) (map docGen xs)
+        maxlen = maximum (fmap (\(AttributeDecl k _ _) -> T.length k) vx)
+        prettyDecl (AttributeDecl k op v) = dullblue (fill maxlen (ttext k)) <+> pretty op <+> pretty v
 
 showArgs :: V.Vector (Pair T.Text (S.Maybe Expression)) -> Doc
 showArgs vec = tupled (map ra lst)

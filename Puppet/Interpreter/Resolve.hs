@@ -13,7 +13,6 @@ module Puppet.Interpreter.Resolve
       resolvePValueString,
       resolveExpressionString,
       resolveExpressionStrings,
-      resolveArgument,
       resolveFunction',
       runHiera,
       isNativeType,
@@ -363,10 +362,6 @@ resolveExpressionStrings x =
     resolveExpression x >>= \case
         PArray a -> mapM resolvePValueString (V.toList a)
         y -> fmap return (resolvePValueString y)
-
--- | A special helper function for argument like argument like pairs.
-resolveArgument :: Pair T.Text Expression -> InterpreterMonad (Pair T.Text PValue)
-resolveArgument (argname :!: argval) = (:!:) `fmap` pure argname <*> resolveExpression argval
 
 -- | Turns a 'PValue' into a 'Bool', as explained in the reference
 -- documentation.

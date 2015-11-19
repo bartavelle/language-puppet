@@ -461,14 +461,6 @@ depOperator :: Parser LinkType
 depOperator =   (operator "->" *> pure RBefore)
             <|> (operator "~>" *> pure RNotify)
 
--- | Used to parse chains of resource relations
-parseRelationships :: Parser a -> Parser (OperatorChain a)
-parseRelationships p = do
-    g <- p
-    o <- optional depOperator
-    case o of
-        Just o' -> OperatorChain g o' <$> parseRelationships p
-        Nothing -> pure (EndOfChain g)
 
 resourceGroup :: Parser [ResDec]
 resourceGroup = do
@@ -492,11 +484,14 @@ resourceGroup = do
                       _    -> fail "Invalid virtuality"
     return [ ResDec rtype rname conts virtuality pos | (rname, conts, pos) <- concat x ]
 
-assignment :: Parser (Pair T.Text Expression)
-assignment = (:!:) <$> bw <*> (symbol "=>" *> expression)
+assignment :: Parser AttributeDecl
+assignment = AttributeDecl <$> key <*> arrowOp  <*> expression
     where
-        bw = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Assignment key"
+        key = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Assignment key"
         acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
+        arrowOp =
+              (symbol "=>" *> pure AssignArrow)
+          <|> (symbol "+>" *> pure AppendArrow)
 
 searchExpression :: Parser SearchExpression
 searchExpression = makeExprParser (token searchterm) searchTable
@@ -568,9 +563,6 @@ dotCall = do
     unless (hf ^. hftype == HFEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
     return (SFC hf (p :!: pe))
 
-data ChainableStuff = ChainResColl RColl
-                    | ChainResDecl ResDec
-                    | ChainResRefr T.Text [Expression] PPosition
 
 resourceDefaults :: Parser DefaultDec
 resourceDefaults = do
@@ -590,18 +582,8 @@ resourceOverride = do
     pe <- getPosition
     return [ ResOver restype n assignments (p :!: pe) | n <- names ]
 
-extractResRef :: ChainableStuff -> [(T.Text, Expression, PPosition)]
-extractResRef (ChainResColl _) = []
-extractResRef (ChainResDecl (ResDec rt rn _ _ pp)) = [(rt,rn,pp)]
-extractResRef (ChainResRefr rt rns pp) = [(rt,rn,pp) | rn <- rns]
-
-extractChainStatement :: ChainableStuff -> [Statement]
-extractChainStatement (ChainResColl r) = [ResourceCollection r]
-extractChainStatement (ChainResDecl d) = [ResourceDeclaration d]
-extractChainStatement ChainResRefr{} = []
-
-chainableStuff :: Parser [Statement]
-chainableStuff = do
+chainableResources :: Parser [Statement]
+chainableResources = do
     let withresname = do
             p <- getPosition
             restype  <- resourceNameRef
@@ -618,6 +600,24 @@ chainableStuff = do
             (rt2, rn2, ps2 :!: _  ) <- concatMap extractResRef g2
             return (Dep (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
     return $ map Dependency relations <> (chain ^.. folded . folded . to extractChainStatement . folded)
+  where
+    extractResRef :: ChainableRes -> [(T.Text, Expression, PPosition)]
+    extractResRef (ChainResColl _) = []
+    extractResRef (ChainResDecl (ResDec rt rn _ _ pp)) = [(rt,rn,pp)]
+    extractResRef (ChainResRefr rt rns pp) = [(rt,rn,pp) | rn <- rns]
+
+    extractChainStatement :: ChainableRes -> [Statement]
+    extractChainStatement (ChainResColl r) = [ResourceCollection r]
+    extractChainStatement (ChainResDecl d) = [ResourceDeclaration d]
+    extractChainStatement ChainResRefr{} = []
+
+    parseRelationships :: Parser a -> Parser (OperatorChain a)
+    parseRelationships p = do
+        g <- p
+        o <- optional depOperator
+        case o of
+            Just o' -> OperatorChain g o' <$> parseRelationships p
+            Nothing -> pure (EndOfChain g)
 
 statement :: Parser [Statement]
 statement =
@@ -630,7 +630,7 @@ statement =
     <|> (pure . ConditionalStatement <$> caseCondition)
     <|> (pure . DefaultDeclaration <$> try resourceDefaults)
     <|> (map ResourceOverride <$> try resourceOverride)
-    <|> chainableStuff
+    <|> chainableResources
     {-
     <|> resourceGroup
     <|> rrGroup
@@ -646,7 +646,6 @@ statementList = fmap (V.fromList . concat) (many statement)
 {-
 - Stuff related to the new functions with "lambdas"
 -}
-
 parseHFunction :: Parser HigherFuncType
 parseHFunction =   (reserved "each"   *> pure HFEach)
                <|> (reserved "map"    *> pure HFMap )
