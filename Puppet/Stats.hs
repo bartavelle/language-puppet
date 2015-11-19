@@ -22,7 +22,6 @@ data StatsPoint = StatsPoint { _statspointCount :: !Int    -- ^ Total number of 
 type StatsTable = HM.HashMap T.Text StatsPoint
 
 newtype MStats = MStats { unMStats :: MVar StatsTable }
-
 -- | Returns the actual statistical values.
 getStats :: MStats -> IO StatsTable
 getStats = readMVar . unMStats

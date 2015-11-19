@@ -2,7 +2,9 @@
 {-# LANGUAGE GADTs      #-}
 {-# LANGUAGE LambdaCase #-}
 module Puppet.Daemon (
-    initDaemon
+    Daemon(..)
+  , initDaemon
+  -- * Utils
   , checkError
   -- * Re-exports
   , module Puppet.Interpreter.Types
@@ -45,53 +47,64 @@ import           Puppet.Preferences
 import           Puppet.Stats
 import           Puppet.Utils
 
-{-| This is a high level function, that will initialize the parsing and
-interpretation infrastructure from the 'Preferences', and will return 'DaemonMethods'.
-From there, you have access to 'getCatalog', a function that take a node name,
-and the 'Facts' to return the result of the catalog computation. 'DaemonMethods' also returns
-a few IO functions that can be used to query for statistics (see "Puppet.Stats").
+{-| API for the Daemon.
+The main method is `getCatalog`: given a node and a list of facts, it returns the result of the compilation.
+This will be either an error, or a tuple containing:
+- all the resources in this catalog
+- the dependency map
+- the exported resources
+- a list of known resources, that might not be up to date, but are here for code coverage tests.
 
-It will internaly initialize a thread for the LUA interpreter, and a thread for the Ruby one.
+Notes :
+
+* It might be buggy when top level statements that are not class\/define\/nodes
+are altered, or when files loaded with require are changed.
+* The catalog is not computed exactly the same way Puppet does. Some good practices are enforced, particularly in strict mode.
+For instance, unknown variables are always an error. Querying a dictionary with a non existent key returns undef in puppet, whereas it would throw an error in strict mode.
+-}
+data Daemon = Daemon
+    { getCatalog    :: Nodename -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+    , parserStats   :: MStats
+    , catalogStats  :: MStats
+    , templateStats :: MStats
+    }
+
+{-| Entry point to get a Daemon
+It will initialize the parsing and interpretation infrastructure from the 'Preferences'.
+
+Internally it initializes a thread for the LUA interpreter, and a thread for the Ruby one.
 It should cache the AST of every .pp file, and could use a bit of memory. As a comparison, it
 fits in 60 MB with the author's manifests, but really breathes when given 300 MB
 of heap space. In this configuration, even if it spawns a ruby process for every
 template evaluation, it is way faster than the puppet stack.
 
-It can optionnaly talk with PuppetDB, by setting an URL via the 'prefPDB'.
+It can optionally talk with PuppetDB, by setting an URL via the 'prefPDB'.
 The recommended way to set it to http://localhost:8080 and set a SSH tunnel :
 
 > ssh -L 8080:localhost:8080 puppet.host
-
-Canveats :
-
-* It might be buggy when top level statements that are not class\/define\/nodes
-are altered, or when files loaded with require are changed.
-
-* The catalog is not computed exactly the same way Puppet does. Some good practices are enforced, particularly in strict mode.
-For instance, unknown variables are always an error. Querying a dictionary with a non existent key returns undef in puppet, whereas it would throw an error in strict mode.
-
 -}
-initDaemon :: Preferences IO -> IO DaemonMethods
-initDaemon prefs = do
-    setupLogger (prefs ^. prefLogLevel)
+initDaemon :: Preferences IO -> IO Daemon
+initDaemon pref0 = do
+    setupLogger (pref0 ^. prefLogLevel)
     logDebug "initDaemon"
     traceEventIO "initDaemon"
-    templateStats <- newStats
-    parserStats   <- newStats
-    catalogStats  <- newStats
-    pfilecache    <- newFileCache
-    intr          <- startRubyInterpreter
-    hquery        <- case prefs ^. prefHieraPath of
-                         Just p  -> either error id <$> startHiera p
-                         Nothing -> return dummyHiera
-    luacontainer <- initLuaMaster (T.pack (prefs ^. prefPuppetPaths.modulesPath))
-    let myprefs = prefs & prefExtFuncs %~ HM.union luacontainer
-        getStatements = parseFunction myprefs pfilecache parserStats
-    getTemplate <- initTemplateDaemon intr myprefs templateStats
-    return (DaemonMethods (gCatalog myprefs getStatements getTemplate catalogStats hquery) parserStats catalogStats templateStats)
-
-
--- Public utils func to work with the daemon --
+    luacontainer <- initLuaMaster (T.pack (pref0 ^. prefPuppetPaths.modulesPath))
+    let pref = pref0 & prefExtFuncs %~ HM.union luacontainer
+    hquery <- case pref ^. prefHieraPath of
+                  Just p  -> either error id <$> startHiera p
+                  Nothing -> return dummyHiera
+    fcache      <- newFileCache
+    intr        <- startRubyInterpreter
+    templStats  <- newStats
+    getTemplate <- initTemplateDaemon intr pref templStats
+    catStats    <- newStats
+    parseStats  <- newStats
+    return (Daemon
+                (getCatalog' pref (parseFunction pref fcache parseStats) getTemplate catStats hquery)
+                parseStats
+                catStats
+                templStats
+           )
 
 -- | In case of a Left value, print the error and exit immediately
 checkError :: Show e => Doc -> Either e a -> IO a
@@ -101,9 +114,9 @@ checkError desc = either exit return
       display err = red desc <> ": " <+> (string . show) err
 
 
--- Some utils func internal to this module --
+-- Internal functions
 
-gCatalog :: Preferences IO
+getCatalog' :: Preferences IO
          -> ( TopLevelType -> T.Text -> IO (S.Either PrettyError Statement) )
          -> (Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text))
          -> MStats
@@ -111,29 +124,29 @@ gCatalog :: Preferences IO
          -> Nodename
          -> Facts
          -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
-gCatalog prefs getStatements getTemplate stats hquery node facts = do
+getCatalog' prefs getStatements getTemplate stats hquery node facts = do
     logDebug ("Received query for node " <> node)
-    traceEventIO ("START gCatalog " <> T.unpack node)
-    let catalogComputation = getCatalog (InterpreterReader
-                                            (prefs ^. prefNatTypes)
-                                            getStatements
-                                            getTemplate
-                                            (prefs ^. prefPDB)
-                                            (prefs ^. prefExtFuncs)
-                                            node
-                                            hquery
-                                            defaultImpureMethods
-                                            (prefs ^. prefIgnoredmodules)
-                                            (prefs ^. prefExternalmodules)
-                                            (prefs ^. prefStrictness == Strict)
-                                            (prefs ^. prefPuppetPaths)
-                                        )
-                                        node
-                                        facts
-                                        (prefs ^. prefPuppetSettings)
+    traceEventIO ("START getCatalog' " <> T.unpack node)
+    let catalogComputation = interpretCatalog (InterpreterReader
+                                                  (prefs ^. prefNatTypes)
+                                                  getStatements
+                                                  getTemplate
+                                                  (prefs ^. prefPDB)
+                                                  (prefs ^. prefExtFuncs)
+                                                  node
+                                                  hquery
+                                                  defaultImpureMethods
+                                                  (prefs ^. prefIgnoredmodules)
+                                                  (prefs ^. prefExternalmodules)
+                                                  (prefs ^. prefStrictness == Strict)
+                                                  (prefs ^. prefPuppetPaths)
+                                              )
+                                              node
+                                              facts
+                                              (prefs ^. prefPuppetSettings)
     (stmts :!: warnings) <- measure stats node catalogComputation
     mapM_ (\(p :!: m) -> LOG.logM daemonLoggerName p (displayS (renderCompact (ttext node <> ":" <+> m)) "")) warnings
-    traceEventIO ("STOP gCatalog " <> T.unpack node)
+    traceEventIO ("STOP getCatalog' " <> T.unpack node)
     if prefs ^. prefExtraTests
        then runOptionalTests stmts
        else return stmts

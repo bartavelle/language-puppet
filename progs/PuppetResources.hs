@@ -172,9 +172,9 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                                     <&> (if _optStrictMode then prefStrictness .~ Strict else id)
                                     <&> (if _optNoExtraTests then prefExtraTests .~ False else id)
                                     <&> prefLogLevel .~ _optLoglevel
-    q <- initDaemon prf
-    let queryfunc = \node -> fmap (unifyFacts (prf ^. prefFactsDefault) (prf ^. prefFactsOverride)) (puppetDBFacts node pdbapi) >>= _dGetCatalog q node
-    return (queryfunc, pdbapi, _dParserStats q, _dCatalogStats q, _dTemplateStats q)
+    d <- initDaemon prf
+    let queryfunc = \node -> fmap (unifyFacts (prf ^. prefFactsDefault) (prf ^. prefFactsOverride)) (puppetDBFacts node pdbapi) >>= getCatalog d node
+    return (queryfunc, pdbapi, parserStats d, catalogStats d, templateStats d)
     where
       -- merge 3 sets of facts : some defaults, the original set and some override
       unifyFacts :: Container PValue -> Container PValue -> Container PValue -> Container PValue

@@ -58,7 +58,6 @@ module Puppet.Interpreter.Types (
  , ResRefOverride(..)
  , ResourceField(..)
  , OverrideType(..)
- , DaemonMethods(..)
  , ClassIncludeType(..)
   -- ** PuppetDB
  , PuppetEdge(PuppetEdge)
@@ -145,7 +144,6 @@ import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.Pathes
 import           Puppet.PP                   hiding (rational)
-import           Puppet.Stats
 
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
@@ -430,15 +428,6 @@ data NativeTypeMethods = NativeTypeMethods
 
 type FinalCatalog = HM.HashMap RIdentifier Resource
 
-data DaemonMethods = DaemonMethods
-    { -- | The most important function, computing catalogs.
-      -- Given a node name and a list of facts, it returns the result of the catalog compilation : either an error, or a tuple containing all the resources in this catalog, the dependency map, the exported resources, and a list of known resources, that might not be up to date, but are here for code coverage tests.
-      _dGetCatalog    :: Nodename -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
-    , _dParserStats   :: MStats
-    , _dCatalogStats  :: MStats
-    , _dTemplateStats :: MStats
-    }
-
 data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType
 
 -- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
@@ -511,7 +500,6 @@ makeClassy ''ResRefOverride
 makeClassy ''LinkInformation
 makeClassy ''ResDefaults
 makeClassy ''ResourceModifier
-makeClassy ''DaemonMethods
 makeClassy ''NativeTypeMethods
 makeClassy ''ScopeInformation
 makeClassy ''Resource

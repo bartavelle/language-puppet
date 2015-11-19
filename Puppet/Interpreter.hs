@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase   #-}
 {-# LANGUAGE RankNTypes   #-}
 module Puppet.Interpreter
-       ( getCatalog
+       ( interpretCatalog
        ) where
 
 import           Puppet.Interpreter.PrettyPrinter (containerComma)
@@ -62,13 +62,13 @@ getModulename (RIdentifier t n) =
     'InterpreterState' and might not be up to date.
     There are only useful for coverage testing (checking dependencies for instance).
 -}
-getCatalog :: (Functor m, Monad m)
+interpretCatalog :: (Functor m, Monad m)
            => InterpreterReader m -- ^ The whole environment required for computing catalog.
            -> Nodename
            -> Facts
            -> Container T.Text -- ^ Server settings
            -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
-getCatalog interpretReader node facts settings = do
+interpretCatalog interpretReader node facts settings = do
     (output, _, warnings) <- interpretMonad interpretReader (initialState facts settings) (computeCatalog node)
     return (strictifyEither output :!: warnings)
 
