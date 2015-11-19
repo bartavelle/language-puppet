@@ -51,7 +51,6 @@ instance Pretty TopLevelType where
     pretty TopNode     = dullyellow (text "node")
     pretty TopDefine   = dullyellow (text "define")
     pretty TopClass    = dullyellow (text "class")
-    pretty TopSpurious = dullyellow (text "spurious")
 
 instance Pretty RIdentifier where
     pretty (RIdentifier t n) = pretty (PResourceReference t n)

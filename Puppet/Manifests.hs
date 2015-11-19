@@ -55,7 +55,6 @@ filterStatements x ndename stmts =
                    else TopContainer spurious n
     in  case x of
             TopNode -> return (S.Left "Case already covered, shoudln't happen in Puppet.Manifests")
-            TopSpurious -> return (S.Left "Should not ask for a TopSpurious!!!")
             TopDefine -> case defines ^. at ndename of
                              Just n -> return (S.Right (tc n))
                              Nothing -> return (S.Left (PrettyError ("Couldn't find define " <+> ttext ndename)))

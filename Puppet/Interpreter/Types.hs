@@ -224,11 +224,6 @@ data TopLevelType
     | TopDefine
     -- |This is for classes.
     | TopClass
-    -- |This one is special. It represents top level statements that are not
-    -- part of a node, define or class. It is defined as spurious because it is
-    -- not what you are supposed to be. Also the caching system doesn't like
-    -- them too much right now.
-    | TopSpurious
     deriving (Generic,Eq)
 
 instance Hashable TopLevelType
