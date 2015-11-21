@@ -13,7 +13,7 @@ import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Types
 import           Puppet.NativeTypes
 import           Puppet.Parser.Types
-import           Puppet.Pathes
+import           Puppet.Paths
 import           Puppet.PP
 import           PuppetDB.Dummy
 
@@ -24,14 +24,26 @@ import qualified Data.Text                as T
 
 -- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
 -- type.
-impurePure :: ImpureMethods Identity
-impurePure = ImpureMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ()) (\_ _ _ -> return (Left "Can't call lua"))
+impurePure :: IoMethods Identity
+impurePure = IoMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ()) (\_ _ _ -> return (Left "Can't call lua"))
 
 -- | A pure 'InterpreterReader', that can only evaluate a subset of the
 -- templates, and that can include only the supplied top level statements.
 pureReader :: HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level statement map
            -> InterpreterReader Identity
-pureReader sttmap = InterpreterReader baseNativeTypes getstatementdummy templatedummy dummyPuppetDB mempty "dummy" hieradummy impurePure mempty mempty True (defaultPathes "/etc/puppet")
+pureReader sttmap = InterpreterReader
+                      baseNativeTypes
+                      getstatementdummy
+                      templatedummy
+                      dummyPuppetDB
+                      mempty
+                      "dummy"
+                      hieradummy
+                      impurePure
+                      mempty
+                      mempty
+                      True
+                      (puppetPaths "/etc/puppet")
     where
         templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
         templatedummy (Left cnt) stt _ = return $ case extractFromState stt of

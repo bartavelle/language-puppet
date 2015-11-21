@@ -167,7 +167,7 @@ factProcessor = do
         modelnames = mapMaybe (fmap (dropWhile (`elem` ("\t :" :: String))) . stripPrefix "model name") (lines cpuinfo)
     return $ ("processorcount", show (length cpuinfos)) : cpuinfos
 
-puppetDBFacts :: Nodename -> PuppetDBAPI IO -> IO (Container PValue)
+puppetDBFacts :: NodeName -> PuppetDBAPI IO -> IO (Container PValue)
 puppetDBFacts node pdbapi =
     runEitherT (getFacts pdbapi (QEqual FCertname node)) >>= \case
         Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))

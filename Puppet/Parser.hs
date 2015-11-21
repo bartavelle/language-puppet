@@ -641,7 +641,7 @@ statement =
     <?> "Statement"
 
 statementList :: Parser (V.Vector Statement)
-statementList = fmap (V.fromList . concat) (many statement)
+statementList = (V.fromList . concat) <$> many statement
 
 {-
 - Stuff related to the new functions with "lambdas"

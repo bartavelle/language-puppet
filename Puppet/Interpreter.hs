@@ -64,7 +64,7 @@ getModulename (RIdentifier t n) =
 -}
 interpretCatalog :: (Functor m, Monad m)
            => InterpreterReader m -- ^ The whole environment required for computing catalog.
-           -> Nodename
+           -> NodeName
            -> Facts
            -> Container T.Text -- ^ Server settings
            -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
@@ -149,21 +149,22 @@ evalTopLevel (TopContainer tops s) = do
     return (r <> nr, ns)
 evalTopLevel x = return ([], x)
 
-getstt :: TopLevelType -> T.Text -> InterpreterMonad ([Resource], Statement)
-getstt topleveltype toplevelname =
-    -- check if this is a known class (spurious or inner class)
-    use (nestedDeclarations . at (topleveltype, toplevelname)) >>= \case
+-- | Given a toplevel (type, name), return the associated statement
+getStatement :: TopLevelType -> T.Text -> InterpreterMonad ([Resource], Statement)
+getStatement toptype topname =
+    -- check if this is a known toplevel
+    use (nestedDeclarations . at (toptype, topname)) >>= \case
         Just x -> return ([], x) -- it is known !
-        Nothing -> singleton (GetStatement topleveltype toplevelname) >>= evalTopLevel
+        Nothing -> singleton (GetStatement toptype topname) >>= evalTopLevel
 
 extractPrism :: Prism' a b -> Doc -> a -> InterpreterMonad b
 extractPrism p t a = case preview p a of
                          Just b -> return b
                          Nothing -> throwPosError ("Could not extract prism in " <> t)
 
-computeCatalog :: Nodename -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog, [Resource])
+computeCatalog :: NodeName -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog, [Resource])
 computeCatalog ndename = do
-    (restop, node') <- getstt TopNode ndename
+    (restop, node') <- getStatement TopNode ndename
     node <- extractPrism _Node' "computeCatalog" node'
     let finalStep [] = return []
         finalStep allres = do
@@ -580,7 +581,7 @@ expandDefine r = do
             return (LinkInformation (r ^. rid) dstid link p)
     extraRelations <>= extr
     void $ enterScope SENormal curContType modulename p
-    (spurious, dls') <- getstt TopDefine deftype
+    (spurious, dls') <- getStatement TopDefine deftype
     DefineDec _ defineParams stmts cp <- extractPrism _DefineDeclaration' "expandDefine" dls'
     let isImported (ContImported _) = True
         isImported _ = False
@@ -630,7 +631,7 @@ loadClass rclassname loadedfrom params cincludetype = do
             loadedClasses . at classname ?= (cincludetype :!: p)
             -- load the actual class, note we are not changing the current position
             -- right now
-            (spurious, cls') <- getstt TopClass classname
+            (spurious, cls') <- getStatement TopClass classname
             ClassDecl _ classParams inh stmts cp <- extractPrism _ClassDeclaration' "loadClass" cls'
             -- check if we need to define a resource representing the class
             -- This will be the case for the first standard include

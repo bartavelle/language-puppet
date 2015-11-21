@@ -122,11 +122,11 @@ ncompare operation f a i v = case f a v of
 replCat :: DB -> WireCatalog -> EitherT PrettyError IO ()
 replCat db wc = liftIO $ atomically $ modifyTVar db (resources . at (wc ^. nodename) ?~ wc)
 
-replFacts :: DB -> [(Nodename, Facts)] -> EitherT PrettyError IO ()
+replFacts :: DB -> [(NodeName, Facts)] -> EitherT PrettyError IO ()
 replFacts db lst = liftIO $ atomically $ modifyTVar db $
                     facts %~ (\r -> foldl' (\curr (n,f) -> curr & at n ?~ f) r lst)
 
-deactivate :: DB -> Nodename -> EitherT PrettyError IO ()
+deactivate :: DB -> NodeName -> EitherT PrettyError IO ()
 deactivate db n = liftIO $ atomically $ modifyTVar db $
                     (resources . at n .~ Nothing) . (facts . at n .~ Nothing)
 
@@ -167,7 +167,7 @@ getRes db f = fmap (filter (resolveQuery resourceQuery f) . toResources) (liftIO
         toResources :: DBContent -> [Resource]
         toResources = concatMap (V.toList . view wResources) .  HM.elems . view resources
 
-getResNode :: DB -> Nodename -> Query ResourceField -> EitherT PrettyError IO [Resource]
+getResNode :: DB -> NodeName -> Query ResourceField -> EitherT PrettyError IO [Resource]
 getResNode db nn f = do
     c <- liftIO $ readTVarIO db
     case c ^. resources . at nn of
@@ -187,7 +187,7 @@ getNds db QEmpty = fmap toNodeInfo (liftIO $ readTVarIO db)
         toNodeInfo :: DBContent -> [PNodeInfo]
         toNodeInfo = fmap g . HM.keys . _dbcontentFacts
              where
-                g :: Nodename -> PNodeInfo
+                g :: NodeName -> PNodeInfo
                 g = \n -> PNodeInfo n False S.Nothing S.Nothing S.Nothing
 
 getNds _ _ = left "getNds with query not implemented"

@@ -119,7 +119,7 @@ showQuery :: ToJSON a => Query a -> Doc
 showQuery = string . BSL.unpack . encode
 
 instance Pretty (InterpreterInstr a) where
-    pretty PuppetPathes = pf "PuppetPathes" []
+    pretty PuppetPaths = pf "PuppetPathes" []
     pretty IsStrict = pf "IsStrict" []
     pretty GetNativeTypes = pf "GetNativeTypes" []
     pretty (GetStatement tlt nm) = pf "GetStatement" [pretty tlt,ttext nm]

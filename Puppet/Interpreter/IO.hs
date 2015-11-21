@@ -29,8 +29,8 @@ import           Debug.Trace                      (traceEventIO)
 import           GHC.Stack
 import qualified Scripting.Lua                    as Lua
 
-defaultImpureMethods :: (Functor m, MonadIO m) => ImpureMethods m
-defaultImpureMethods = ImpureMethods (liftIO currentCallStack)
+defaultImpureMethods :: (Functor m, MonadIO m) => IoMethods m
+defaultImpureMethods = IoMethods (liftIO currentCallStack)
                                      (liftIO . file)
                                      (liftIO . traceEventIO)
                                      (\c fname args -> liftIO (runlua c fname args))
@@ -60,7 +60,7 @@ eval _ s (Return x) = return (Right x, s, mempty)
 eval r s (a :>>= k) =
     let runInstr = interpretMonad r s . k -- run one instruction
         thpe = interpretMonad r s . throwPosError . getError
-        pdb = r^.pdbAPI
+        pdb = r^.readerPdbApi
         strFail iof errf = iof >>= \case
             Left rr -> thpe (errf (string rr))
             Right x -> runInstr x
@@ -72,22 +72,22 @@ eval r s (a :>>= k) =
             Right x -> runInstr x
         logStuff x c = (_3 %~ (x <>)) <$> c
     in  case a of
-            IsStrict                     -> runInstr (r ^. isStrict)
-            ExternalFunction fname args  -> case r ^. externalFunctions . at fname of
+            IsStrict                     -> runInstr (r ^. readerIsStrict)
+            ExternalFunction fname args  -> case r ^. readerExternalFunc . at fname of
                                                 Just fn -> interpretMonad r s ( fn args >>= k)
                                                 Nothing -> thpe (PrettyError ("Unknown function: " <> ttext fname))
             GetStatement topleveltype toplevelname
-                                         -> canFail ((r ^. getStatement) topleveltype toplevelname)
-            ComputeTemplate fn stt       -> canFail ((r ^. computeTemplateFunction) fn stt r)
+                                         -> canFail ((r ^. readerGetStatement) topleveltype toplevelname)
+            ComputeTemplate fn stt       -> canFail ((r ^. readerGetTemplate) fn stt r)
             WriterTell t                 -> logStuff t (runInstr ())
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"
-            PuppetPathes                 -> runInstr (r ^. ppathes)
-            GetNativeTypes               -> runInstr (r ^. nativeTypes)
+            PuppetPaths                  -> runInstr (r ^. readerPuppetPaths)
+            GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
             ErrorThrow d                 -> return (Left d, s, mempty)
             ErrorCatch _ _               -> thpe "ErrorCatch"
-            GetNodeName                  -> runInstr (r ^. thisNodename)
-            HieraQuery scps q t          -> canFail ((r ^. hieraQuery) scps q t)
+            GetNodeName                  -> runInstr (r ^. readerNodename)
+            HieraQuery scps q t          -> canFail ((r ^. readerHieraQuery) scps q t)
             PDBInformation               -> pdbInformation pdb >>= runInstr
             PDBReplaceCatalog w          -> canFailE (replaceCatalog pdb w)
             PDBReplaceFacts fcts         -> canFailE (replaceFacts pdb fcts)
@@ -97,11 +97,11 @@ eval r s (a :>>= k) =
             PDBGetNodes q                -> canFailE (getNodes pdb q)
             PDBCommitDB                  -> canFailE (commitDB pdb)
             PDBGetResourcesOfNode nn q   -> canFailE (getResourcesOfNode pdb nn q)
-            GetCurrentCallStack          -> (r ^. ioMethods . imGetCurrentCallStack) >>= runInstr
-            ReadFile fls                 -> strFail ((r ^. ioMethods . imReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
-            TraceEvent e                 -> (r ^. ioMethods . imTraceEvent) e >>= runInstr
-            IsIgnoredModule m            -> runInstr (r ^. ignoredModules . contains m)
-            IsExternalModule m           -> runInstr (r ^. externalModules . contains m)
-            CallLua c fname args         -> (r ^. ioMethods . imCallLua) c fname args >>= \case
+            GetCurrentCallStack          -> (r ^. readerIoMethods . ioGetCurrentCallStack) >>= runInstr
+            ReadFile fls                 -> strFail ((r ^. readerIoMethods . ioReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
+            TraceEvent e                 -> (r ^. readerIoMethods . ioTraceEvent) e >>= runInstr
+            IsIgnoredModule m            -> runInstr (r ^. readerIgnoredModules . contains m)
+            IsExternalModule m           -> runInstr (r ^. readerExternalModules . contains m)
+            CallLua c fname args         -> (r ^. readerIoMethods . ioCallLua) c fname args >>= \case
                                                 Right x -> runInstr x
                                                 Left rr -> thpe (PrettyError (string rr))

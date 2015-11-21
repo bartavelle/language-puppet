@@ -14,7 +14,7 @@ module Hiera.Server (
     startHiera
   , dummyHiera
   , hieraLoggerName
-    -- * Re-export (query API)
+    -- * Query API
   , HieraQueryFunc
 ) where
 
@@ -139,10 +139,10 @@ interpolateText vars t = fromMaybe t ((parseInterpolableString t ^? _Right) >>= 
 
 resolveInterpolable :: Container T.Text -> [HieraStringPart] -> Maybe T.Text
 resolveInterpolable vars = fmap T.concat . mapM resolvePart
-  where
-    resolvePart :: HieraStringPart -> Maybe T.Text
-    resolvePart (HString x) = Just x
-    resolvePart (HVariable v) = vars ^. at v
+    where
+        resolvePart :: HieraStringPart -> Maybe T.Text
+        resolvePart (HString x) = Just x
+        resolvePart (HVariable v) = vars ^. at v
 
 interpolatePValue :: Container T.Text -> PValue -> PValue
 interpolatePValue v (PHash h) = PHash . HM.fromList . map ( (_1 %~ interpolateText v) . (_2 %~ interpolatePValue v) ) . HM.toList $ h

@@ -22,8 +22,8 @@ module Puppet.Interpreter.Types (
  , ScopeInformation(ScopeInformation)
  , HasResourceModifier(..)
  , ResourceModifier(ResourceModifier)
- , HasImpureMethods(..)
- , ImpureMethods(ImpureMethods)
+ , HasIoMethods(..)
+ , IoMethods(IoMethods)
  , HasCurContainer(..)
  , CurContainer(CurContainer)
  , HasNativeTypeMethods(..)
@@ -68,7 +68,8 @@ module Puppet.Interpreter.Types (
  , InterpreterWriter
  , FinalCatalog
  , NativeTypeValidate
- , Nodename
+ , NodeName
+ , ModulePath
  , Container
  , HieraQueryFunc
  , Scope
@@ -142,13 +143,14 @@ import           Text.Megaparsec.Pos
 
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
-import           Puppet.Pathes
+import           Puppet.Paths
 import           Puppet.PP                   hiding (rational)
 
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
 
-type Nodename = T.Text
+type NodeName = T.Text
+type ModulePath = FilePath
 
 type Container = HM.HashMap T.Text
 
@@ -239,7 +241,7 @@ data CurContainerDesc = ContRoot -- ^ Contained at node or root level
                       | ContClass !T.Text -- ^ Contained in a class
                       | ContDefine !T.Text !T.Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
                       | ContImported !CurContainerDesc -- ^ Dummy container for imported resources, so that we know we must update the nodename
-                      | ContImport !Nodename !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
+                      | ContImport !NodeName !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
                       deriving (Eq, Generic, Ord, Show)
 
 data CurContainer = CurContainer
@@ -274,25 +276,25 @@ data InterpreterState = InterpreterState
     }
 
 data InterpreterReader m = InterpreterReader
-    { _nativeTypes             :: !(Container NativeTypeMethods)
-    , _getStatement            :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
-    , _computeTemplateFunction :: Either T.Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
-    , _pdbAPI                  :: PuppetDBAPI m
-    , _externalFunctions       :: Container ([PValue] -> InterpreterMonad PValue)
-    , _thisNodename            :: T.Text
-    , _hieraQuery              :: HieraQueryFunc m
-    , _ioMethods               :: ImpureMethods m
-    , _ignoredModules          :: HS.HashSet T.Text
-    , _externalModules         :: HS.HashSet T.Text
-    , _isStrict                :: Bool
-    , _ppathes                 :: PuppetDirPaths
+    { _readerNativeTypes       :: !(Container NativeTypeMethods)
+    , _readerGetStatement      :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
+    , _readerGetTemplate       :: Either T.Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
+    , _readerPdbApi            :: PuppetDBAPI m
+    , _readerExternalFunc      :: Container ([PValue] -> InterpreterMonad PValue)
+    , _readerNodename          :: T.Text
+    , _readerHieraQuery        :: HieraQueryFunc m
+    , _readerIoMethods         :: IoMethods m
+    , _readerIgnoredModules    :: HS.HashSet T.Text
+    , _readerExternalModules   :: HS.HashSet T.Text
+    , _readerIsStrict          :: Bool
+    , _readerPuppetPaths           :: PuppetDirPaths
     }
 
-data ImpureMethods m = ImpureMethods
-    { _imGetCurrentCallStack :: m [String]
-    , _imReadFile            :: [T.Text] -> m (Either String T.Text)
-    , _imTraceEvent          :: String -> m ()
-    , _imCallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> m (Either String PValue)
+data IoMethods m = IoMethods
+    { _ioGetCurrentCallStack :: m [String]
+    , _ioReadFile            :: [T.Text] -> m (Either String T.Text)
+    , _ioTraceEvent          :: String -> m ()
+    , _ioCallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> m (Either String PValue)
     }
 
 data InterpreterInstr a where
@@ -307,7 +309,7 @@ data InterpreterInstr a where
     IsIgnoredModule     :: T.Text -> InterpreterInstr Bool
     IsExternalModule    :: T.Text -> InterpreterInstr Bool
     IsStrict            :: InterpreterInstr Bool
-    PuppetPathes        :: InterpreterInstr PuppetDirPaths
+    PuppetPaths        :: InterpreterInstr PuppetDirPaths
     -- error
     ErrorThrow          :: PrettyError -> InterpreterInstr a
     ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a
@@ -318,13 +320,13 @@ data InterpreterInstr a where
     -- puppetdb wrappers, see 'PuppetDBAPI' for details
     PDBInformation      :: InterpreterInstr Doc
     PDBReplaceCatalog   :: WireCatalog -> InterpreterInstr ()
-    PDBReplaceFacts     :: [(Nodename, Facts)] -> InterpreterInstr ()
-    PDBDeactivateNode   :: Nodename -> InterpreterInstr ()
+    PDBReplaceFacts     :: [(NodeName, Facts)] -> InterpreterInstr ()
+    PDBDeactivateNode   :: NodeName -> InterpreterInstr ()
     PDBGetFacts         :: Query FactField -> InterpreterInstr [PFactInfo]
     PDBGetResources     :: Query ResourceField -> InterpreterInstr [Resource]
     PDBGetNodes         :: Query NodeField -> InterpreterInstr [PNodeInfo]
     PDBCommitDB         :: InterpreterInstr ()
-    PDBGetResourcesOfNode :: Nodename -> Query ResourceField -> InterpreterInstr [Resource]
+    PDBGetResourcesOfNode :: NodeName -> Query ResourceField -> InterpreterInstr [Resource]
     -- Reading the first file that can be read in a list
     ReadFile            :: [T.Text] -> InterpreterInstr T.Text
     -- Tracing events
@@ -337,7 +339,7 @@ type InterpreterLog = Pair LOG.Priority Doc
 type InterpreterWriter = [InterpreterLog]
 
 getPuppetPathes :: InterpreterMonad PuppetDirPaths
-getPuppetPathes = singleton PuppetPathes
+getPuppetPathes = singleton PuppetPaths
 
 warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
 warn d = tell [LOG.WARNING :!: d]
@@ -409,7 +411,7 @@ data Resource = Resource
     , _rvirtuality :: !Virtuality
     , _rtags       :: !(HS.HashSet T.Text)
     , _rpos        :: !PPosition -- ^ Source code position of the resource definition.
-    , _rnode       :: !Nodename -- ^ The node were this resource was created, if remote
+    , _rnode       :: !NodeName -- ^ The node were this resource was created, if remote
     }
     deriving Eq
 
@@ -427,7 +429,7 @@ data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType
 
 -- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
 data WireCatalog = WireCatalog
-    { _wireCatalogNodename        :: !Nodename
+    { _wireCatalogNodename        :: !NodeName
     , _wireCatalogWVersion        :: !T.Text
     , _wireCatalogWEdges          :: !(V.Vector PuppetEdge)
     , _wireCatalogWResources      :: !(V.Vector Resource)
@@ -441,7 +443,7 @@ data PFactInfo = PFactInfo
     }
 
 data PNodeInfo = PNodeInfo
-    { _pNodeInfoNodename    :: !Nodename
+    { _pNodeInfoNodename    :: !NodeName
     , _pNodeInfoDeactivated :: !Bool
     , _pNodeInfoCatalogT    :: !(S.Maybe UTCTime)
     , _pNodeInfoFactsT      :: !(S.Maybe UTCTime)
@@ -451,13 +453,13 @@ data PNodeInfo = PNodeInfo
 data PuppetDBAPI m = PuppetDBAPI
     { pdbInformation     :: m Doc
     , replaceCatalog     :: WireCatalog         -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
-    , replaceFacts       :: [(Nodename, Facts)] -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
-    , deactivateNode     :: Nodename            -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+    , replaceFacts       :: [(NodeName, Facts)] -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+    , deactivateNode     :: NodeName            -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
     , getFacts           :: Query FactField     -> EitherT PrettyError m [PFactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
     , getResources       :: Query ResourceField -> EitherT PrettyError m [Resource] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
     , getNodes           :: Query NodeField     -> EitherT PrettyError m [PNodeInfo]
     , commitDB           ::                        EitherT PrettyError m () -- ^ This is only here to tell the test PuppetDB to save its content to disk.
-    , getResourcesOfNode :: Nodename -> Query ResourceField -> EitherT PrettyError m [Resource]
+    , getResourcesOfNode :: NodeName -> Query ResourceField -> EitherT PrettyError m [Resource]
     }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
@@ -500,7 +502,7 @@ makeClassy ''ScopeInformation
 makeClassy ''Resource
 makeClassy ''InterpreterState
 makeClassy ''InterpreterReader
-makeClassy ''ImpureMethods
+makeClassy ''IoMethods
 makeClassy ''CurContainer
 makeFields ''WireCatalog
 makeFields ''PFactInfo

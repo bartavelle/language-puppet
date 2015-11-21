@@ -31,7 +31,7 @@ import qualified System.Log.Logger             as LOG
 import qualified Text.Megaparsec               as P
 import qualified Text.Regex.PCRE.String        as REG
 
-import           Facter
+import qualified Facter
 import           Puppet.Daemon
 import           Puppet.Lens
 import           Puppet.Parser
@@ -45,7 +45,7 @@ import           PuppetDB.Remote               (pdbConnect)
 import           PuppetDB.TestDB               (loadTestDB)
 
 
-type QueryFunc = Nodename -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+type QueryFunc = NodeName -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 data MultNodes =  MultNodes [T.Text] | AllNodes deriving Show
 
@@ -60,7 +60,7 @@ data Options = Options
     , _optResourceType :: Maybe T.Text
     , _optResourceName :: Maybe T.Text
     , _optPuppetdir    :: Maybe FilePath
-    , _optNodename     :: Maybe Nodename
+    , _optNodename     :: Maybe NodeName
     , _optMultnodes    :: Maybe MultNodes
     , _optDeadcode     :: Bool
     , _optPdburl       :: Maybe String
@@ -166,14 +166,14 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                                             >>= pdbConnect
                                             >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
-    prf <- dfPreferences workingdir <&> prefPDB .~ pdbapi
+    pref <- dfPreferences workingdir <&> prefPDB .~ pdbapi
                                     <&> prefHieraPath .~ _optHieraFile
                                     <&> prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods)
                                     <&> (if _optStrictMode then prefStrictness .~ Strict else id)
                                     <&> (if _optNoExtraTests then prefExtraTests .~ False else id)
                                     <&> prefLogLevel .~ _optLoglevel
-    d <- initDaemon prf
-    let queryfunc = \node -> fmap (unifyFacts (prf ^. prefFactsDefault) (prf ^. prefFactsOverride)) (puppetDBFacts node pdbapi) >>= getCatalog d node
+    d <- initDaemon pref
+    let queryfunc = \node -> fmap (unifyFacts (pref ^. prefFactsDefault) (pref ^. prefFactsOverride)) (Facter.puppetDBFacts node pdbapi) >>= getCatalog d node
     return (queryfunc, pdbapi, parserStats d, catalogStats d, templateStats d)
     where
       -- merge 3 sets of facts : some defaults, the original set and some override
@@ -269,7 +269,7 @@ instance (Ord a) => Monoid (Maximum a) where
 
 
 -- | For each node, queryfunc the catalog and return stats
-computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> [Nodename] -> IO ()
+computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> [NodeName] -> IO ()
 computeStats workingdir (Options {..})
              queryfunc (parsingStats, catalogStats, templateStats)
              topnodes = do
@@ -305,14 +305,14 @@ computeStats workingdir (Options {..})
        else do {putDoc (dullgreen "All green."  <> line) ; exitSuccess}
 
     where
-        computeCatalog :: QueryFunc -> Nodename -> IO (Maybe (FinalCatalog, [Resource]))
+        computeCatalog :: QueryFunc -> NodeName -> IO (Maybe (FinalCatalog, [Resource]))
         computeCatalog func node =
             func node >>= \case
               S.Left err -> putDoc (line <> red "ERROR:" <+> parens (ttext node) <+> ":" <+> getError err) >> return Nothing
               S.Right (rawcatalog, _ , rawexported, knownRes) -> return (Just (rawcatalog <> rawexported, knownRes))
 
 -- | Queryfunc the catalog for the node and PP the result
-computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> Nodename -> IO ()
+computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> NodeName -> IO ()
 computeNodeCatalog (Options {..}) queryfunc pdbapi node =
     queryfunc node >>= \case
       S.Left rr -> do
@@ -382,7 +382,7 @@ run cmd@(Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppe
     (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir cmd
     computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
   where
-      retrieveNodes :: MultNodes -> IO [Nodename]
+      retrieveNodes :: MultNodes -> IO [NodeName]
       retrieveNodes AllNodes = do
           allstmts <- parseFile (workingdir <> "/manifests/site.pp") >>= \case Left err -> error (show err)
                                                                                Right x  -> return x

@@ -127,7 +127,8 @@ _DefineDeclaration' = prism DefineDeclaration $ \x -> case x of
 _Node' :: Prism' Statement Nd
 _Node' = prism Node $ \x -> case x of
                                 Node a -> Right a
-                                _ -> Left x
+                                _      -> Left x
+
 _VariableAssignment' :: Prism' Statement VarAss
 _VariableAssignment' = prism VariableAssignment $ \x -> case x of
                                                             VariableAssignment a -> Right a

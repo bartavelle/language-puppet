@@ -47,7 +47,7 @@ getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
 
 -- | Turns a 'FinalCatalog' and 'EdgeMap' into a document that can be
 -- serialized and fed to @puppet apply@.
-generateWireCatalog :: Nodename -> FinalCatalog -> EdgeMap -> WireCatalog
+generateWireCatalog :: NodeName -> FinalCatalog -> EdgeMap -> WireCatalog
 generateWireCatalog ndename finalcat edgemap = WireCatalog ndename "version" edges resources "uiid"
     where
         edges     = toVectorOf (folded . to (\li -> PuppetEdge (li ^. linksrc) (li ^. linkdst) (li ^. linkType))) (concatOf folded edgemap)

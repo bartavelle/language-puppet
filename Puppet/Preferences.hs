@@ -28,7 +28,7 @@ import           Puppet.NativeTypes
 import           Puppet.NativeTypes.Helpers
 import           Puppet.Plugins
 import           Puppet.Stdlib
-import           Puppet.Pathes
+import           Puppet.Paths
 import qualified Puppet.Puppetlabs          as Puppetlabs
 import           Puppet.Utils
 import           PuppetDB.Dummy
@@ -83,7 +83,7 @@ instance FromJSON Defaults where
 dfPreferences :: FilePath
                -> IO (Preferences IO)
 dfPreferences basedir = do
-    let dirpaths = defaultPathes basedir
+    let dirpaths = puppetPaths basedir
         modulesdir = dirpaths ^. modulesPath
         testdir = dirpaths ^. testPath
     typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")

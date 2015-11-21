@@ -16,7 +16,7 @@ import           Control.Exception.Lens
 import qualified Control.Lens              as L
 import           Control.Lens.Operators
 import qualified Data.Either.Strict        as S
-import           Data.FileCache
+import           Data.FileCache            as FileCache
 import qualified Data.HashMap.Strict       as HM
 import qualified Data.Text                 as T
 import qualified Data.Text.IO              as T
@@ -63,7 +63,7 @@ are altered, or when files loaded with require are changed.
 For instance, unknown variables are always an error. Querying a dictionary with a non existent key returns undef in puppet, whereas it would throw an error in strict mode.
 -}
 data Daemon = Daemon
-    { getCatalog    :: Nodename -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+    { getCatalog    :: NodeName -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
     , parserStats   :: MStats
     , catalogStats  :: MStats
     , templateStats :: MStats
@@ -100,11 +100,12 @@ initDaemon pref0 = do
     catStats    <- newStats
     parseStats  <- newStats
     return (Daemon
-                (getCatalog' pref (parseFunction pref fcache parseStats) getTemplate catStats hquery)
+                (getCatalog' pref (parseFunc (pref ^. prefPuppetPaths.modulesPath) fcache parseStats) getTemplate catStats hquery)
                 parseStats
                 catStats
                 templStats
            )
+
 
 -- | In case of a Left value, print the error and exit immediately
 checkError :: Show e => Doc -> Either e a -> IO a
@@ -121,66 +122,68 @@ getCatalog' :: Preferences IO
          -> (Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text))
          -> MStats
          -> HieraQueryFunc IO
-         -> Nodename
+         -> NodeName
          -> Facts
          -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
-getCatalog' prefs getStatements getTemplate stats hquery node facts = do
+getCatalog' pref getStatement getTemplate stats hquery node facts = do
     logDebug ("Received query for node " <> node)
     traceEventIO ("START getCatalog' " <> T.unpack node)
     let catalogComputation = interpretCatalog (InterpreterReader
-                                                  (prefs ^. prefNatTypes)
-                                                  getStatements
+                                                  (pref ^. prefNatTypes)
+                                                  getStatement
                                                   getTemplate
-                                                  (prefs ^. prefPDB)
-                                                  (prefs ^. prefExtFuncs)
+                                                  (pref ^. prefPDB)
+                                                  (pref ^. prefExtFuncs)
                                                   node
                                                   hquery
                                                   defaultImpureMethods
-                                                  (prefs ^. prefIgnoredmodules)
-                                                  (prefs ^. prefExternalmodules)
-                                                  (prefs ^. prefStrictness == Strict)
-                                                  (prefs ^. prefPuppetPaths)
+                                                  (pref ^. prefIgnoredmodules)
+                                                  (pref ^. prefExternalmodules)
+                                                  (pref ^. prefStrictness == Strict)
+                                                  (pref ^. prefPuppetPaths)
                                               )
                                               node
                                               facts
-                                              (prefs ^. prefPuppetSettings)
+                                              (pref ^. prefPuppetSettings)
     (stmts :!: warnings) <- measure stats node catalogComputation
     mapM_ (\(p :!: m) -> LOG.logM daemonLoggerName p (displayS (renderCompact (ttext node <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP getCatalog' " <> T.unpack node)
-    if prefs ^. prefExtraTests
+    if pref ^. prefExtraTests
        then runOptionalTests stmts
        else return stmts
     where
       runOptionalTests stm = case stm^?S._Right.L._1 of
         Nothing -> return stm
         (Just c)  -> catching _PrettyError
-                              (do {testCatalog prefs c; return stm})
+                              (do {testCatalog pref c; return stm})
                               (return . S.Left)
 
-parseFunction :: Preferences IO -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
-parseFunction prefs filecache stats topleveltype toplevelname =
-    case compileFileList prefs topleveltype toplevelname of
-        S.Left rr -> return (S.Left rr)
-        S.Right fname -> do
+-- | Return an HOF that would parse the file associated with a toplevel.
+-- The toplevel is defined by the tuple (type, name)
+-- The result of the parsing is a single Statement (which recursively contains others statements)
+parseFunc :: FilePath -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
+parseFunc mpath filecache stats = \toptype topname ->
+    case topLevelFilePath mpath toptype topname of
+        Left rr     -> return (S.Left rr)
+        Right fname -> do
             let sfname = T.unpack fname
                 handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
                 handleFailure e = return (S.Left (show e))
-            x <- measure stats fname (query filecache sfname (parseFile sfname `catch` handleFailure))
+            x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname `catch` handleFailure))
             case x of
-                S.Right stmts -> filterStatements topleveltype toplevelname stmts
+                S.Right stmts -> filterStatements toptype topname stmts
                 S.Left rr -> return (S.Left (PrettyError (red (text rr))))
 
 -- TODO this is wrong, see
 -- http://docs.puppetlabs.com/puppet/3/reference/lang_namespaces.html#behavior
-compileFileList :: Preferences IO -> TopLevelType -> T.Text -> S.Either PrettyError T.Text
-compileFileList prefs TopNode _ = S.Right (T.pack (prefs ^. prefPuppetPaths.manifestPath) <> "/site.pp")
-compileFileList prefs _ name = moduleInfo
-    where
-        moduleInfo | length nameparts == 1 = S.Right (mpath <> "/" <> name <> "/manifests/init.pp")
-                   | null nameparts = S.Left "no name parts, error in compilefilelist"
-                   | otherwise = S.Right (mpath <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp")
-        mpath = T.pack (prefs ^. prefPuppetPaths.modulesPath)
-        nameparts = T.splitOn "::" name
+topLevelFilePath :: ModulePath -> TopLevelType -> T.Text -> Either PrettyError T.Text
+topLevelFilePath mpath TopNode _ = Right (T.pack mpath <> "/site.pp")
+topLevelFilePath mpath _ name
+    | length nameparts == 1 = Right (T.pack mpath <> "/" <> name <> "/manifests/init.pp")
+    | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ttext name) <+> "in" <+> text mpath)
+    | otherwise             = Right (T.pack mpath <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp")
+  where
+    nameparts = T.splitOn "::" name
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
@@ -191,7 +194,6 @@ parseFile fname = do
         Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
     traceEventIO ("STOP parsing " ++ fname)
     return o
-
 
 daemonLoggerName :: String
 daemonLoggerName = "Puppet.Daemon"
