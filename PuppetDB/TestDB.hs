@@ -120,7 +120,7 @@ ncompare operation f a i v = case f a v of
                                  _ -> False
 
 replCat :: DB -> WireCatalog -> EitherT PrettyError IO ()
-replCat db wc = liftIO $ atomically $ modifyTVar db (resources . at (wc ^. nodename) ?~ wc)
+replCat db wc = liftIO $ atomically $ modifyTVar db (resources . at (wc ^. wireCatalogNodename) ?~ wc)
 
 replFacts :: DB -> [(NodeName, Facts)] -> EitherT PrettyError IO ()
 replFacts db lst = liftIO $ atomically $ modifyTVar db $
@@ -130,22 +130,22 @@ deactivate :: DB -> NodeName -> EitherT PrettyError IO ()
 deactivate db n = liftIO $ atomically $ modifyTVar db $
                     (resources . at n .~ Nothing) . (facts . at n .~ Nothing)
 
-getFcts :: DB -> Query FactField -> EitherT PrettyError IO [PFactInfo]
+getFcts :: DB -> Query FactField -> EitherT PrettyError IO [FactInfo]
 getFcts db f = fmap (filter (resolveQuery factQuery f) . toFactInfo) (liftIO $ readTVarIO db)
     where
-        toFactInfo :: DBContent -> [PFactInfo]
+        toFactInfo :: DBContent -> [FactInfo]
         toFactInfo = concatMap gf .  HM.toList . _dbcontentFacts
             where
                 gf (k,n) = do
                     (fn,fv) <- HM.toList n
-                    return $ PFactInfo k fn fv
-        factQuery :: FactField -> PFactInfo -> Extracted
+                    return $ FactInfo k fn fv
+        factQuery :: FactField -> FactInfo -> Extracted
         factQuery t = EText . view l
             where
                 l = case t of
-                        FName     -> factname
-                        FValue    -> factval . _PString
-                        FCertname -> nodename
+                        FName     -> factInfoName
+                        FValue    -> factInfoVal . _PString
+                        FCertname -> factInfoNodename
 
 resourceQuery :: ResourceField -> Resource -> Extracted
 resourceQuery RTag r = r ^. rtags . to ESet
@@ -165,13 +165,13 @@ getRes :: DB -> Query ResourceField -> EitherT PrettyError IO [Resource]
 getRes db f = fmap (filter (resolveQuery resourceQuery f) . toResources) (liftIO $ readTVarIO db)
     where
         toResources :: DBContent -> [Resource]
-        toResources = concatMap (V.toList . view wResources) .  HM.elems . view resources
+        toResources = concatMap (V.toList . view wireCatalogResources) .  HM.elems . view resources
 
 getResNode :: DB -> NodeName -> Query ResourceField -> EitherT PrettyError IO [Resource]
 getResNode db nn f = do
     c <- liftIO $ readTVarIO db
     case c ^. resources . at nn of
-        Just cnt -> return $ filter (resolveQuery resourceQuery f) $ V.toList $ cnt ^. wResources
+        Just cnt -> return $ filter (resolveQuery resourceQuery f) $ V.toList $ cnt ^. wireCatalogResources
         Nothing -> left "Unknown node"
 
 commit :: DB -> EitherT PrettyError IO ()
@@ -181,13 +181,13 @@ commit db = do
         Nothing -> left "No backing file defined"
         Just bf -> liftIO (encodeFile bf dbc `catches` [ ])
 
-getNds :: DB -> Query NodeField -> EitherT PrettyError IO [PNodeInfo]
+getNds :: DB -> Query NodeField -> EitherT PrettyError IO [NodeInfo]
 getNds db QEmpty = fmap toNodeInfo (liftIO $ readTVarIO db)
     where
-        toNodeInfo :: DBContent -> [PNodeInfo]
+        toNodeInfo :: DBContent -> [NodeInfo]
         toNodeInfo = fmap g . HM.keys . _dbcontentFacts
              where
-                g :: NodeName -> PNodeInfo
-                g = \n -> PNodeInfo n False S.Nothing S.Nothing S.Nothing
+                g :: NodeName -> NodeInfo
+                g = \n -> NodeInfo n False S.Nothing S.Nothing S.Nothing
 
 getNds _ _ = left "getNds with query not implemented"

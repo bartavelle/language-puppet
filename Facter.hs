@@ -170,7 +170,7 @@ factProcessor = do
 puppetDBFacts :: NodeName -> PuppetDBAPI IO -> IO (Container PValue)
 puppetDBFacts node pdbapi =
     runEitherT (getFacts pdbapi (QEqual FCertname node)) >>= \case
-        Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factname, f ^. factval)) facts))
+        Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factInfoName, f ^. factInfoVal)) facts))
         _ -> do
             rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv, factProcessor])
             let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts

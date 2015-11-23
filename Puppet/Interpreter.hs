@@ -162,10 +162,11 @@ extractPrism p t a = case preview p a of
                          Just b -> return b
                          Nothing -> throwPosError ("Could not extract prism in " <> t)
 
+-- | The main internal entry point which starts the interpretation
 computeCatalog :: NodeName -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog, [Resource])
-computeCatalog ndename = do
-    (restop, node') <- getStatement TopNode ndename
-    node <- extractPrism _Node' "computeCatalog" node'
+computeCatalog nodename = do
+    (topres, stmt) <- getStatement TopNode nodename
+    nd <- extractPrism _Node' "computeCatalog" stmt
     let finalStep [] = return []
         finalStep allres = do
             -- collect stuff and apply thingies
@@ -176,8 +177,17 @@ computeCatalog ndename = do
             -- replace the modified stuff
             let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
             return (toList res)
-        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummypos ndename
-    resnode <- evaluateNode node >>= finalStep . (++ (mainstage : restop))
+
+        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummypos nodename
+
+        evaluateNode :: Nd -> InterpreterMonad [Resource]
+        evaluateNode (Nd _ sx inheritnode p) = do
+            curPos .= p
+            pushScope ContRoot
+            unless (S.isNothing inheritnode) $ throwPosError "Node inheritance is not handled yet, and will probably never be"
+            mapM evaluateStatement sx >>= finalize . concat
+
+    resnode <- evaluateNode nd >>= finalStep . (++ (mainstage : topres))
     let (real :!: exported) = foldl' classify (mempty :!: mempty) resnode
         -- Classify sorts resources between exported and normal ones. It
         -- drops virtual resources, and puts in both categories resources
@@ -311,12 +321,6 @@ realize rs = do
     resMod .= []
     return result
 
-evaluateNode :: Nd -> InterpreterMonad [Resource]
-evaluateNode (Nd _ stmts inheritance p) = do
-    curPos .= p
-    pushScope ContRoot
-    unless (S.isNothing inheritance) $ throwPosError "Node inheritance is not handled yet, and will probably never be"
-    mapM evaluateStatement stmts >>= finalize . concat
 
 evaluateStatementsFoldable :: Foldable f => f Statement -> InterpreterMonad [Resource]
 evaluateStatementsFoldable = fmap concat . mapM evaluateStatement . toList

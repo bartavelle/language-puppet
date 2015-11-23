@@ -13,8 +13,7 @@ module Puppet.Daemon (
 
 import           Control.Exception
 import           Control.Exception.Lens
-import qualified Control.Lens              as L
-import           Control.Lens.Operators
+import           Control.Lens
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
 import qualified Data.HashMap.Strict       as HM
@@ -100,7 +99,7 @@ initDaemon pref0 = do
     catStats    <- newStats
     parseStats  <- newStats
     return (Daemon
-                (getCatalog' pref (parseFunc (pref ^. prefPuppetPaths.modulesPath) fcache parseStats) getTemplate catStats hquery)
+                (getCatalog' pref (parseFunc (pref ^. prefPuppetPaths) fcache parseStats) getTemplate catStats hquery)
                 parseStats
                 catStats
                 templStats
@@ -152,7 +151,7 @@ getCatalog' pref getStatement getTemplate stats hquery node facts = do
        then runOptionalTests stmts
        else return stmts
     where
-      runOptionalTests stm = case stm^?S._Right.L._1 of
+      runOptionalTests stm = case stm^?S._Right._1 of
         Nothing -> return stm
         (Just c)  -> catching _PrettyError
                               (do {testCatalog pref c; return stm})
@@ -161,9 +160,17 @@ getCatalog' pref getStatement getTemplate stats hquery node facts = do
 -- | Return an HOF that would parse the file associated with a toplevel.
 -- The toplevel is defined by the tuple (type, name)
 -- The result of the parsing is a single Statement (which recursively contains others statements)
-parseFunc :: FilePath -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
-parseFunc mpath filecache stats = \toptype topname ->
-    case topLevelFilePath mpath toptype topname of
+parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
+parseFunc ppath filecache stats = \toptype topname ->
+    let nameparts = T.splitOn "::" topname in
+    let topLevelFilePath :: TopLevelType -> T.Text -> Either PrettyError T.Text
+        topLevelFilePath TopNode _ = Right $ T.pack (ppath^.modulesPath <> "/site.pp")
+        topLevelFilePath  _ name
+            | length nameparts == 1 = Right $ T.pack (ppath^.manifestPath) <> "/init.pp"
+            | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ttext name))
+            | otherwise             = Right $ T.pack (ppath^.baseDir) <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp"
+    in
+    case topLevelFilePath toptype topname of
         Left rr     -> return (S.Left rr)
         Right fname -> do
             let sfname = T.unpack fname
@@ -174,16 +181,6 @@ parseFunc mpath filecache stats = \toptype topname ->
                 S.Right stmts -> filterStatements toptype topname stmts
                 S.Left rr -> return (S.Left (PrettyError (red (text rr))))
 
--- TODO this is wrong, see
--- http://docs.puppetlabs.com/puppet/3/reference/lang_namespaces.html#behavior
-topLevelFilePath :: ModulePath -> TopLevelType -> T.Text -> Either PrettyError T.Text
-topLevelFilePath mpath TopNode _ = Right (T.pack mpath <> "/site.pp")
-topLevelFilePath mpath _ name
-    | length nameparts == 1 = Right (T.pack mpath <> "/" <> name <> "/manifests/init.pp")
-    | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ttext name) <+> "in" <+> text mpath)
-    | otherwise             = Right (T.pack mpath <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp")
-  where
-    nameparts = T.splitOn "::" name
 
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do

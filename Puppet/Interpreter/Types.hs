@@ -35,13 +35,11 @@ module Puppet.Interpreter.Types (
  , HasInterpreterState(..)
  , InterpreterState
   -- * Record & field lenses
- , PNodeInfo(PNodeInfo)
- , nodename
- , PFactInfo(PFactInfo)
- , factname
- , wResources
- , wEdges
- , factval
+ , NodeInfo(NodeInfo)
+ , HasNodeInfo(..)
+ , FactInfo(FactInfo)
+ , HasFactInfo(..)
+ , HasWireCatalog(..)
   -- * Sum types
  , PValue(..)
  , CurContainerDesc(..)
@@ -69,7 +67,6 @@ module Puppet.Interpreter.Types (
  , FinalCatalog
  , NativeTypeValidate
  , NodeName
- , ModulePath
  , Container
  , HieraQueryFunc
  , Scope
@@ -150,7 +147,6 @@ metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
 
 type NodeName = T.Text
-type ModulePath = FilePath
 
 type Container = HM.HashMap T.Text
 
@@ -322,9 +318,9 @@ data InterpreterInstr a where
     PDBReplaceCatalog   :: WireCatalog -> InterpreterInstr ()
     PDBReplaceFacts     :: [(NodeName, Facts)] -> InterpreterInstr ()
     PDBDeactivateNode   :: NodeName -> InterpreterInstr ()
-    PDBGetFacts         :: Query FactField -> InterpreterInstr [PFactInfo]
+    PDBGetFacts         :: Query FactField -> InterpreterInstr [FactInfo]
     PDBGetResources     :: Query ResourceField -> InterpreterInstr [Resource]
-    PDBGetNodes         :: Query NodeField -> InterpreterInstr [PNodeInfo]
+    PDBGetNodes         :: Query NodeField -> InterpreterInstr [NodeInfo]
     PDBCommitDB         :: InterpreterInstr ()
     PDBGetResourcesOfNode :: NodeName -> Query ResourceField -> InterpreterInstr [Resource]
     -- Reading the first file that can be read in a list
@@ -430,24 +426,24 @@ data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType
 -- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
 data WireCatalog = WireCatalog
     { _wireCatalogNodename        :: !NodeName
-    , _wireCatalogWVersion        :: !T.Text
-    , _wireCatalogWEdges          :: !(V.Vector PuppetEdge)
-    , _wireCatalogWResources      :: !(V.Vector Resource)
+    , _wireCatalogVersion         :: !T.Text
+    , _wireCatalogEdges           :: !(V.Vector PuppetEdge)
+    , _wireCatalogResources       :: !(V.Vector Resource)
     , _wireCatalogTransactionUUID :: !T.Text
     }
 
-data PFactInfo = PFactInfo
-    { _pFactInfoNodename :: !T.Text
-    , _pFactInfoFactname :: !T.Text
-    , _pFactInfoFactval  :: !PValue
+data FactInfo = FactInfo
+    { _factInfoNodename :: !NodeName
+    , _factInfoName     :: !T.Text
+    , _factInfoVal      :: !PValue
     }
 
-data PNodeInfo = PNodeInfo
-    { _pNodeInfoNodename    :: !NodeName
-    , _pNodeInfoDeactivated :: !Bool
-    , _pNodeInfoCatalogT    :: !(S.Maybe UTCTime)
-    , _pNodeInfoFactsT      :: !(S.Maybe UTCTime)
-    , _pNodeInfoReportT     :: !(S.Maybe UTCTime)
+data NodeInfo = NodeInfo
+    { _nodeInfoName        :: !NodeName
+    , _nodeInfoDeactivated :: !Bool
+    , _nodeInfoCatalogT    :: !(S.Maybe UTCTime)
+    , _nodeInfoFactsT      :: !(S.Maybe UTCTime)
+    , _nodeInfoReportT     :: !(S.Maybe UTCTime)
     }
 
 data PuppetDBAPI m = PuppetDBAPI
@@ -455,9 +451,9 @@ data PuppetDBAPI m = PuppetDBAPI
     , replaceCatalog     :: WireCatalog         -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
     , replaceFacts       :: [(NodeName, Facts)] -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
     , deactivateNode     :: NodeName            -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-    , getFacts           :: Query FactField     -> EitherT PrettyError m [PFactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+    , getFacts           :: Query FactField     -> EitherT PrettyError m [FactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
     , getResources       :: Query ResourceField -> EitherT PrettyError m [Resource] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
-    , getNodes           :: Query NodeField     -> EitherT PrettyError m [PNodeInfo]
+    , getNodes           :: Query NodeField     -> EitherT PrettyError m [NodeInfo]
     , commitDB           ::                        EitherT PrettyError m () -- ^ This is only here to tell the test PuppetDB to save its content to disk.
     , getResourcesOfNode :: NodeName -> Query ResourceField -> EitherT PrettyError m [Resource]
     }
@@ -504,9 +500,9 @@ makeClassy ''InterpreterState
 makeClassy ''InterpreterReader
 makeClassy ''IoMethods
 makeClassy ''CurContainer
-makeFields ''WireCatalog
-makeFields ''PFactInfo
-makeFields ''PNodeInfo
+makeClassy ''NodeInfo
+makeClassy ''WireCatalog
+makeClassy ''FactInfo
 
 rcurcontainer :: Resource -> CurContainerDesc
 rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
@@ -803,23 +799,23 @@ instance ToJSON WireCatalog where
                   , ("transaction-uuid", String t)
                   ]
 
-instance ToJSON PFactInfo where
-    toJSON (PFactInfo n f v) = object [("certname", String n), ("name", String f), ("value", toJSON v)]
+instance ToJSON FactInfo where
+    toJSON (FactInfo n f v) = object [("certname", String n), ("name", String f), ("value", toJSON v)]
 
-instance FromJSON PFactInfo where
-    parseJSON (Object v) = PFactInfo <$> v .: "certname" <*> v .: "name" <*> v .: "value"
+instance FromJSON FactInfo where
+    parseJSON (Object v) = FactInfo <$> v .: "certname" <*> v .: "name" <*> v .: "value"
     parseJSON _ = fail "invalid fact info"
 
-instance ToJSON PNodeInfo where
-    toJSON p = object [ ("name"             , toJSON (p ^. nodename))
-                      , ("deactivated"      , toJSON (p ^. deactivated))
-                      , ("catalog_timestamp", toJSON (p ^. catalogT))
-                      , ("facts_timestamp"  , toJSON (p ^. factsT))
-                      , ("report_timestamp" , toJSON (p ^. reportT))
+instance ToJSON NodeInfo where
+    toJSON p = object [ ("name"             , toJSON (p ^. nodeInfoName))
+                      , ("deactivated"      , toJSON (p ^. nodeInfoDeactivated))
+                      , ("catalog_timestamp", toJSON (p ^. nodeInfoCatalogT))
+                      , ("facts_timestamp"  , toJSON (p ^. nodeInfoFactsT))
+                      , ("report_timestamp" , toJSON (p ^. nodeInfoReportT))
                       ]
 
-instance FromJSON PNodeInfo where
-    parseJSON (Object v) = PNodeInfo <$> v .:  "name"
+instance FromJSON NodeInfo where
+    parseJSON (Object v) = NodeInfo <$> v .:  "name"
                                      <*> v .:? "deactivated" .!= False
                                      <*> v .:  "catalog_timestamp"
                                      <*> v .:  "facts_timestamp"

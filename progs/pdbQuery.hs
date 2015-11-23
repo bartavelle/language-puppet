@@ -105,7 +105,7 @@ run cmdl = do
                              allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
                              tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= checkError "load test db"
                              let groupfacts = foldl' groupfact HM.empty allfacts
-                                 groupfact curmap (PFactInfo ndname fctname fctval) =
+                                 groupfact curmap (FactInfo ndname fctname fctval) =
                                      curmap & at ndname . non HM.empty %~ (at fctname ?~ fctval)
                              runCheck "replace facts in dummy db" (replaceFacts tmpdb (HM.toList groupfacts))
                              runCheck "commit db" (commitDB tmpdb)
@@ -119,10 +119,10 @@ run cmdl = do
             ndb <- loadTestDB destfile >>= checkError "puppetdb load"
             allnodes <- runCheck "get nodes" (getNodes pdbapi QEmpty)
             allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
-            let factsGrouped = HM.toList $ HM.fromListWith (<>) $ map (\x -> (x ^. nodename, HM.singleton (x ^. factname) (x ^. factval))) allfacts
+            let factsGrouped = HM.toList $ HM.fromListWith (<>) $ map (\x -> (x ^. factInfoNodename, HM.singleton (x ^. factInfoName) (x ^. factInfoVal))) allfacts
             runCheck "replace facts" (replaceFacts ndb factsGrouped)
             forM_ allnodes $ \pnodename -> do
-                let ndename = pnodename ^. nodename
+                let ndename = pnodename ^. nodeInfoName
                 res <- runCheck ("get resources for " ++ show ndename) (getResourcesOfNode pdbapi ndename QEmpty)
                 let wirecatalog = WireCatalog ndename "version" V.empty (V.fromList res) ndename
                 runCheck "replace catalog" (replaceCatalog ndb wirecatalog)

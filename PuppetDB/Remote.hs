@@ -15,9 +15,9 @@ import Servant.Client
 import Data.Aeson
 import Data.Proxy
 
-type PDBAPIv3 =    "nodes"     :> QueryParam "query" (Query NodeField)       :> Get '[JSON] [PNodeInfo]
+type PDBAPIv3 =    "nodes"     :> QueryParam "query" (Query NodeField)       :> Get '[JSON] [NodeInfo]
               :<|> "nodes"     :> Capture "resourcename" Text :> "resources" :> QueryParam "query" (Query ResourceField) :> Get '[JSON] [Resource]
-              :<|> "facts"     :> QueryParam "query" (Query FactField)       :> Get '[JSON] [PFactInfo]
+              :<|> "facts"     :> QueryParam "query" (Query FactField)       :> Get '[JSON] [FactInfo]
               :<|> "resources" :> QueryParam "query" (Query ResourceField)   :> Get '[JSON] [Resource]
 
 type PDBAPI = "v3" :> PDBAPIv3
@@ -39,9 +39,9 @@ pdbConnect url =
         (left "operation not supported")
         (\ndename q -> prettyError $ sgetNodeResources ndename (Just q))
         where
-            sgetNodes :: Maybe (Query NodeField) -> EitherT ServantError IO [PNodeInfo]
+            sgetNodes :: Maybe (Query NodeField) -> EitherT ServantError IO [NodeInfo]
             sgetNodeResources :: Text -> Maybe (Query ResourceField) -> EitherT ServantError IO [Resource]
-            sgetFacts :: Maybe (Query FactField) -> EitherT ServantError IO [PFactInfo]
+            sgetFacts :: Maybe (Query FactField) -> EitherT ServantError IO [FactInfo]
             sgetResources :: Maybe (Query ResourceField) -> EitherT ServantError IO [Resource]
             (sgetNodes :<|> sgetNodeResources :<|> sgetFacts :<|> sgetResources) = client api url
 

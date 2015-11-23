@@ -194,7 +194,7 @@ printContent filename catalog =
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
 prepareForPuppetApply w =
-    let res = V.filter (\r -> r ^. rvirtuality == Normal) (w ^. wResources) :: V.Vector Resource
+    let res = V.filter (\r -> r ^. rvirtuality == Normal) (w ^. wireCatalogResources) :: V.Vector Resource
         -- step 1 : capitalize resources types (and names in case of
         -- classes), and filter out exported stuff
         capi :: RIdentifier -> RIdentifier
@@ -205,7 +205,7 @@ prepareForPuppetApply w =
         aliasMap = HM.fromList $ concatMap genAliasList (res ^.. folded)
         genAliasList r = map (\n -> (RIdentifier (r ^. rid . itype) n, r ^. rid . iname)) (r ^. rid . iname : r ^.. ralias . folded)
         nr = V.map (rid %~ capi) res
-        ne = V.map capEdge (w ^. wEdges)
+        ne = V.map capEdge (w ^. wireCatalogEdges)
         capEdge (PuppetEdge a b x) = PuppetEdge (capi a) (capi b) x
         -- step 2 : replace all references with the resource title in case
         -- of aliases - yes this sucks
@@ -219,8 +219,8 @@ prepareForPuppetApply w =
         correctEdge (PuppetEdge s d x) = PuppetEdge (correct s) (correct d) x
         correctResource :: Resource -> Resource
         correctResource r = r & rrelations %~ HM.fromList . filter (\(x,_) -> aliasMap & has (ix x)) . map (_1 %~ correct) . HM.toList
-    in   (wResources .~ correctResources)
-       . (wEdges     .~ correctEdges)
+    in   (wireCatalogResources .~ correctResources)
+       . (wireCatalogEdges     .~ correctEdges)
        $ w
 
 
@@ -325,11 +325,11 @@ computeNodeCatalog (Options {..}) queryfunc pdbapi node =
                 else displayIO stdout (renderCompact x) >> putStrLn ""
           catalog  <- filterCatalog _optResourceType _optResourceName rawcatalog
           exported <- filterCatalog _optResourceType _optResourceName rawexported
-          let wireCatalog    = generateWireCatalog node (catalog    <> exported   ) edgemap
+          let wirecatalog    = generateWireCatalog node (catalog    <> exported   ) edgemap
               rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) edgemap
           when _optCheckExport $ void $ runEitherT $ replaceCatalog pdbapi rawWireCatalog
           case (_optShowContent, _optShowjson) of
-              (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wireCatalog))
+              (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wirecatalog))
               (True, _) -> do
                   unless (_optResourceType == Just "file" || isNothing _optResourceType) $ do
                       putDoc "Show content only works with resource of type file. It is an error to provide another filter type"

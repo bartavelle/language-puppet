@@ -275,6 +275,7 @@ data ResOver       = ResOver !Text !Expression !(V.Vector AttributeDecl) !PPosit
 data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
 data ClassDecl     = ClassDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 data DefineDec     = DefineDec !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+-- | A node is a collection of statements + maybe an inherit node
 data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
 data VarAss        = VarAss !Text !Expression !PPosition deriving (Eq, Show)
 data MFC           = MFC !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
