@@ -13,7 +13,7 @@ module Puppet.Daemon (
 
 import           Control.Exception
 import           Control.Exception.Lens
-import           Control.Lens
+import           Control.Lens              hiding (Strict)
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
 import qualified Data.HashMap.Strict       as HM
@@ -151,9 +151,9 @@ getCatalog' pref getStatement getTemplate stats hquery node facts = do
        then runOptionalTests stmts
        else return stmts
     where
-      runOptionalTests stm = case stm^?S._Right._1 of
-        Nothing -> return stm
-        (Just c)  -> catching _PrettyError
+      runOptionalTests stm = case stm ^? S._Right._1 of
+          Nothing  -> return stm
+          (Just c) -> catching _PrettyError
                               (do {testCatalog pref c; return stm})
                               (return . S.Left)
 
