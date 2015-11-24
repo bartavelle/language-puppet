@@ -29,8 +29,8 @@ extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
           , ("/docker", "docker_run_flags", mockDockerRunFlags)
           , ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
           , ("/postgresql", "postgresql_password", pgPassword)
-          , ("/foreman", "random_password", randomPassword)
-          , ("/foreman", "cache_data", mockCacheData)
+          , ("/extlib", "random_password", randomPassword)
+          , ("/extlib", "cache_data", mockCacheData)
           ]
 
 -- | Build the map of available ext functions
@@ -67,8 +67,8 @@ randomPassword _ = throwPosError "expect one single string arguments"
 
 
 mockCacheData :: MonadThrowPos m => [PValue] -> m PValue
-mockCacheData [_, b] = return b
-mockCacheData arg@_ = throwPosError $ "expect 2 string arguments" <+> pretty arg
+mockCacheData [_, _, b] = return b
+mockCacheData arg@_ = throwPosError $ "expect 3 string arguments" <+> pretty arg
 
 -- | Simple implemenation that does not handle all cases.
 -- For instance 'auth_option' is currently not implemented.
