@@ -80,7 +80,7 @@ module Puppet.Interpreter.Types (
 
 import           Control.Concurrent.MVar     (MVar)
 import           Control.Exception
-import           Control.Lens
+import           Control.Lens                hiding (Strict)
 import           Control.Monad.Except
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
