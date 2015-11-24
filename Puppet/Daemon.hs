@@ -164,11 +164,11 @@ parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLe
 parseFunc ppath filecache stats = \toptype topname ->
     let nameparts = T.splitOn "::" topname in
     let topLevelFilePath :: TopLevelType -> T.Text -> Either PrettyError T.Text
-        topLevelFilePath TopNode _ = Right $ T.pack (ppath^.modulesPath <> "/site.pp")
+        topLevelFilePath TopNode _ = Right $ T.pack (ppath^.manifestPath <> "/site.pp")
         topLevelFilePath  _ name
-            | length nameparts == 1 = Right $ T.pack (ppath^.manifestPath) <> "/init.pp"
+            | length nameparts == 1 = Right $ T.pack (ppath^.modulesPath) <> "/" <> name <> "/manifests/init.pp"
             | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ttext name))
-            | otherwise             = Right $ T.pack (ppath^.baseDir) <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp"
+            | otherwise             = Right $ T.pack (ppath^.modulesPath) <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp"
     in
     case topLevelFilePath toptype topname of
         Left rr     -> return (S.Left rr)
