@@ -1,12 +1,15 @@
-module Puppet.NativeTypes.Cron (nativeCron) where
+module Puppet.NativeTypes.Cron
+       (nativeCron)
+where
 
+import           Control.Lens
+import           Data.Scientific
+import qualified Data.Text                    as T
+import qualified Data.Vector                  as V
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
+import           Puppet.Utils
 import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Puppet.NativeTypes.Helpers
-import Puppet.Interpreter.Types
-import qualified Data.Text as T
-import Control.Lens
-import qualified Data.Vector as V
-import Data.Scientific
 
 nativeCron :: (NativeTypeName, NativeTypeMethods)
 nativeCron = ("cron", nativetypemethods parameterfunctions return )

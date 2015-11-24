@@ -28,18 +28,17 @@ module Puppet.Interpreter.Types (
  , CurContainer(CurContainer)
  , HasNativeTypeMethods(..)
  , NativeTypeMethods(NativeTypeMethods)
-  -- ** Operational instructions
- , InterpreterInstr(..)
- , HasInterpreterReader(..)
- , InterpreterReader(InterpreterReader)
- , HasInterpreterState(..)
- , InterpreterState
-  -- * Record & field lenses
  , NodeInfo(NodeInfo)
  , HasNodeInfo(..)
  , FactInfo(FactInfo)
  , HasFactInfo(..)
  , HasWireCatalog(..)
+  -- ** Operational instructions
+ , InterpreterInstr(..)
+ , HasInterpreterReader(..)
+ , InterpreterReader(InterpreterReader)
+ , HasInterpreterState(..)
+ , InterpreterState(InterpreterState)
   -- * Sum types
  , PValue(..)
  , CurContainerDesc(..)
@@ -74,37 +73,14 @@ module Puppet.Interpreter.Types (
  , EdgeMap
   -- * Classes
  , MonadThrowPos(..)
-  -- * Utils
+  -- * definitions
  , metaparameters
- , initialState
- , getCurContainer
- , text2Scientific
- , safeDecodeUtf8
- , getScope
- , getScopeName
- , getPuppetPathes
- , scopeName
- , resourceRelations
- , checkStrict
- , dummypos
- , iinsertWith
- , ikeys
- , isingleton
- , ifromListWith
- , ifromList
- , iunionWith
  , showPos
- , fnull
- , rcurcontainer
- , logWriter
- , warn
- , debug
- , eitherDocIO
 ) where
 
 import           Control.Concurrent.MVar     (MVar)
 import           Control.Exception
-import           Control.Lens                hiding (Strict)
+import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
@@ -112,14 +88,10 @@ import           Control.Monad.Trans.Either
 import           Control.Monad.Writer.Class
 import           Data.Aeson                  as A
 import           Data.Aeson.Lens
-import           Data.Attoparsec.Text        (parseOnly, rational)
-import qualified Data.ByteString             as BS
 import qualified Data.Either.Strict          as S
-import qualified Data.Foldable               as F
 import           Data.Hashable
 import qualified Data.HashMap.Strict         as HM
 import qualified Data.HashSet                as HS
-import           Data.Maybe                  (fromMaybe)
 import qualified Data.Maybe.Strict           as S
 import           Data.Monoid
 import           Data.Scientific
@@ -142,6 +114,7 @@ import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP                   hiding (rational)
+import           Puppet.Utils
 
 metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
@@ -272,18 +245,18 @@ data InterpreterState = InterpreterState
     }
 
 data InterpreterReader m = InterpreterReader
-    { _readerNativeTypes       :: !(Container NativeTypeMethods)
-    , _readerGetStatement      :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
-    , _readerGetTemplate       :: Either T.Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
-    , _readerPdbApi            :: PuppetDBAPI m
-    , _readerExternalFunc      :: Container ([PValue] -> InterpreterMonad PValue)
-    , _readerNodename          :: T.Text
-    , _readerHieraQuery        :: HieraQueryFunc m
-    , _readerIoMethods         :: IoMethods m
-    , _readerIgnoredModules    :: HS.HashSet T.Text
-    , _readerExternalModules   :: HS.HashSet T.Text
-    , _readerIsStrict          :: Bool
-    , _readerPuppetPaths           :: PuppetDirPaths
+    { _readerNativeTypes     :: !(Container NativeTypeMethods)
+    , _readerGetStatement    :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
+    , _readerGetTemplate     :: Either T.Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
+    , _readerPdbApi          :: PuppetDBAPI m
+    , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue)
+    , _readerNodename        :: T.Text
+    , _readerHieraQuery      :: HieraQueryFunc m
+    , _readerIoMethods       :: IoMethods m
+    , _readerIgnoredModules  :: HS.HashSet T.Text
+    , _readerExternalModules :: HS.HashSet T.Text
+    , _readerIsStrict        :: Bool
+    , _readerPuppetPaths     :: PuppetDirPaths
     }
 
 data IoMethods m = IoMethods
@@ -334,17 +307,6 @@ data InterpreterInstr a where
 type InterpreterLog = Pair LOG.Priority Doc
 type InterpreterWriter = [InterpreterLog]
 
-getPuppetPathes :: InterpreterMonad PuppetDirPaths
-getPuppetPathes = singleton PuppetPaths
-
-warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-warn d = tell [LOG.WARNING :!: d]
-
-debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-debug d = tell [LOG.DEBUG :!: d]
-
-logWriter :: (Monad m, MonadWriter InterpreterWriter m) => LOG.Priority -> Doc -> m ()
-logWriter prio d = tell [prio :!: d]
 
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
@@ -393,7 +355,7 @@ data LinkInformation = LinkInformation
     , _linkdst  :: !RIdentifier
     , _linkType :: !LinkType
     , _linkPos  :: !PPosition
-    }
+    } deriving Show
 
 type EdgeMap = HM.HashMap RIdentifier [LinkInformation]
 
@@ -409,7 +371,7 @@ data Resource = Resource
     , _rpos        :: !PPosition -- ^ Source code position of the resource definition.
     , _rnode       :: !NodeName -- ^ The node were this resource was created, if remote
     }
-    deriving Eq
+    deriving (Eq, Show)
 
 type NativeTypeValidate = Resource -> Either PrettyError Resource
 
@@ -421,7 +383,9 @@ data NativeTypeMethods = NativeTypeMethods
 
 type FinalCatalog = HM.HashMap RIdentifier Resource
 
-data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType
+-- | Used to represent a relationship between two resources within the wired format (json).
+-- See <http://docs.puppetlabs.com/puppetdb/2.3/api/wire_format/catalog_format_v5.html#data-type-edge>
+data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType deriving Show
 
 -- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
 data WireCatalog = WireCatalog
@@ -430,7 +394,7 @@ data WireCatalog = WireCatalog
     , _wireCatalogEdges           :: !(V.Vector PuppetEdge)
     , _wireCatalogResources       :: !(V.Vector Resource)
     , _wireCatalogTransactionUUID :: !T.Text
-    }
+    } deriving Show
 
 data FactInfo = FactInfo
     { _factInfoNodename :: !NodeName
@@ -504,8 +468,6 @@ makeClassy ''NodeInfo
 makeClassy ''WireCatalog
 makeClassy ''FactInfo
 
-rcurcontainer :: Resource -> CurContainerDesc
-rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
 
 class Monad m => MonadThrowPos m where
     throwPosError :: Doc -> m a
@@ -529,29 +491,6 @@ instance MonadThrowPos InterpreterMonad where
                          else mempty </> string (renderStack stack)
         throwError (PrettyError (s <+> "at" <+> showPos p <> dstack))
 
-getCurContainer :: InterpreterMonad CurContainer
-{-# INLINABLE getCurContainer #-}
-getCurContainer = do
-    scp <- getScopeName
-    preuse (scopes . ix scp . scopeContainer) >>= \case
-        Just x -> return x
-        Nothing -> throwPosError ("Internal error: can't find the current container for" <+> green (string (T.unpack scp)))
-
-scopeName :: CurContainerDesc -> T.Text
-scopeName (ContRoot        ) = "::"
-scopeName (ContImported x  ) = "::imported::" `T.append` scopeName x
-scopeName (ContClass x     ) = x
-scopeName (ContDefine dt dn _) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
-scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
-
-getScopeName :: InterpreterMonad T.Text
-getScopeName = fmap scopeName getScope
-
-getScope :: InterpreterMonad CurContainerDesc
-{-# INLINABLE getScope #-}
-getScope = use curScope >>= \s -> if null s
-                                      then throwPosError "Internal error: empty scope!"
-                                      else return (head s)
 
 instance FromJSON PValue where
     parseJSON Null       = return PUndef
@@ -579,53 +518,6 @@ instance FromRuby PValue where
             chk (Right x) = case fromJSON x of
                                 Error rr -> Left rr
                                 Success suc -> Right suc
-
-eitherDocIO :: IO (S.Either PrettyError a) -> IO (S.Either PrettyError a)
-eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ PrettyError $ dullred $ text $ show (e :: SomeException))
-    where
-        check (S.Left r) = return (S.Left r)
-        check (S.Right x) = return (S.Right x)
-
-safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad T.Text
-{-# INLINABLE safeDecodeUtf8 #-}
-safeDecodeUtf8 i = return (T.decodeUtf8 i)
-
-resourceRelations :: Resource -> [(RIdentifier, LinkType)]
-resourceRelations = concatMap expandSet . HM.toList . _rrelations
-    where
-        expandSet (ri, lts) = [(ri, lt) | lt <- HS.toList lts]
-
--- | helper for hashmap, in case we want another kind of map ..
-ifromList :: (Monoid m, At m, F.Foldable f) => f (Index m, IxValue m) -> m
-{-# INLINABLE ifromList #-}
-ifromList = F.foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
-
-ikeys :: (Eq k, Hashable k) => HM.HashMap k v -> HS.HashSet k
-{-# INLINABLE ikeys #-}
-ikeys = HS.fromList . HM.keys
-
-isingleton :: (Monoid b, At b) => Index b -> IxValue b -> b
-{-# INLINABLE isingleton #-}
-isingleton k v = mempty & at k ?~ v
-
-ifromListWith :: (Monoid m, At m, F.Foldable f) => (IxValue m -> IxValue m -> IxValue m) -> f (Index m, IxValue m) -> m
-{-# INLINABLE ifromListWith #-}
-ifromListWith f = F.foldl' (\curmap (k,v) -> iinsertWith f k v curmap) mempty
-
-iinsertWith :: At m => (IxValue m -> IxValue m -> IxValue m) -> Index m -> IxValue m -> m -> m
-{-# INLINABLE iinsertWith #-}
-iinsertWith f k v m = m & at k %~ mightreplace
-    where
-        mightreplace Nothing = Just v
-        mightreplace (Just x) = Just (f v x)
-
-iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
-{-# INLINABLE iunionWith #-}
-iunionWith = HM.unionWith
-
-fnull :: (Eq x, Monoid x) => x -> Bool
-{-# INLINABLE fnull #-}
-fnull = (== mempty)
 
 rid2text :: RIdentifier -> T.Text
 rid2text (RIdentifier t n) = capitalizeRT t `T.append` "[" `T.append` capn `T.append` "]"
@@ -822,10 +714,6 @@ instance FromJSON NodeInfo where
                                      <*> v .:  "report_timestamp"
     parseJSON _ = fail "invalide node info"
 
-text2Scientific :: T.Text -> Maybe Scientific
-text2Scientific t = case parseOnly rational t of
-            Left _ -> Nothing
-            Right s -> Just s
 
 instance AsNumber PValue where
     _Number = prism num2PValue toNumber
@@ -838,43 +726,3 @@ instance AsNumber PValue where
                                          Just o -> Right o
                                          _      -> Left p
             toNumber p = Left p
-
-initialState :: Facts
-             -> Container T.Text -- ^ Server settings
-             -> InterpreterState
-initialState facts settings = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
-    where
-        callervars = HM.fromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
-        factvars = fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts
-        settingvars = fmap (\x -> PString x :!: initialPPos "settings" :!: ContClass "settings") settings
-        baseVars = HM.fromList [ ("::", ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
-                               , ("settings", ScopeInformation settingvars mempty mempty (CurContainer (ContClass "settings") mempty) mempty S.Nothing)
-                               ]
-        initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
-
-dummypos :: PPosition
-dummypos = initialPPos "dummy"
-
--- | Throws an error if we are in strict mode
--- A warning in permissive mode
-checkStrict :: Doc -- ^ The warning message.
-            -> Doc -- ^ The error message.
-            -> InterpreterMonad ()
-checkStrict wrn err = do
-    extMod <- isExternalModule
-    let priority = if extMod then LOG.NOTICE else LOG.WARNING
-    str <- singleton IsStrict
-    if str && not extMod
-        then throwPosError err
-        else do
-          srcname <- use (curPos._1.lSourceName)
-          logWriter priority (wrn <+> "at" <+> string srcname)
-
-isExternalModule :: InterpreterMonad Bool
-isExternalModule =
-    getScope >>= \case
-      ContClass n      -> isExternal n
-      ContDefine n _ _ -> isExternal n
-      _                -> return False
-    where
-      isExternal = singleton . IsExternalModule . head . T.splitOn "::"

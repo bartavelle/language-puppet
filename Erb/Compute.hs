@@ -1,15 +1,10 @@
 {-# LANGUAGE CPP                      #-}
 {-# LANGUAGE LambdaCase               #-}
 {-# LANGUAGE NamedFieldPuns           #-}
-module Erb.Compute(computeTemplate, initTemplateDaemon) where
-
-import           Puppet.Interpreter.Types
-import           Puppet.Interpreter.IO
-import           Puppet.Interpreter.Resolve
-import           Puppet.PP
-import           Puppet.Preferences
-import           Puppet.Stats
-import           Puppet.Utils
+module Erb.Compute (
+    computeTemplate
+  , initTemplateDaemon
+) where
 
 import           Control.Concurrent
 import           Control.Monad.Except
@@ -30,12 +25,21 @@ import           System.Posix.Files
 import           Text.Parsec                  hiding (string)
 import           Text.Parsec.Error
 import           Text.Parsec.Pos
-
 import           Control.Lens
+
 import           Data.Tuple.Strict
 import qualified Foreign.Ruby.Helpers         as FR
 import qualified Foreign.Ruby.Bindings        as FR
 import           Foreign.Ruby
+
+import           Puppet.Interpreter.Types
+import           Puppet.Interpreter.Utils
+import           Puppet.Interpreter.IO
+import           Puppet.Interpreter.Resolve
+import           Puppet.PP
+import           Puppet.Preferences
+import           Puppet.Stats
+import           Puppet.Utils
 
 instance IsString TemplateParseError where
   fromString s = TemplateParseError $ newErrorMessage (Message s) (initialPos "dummy")

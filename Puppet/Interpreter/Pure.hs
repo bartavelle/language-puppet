@@ -7,20 +7,22 @@
 -- > Right (PString "3")
 module Puppet.Interpreter.Pure where
 
+import           Control.Lens
+import qualified Data.Either.Strict       as S
+import qualified Data.HashMap.Strict      as HM
+import qualified Data.Text                as T
+
 import           Erb.Evaluate
 import           Erb.Parser
 import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Types
+import           Puppet.Interpreter.Utils
 import           Puppet.NativeTypes
 import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP
 import           PuppetDB.Dummy
 
-import           Control.Lens
-import qualified Data.Either.Strict       as S
-import qualified Data.HashMap.Strict      as HM
-import qualified Data.Text                as T
 
 -- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
 -- type.

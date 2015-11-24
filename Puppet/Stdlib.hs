@@ -1,10 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
-import           Puppet.Interpreter.Resolve
-import           Puppet.Interpreter.Types
-import           Puppet.PP
-
 import           Control.Lens
 import           Control.Monad
 import           Data.Aeson.Lens
@@ -20,6 +16,11 @@ import           Data.Vector.Lens                 (toVectorOf)
 import           Puppet.Lens
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
 import           Text.Regex.PCRE.ByteString.Utils
+
+import           Puppet.Interpreter.Resolve
+import           Puppet.Interpreter.Types
+import           Puppet.Interpreter.Utils
+import           Puppet.PP
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )

@@ -167,11 +167,11 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
                                             >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     pref <- dfPreferences workingdir <&> prefPDB .~ pdbapi
-                                    <&> prefHieraPath .~ _optHieraFile
-                                    <&> prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods)
-                                    <&> (if _optStrictMode then prefStrictness .~ Strict else id)
-                                    <&> (if _optNoExtraTests then prefExtraTests .~ False else id)
-                                    <&> prefLogLevel .~ _optLoglevel
+                                     <&> prefHieraPath .~ _optHieraFile
+                                     <&> prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods)
+                                     <&> (if _optStrictMode then prefStrictness .~ Strict else id)
+                                     <&> (if _optNoExtraTests then prefExtraTests .~ False else id)
+                                     <&> prefLogLevel .~ _optLoglevel
     d <- initDaemon pref
     let queryfunc = \node -> fmap (unifyFacts (pref ^. prefFactsDefault) (pref ^. prefFactsOverride)) (Facter.puppetDBFacts node pdbapi) >>= getCatalog d node
     return (queryfunc, pdbapi, parserStats d, catalogStats d, templateStats d)
@@ -193,8 +193,8 @@ printContent filename catalog =
                            Just x -> print x
 
 prepareForPuppetApply :: WireCatalog -> WireCatalog
-prepareForPuppetApply w =
-    let res = V.filter (\r -> r ^. rvirtuality == Normal) (w ^. wireCatalogResources) :: V.Vector Resource
+prepareForPuppetApply wcat =
+    let res = V.filter (\r -> r ^. rvirtuality == Normal) (wcat ^. wireCatalogResources) :: V.Vector Resource
         -- step 1 : capitalize resources types (and names in case of
         -- classes), and filter out exported stuff
         capi :: RIdentifier -> RIdentifier
@@ -205,7 +205,7 @@ prepareForPuppetApply w =
         aliasMap = HM.fromList $ concatMap genAliasList (res ^.. folded)
         genAliasList r = map (\n -> (RIdentifier (r ^. rid . itype) n, r ^. rid . iname)) (r ^. rid . iname : r ^.. ralias . folded)
         nr = V.map (rid %~ capi) res
-        ne = V.map capEdge (w ^. wireCatalogEdges)
+        ne = V.map capEdge (wcat ^. wireCatalogEdges)
         capEdge (PuppetEdge a b x) = PuppetEdge (capi a) (capi b) x
         -- step 2 : replace all references with the resource title in case
         -- of aliases - yes this sucks
@@ -219,9 +219,8 @@ prepareForPuppetApply w =
         correctEdge (PuppetEdge s d x) = PuppetEdge (correct s) (correct d) x
         correctResource :: Resource -> Resource
         correctResource r = r & rrelations %~ HM.fromList . filter (\(x,_) -> aliasMap & has (ix x)) . map (_1 %~ correct) . HM.toList
-    in   (wireCatalogResources .~ correctResources)
-       . (wireCatalogEdges     .~ correctEdges)
-       $ w
+    in wcat & (wireCatalogResources .~ correctResources)
+            & (wireCatalogEdges     .~ correctEdges)
 
 
 -- | Finds the dead code

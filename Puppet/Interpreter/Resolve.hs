@@ -31,6 +31,7 @@ module Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.RubyRandom
 import           Puppet.Interpreter.Types
+import           Puppet.Interpreter.Utils
 import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP

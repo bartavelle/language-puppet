@@ -1,9 +1,8 @@
 {-# LANGUAGE LambdaCase      #-}
 -- | Those are utility functions, most of them being pretty much self
 -- explanatory.
-module Puppet.Utils
-    ( textElem
-    , module Data.Monoid
+module Puppet.Utils (
+      textElem
     , getDirectoryContents
     , takeBaseName
     , takeDirectory
@@ -11,11 +10,19 @@ module Puppet.Utils
     , nameThread
     , loadYamlFile
     , scientific2text
-    ) where
+    , text2Scientific
+    , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
+    , module Data.Monoid
+) where
 
+import           Data.Attoparsec.Text        (parseOnly, rational)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString as BS
+import qualified Data.Foldable               as F
+import           Data.Hashable
+import qualified Data.HashMap.Strict         as HM
+import qualified Data.HashSet                as HS
 import Data.Monoid
 import System.Posix.Directory.ByteString
 import qualified Data.Either.Strict as S
@@ -25,6 +32,11 @@ import Data.Scientific
 import Control.Lens
 import Data.Aeson.Lens
 import qualified Data.Yaml as Y
+
+text2Scientific :: T.Text -> Maybe Scientific
+text2Scientific t = case parseOnly rational t of
+            Left _ -> Nothing
+            Right s -> Just s
 
 scientific2text :: Scientific -> T.Text
 scientific2text n = T.pack $ case n ^? _Integer of
@@ -79,7 +91,6 @@ takeDirectory x =
 dropFileName :: T.Text -> T.Text
 dropFileName = fst . splitFileName
 
-
 -- | Split a filename into directory and file. 'combine' is the inverse.
 --
 -- > Valid x => uncurry (</>) (splitFileName x) == x || fst (splitFileName x) == "./"
@@ -104,3 +115,31 @@ loadYamlFile :: Y.FromJSON a =>  FilePath -> IO a
 loadYamlFile fp = Y.decodeFileEither fp >>= \case
     Left rr -> error ("Error when parsing " ++ fp ++ ": " ++ show rr)
     Right x -> return x
+
+-- | helper for hashmap, in case we want another kind of map ..
+ifromList :: (Monoid m, At m, F.Foldable f) => f (Index m, IxValue m) -> m
+{-# INLINABLE ifromList #-}
+ifromList = F.foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
+
+ikeys :: (Eq k, Hashable k) => HM.HashMap k v -> HS.HashSet k
+{-# INLINABLE ikeys #-}
+ikeys = HS.fromList . HM.keys
+
+isingleton :: (Monoid b, At b) => Index b -> IxValue b -> b
+{-# INLINABLE isingleton #-}
+isingleton k v = mempty & at k ?~ v
+
+ifromListWith :: (Monoid m, At m, F.Foldable f) => (IxValue m -> IxValue m -> IxValue m) -> f (Index m, IxValue m) -> m
+{-# INLINABLE ifromListWith #-}
+ifromListWith f = F.foldl' (\curmap (k,v) -> iinsertWith f k v curmap) mempty
+
+iinsertWith :: At m => (IxValue m -> IxValue m -> IxValue m) -> Index m -> IxValue m -> m -> m
+{-# INLINABLE iinsertWith #-}
+iinsertWith f k v m = m & at k %~ mightreplace
+    where
+        mightreplace Nothing = Just v
+        mightreplace (Just x) = Just (f v x)
+
+iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
+{-# INLINABLE iunionWith #-}
+iunionWith = HM.unionWith

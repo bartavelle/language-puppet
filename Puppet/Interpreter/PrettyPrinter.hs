@@ -82,6 +82,11 @@ resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r
            maxalign' [] = 0
            maxalign' x = maximum . map (T.length . fst) $ x
 
+resourceRelations :: Resource -> [(RIdentifier, LinkType)]
+resourceRelations = concatMap expandSet . HM.toList . view rrelations
+    where
+        expandSet (ri, lts) = [(ri, lt) | lt <- HS.toList lts]
+
 instance Pretty Resource where
     prettyList lst =
        let grouped = HM.toList $ HM.fromListWith (++) [ (r ^. rid . itype, [r]) | r <- lst ] :: [ (T.Text, [Resource]) ]
@@ -90,6 +95,10 @@ instance Pretty Resource where
            showGroup (rt, res) = dullyellow (ttext rt) <+> lbrace <$> indent 2 (vcat (map resourceBody res)) <$> rbrace
        in  vcat (map showGroup sorted)
     pretty r = dullyellow (ttext (r ^. rid . itype)) <+> lbrace <$> indent 2 (resourceBody r) <$> rbrace
+
+-- instance Pretty PuppetEdge where
+--   pretty (PuppetEdge ident ident ltype) = pretty node <+> pretty version <+> res
+
 
 instance Pretty CurContainerDesc where
     pretty (ContImport  p x) = magenta "import" <> braces (ttext p) <> braces (pretty x)

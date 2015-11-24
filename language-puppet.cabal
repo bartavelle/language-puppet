@@ -61,6 +61,7 @@ library
   other-modules:         Erb.Compute
                        , Paths_language_puppet
                        , Puppet.Interpreter.RubyRandom
+                       , Puppet.Interpreter.Utils
                        , Puppet.Manifests
                        , Puppet.NativeTypes.Concat
                        , Puppet.NativeTypes.Cron

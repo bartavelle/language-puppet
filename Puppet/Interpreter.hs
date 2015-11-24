@@ -5,16 +5,6 @@ module Puppet.Interpreter
        ( interpretCatalog
        ) where
 
-import           Puppet.Interpreter.PrettyPrinter (containerComma)
-import           Puppet.Interpreter.Resolve
-import           Puppet.Interpreter.Types
-import           Puppet.Interpreter.IO
-import           Puppet.Lens
-import           Puppet.NativeTypes
-import           Puppet.Parser.PrettyPrinter
-import           Puppet.Parser.Types
-import           Puppet.PP
-import           Puppet.Utils
 
 import           Control.Applicative
 import           Control.Lens
@@ -37,6 +27,18 @@ import qualified Data.Tree                        as T
 import           Data.Tuple.Strict                (Pair (..))
 import qualified Data.Vector                      as V
 import           System.Log.Logger
+
+import           Puppet.Interpreter.PrettyPrinter (containerComma)
+import           Puppet.Interpreter.Resolve
+import           Puppet.Interpreter.Types
+import           Puppet.Interpreter.Utils
+import           Puppet.Interpreter.IO
+import           Puppet.Lens
+import           Puppet.NativeTypes
+import           Puppet.Parser.PrettyPrinter
+import           Puppet.Parser.Types
+import           Puppet.PP
+import           Puppet.Utils
 
 normalizeRIdentifier :: T.Text -> T.Text -> RIdentifier
 normalizeRIdentifier t = RIdentifier rt
@@ -187,8 +189,8 @@ computeCatalog nodename = do
             unless (S.isNothing inheritnode) $ throwPosError "Node inheritance is not handled yet, and will probably never be"
             mapM evaluateStatement sx >>= finalize . concat
 
-    resnode <- evaluateNode nd >>= finalStep . (++ (mainstage : topres))
-    let (real :!: exported) = foldl' classify (mempty :!: mempty) resnode
+    noderes <- evaluateNode nd >>= finalStep . (++ (mainstage : topres))
+    let (real :!: exported) = foldl' classify (mempty :!: mempty) noderes
         -- Classify sorts resources between exported and normal ones. It
         -- drops virtual resources, and puts in both categories resources
         -- that are at the same time exported and realized.
@@ -202,14 +204,14 @@ computeCatalog nodename = do
                     Exported -> curr :!: i cure
                     ExportedRealized -> i curr :!: i cure
                     _ -> curr :!: cure
-    verified <- ifromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (toList real)
-    mp <- makeEdgeMap verified
+    verified <- HM.fromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (HM.elems real)
+    edgemap <- makeEdgeMap verified
     definedRes <- use definedResources
-    return (verified, mp, exported, HM.elems definedRes)
+    return (verified, edgemap, exported, HM.elems definedRes)
 
 makeEdgeMap :: FinalCatalog -> InterpreterMonad EdgeMap
 makeEdgeMap ct = do
-    -- merge the looaded classes and resources
+    -- merge the loaded classes and resources
     defs' <- HM.map (view rpos) <$> use definedResources
     clss' <- use loadedClasses
     let defs = defs' <> classes' <> aliases' <> names'
