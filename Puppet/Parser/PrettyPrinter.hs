@@ -60,14 +60,14 @@ instance Pretty Expression where
     pretty (Terminal a)           = pretty a
     pretty (FunctionApplication e1 e2) = parens (pretty e1) <> text "." <> pretty e2
 
-instance Pretty HigherFuncType where
-    pretty HFEach   = bold $ red $ text "each"
-    pretty HFMap    = bold $ red $ text "map"
-    pretty HFReduce = bold $ red $ text "reduce"
-    pretty HFFilter = bold $ red $ text "filter"
-    pretty HFSlice  = bold $ red $ text "slice"
+instance Pretty LambdaFunc where
+    pretty LambEach   = bold $ red $ text "each"
+    pretty LambMap    = bold $ red $ text "map"
+    pretty LambReduce = bold $ red $ text "reduce"
+    pretty LambFilter = bold $ red $ text "filter"
+    pretty LambSlice  = bold $ red $ text "slice"
 
-instance Pretty BlockParameters where
+instance Pretty LambdaParameters where
     pretty b = magenta (char '|') <+> vars <+> magenta (char '|')
         where
             vars = case b of
@@ -99,10 +99,10 @@ instance Pretty UValue where
     pretty (URegexp (CompRegex r _)) = char '/' <> text (T.unpack r) <> char '/'
     pretty (UVariableReference v) = dullblue (char '$' <> text (T.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
-    pretty (UHFunctionCall c) = pretty c
+    pretty (UHOLambdaCall c) = pretty c
 
-instance Pretty HFunctionCall where
-    pretty (HFunctionCall hf me bp stts mee) = pretty hf <> mme <+> pretty bp <+> nest 2 (char '{' <$> ppStatements stts <> mmee) <$> char '}'
+instance Pretty HOLambdaCall where
+    pretty (HOLambdaCall hf me bp stts mee) = pretty hf <> mme <+> pretty bp <+> nest 2 (char '{' <$> ppStatements stts <> mmee) <$> char '}'
         where
             mme = case me of
                       S.Just x -> mempty <+> pretty x
@@ -159,8 +159,8 @@ instance Pretty NodeDesc where
     pretty (NodeMatch r)   = pretty (URegexp r)
 
 instance Pretty Statement where
-    pretty (SHFunctionCall (SFC c p)) = pretty c <+> showPPos p
-    pretty (ConditionalStatement (CondStatement conds p))
+    pretty (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) = pretty c <+> showPPos p
+    pretty (ConditionalDeclaration (ConditionalDecl conds p))
         | V.null conds = empty
         | otherwise = text "if" <+> pretty firstcond <+> showPPos p <+> braceStatements firststts <$> vcat (map rendernexts xs)
         where
@@ -168,10 +168,10 @@ instance Pretty Statement where
             rendernexts (Terminal (UBoolean True) :!: st) = text "else" <+> braceStatements st
             rendernexts (c :!: st) | V.null st = empty
                                    | otherwise = text "elsif" <+> pretty c <+> braceStatements st
-    pretty (MainFunctionCall (MFC funcname args p)) = showFunc funcname args <+> showPPos p
-    pretty (DefaultDeclaration (DefaultDec rtype defaults p)) = capitalize rtype <+> nest 2 (char '{' <+> showPPos p <$> showAss defaults) <$> char '}'
-    pretty (ResourceOverride (ResOver rtype rnames overs p)) = pretty (UResourceReference rtype rnames) <+> nest 2 (char '{' <+> showPPos p <$> showAss overs) <$> char '}'
-    pretty (ResourceDeclaration (ResDec rtype rname args virt p)) = nest 2 (red vrt <> dullgreen (text (T.unpack rtype)) <+> char '{' <+> showPPos p
+    pretty (MainFunctionDeclaration (MainFuncDecl funcname args p)) = showFunc funcname args <+> showPPos p
+    pretty (ResourceDefaultDeclaration (ResDefaultDecl rtype defaults p)) = capitalize rtype <+> nest 2 (char '{' <+> showPPos p <$> showAss defaults) <$> char '}'
+    pretty (ResourceOverrideDeclaration (ResOverrideDecl rtype rnames overs p)) = pretty (UResourceReference rtype rnames) <+> nest 2 (char '{' <+> showPPos p <$> showAss overs) <$> char '}'
+    pretty (ResourceDeclaration (ResDecl rtype rname args virt p)) = nest 2 (red vrt <> dullgreen (text (T.unpack rtype)) <+> char '{' <+> showPPos p
                                                                            <$> nest 2 (pretty rname <> char ':' <$> showAss args))
                                                                            <$> char '}'
         where
@@ -180,22 +180,22 @@ instance Pretty Statement where
                       Virtual -> char '@'
                       Exported -> text "@@"
                       ExportedRealized -> text "!!"
-    pretty (DefineDeclaration (DefineDec cname args stts p)) = dullyellow (text "define") <+> dullgreen (ttext cname) <> showArgs args <+> showPPos p <$> braceStatements stts
+    pretty (DefineDeclaration (DefineDecl cname args stts p)) = dullyellow (text "define") <+> dullgreen (ttext cname) <> showArgs args <+> showPPos p <$> braceStatements stts
     pretty (ClassDeclaration (ClassDecl cname args inherit stts p)) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname)) <> showArgs args <> inheritance <+> showPPos p
                                                                <$> braceStatements stts
         where
             inheritance = case inherit of
                               S.Nothing -> empty
                               S.Just x -> empty <+> text "inherits" <+> text (T.unpack x)
-    pretty (VariableAssignment (VarAss a b p)) = dullblue (char '$' <> text (T.unpack a)) <+> char '=' <+> pretty b <+> showPPos p
-    pretty (Node (Nd nodename stmts i p)) = dullyellow (text "node") <+> pretty nodename <> inheritance <+> showPPos p <$> braceStatements stmts
+    pretty (VarAssignmentDeclaration (VarAssignDecl a b p)) = dullblue (char '$' <> text (T.unpack a)) <+> char '=' <+> pretty b <+> showPPos p
+    pretty (NodeDeclaration (NodeDecl nodename stmts i p)) = dullyellow (text "node") <+> pretty nodename <> inheritance <+> showPPos p <$> braceStatements stmts
         where
             inheritance = case i of
                               S.Nothing -> empty
                               S.Just n -> empty <+> text "inherits" <+> pretty n
-    pretty (Dependency (Dep (st :!: sn) (dt :!: dn) lt p)) = pretty (UResourceReference st sn) <+> pretty lt <+> pretty (UResourceReference dt dn) <+> showPPos p
+    pretty (DependencyDeclaration (DepDecl (st :!: sn) (dt :!: dn) lt p)) = pretty (UResourceReference st sn) <+> pretty lt <+> pretty (UResourceReference dt dn) <+> showPPos p
     pretty (TopContainer a b) = text "TopContainer:" <+> braces ( nest 2 (string "TOP" <$> braceStatements a <$> string "STATEMENT" <$> pretty b))
-    pretty (ResourceCollection (RColl coltype restype search overrides p)) = capitalize restype <> enc (pretty search) <+> overs
+    pretty (ResourceCollectionDeclaration (ResCollDecl coltype restype search overrides p)) = capitalize restype <> enc (pretty search) <+> overs
         where
             overs | V.null overrides = showPPos p
                   | otherwise = nest 2 (char '{' <+> showPPos p <$> showAss overrides) <$> char '}'

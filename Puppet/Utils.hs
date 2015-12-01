@@ -7,7 +7,6 @@ module Puppet.Utils (
     , takeBaseName
     , takeDirectory
     , strictifyEither
-    , nameThread
     , loadYamlFile
     , scientific2text
     , text2Scientific
@@ -26,8 +25,6 @@ import qualified Data.HashSet                as HS
 import Data.Monoid
 import System.Posix.Directory.ByteString
 import qualified Data.Either.Strict as S
-import Control.Concurrent (myThreadId)
-import GHC.Conc (labelThread)
 import Data.Scientific
 import Control.Lens
 import Data.Aeson.Lens
@@ -49,9 +46,6 @@ strictifyEither (Right x) = S.Right x
 
 textElem :: Char -> T.Text -> Bool
 textElem c = T.any (==c)
-
-nameThread :: String -> IO ()
-nameThread n = myThreadId >>= flip labelThread n
 
 getDirectoryContents :: T.Text -> IO [T.Text]
 getDirectoryContents fpath = do

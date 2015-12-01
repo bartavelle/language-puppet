@@ -19,11 +19,11 @@ module Puppet.Parser.Types
    Expression(..),
    SelectorCase(..),
    UValue(..),
-   HigherFuncType(..),
-   HFunctionCall(..),
+   LambdaFunc(..),
+   HOLambdaCall(..),
    ChainableRes(..),
-   HasHFunctionCall(..),
-   BlockParameters(..),
+   HasHOLambdaCall(..),
+   LambdaParameters(..),
    CompRegex(..),
    CollectorType(..),
    Virtuality(..),
@@ -34,19 +34,19 @@ module Puppet.Parser.Types
    -- ** Statements
    ArrowOp(..),
    AttributeDecl(..),
-   CondStatement(..),
+   ConditionalDecl(..),
    ClassDecl(..),
-   DefaultDec(..),
-   Dep(..),
+   ResDefaultDecl(..),
+   DepDecl(..),
    Statement(..),
-   ResDec(..),
-   ResOver(..),
-   DefineDec(..),
-   Nd(..),
-   VarAss(..),
-   MFC(..),
-   SFC(..),
-   RColl(..)
+   ResDecl(..),
+   ResOverrideDecl(..),
+   DefineDecl(..),
+   NodeDecl(..),
+   VarAssignDecl(..),
+   MainFuncDecl(..),
+   HigherOrderLambdaDecl(..),
+   ResCollDecl(..)
    ) where
 
 import           Control.Lens
@@ -101,34 +101,35 @@ toPPos fl ln =
     let p = newPos (T.unpack fl) ln (-1)
     in  (p :!: p)
 
--- | The distinct Puppet /higher order functions/
-data HigherFuncType
-    = HFEach
-    | HFMap
-    | HFReduce
-    | HFFilter
-    | HFSlice
+-- | High Order "lambdas"
+data LambdaFunc
+    = LambEach
+    | LambMap
+    | LambReduce
+    | LambFilter
+    | LambSlice
     deriving (Eq, Show)
 
--- | Currently only two types of block parameters are supported:
+-- | Lambda block parameters:
+-- Currently only two types of block parameters are supported:
 -- single values and pairs.
-data BlockParameters
+data LambdaParameters
     = BPSingle !Text -- ^ @|k|@
     | BPPair   !Text !Text -- ^ @|k,v|@
     deriving (Eq, Show)
 
--- The description of the /higher level function/ call.
-data HFunctionCall = HFunctionCall
-    { _hftype       :: !HigherFuncType
-    , _hfexpr       :: !(S.Maybe Expression)
-    , _hfparams     :: !BlockParameters
-    , _hfstatements :: !(V.Vector Statement)
-    , _hfexpression :: !(S.Maybe Expression)
+-- The description of the /higher level lambda/ call.
+data HOLambdaCall = HOLambdaCall
+    { _hoLambdaFunc       :: !LambdaFunc
+    , _hoLambdaExpr       :: !(S.Maybe Expression)
+    , _hoLambdaParams     :: !LambdaParameters
+    , _hoLambdaStatements :: !(V.Vector Statement)
+    , _hoLambdaLastExpr   :: !(S.Maybe Expression)
     } deriving (Eq,Show)
 
 data ChainableRes
-    = ChainResColl !RColl
-    | ChainResDecl !ResDec
+    = ChainResColl !ResCollDecl
+    | ChainResDecl !ResDecl
     | ChainResRefr !Text [Expression] !PPosition
     deriving (Show, Eq)
 
@@ -157,7 +158,7 @@ data UValue
     | URegexp !CompRegex -- ^ The regular expression compilation is performed during parsing.
     | UVariableReference !Text
     | UFunctionCall !Text !(V.Vector Expression)
-    | UHFunctionCall !HFunctionCall
+    | UHOLambdaCall !HOLambdaCall
     | UNumber !Scientific
     deriving (Show, Eq)
 
@@ -216,6 +217,7 @@ instance Fractional Expression where
 instance IsString Expression where
     fromString = Terminal . fromString
 
+-- | Search expression inside collector `<| searchexpr |>`
 data SearchExpression
     = EqualitySearch !Text !Expression
     | NonEqualitySearch !Text !Expression
@@ -267,39 +269,39 @@ instance FromJSON LinkType where
 instance ToJSON LinkType where
     toJSON = String . rel2text
 
-data ResDec        = ResDec !Text !Expression !(V.Vector AttributeDecl) !Virtuality !PPosition deriving (Eq, Show)
-data DefaultDec    = DefaultDec !Text !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
-data ResOver       = ResOver !Text !Expression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+data ResDecl         = ResDecl !Text !Expression !(V.Vector AttributeDecl) !Virtuality !PPosition deriving (Eq, Show)
+data ResDefaultDecl  = ResDefaultDecl !Text !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+data ResOverrideDecl = ResOverrideDecl !Text !Expression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
 -- | All types of conditional statements (@case@, @if@, etc.) are stored as an ordered list of pair (condition, statements)
 -- (interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ...")
-data CondStatement = CondStatement !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
-data ClassDecl     = ClassDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
-data DefineDec     = DefineDec !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data ConditionalDecl = ConditionalDecl !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
+data ClassDecl       = ClassDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data DefineDecl      = DefineDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 -- | A node is a collection of statements + maybe an inherit node
-data Nd            = Nd !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
-data VarAss        = VarAss !Text !Expression !PPosition deriving (Eq, Show)
-data MFC           = MFC !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
+data NodeDecl        = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
+data VarAssignDecl       = VarAssignDecl !Text !Expression !PPosition deriving (Eq, Show)
+data MainFuncDecl    = MainFuncDecl !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
 -- | /Higher order function/ call.
-data SFC           = SFC !HFunctionCall !PPosition deriving (Eq, Show)
+data HigherOrderLambdaDecl   = HigherOrderLambdaDecl !HOLambdaCall !PPosition deriving (Eq, Show)
 -- | For all types of collectors.
-data RColl         = RColl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
-data Dep           = Dep !(Pair Text Expression) !(Pair Text Expression) !LinkType !PPosition deriving (Eq, Show)
+data ResCollDecl     = ResCollDecl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+data DepDecl         = DepDecl !(Pair Text Expression) !(Pair Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
 -- | All the possible statements
 data Statement
-    = ResourceDeclaration !ResDec
-    | DefaultDeclaration !DefaultDec
-    | ResourceOverride !ResOver
-    | ConditionalStatement !CondStatement
+    = ResourceDeclaration !ResDecl                 -- ^ e.g `file { mode => 755}`
+    | ResourceDefaultDeclaration !ResDefaultDecl   -- ^ Resource default e.g `File { mode => 755 }`
+    | ResourceOverrideDeclaration !ResOverrideDecl -- ^ e.g `File['title'] { mode => 755}`
+    | ResourceCollectionDeclaration !ResCollDecl    -- ^ e.g `User <| title == 'jenkins' |> { groups +> "docker"}`
     | ClassDeclaration !ClassDecl
-    | DefineDeclaration !DefineDec
-    | Node !Nd
-    | VariableAssignment !VarAss
-    | MainFunctionCall !MFC
-    | SHFunctionCall !SFC
-    | ResourceCollection !RColl
-    | Dependency !Dep
+    | DefineDeclaration !DefineDecl
+    | NodeDeclaration !NodeDecl
+    | ConditionalDeclaration !ConditionalDecl
+    | VarAssignmentDeclaration !VarAssignDecl -- ^ e.g $newvar = 'world'
+    | MainFunctionDeclaration !MainFuncDecl
+    | HigherOrderLambdaDeclaration !HigherOrderLambdaDecl
+    | DependencyDeclaration !DepDecl
     | TopContainer !(V.Vector Statement) !Statement -- ^ This is a special statement that is used to include the expressions that are top level. This is certainly buggy, but probably just like the original implementation.
     deriving (Eq, Show)
 
-makeClassy ''HFunctionCall
+makeClassy ''HOLambdaCall

@@ -120,7 +120,6 @@ metaparameters :: HS.HashSet T.Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
 
 type NodeName = T.Text
-
 type Container = HM.HashMap T.Text
 
 newtype PrettyError = PrettyError { getError :: Doc }
@@ -174,7 +173,7 @@ data RSearchExpression = REqualitySearch !T.Text !PValue
                        | RAndSearch !RSearchExpression !RSearchExpression
                        | ROrSearch !RSearchExpression !RSearchExpression
                        | RAlwaysTrue
-                       deriving Eq
+                       deriving (Show, Eq)
 
 instance IsString PValue where
     fromString = PString . T.pack
@@ -329,7 +328,7 @@ instance Hashable RIdentifier
 
 data ModifierType = ModifierCollector -- ^ For collectors, optional resources
                   | ModifierMustMatch -- ^ For stuff like realize
-                  deriving Eq
+                  deriving (Show, Eq)
 
 data OverrideType = CantOverride -- ^ Overriding forbidden, will throw an error
                   | Replace -- ^ Can silently replace
@@ -338,7 +337,7 @@ data OverrideType = CantOverride -- ^ Overriding forbidden, will throw an error
 data ResourceCollectorType = RealizeVirtual
                            | RealizeCollected
                            | DontRealize
-                           deriving Eq
+                           deriving (Show, Eq)
 
 
 data ResourceModifier = ResourceModifier
@@ -349,6 +348,9 @@ data ResourceModifier = ResourceModifier
     , _rmMutation     :: !(Resource -> InterpreterMonad Resource)
     , _rmDeclaration  :: !PPosition
     }
+
+instance Show ResourceModifier where
+  show (ResourceModifier rt mt ct se mu p) = unwords$ [show rt, show mt, show ct, "(" ++ show se ++ ")", show p]
 
 data LinkInformation = LinkInformation
     { _linksrc  :: !RIdentifier

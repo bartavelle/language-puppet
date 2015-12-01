@@ -241,18 +241,18 @@ findDeadCode puppetdir catalogs allfiles = do
         putDoc ("The following" <+> int (length parseFailed) <+> "files could not be parsed:" </> indent 4 (vcat (map (string . show) parseFailed)))
         putStrLn ""
     let getSubStatements s@(ResourceDeclaration{}) = [s]
-        getSubStatements (ConditionalStatement (CondStatement conds _)) = conds ^.. traverse . _2 . tgt
+        getSubStatements (ConditionalDeclaration (ConditionalDecl conds _)) = conds ^.. traverse . _2 . tgt
         getSubStatements s@(ClassDeclaration{}) = extractPrism s
         getSubStatements s@(DefineDeclaration{}) = extractPrism s
-        getSubStatements s@(Node{}) = extractPrism s
-        getSubStatements s@(SHFunctionCall{}) = extractPrism s
+        getSubStatements s@(NodeDeclaration{}) = extractPrism s
+        getSubStatements s@(HigherOrderLambdaDeclaration{}) = extractPrism s
         getSubStatements (TopContainer v s) = getSubStatements s ++ v ^.. tgt
         getSubStatements _ = []
         tgt = folded . to getSubStatements . folded
         extractPrism = toListOf (_Statements . traverse . to getSubStatements . traverse)
         allResources = parseSucceeded ^.. folded . folded . to getSubStatements . folded
         deadResources = filter isDead allResources
-        isDead (ResourceDeclaration (ResDec _ _ _ _ pp)) = not $ Set.member pp allpositions
+        isDead (ResourceDeclaration (ResDecl _ _ _ _ pp)) = not $ Set.member pp allpositions
         isDead _ = True
     unless (null deadResources) $ do
         putDoc ("The following" <+> int (length deadResources) <+> "resource declarations are not used:" </> indent 4 (vcat (map pretty deadResources)))
@@ -385,7 +385,7 @@ run cmd@(Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppe
       retrieveNodes AllNodes = do
           allstmts <- parseFile (workingdir <> "/manifests/site.pp") >>= \case Left err -> error (show err)
                                                                                Right x  -> return x
-          let getNodeName (Node (Nd (NodeName n) _ _ _)) = Just n
+          let getNodeName (NodeDeclaration (NodeDecl (NodeName n) _ _ _)) = Just n
               getNodeName _ = Nothing
           return $ mapMaybe getNodeName (V.toList allstmts)
       retrieveNodes (MultNodes xs) = return xs

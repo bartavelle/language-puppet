@@ -14,13 +14,14 @@ import qualified Data.ByteString.Lazy.Char8   as BSL
 import qualified Data.HashMap.Strict          as HM
 import qualified Data.HashSet                 as HS
 import           Data.List
+import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import qualified Data.Vector                  as V
 import           GHC.Exts
 
 import           Data.Aeson                   (ToJSON, encode)
-import           Text.PrettyPrint.ANSI.Leijen ((<$>))
 import           Prelude                      hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen ((<$>))
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins
@@ -32,10 +33,13 @@ containerComma' :: Pretty a => [(Doc, a)] -> Doc
 containerComma' = braces . containerComma''
 
 containerComma :: Pretty a => Container a -> Doc
-containerComma hm = containerComma' (map (\(a,b) -> (fill maxalign (ttext a), b)) hml)
+containerComma hm = containerComma' (map (\(a,b) -> (fill maxalign (pretty a), b)) hml)
     where
         hml = HM.toList hm
         maxalign = maximum (map (T.length . fst) hml)
+
+instance Pretty Text where
+    pretty = ttext
 
 instance Pretty PValue where
     pretty (PBoolean True)  = dullmagenta $ text "true"
@@ -89,16 +93,12 @@ resourceRelations = concatMap expandSet . HM.toList . view rrelations
 
 instance Pretty Resource where
     prettyList lst =
-       let grouped = HM.toList $ HM.fromListWith (++) [ (r ^. rid . itype, [r]) | r <- lst ] :: [ (T.Text, [Resource]) ]
+       let grouped = HM.toList $ HM.fromListWith (++) [ (r ^. rid . itype, [r]) | r <- lst ] :: [ (Text, [Resource]) ]
            sorted = sortWith fst (map (second (sortWith (view (rid.iname)))) grouped)
-           showGroup :: (T.Text, [Resource]) -> Doc
+           showGroup :: (Text, [Resource]) -> Doc
            showGroup (rt, res) = dullyellow (ttext rt) <+> lbrace <$> indent 2 (vcat (map resourceBody res)) <$> rbrace
        in  vcat (map showGroup sorted)
     pretty r = dullyellow (ttext (r ^. rid . itype)) <+> lbrace <$> indent 2 (resourceBody r) <$> rbrace
-
--- instance Pretty PuppetEdge where
---   pretty (PuppetEdge ident ident ltype) = pretty node <+> pretty version <+> res
-
 
 instance Pretty CurContainerDesc where
     pretty (ContImport  p x) = magenta "import" <> braces (ttext p) <> braces (pretty x)
@@ -112,6 +112,7 @@ instance Pretty ResDefaults where
 
 instance Pretty ResourceModifier where
     pretty (ResourceModifier rt ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString x)) _ p) = "realize" <> parens (pretty (PResourceReference rt x)) <+> showPPos p
+    -- pretty (ResourceModifier rt ModifierCollector ct (REqualitySearch _ (PString x))  _ p) =  "collect" <> parens (pretty (PResourceReference rt x)) <+> showPPos p
     pretty _ = "TODO pretty ResourceModifier"
 
 instance Pretty RSearchExpression where

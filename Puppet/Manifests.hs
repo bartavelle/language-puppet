@@ -24,9 +24,9 @@ filterStatements :: TopLevelType -> T.Text -> V.Vector Statement -> IO (S.Either
 filterStatements TopNode ndename stmts =
     -- this operation should probably get cached
     let (!spurious, !directnodes, !regexpmatches, !defaultnode) = V.foldl' triage (V.empty, HM.empty, V.empty, Nothing) stmts
-        triage curstuff n@(Node (Nd (NodeName !nm) _ _ _)) = curstuff & _2 . at nm ?~ n
-        triage curstuff n@(Node (Nd (NodeMatch (CompRegex _ !rg)) _ _ _)) = curstuff & _3 %~ (|> (rg :!: n))
-        triage curstuff n@(Node (Nd  NodeDefault _  _ _)) = curstuff & _4 ?~ n
+        triage curstuff n@(NodeDeclaration (NodeDecl (NodeName !nm) _ _ _)) = curstuff & _2 . at nm ?~ n
+        triage curstuff n@(NodeDeclaration (NodeDecl (NodeMatch (CompRegex _ !rg)) _ _ _)) = curstuff & _3 %~ (|> (rg :!: n))
+        triage curstuff n@(NodeDeclaration (NodeDecl  NodeDefault _  _ _)) = curstuff & _4 ?~ n
         triage curstuff x = curstuff & _1 %~ (|> x)
         bsnodename = T.encodeUtf8 ndename
         checkRegexp :: [Pair Regex Statement] -> ExceptT PrettyError IO (Maybe Statement)
@@ -48,7 +48,7 @@ filterStatements TopNode ndename stmts =
 filterStatements x ndename stmts =
     let (!spurious, !defines, !classes) = V.foldl' triage (V.empty, HM.empty, HM.empty) stmts
         triage curstuff n@(ClassDeclaration (ClassDecl cname _ _ _ _)) = curstuff & _3 . at cname ?~ n
-        triage curstuff n@(DefineDeclaration (DefineDec cname _ _ _)) = curstuff & _2 . at cname ?~ n
+        triage curstuff n@(DefineDeclaration (DefineDecl cname _ _ _)) = curstuff & _2 . at cname ?~ n
         triage curstuff n = curstuff & _1 %~ (|> n)
         tc n = if V.null spurious
                    then n

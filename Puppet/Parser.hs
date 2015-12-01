@@ -268,10 +268,6 @@ genFunctionCall nonparens = do
                                 else fail "Function arguments C"
     return (fname, V.fromList args)
 
-functionCall :: Parser UValue
-functionCall = do
-    (fname, args) <- genFunctionCall False
-    return $ UFunctionCall fname args
 
 literalValue :: Parser UValue
 literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
@@ -303,7 +299,12 @@ termRegexp :: Parser CompRegex
 termRegexp = regexp >>= compileRegexp
 
 terminal :: Parser Expression
-terminal = terminalG (fmap Terminal (fmap UHFunctionCall (try hfunctionCall) <|> try functionCall))
+terminal = terminalG (fmap Terminal (fmap UHOLambdaCall (try lambdaCall) <|> try funcCall))
+    where
+        funcCall :: Parser UValue
+        funcCall = do
+            (fname, args) <- genFunctionCall False
+            return $ UFunctionCall fname args
 
 expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
@@ -344,29 +345,40 @@ indexLookupChain = chainl1 checkLookup (return (flip (.)))
 stringExpression :: Parser Expression
 stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reserved "undef" *> return (Terminal UUndef)) <|> fmap (Terminal . UBoolean) puppetBool <|> variable <|> fmap Terminal literalValue
 
-variableAssignment :: Parser VarAss
-variableAssignment = do
+varAssign :: Parser VarAssignDecl
+varAssign = do
     p <- getPosition
     v <- variableReference
     void $ symbolic '='
     e <- expression
     when (T.all isDigit v) (fail "Can't assign fully numeric variables")
     pe <- getPosition
-    return (VarAss v e (p :!: pe))
+    return (VarAssignDecl v e (p :!: pe))
 
-nodeStmt :: Parser [Nd]
-nodeStmt = do
+nodeDecl :: Parser [NodeDecl]
+nodeDecl = do
     p <- getPosition
     reserved "node"
     let toString (UString s) = s
         toString (UNumber n) = scientific2text n
-        toString _ = error "Can't happen at nodeStmt"
+        toString _ = error "Can't happen at nodeDecl"
         nodename = (reserved "default" >> return NodeDefault) <|> fmap (NodeName . toString) literalValue
     ns <- (fmap NodeMatch termRegexp <|> nodename) `sepBy1` comma
     inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
     st <- braces statementList
     pe <- getPosition
-    return [Nd n st inheritance (p :!: pe) | n <- ns]
+    return [NodeDecl n st inheritance (p :!: pe) | n <- ns]
+
+defineDecl :: Parser DefineDecl
+defineDecl = do
+    p <- getPosition
+    reserved "define"
+    name <- typeName
+    -- TODO check native type
+    params <- option V.empty puppetClassParameters
+    st <- braces statementList
+    pe <- getPosition
+    return (DefineDecl name params st (p :!: pe))
 
 puppetClassParameters :: Parser (V.Vector (Pair T.Text (S.Maybe Expression)))
 puppetClassParameters = V.fromList <$> parens (sepComma var)
@@ -378,29 +390,18 @@ puppetClassParameters = V.fromList <$> parens (sepComma var)
                 <$> variableReference
                 <*> (toStrictMaybe <$> optional (symbolic '=' *> expression))
 
-defineStmt :: Parser DefineDec
-defineStmt = do
-    p <- getPosition
-    reserved "define"
-    name <- typeName
-    -- TODO check native type
-    params <- option V.empty puppetClassParameters
-    st <- braces statementList
-    pe <- getPosition
-    return (DefineDec name params st (p :!: pe))
-
 puppetIfStyleCondition :: Parser (Pair Expression (V.Vector Statement))
 puppetIfStyleCondition = (:!:) <$> expression <*> braces statementList
 
-unlessCondition :: Parser CondStatement
+unlessCondition :: Parser ConditionalDecl
 unlessCondition = do
     p <- getPosition
     reserved "unless"
     (cond :!: stmts) <- puppetIfStyleCondition
     pe <- getPosition
-    return (CondStatement (V.singleton (Not cond :!: stmts)) (p :!: pe))
+    return (ConditionalDecl (V.singleton (Not cond :!: stmts)) (p :!: pe))
 
-ifCondition :: Parser CondStatement
+ifCondition :: Parser ConditionalDecl
 ifCondition = do
     p <- getPosition
     reserved "if"
@@ -411,9 +412,9 @@ ifCondition = do
                  then []
                  else [Terminal (UBoolean True) :!: elsecond]
     pe <- getPosition
-    return (CondStatement (V.fromList (maincond : others ++ ec)) (p :!: pe))
+    return (ConditionalDecl (V.fromList (maincond : others ++ ec)) (p :!: pe))
 
-caseCondition :: Parser CondStatement
+caseCondition :: Parser ConditionalDecl
 caseCondition = do
     let puppetRegexpCase = do
             reg <- termRegexp
@@ -440,7 +441,7 @@ caseCondition = do
     expr1 <- expression
     condlist <- braces (some (puppetRegexpCase <|> defaultCase <|> puppetCase))
     pe <- getPosition
-    return (CondStatement (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) )
+    return (ConditionalDecl (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) )
 
 data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
                      | EndOfChain a
@@ -462,27 +463,6 @@ depOperator =   (operator "->" *> pure RBefore)
             <|> (operator "~>" *> pure RNotify)
 
 
-resourceGroup :: Parser [ResDec]
-resourceGroup = do
-    let resourceName = token stringExpression
-        resourceDeclaration = do
-            p <- getPosition
-            names <- brackets (sepComma1 resourceName) <|> fmap return resourceName
-            void $ symbolic ':'
-            vals  <- fmap V.fromList (sepComma assignment)
-            pe <- getPosition
-            return [(n, vals, p :!: pe) | n <- names ]
-        groupDeclaration = (,) <$> many (char '@') <*> typeName <* symbolic '{'
-    (virts, rtype) <- try groupDeclaration -- for matching reasons, this gets a try until the opening brace
-    let sep = symbolic ';' <|> comma
-    x <- resourceDeclaration `sepEndBy1` sep
-    void $ symbolic '}'
-    virtuality <- case virts of
-                      ""   -> return Normal
-                      "@"  -> return Virtual
-                      "@@" -> return Exported
-                      _    -> fail "Invalid virtuality"
-    return [ ResDec rtype rname conts virtuality pos | (rname, conts, pos) <- concat x ]
 
 assignment :: Parser AttributeDecl
 assignment = AttributeDecl <$> key <*> arrowOp  <*> expression
@@ -507,8 +487,8 @@ searchExpression = makeExprParser (token searchterm) searchTable
             term   <- stringExpression
             return (opr attrib term)
 
-resourceCollection :: Position -> T.Text -> Parser RColl
-resourceCollection p restype = do
+resCollDecl :: Position -> T.Text -> Parser ResCollDecl
+resCollDecl p restype = do
     openchev <- some (char '<')
     when (length openchev > 2) (fail "Too many brackets")
     void $ symbolic '|'
@@ -521,10 +501,10 @@ resourceCollection p restype = do
                             then Collector
                             else ExportedCollector
     pe <- getPosition
-    return (RColl collectortype restype e (V.fromList overrides) (p :!: pe) )
+    return (ResCollDecl collectortype restype e (V.fromList overrides) (p :!: pe) )
 
-classDefinition :: Parser ClassDecl
-classDefinition = do
+classDecl :: Parser ClassDecl
+classDecl = do
     p <- getPosition
     reserved "class"
     ClassDecl <$> className
@@ -533,55 +513,59 @@ classDefinition = do
               <*> braces statementList
               <*> ( (p :!:) <$> getPosition )
 
-mainFunctionCall :: Parser MFC
-mainFunctionCall = do
+mainFuncDecl :: Parser MainFuncDecl
+mainFuncDecl = do
     p <- getPosition
     (fname, args) <- genFunctionCall True
     pe <- getPosition
-    return (MFC fname args (p :!: pe))
+    return (MainFuncDecl fname args (p :!: pe))
 
-mainHFunctionCall :: Parser SFC
-mainHFunctionCall = do
+hoLambdaDecl :: Parser HigherOrderLambdaDecl
+hoLambdaDecl = do
     p <- getPosition
-    fc <- try hfunctionCall
+    fc <- try lambdaCall
     pe <- getPosition
-    return (SFC fc (p :!: pe))
+    return (HigherOrderLambdaDecl fc (p :!: pe))
 
-dotCall :: Parser SFC
-dotCall = do
+dotLambdaDecl :: Parser HigherOrderLambdaDecl
+dotLambdaDecl = do
     p <- getPosition
     ex <- expression
     pe <- getPosition
     hf <- case ex of
-              FunctionApplication e (Terminal (UHFunctionCall hf)) -> do
-                  unless (S.isNothing (hf ^. hfexpr)) (fail "Can't call a function with . and ()")
-                  return (hf & hfexpr .~ S.Just e)
-              Terminal (UHFunctionCall hf) -> do
-                  when (S.isNothing (hf ^. hfexpr)) (fail "This function needs data to operate on")
+              FunctionApplication e (Terminal (UHOLambdaCall hf)) -> do
+                  unless (S.isNothing (hf ^. hoLambdaExpr)) (fail "Can't call a function with . and ()")
+                  return (hf & hoLambdaExpr .~ S.Just e)
+              Terminal (UHOLambdaCall hf) -> do
+                  when (S.isNothing (hf ^. hoLambdaExpr)) (fail "This function needs data to operate on")
                   return hf
               _ -> fail "A method chained by dots."
-    unless (hf ^. hftype == HFEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
-    return (SFC hf (p :!: pe))
+    unless (hf ^. hoLambdaFunc == LambEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
+    return (HigherOrderLambdaDecl hf (p :!: pe))
 
 
-resourceDefaults :: Parser DefaultDec
-resourceDefaults = do
+resDefaultDecl :: Parser ResDefaultDecl
+resDefaultDecl = do
     p <- getPosition
     rnd  <- resourceNameRef
     let assignmentList = V.fromList <$> sepComma1 assignment
     asl <- braces assignmentList
     pe <- getPosition
-    return (DefaultDec rnd asl (p :!: pe))
+    return (ResDefaultDecl rnd asl (p :!: pe))
 
-resourceOverride :: Parser [ResOver]
-resourceOverride = do
+resOverrideDecl :: Parser [ResOverrideDecl]
+resOverrideDecl = do
     p <- getPosition
     restype  <- resourceNameRef
     names <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
     assignments <- V.fromList <$> braces (sepComma assignment)
     pe <- getPosition
-    return [ ResOver restype n assignments (p :!: pe) | n <- names ]
+    return [ ResOverrideDecl restype n assignments (p :!: pe) | n <- names ]
 
+-- | Heterogeneous chain (interleaving resource declarations with
+-- resource references)needs to be supported:
+--   class { 'docker::service': } ->
+--   Class['docker']
 chainableResources :: Parser [Statement]
 chainableResources = do
     let withresname = do
@@ -592,22 +576,22 @@ chainableResources = do
                     resnames <- brackets (expression `sepBy1` comma)
                     pe <- getPosition
                     pure (ChainResRefr restype resnames (p :!: pe))
-                _ -> ChainResColl <$> resourceCollection p restype
-    chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resourceGroup
+                _ -> ChainResColl <$> resCollDecl p restype
+    chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resDeclGroup
     let relations = do
             (g1, g2, lt) <- zipChain chain
             (rt1, rn1, _   :!: pe1) <- concatMap extractResRef g1
             (rt2, rn2, ps2 :!: _  ) <- concatMap extractResRef g2
-            return (Dep (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
-    return $ map Dependency relations <> (chain ^.. folded . folded . to extractChainStatement . folded)
+            return (DepDecl (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
+    return $ map DependencyDeclaration relations <> (chain ^.. folded . folded . to extractChainStatement . folded)
   where
     extractResRef :: ChainableRes -> [(T.Text, Expression, PPosition)]
     extractResRef (ChainResColl _) = []
-    extractResRef (ChainResDecl (ResDec rt rn _ _ pp)) = [(rt,rn,pp)]
+    extractResRef (ChainResDecl (ResDecl rt rn _ _ pp)) = [(rt,rn,pp)]
     extractResRef (ChainResRefr rt rns pp) = [(rt,rn,pp) | rn <- rns]
 
     extractChainStatement :: ChainableRes -> [Statement]
-    extractChainStatement (ChainResColl r) = [ResourceCollection r]
+    extractChainStatement (ChainResColl r) = [ResourceCollectionDeclaration r]
     extractChainStatement (ChainResDecl d) = [ResourceDeclaration d]
     extractChainStatement ChainResRefr{} = []
 
@@ -619,57 +603,72 @@ chainableResources = do
             Just o' -> OperatorChain g o' <$> parseRelationships p
             Nothing -> pure (EndOfChain g)
 
+    resDeclGroup :: Parser [ResDecl]
+    resDeclGroup = do
+        let resourceName = token stringExpression
+            resourceDeclaration = do
+                p <- getPosition
+                names <- brackets (sepComma1 resourceName) <|> fmap return resourceName
+                void $ symbolic ':'
+                vals  <- fmap V.fromList (sepComma assignment)
+                pe <- getPosition
+                return [(n, vals, p :!: pe) | n <- names ]
+            groupDeclaration = (,) <$> many (char '@') <*> typeName <* symbolic '{'
+        (virts, rtype) <- try groupDeclaration -- for matching reasons, this gets a try until the opening brace
+        let sep = symbolic ';' <|> comma
+        x <- resourceDeclaration `sepEndBy1` sep
+        void $ symbolic '}'
+        virtuality <- case virts of
+                          ""   -> return Normal
+                          "@"  -> return Virtual
+                          "@@" -> return Exported
+                          _    -> fail "Invalid virtuality"
+        return [ ResDecl rtype rname conts virtuality pos | (rname, conts, pos) <- concat x ]
+
 statement :: Parser [Statement]
 statement =
-        (pure . SHFunctionCall <$> try dotCall)
-    <|> (pure . VariableAssignment <$> variableAssignment)
-    <|> (map Node <$> nodeStmt)
-    <|> (pure . DefineDeclaration <$> defineStmt)
-    <|> (pure . ConditionalStatement <$> unlessCondition)
-    <|> (pure . ConditionalStatement <$> ifCondition)
-    <|> (pure . ConditionalStatement <$> caseCondition)
-    <|> (pure . DefaultDeclaration <$> try resourceDefaults)
-    <|> (map ResourceOverride <$> try resourceOverride)
+        (pure . HigherOrderLambdaDeclaration <$> try dotLambdaDecl)
+    <|> (pure . VarAssignmentDeclaration <$> varAssign)
+    <|> (map NodeDeclaration <$> nodeDecl)
+    <|> (pure . DefineDeclaration <$> defineDecl)
+    <|> (pure . ConditionalDeclaration <$> unlessCondition)
+    <|> (pure . ConditionalDeclaration <$> ifCondition)
+    <|> (pure . ConditionalDeclaration <$> caseCondition)
+    <|> (pure . ResourceDefaultDeclaration <$> try resDefaultDecl)
+    <|> (map ResourceOverrideDeclaration <$> try resOverrideDecl)
     <|> chainableResources
-    {-
-    <|> resourceGroup
-    <|> rrGroup
-    -}
-    <|> (pure . ClassDeclaration <$> classDefinition)
-    <|> (pure . SHFunctionCall <$> mainHFunctionCall)
-    <|> (pure . MainFunctionCall <$> mainFunctionCall)
+    <|> (pure . ClassDeclaration <$> classDecl)
+    <|> (pure . HigherOrderLambdaDeclaration <$> hoLambdaDecl)
+    <|> (pure . MainFunctionDeclaration <$> mainFuncDecl)
     <?> "Statement"
+
 
 statementList :: Parser (V.Vector Statement)
 statementList = (V.fromList . concat) <$> many statement
 
-{-
-- Stuff related to the new functions with "lambdas"
--}
-parseHFunction :: Parser HigherFuncType
-parseHFunction =   (reserved "each"   *> pure HFEach)
-               <|> (reserved "map"    *> pure HFMap )
-               <|> (reserved "reduce" *> pure HFReduce)
-               <|> (reserved "filter" *> pure HFFilter)
-               <|> (reserved "slice"  *> pure HFSlice)
-
-parseHParams :: Parser BlockParameters
-parseHParams = between (symbolic '|') (symbolic '|') hp
-    where
-        acceptablePart = T.pack <$> identifier
-        hp = do
-            vars <- (char '$' *> acceptablePart) `sepBy1` comma
-            case vars of
-                [a]   -> return (BPSingle a)
-                [a,b] -> return (BPPair a b)
-                _     -> fail "Invalid number of variables between the pipes"
-
-hfunctionCall :: Parser HFunctionCall
-hfunctionCall = do
+lambdaCall :: Parser HOLambdaCall
+lambdaCall = do
     let toStrict (Just x) = S.Just x
         toStrict Nothing  = S.Nothing
-    HFunctionCall <$> parseHFunction
+    HOLambdaCall <$> lambFunc
                   <*> fmap (toStrict . join) (optional (parens (optional expression)))
-                  <*> parseHParams
+                  <*> lambParams
                   <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
                   <*> fmap toStrict (optional expression) <* symbolic '}'
+    where
+        lambFunc :: Parser LambdaFunc
+        lambFunc = (reserved "each"   *> pure LambEach)
+                     <|> (reserved "map"    *> pure LambMap )
+                     <|> (reserved "reduce" *> pure LambReduce)
+                     <|> (reserved "filter" *> pure LambFilter)
+                     <|> (reserved "slice"  *> pure LambSlice)
+        lambParams :: Parser LambdaParameters
+        lambParams = between (symbolic '|') (symbolic '|') hp
+            where
+                acceptablePart = T.pack <$> identifier
+                hp = do
+                    vars <- (char '$' *> acceptablePart) `sepBy1` comma
+                    case vars of
+                        [a]   -> return (BPSingle a)
+                        [a,b] -> return (BPPair a b)
+                        _     -> fail "Invalid number of variables between the pipes"

@@ -302,9 +302,9 @@ resolveExpression (LeftShift a b) = do
     case (ra, rb) of
         (PArray ha, v) -> return (PArray (V.snoc ha v))
         _ -> integerOperation a b (\x -> shiftL x . fromIntegral)
-resolveExpression a@(FunctionApplication e (Terminal (UHFunctionCall hf))) = do
-    unless (S.isNothing (hf ^. hfexpr)) (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
-    resolveValue (UHFunctionCall (hf & hfexpr .~ S.Just e))
+resolveExpression a@(FunctionApplication e (Terminal (UHOLambdaCall hol))) = do
+    unless (S.isNothing (hol ^. hoLambdaExpr)) (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
+    resolveValue (UHOLambdaCall (hol & hoLambdaExpr .~ S.Just e))
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
 resolveExpression (Negate x) = PNumber . negate <$> resolveExpressionNumber x
 
@@ -328,7 +328,7 @@ resolveValue (UHash a) = fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
         resPair (k :!: v) = (,) `fmap` resolveExpressionString k <*> resolveExpression v
 resolveValue (UVariableReference v) = resolveVariable v
 resolveValue (UFunctionCall fname args) = resolveFunction fname args
-resolveValue (UHFunctionCall hf) = evaluateHFCPure hf
+resolveValue (UHOLambdaCall hol) = evaluateHFCPure hol
 
 -- | Turns strings, numbers and booleans into 'T.Text', or throws an error.
 resolvePValueString :: PValue -> InterpreterMonad T.Text
@@ -571,13 +571,13 @@ checkSearchExpression (REqualitySearch attributename v) r = case r ^. rattribute
 
 -- | Generates variable associations for evaluation of blocks. Each item
 -- corresponds to an iteration in the calling block.
-hfGenerateAssociations :: HFunctionCall -> InterpreterMonad [[(T.Text, PValue)]]
-hfGenerateAssociations hf = do
-    sourceexpression <- case hf ^. hfexpr of
+hfGenerateAssociations :: HOLambdaCall -> InterpreterMonad [[(T.Text, PValue)]]
+hfGenerateAssociations hol = do
+    sourceexpression <- case hol ^. hoLambdaExpr of
                             S.Just x -> return x
-                            S.Nothing -> throwPosError ("No expression to run the function on" <+> pretty hf)
+                            S.Nothing -> throwPosError ("No expression to run the function on" <+> pretty hol)
     sourcevalue <- resolveExpression sourceexpression
-    case (sourcevalue, hf ^. hfparams) of
+    case (sourcevalue, hol ^. hoLambdaParams) of
          (PArray pr, BPSingle varname) -> return (map (\x -> [(varname, x)]) (V.toList pr))
          (PArray pr, BPPair idx var) -> return $ do
              (i,v) <- Prelude.zip ([0..] :: [Int]) (V.toList pr)
@@ -618,44 +618,44 @@ hfRestorevars save =
 evalPureStatement :: Statement -> InterpreterMonad ()
 evalPureStatement _ = throwPosError "So called 'pure' statements are not yet supported"
 
--- | This extracts the final expression from an HFunctionCall.
+-- | This extracts the final expression from an HOLambdaCall.
 -- When it does not exists, it checks if the last statement is in fact
 -- a function call
-transformPureHf :: HFunctionCall -> InterpreterMonad (HFunctionCall, Expression)
-transformPureHf hf =
-        case hf ^. hfexpression of
-            S.Just x -> return (hf, x)
+transformPureHf :: HOLambdaCall -> InterpreterMonad (HOLambdaCall, Expression)
+transformPureHf hol =
+        case hol ^. hoLambdaLastExpr of
+            S.Just x -> return (hol, x)
             S.Nothing -> do
-                let statements = hf ^. hfstatements
+                let statements = hol ^. hoLambdaStatements
                 if V.null statements
-                    then throwPosError ("The statement block must not be empty" <+> pretty hf)
+                    then throwPosError ("The statement block must not be empty" <+> pretty hol)
                     else case V.last statements of
-                             (MainFunctionCall (MFC fn args _)) ->
+                             (MainFunctionDeclaration (MainFuncDecl fn args _)) ->
                                 let expr = Terminal (UFunctionCall fn args)
-                                in  return (hf & hfstatements %~ V.init
-                                               & hfexpression .~ S.Just expr
+                                in  return (hol & hoLambdaStatements %~ V.init
+                                               & hoLambdaLastExpr .~ S.Just expr
                                            , expr)
-                             _ -> throwPosError ("The statement block must end with an expression" <+> pretty hf)
+                             _ -> throwPosError ("The statement block must end with an expression" <+> pretty hol)
 
 -- | All the "higher order function" stuff, for "value" mode. In this case
 -- we are in "pure" mode, and only a few statements are allowed.
-evaluateHFCPure :: HFunctionCall -> InterpreterMonad PValue
-evaluateHFCPure hf' = do
-    (hf, finalexpression) <- transformPureHf hf'
-    varassocs <- hfGenerateAssociations hf
+evaluateHFCPure :: HOLambdaCall -> InterpreterMonad PValue
+evaluateHFCPure hol' = do
+    (hol, finalexpression) <- transformPureHf hol'
+    varassocs <- hfGenerateAssociations hol
     let runblock :: [(T.Text, PValue)] -> InterpreterMonad PValue
         runblock assocs = do
             saved <- hfSetvars assocs
-            V.mapM_ evalPureStatement (hf ^. hfstatements)
+            V.mapM_ evalPureStatement (hol ^. hoLambdaStatements)
             r <- resolveExpression finalexpression
             hfRestorevars  saved
             return r
-    case hf ^. hftype of
-        HFEach -> throwPosError "The 'each' function can't be used at the value level in language-puppet. Please use map."
-        HFMap -> fmap (PArray . V.fromList) (mapM runblock varassocs)
-        HFFilter -> do
+    case hol ^. hoLambdaFunc of
+        LambEach -> throwPosError "The 'each' function can't be used at the value level in language-puppet. Please use map."
+        LambMap -> fmap (PArray . V.fromList) (mapM runblock varassocs)
+        LambFilter -> do
             res <- mapM (fmap pValue2Bool . runblock) varassocs
-            sourcevalue <- case hf ^. hfexpr of
+            sourcevalue <- case hol ^. hoLambdaExpr of
                                S.Just x -> resolveExpression x
                                S.Nothing -> throwPosError "Internal error evaluateHFCPure 1"
             case sourcevalue of

@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE RankNTypes             #-}
 module Puppet.Interpreter.Utils where
 
 import           Control.Exception

@@ -31,6 +31,7 @@ import           Data.Tuple.Strict
 import qualified Foreign.Ruby.Helpers         as FR
 import qualified Foreign.Ruby.Bindings        as FR
 import           Foreign.Ruby
+import           GHC.Conc (labelThread)
 
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
@@ -80,7 +81,10 @@ templateQuery qchan filename stt rdr = do
 
 templateDaemon :: RubyInterpreter -> T.Text -> T.Text -> Chan TemplateQuery -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO ()
 templateDaemon intr modpath templatepath qchan mvstats filecache = do
+    let nameThread :: String -> IO ()
+        nameThread n = myThreadId >>= flip labelThread n
     nameThread "RubyTemplateDaemon"
+
     (respchan, fileinfo, stt, rdr) <- readChan qchan
     case fileinfo of
         Right filename -> do
