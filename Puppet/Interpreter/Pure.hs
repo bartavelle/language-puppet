@@ -70,7 +70,6 @@ pureEval facts sttmap action = runIdentity (interpretMonad (pureReader sttmap) s
         startingState = initialState facts $ HM.fromList [ ("confdir", "/etc/puppet")
                                                          ]
 
-
 -- | A bunch of facts that can be used for pure evaluation.
 dummyFacts :: Facts
 dummyFacts = HM.fromList

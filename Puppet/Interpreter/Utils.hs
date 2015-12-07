@@ -1,39 +1,40 @@
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE RankNTypes            #-}
 module Puppet.Interpreter.Utils where
 
 import           Control.Exception
+import           Control.Lens               hiding (Strict)
 import           Control.Monad.Operational
-import           Data.Maybe                  (fromMaybe)
 import           Control.Monad.Writer.Class
-import qualified Data.Text.Encoding          as T
-import qualified Data.Text                   as T
-import qualified Data.Either.Strict          as S
-import qualified Data.Maybe.Strict           as S
-import qualified Data.ByteString             as BS
-import qualified Data.HashMap.Strict         as HM
-import           Control.Lens                hiding (Strict)
+import qualified Data.ByteString            as BS
+import qualified Data.Either.Strict         as S
+import qualified Data.HashMap.Strict        as HM
+import           Data.Maybe                 (fromMaybe)
+import qualified Data.Maybe.Strict          as S
+import qualified Data.Text                  as T
+import qualified Data.Text.Encoding         as T
 import           Data.Tuple.Strict
-import qualified System.Log.Logger           as LOG
+import qualified System.Log.Logger          as LOG
 
 import           Puppet.Interpreter.Types
-import           Puppet.PP
-import           Puppet.Paths
 import           Puppet.Parser.Types
+import           Puppet.Parser.Utils
+import           Puppet.Paths
+import           Puppet.PP
 
 initialState :: Facts
              -> Container T.Text -- ^ Server settings
              -> InterpreterState
-initialState facts settings = InterpreterState baseVars initialclass mempty [ContRoot] dummypos mempty [] []
+initialState facts settings = InterpreterState baseVars initialclass mempty [ContRoot] dummyppos mempty [] []
     where
-        callervars = HM.fromList [("caller_module_name", PString "::" :!: dummypos :!: ContRoot), ("module_name", PString "::" :!: dummypos :!: ContRoot)]
+        callervars = HM.fromList [("caller_module_name", PString "::" :!: dummyppos :!: ContRoot), ("module_name", PString "::" :!: dummyppos :!: ContRoot)]
         factvars = fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts
         settingvars = fmap (\x -> PString x :!: initialPPos "settings" :!: ContClass "settings") settings
         baseVars = HM.fromList [ ("::", ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
                                , ("settings", ScopeInformation settingvars mempty mempty (CurContainer (ContClass "settings") mempty) mempty S.Nothing)
                                ]
-        initialclass = mempty & at "::" ?~ (IncludeStandard :!: dummypos)
+        initialclass = mempty & at "::" ?~ (ClassIncludeLike :!: dummyppos)
 
 
 getCurContainer :: InterpreterMonad CurContainer
@@ -100,8 +101,6 @@ scopeName (ContClass x     ) = x
 scopeName (ContDefine dt dn _) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
 scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
 
-dummypos :: PPosition
-dummypos = initialPPos "dummy"
 
 fnull :: (Eq x, Monoid x) => x -> Bool
 {-# INLINABLE fnull #-}

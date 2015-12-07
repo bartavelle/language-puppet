@@ -4,7 +4,7 @@
 module Puppet.Interpreter
        ( interpretCatalog
        , evaluateStatement
-       , interpretTopLevel
+       , computeCatalog
        ) where
 
 import           Control.Applicative
@@ -38,6 +38,7 @@ import           Puppet.Lens
 import           Puppet.NativeTypes
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
+import           Puppet.Parser.Utils
 import           Puppet.PP
 import           Puppet.Utils
 
@@ -142,7 +143,8 @@ interpretTopLevel toptype topname =
             return (r <> nr, ns)
         evalTopLevel x = return ([], x)
 
--- | The main internal entry point which starts the interpretation
+-- | Main internal entry point, this function completes the interpretation
+-- TODO: add some doc here
 computeCatalog :: NodeName -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog, [Resource])
 computeCatalog nodename = do
     (topres, stmt) <- interpretTopLevel TopNode nodename
@@ -158,7 +160,7 @@ computeCatalog nodename = do
             let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
             return (toList res)
 
-        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummypos nodename
+        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummyppos nodename
 
         evaluateNode :: NodeDecl -> InterpreterMonad [Resource]
         evaluateNode (NodeDecl _ sx inheritnode p) = do
@@ -615,8 +617,8 @@ loadClass rclassname loadedfrom params cincludetype = do
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
     use (loadedClasses . at classname) >>= \case
         Just (prv :!: pp) -> do
-            when (  (cincludetype == IncludeResource)
-                 || (prv          == IncludeResource)
+            when (  (cincludetype == ClassResourceLike)
+                 || (prv          == ClassResourceLike)
                  )
                 (throwPosError ("Can't include class" <+> ttext classname <+> "twice when using the resource-like syntax (first occurence at" <+> showPPos pp <> ")"))
             return []
@@ -630,7 +632,7 @@ loadClass rclassname loadedfrom params cincludetype = do
             -- This will be the case for the first standard include
             inhstmts <- case inh of
                             S.Nothing     -> return []
-                            S.Just ihname -> loadClass ihname (S.Just classname) mempty IncludeStandard
+                            S.Just ihname -> loadClass ihname (S.Just classname) mempty ClassIncludeLike
             let !scopedesc = ContClass classname
                 modulename = getModulename (RIdentifier "class" classname)
                 secontext = case (inh, loadedfrom) of
@@ -638,7 +640,7 @@ loadClass rclassname loadedfrom params cincludetype = do
                                 (_,S.Just x) -> SEParent (dropInitialColons x)
                                 _ -> SENormal
             void $ enterScope secontext scopedesc modulename p
-            classresource <- if cincludetype == IncludeStandard
+            classresource <- if cincludetype == ClassIncludeLike
                                  then do
                                      scp <- use curScope
                                      fqdn <- singleton GetNodeName
@@ -733,8 +735,8 @@ registerResource t rn arg vrt p = do
             definedResources . at resid ?= r
             let attrs = r ^. rattributes
             fmap (r:) $ loadClass rn S.Nothing attrs $ if HM.null attrs
-                                                           then IncludeStandard
-                                                           else IncludeResource
+                                                           then ClassIncludeLike
+                                                           else ClassResourceLike
         _ -> {-# SCC "rrGeneralCase" #-}
             use (definedResources . at resid) >>= \case
                 Just otheres -> throwPosError ("Resource" <+> pretty resid <+> "already defined:" </>
@@ -771,12 +773,12 @@ mainFunctionCall "contain" includes = concat <$> mapM doContain includes
     where doContain e = do
             classname <- resolvePValueString e
             use (loadedClasses . at classname) >>= \case
-                Nothing -> loadClass classname S.Nothing mempty IncludeStandard
+                Nothing -> loadClass classname S.Nothing mempty ClassIncludeLike
                 Just _ -> return [] -- TODO check that this happened after class declaration
 mainFunctionCall "include" includes = concat <$> mapM doInclude includes
     where doInclude e = do
             classname <- resolvePValueString e
-            loadClass classname S.Nothing mempty IncludeStandard
+            loadClass classname S.Nothing mempty ClassIncludeLike
 mainFunctionCall "create_resources" [t, hs] = mainFunctionCall "create_resources" [t, hs, PHash mempty]
 mainFunctionCall "create_resources" [PString t, PHash hs, PHash defparams] = do
     p <- use curPos
@@ -787,8 +789,8 @@ mainFunctionCall "create_resources" args = throwPosError ("create_resource(): ex
 mainFunctionCall "ensure_packages" args = ensurePackages args
 mainFunctionCall "ensure_resource" args = ensureResource args
 mainFunctionCall "realize" args = do
-    p <- use curPos
-    let realiz (PResourceReference t rn) = resMod %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return p : )
+    pos <- use curPos
+    let realiz (PResourceReference t rn) = resMod %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return pos : )
         realiz x = throwPosError ("realize(): all arguments must be resource references, not" <+> pretty x)
     mapM_ realiz args
     return []

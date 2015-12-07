@@ -11,10 +11,12 @@ import qualified Data.Text                        as T
 import           Data.Tuple.Strict
 import qualified Data.Vector                      as V
 import           Erb.Ruby
+
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
+import           Puppet.Parser.Utils
 import           Puppet.PP
 import           Puppet.Utils
 import qualified Text.PrettyPrint.ANSI.Leijen     as P
@@ -28,7 +30,7 @@ extractFromState stt =
                      classes = (PArray . V.fromList . map PString . HM.keys) (stt ^. loadedClasses)
                      scps = stt ^. scopes
                      cd = fromMaybe ContRoot (scps ^? ix scp . scopeContainer . cctype) -- get the current containder description
-                     cscps = scps & ix scp . scopeVariables . at "classes" ?~ ( classes :!: dummypos :!: cd )
+                     cscps = scps & ix scp . scopeVariables . at "classes" ?~ ( classes :!: dummyppos :!: cd )
                  in  Just (scp, cscps)
 
 rubyEvaluate :: Container ScopeInformation -> T.Text -> [RubyStatement] -> Either Doc T.Text

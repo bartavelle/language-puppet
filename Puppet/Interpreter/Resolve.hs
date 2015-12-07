@@ -308,9 +308,9 @@ resolveExpression a@(FunctionApplication e (Terminal (UHOLambdaCall hol))) = do
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
 resolveExpression (Negate x) = PNumber . negate <$> resolveExpressionNumber x
 
--- | Resolves an 'UValue' (terminal for the 'Expression' data type) into
+-- | Resolves an 'UnresolvedValue' (terminal for the 'Expression' data type) into
 -- a 'PValue'
-resolveValue :: UValue -> InterpreterMonad PValue
+resolveValue :: UnresolvedValue -> InterpreterMonad PValue
 resolveValue (UNumber n) = return (PNumber n)
 resolveValue n@(URegexp _) = throwPosError ("Regular expressions are not allowed in this context: " <+> pretty n)
 resolveValue (UBoolean x) = return (PBoolean x)

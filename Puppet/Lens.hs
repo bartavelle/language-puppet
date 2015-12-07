@@ -139,7 +139,7 @@ _PResolveExpression = prism reinject extract
                         Left _  -> Left e
         reinject  = Terminal . review _PResolveValue
 
-_PResolveValue :: Prism' UValue PValue
+_PResolveValue :: Prism' UnresolvedValue PValue
 _PResolveValue = prism toU toP
     where
         toP uv = case dummyEval (resolveValue uv) of

@@ -10,11 +10,6 @@ module Puppet.Interpreter.IO (
   , interpretMonad
   ) where
 
-import           Puppet.Interpreter.PrettyPrinter ()
-import           Puppet.Interpreter.Types
-import           Puppet.Plugins                   ()
-import           Puppet.PP
-
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
@@ -28,6 +23,11 @@ import qualified Data.Text.IO                     as T
 import           Debug.Trace                      (traceEventIO)
 import           GHC.Stack
 import qualified Scripting.Lua                    as Lua
+
+import           Puppet.Interpreter.PrettyPrinter ()
+import           Puppet.Interpreter.Types
+import           Puppet.Plugins                   ()
+import           Puppet.PP
 
 defaultImpureMethods :: (Functor m, MonadIO m) => IoMethods m
 defaultImpureMethods = IoMethods (liftIO currentCallStack)

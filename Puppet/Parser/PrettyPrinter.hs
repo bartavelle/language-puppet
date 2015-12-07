@@ -81,7 +81,7 @@ instance Pretty SearchExpression where
     pretty (AndSearch s1 s2) = parens (pretty s1) <+> text "and" <+> parens (pretty s2)
     pretty (OrSearch s1 s2) = parens (pretty s1) <+> text "and" <+> parens (pretty s2)
 
-instance Pretty UValue where
+instance Pretty UnresolvedValue where
     pretty (UBoolean True)  = dullmagenta $ text "true"
     pretty (UBoolean False) = dullmagenta $ text "false"
     pretty (UString s) = char '"' <> dullcyan (ttext (stringEscape s)) <> char '"'

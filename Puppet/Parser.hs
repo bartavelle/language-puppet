@@ -8,28 +8,25 @@ module Puppet.Parser (
   , expression
 ) where
 
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Vector as V
-import qualified Data.Maybe.Strict as S
-import qualified Data.Foldable as F
-import           Data.Tuple.Strict hiding (fst,zip)
-import           Text.Regex.PCRE.ByteString.Utils
-
-import           Data.Char
-import           Control.Monad
 import           Control.Applicative
 import           Control.Lens hiding (noneOf)
+import           Control.Monad
+import           Data.Char
+import qualified Data.Foldable as F
+import qualified Data.Maybe.Strict as S
+import           Data.Scientific
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import           Data.Tuple.Strict hiding (fst,zip)
+import qualified Data.Vector as V
+import           Text.Megaparsec hiding (token)
+import           Text.Megaparsec.Expr
+import qualified Text.Megaparsec.Lexer as L
+import           Text.Megaparsec.Text
+import           Text.Regex.PCRE.ByteString.Utils
 
 import           Puppet.Parser.Types
 import           Puppet.Utils
-
-import           Data.Scientific
-
-import           Text.Megaparsec hiding (token)
-import           Text.Megaparsec.Expr
-import           Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as L
 
 -- | Run a puppet parser against some 'T.Text' input.
 runPParser :: String -> T.Text -> Either ParseError (V.Vector Statement)
@@ -219,10 +216,10 @@ regexp = do
     T.pack . concat <$> many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf "/\\") )
         <* symbolic '/'
 
-puppetArray :: Parser UValue
+puppetArray :: Parser UnresolvedValue
 puppetArray = fmap (UArray . V.fromList) (brackets (sepComma expression)) <?> "Array"
 
-puppetHash :: Parser UValue
+puppetHash :: Parser UnresolvedValue
 puppetHash = fmap (UHash . V.fromList) (braces (sepComma hashPart)) <?> "Hash"
     where
         hashPart = (:!:) <$> (expression <* operator "=>")
@@ -239,7 +236,7 @@ resourceReferenceRaw = do
     resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
     return (restype, resnames)
 
-resourceReference :: Parser UValue
+resourceReference :: Parser UnresolvedValue
 resourceReference = do
     (restype, resnames) <- resourceReferenceRaw
     return $ UResourceReference restype $ case resnames of
@@ -269,7 +266,7 @@ genFunctionCall nonparens = do
     return (fname, V.fromList args)
 
 
-literalValue :: Parser UValue
+literalValue :: Parser UnresolvedValue
 literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
     where
         numericalvalue = integerOrDouble >>= \i -> case i of
@@ -301,7 +298,7 @@ termRegexp = regexp >>= compileRegexp
 terminal :: Parser Expression
 terminal = terminalG (fmap Terminal (fmap UHOLambdaCall (try lambdaCall) <|> try funcCall))
     where
-        funcCall :: Parser UValue
+        funcCall :: Parser UnresolvedValue
         funcCall = do
             (fname, args) <- genFunctionCall False
             return $ UFunctionCall fname args

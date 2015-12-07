@@ -18,7 +18,7 @@ module Puppet.Parser.Types
    -- ** Expressions
    Expression(..),
    SelectorCase(..),
-   UValue(..),
+   UnresolvedValue(..),
    LambdaFunc(..),
    HOLambdaCall(..),
    ChainableRes(..),
@@ -147,7 +147,7 @@ instance Eq CompRegex where
     (CompRegex a _) == (CompRegex b _) = a == b
 
 -- | An unresolved value, typically the parser's output.
-data UValue
+data UnresolvedValue
     = UBoolean !Bool -- ^ Special tokens generated when parsing the @true@ or @false@ literals.
     | UString !Text -- ^ Raw string.
     | UInterpolable !(V.Vector Expression) -- ^ A string that might contain variable references. The type should be refined at one point.
@@ -163,11 +163,11 @@ data UValue
     deriving (Show, Eq)
 
 
-instance IsString UValue where
+instance IsString UnresolvedValue where
     fromString = UString . T.pack
 
 data SelectorCase
-    = SelectorValue !UValue
+    = SelectorValue !UnresolvedValue
     | SelectorDefault
     deriving (Eq, Show)
 
@@ -196,7 +196,7 @@ data Expression
     | Negate !Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression)) -- ^ All conditionals are stored in this format.
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
-    | Terminal !UValue
+    | Terminal !UnresolvedValue -- ^ Terminal object contains no expression
     deriving (Eq, Show)
 
 instance Num Expression where
@@ -292,16 +292,16 @@ data Statement
     = ResourceDeclaration !ResDecl                 -- ^ e.g `file { mode => 755}`
     | ResourceDefaultDeclaration !ResDefaultDecl   -- ^ Resource default e.g `File { mode => 755 }`
     | ResourceOverrideDeclaration !ResOverrideDecl -- ^ e.g `File['title'] { mode => 755}`
-    | ResourceCollectionDeclaration !ResCollDecl    -- ^ e.g `User <| title == 'jenkins' |> { groups +> "docker"}`
+    | ResourceCollectionDeclaration !ResCollDecl   -- ^ e.g `User <| title == 'jenkins' |> { groups +> "docker"}`
     | ClassDeclaration !ClassDecl
     | DefineDeclaration !DefineDecl
     | NodeDeclaration !NodeDecl
     | ConditionalDeclaration !ConditionalDecl
-    | VarAssignmentDeclaration !VarAssignDecl -- ^ e.g $newvar = 'world'
+    | VarAssignmentDeclaration !VarAssignDecl      -- ^ e.g $newvar = 'world'
     | MainFunctionDeclaration !MainFuncDecl
     | HigherOrderLambdaDeclaration !HigherOrderLambdaDecl
     | DependencyDeclaration !DepDecl
-    | TopContainer !(V.Vector Statement) !Statement -- ^ This is a special statement that is used to include the expressions that are top level. This is certainly buggy, but probably just like the original implementation.
+    | TopContainer !(V.Vector Statement) !Statement -- ^ Special statement used to include the expressions that are top level. Certainly buggy, but probably just like the original implementation.
     deriving (Eq, Show)
 
 makeClassy ''HOLambdaCall

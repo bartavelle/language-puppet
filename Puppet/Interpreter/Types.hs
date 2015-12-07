@@ -121,6 +121,8 @@ metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","chec
 
 type NodeName = T.Text
 type Container = HM.HashMap T.Text
+type Scope = T.Text
+type Facts = Container PValue
 
 newtype PrettyError = PrettyError { getError :: Doc }
 
@@ -136,17 +138,6 @@ instance IsString PrettyError where
 
 instance Exception PrettyError
 
--- | The intepreter can run in two modes : a strict mode (recommended), and
--- a permissive mode. The permissive mode let known antipatterns work with
--- the interpreter.
-data Strictness = Strict | Permissive
-                deriving (Show, Eq)
-
-instance FromJSON Strictness where
-  parseJSON (Bool True) = pure Strict
-  parseJSON (Bool False) = pure Permissive
-  parseJSON _ = mzero
-
 
 data PValue = PBoolean !Bool
             | PUndef
@@ -156,6 +147,21 @@ data PValue = PBoolean !Bool
             | PHash !(Container PValue)
             | PNumber !Scientific
             deriving (Eq, Show)
+
+instance IsString PValue where
+    fromString = PString . T.pack
+
+instance AsNumber PValue where
+    _Number = prism num2PValue toNumber
+        where
+            num2PValue :: Scientific -> PValue
+            num2PValue = PNumber
+            toNumber :: PValue -> Either PValue Scientific
+            toNumber (PNumber n) = Right n
+            toNumber p@(PString x) = case text2Scientific x of
+                                         Just o -> Right o
+                                         _      -> Left p
+            toNumber p = Left p
 
 -- | The different kind of hiera queries
 data HieraQueryType = Priority   -- ^ standard hiera query
@@ -168,6 +174,17 @@ type HieraQueryFunc m = Container T.Text -- ^ All the variables that Hiera can i
                      -> HieraQueryType
                      -> m (S.Either PrettyError (Maybe PValue))
 
+-- | The intepreter can run in two modes : a strict mode (recommended), and
+-- a permissive mode. The permissive mode let known antipatterns work with
+-- the interpreter.
+data Strictness = Strict | Permissive
+                deriving (Show, Eq)
+
+instance FromJSON Strictness where
+  parseJSON (Bool True) = pure Strict
+  parseJSON (Bool False) = pure Permissive
+  parseJSON _ = mzero
+
 data RSearchExpression = REqualitySearch !T.Text !PValue
                        | RNonEqualitySearch !T.Text !PValue
                        | RAndSearch !RSearchExpression !RSearchExpression
@@ -175,15 +192,11 @@ data RSearchExpression = REqualitySearch !T.Text !PValue
                        | RAlwaysTrue
                        deriving (Show, Eq)
 
-instance IsString PValue where
-    fromString = PString . T.pack
-
-data ClassIncludeType = IncludeStandard | IncludeResource
+-- | Puppet has two main ways to declare classes: include-like and resource-like
+-- https://docs.puppetlabs.com/puppet/latest/reference/lang_classes.html#include-like-vs-resource-like
+data ClassIncludeType = ClassIncludeLike  -- ^ using the include or contain function
+                      | ClassResourceLike -- ^ resource like declaration
                       deriving (Eq)
-
-type Scope = T.Text
-
-type Facts = Container PValue
 
 -- |This type is used to differenciate the distinct top level types that are
 -- exposed by the DSL.
@@ -198,12 +211,22 @@ data TopLevelType
 
 instance Hashable TopLevelType
 
+-- | Resource default statement
+-- https://docs.puppetlabs.com/puppet/latest/reference/lang_defaults.html#language:-resource-default-statements
 data ResDefaults = ResDefaults
     { _defType     :: !T.Text
     , _defSrcScope :: !T.Text
     , _defValues   :: !(Container PValue)
     , _defPos      :: !PPosition
     }
+
+-- | TODO: why do we need both ResourceModifier and this one
+-- what's the role of each ?
+data ResRefOverride = ResRefOverride
+    { _rrid     :: !RIdentifier
+    , _rrparams :: !(Container PValue)
+    , _rrpos    :: !PPosition
+    } deriving (Eq)
 
 data CurContainerDesc = ContRoot -- ^ Contained at node or root level
                       | ContClass !T.Text -- ^ Contained in a class
@@ -212,15 +235,10 @@ data CurContainerDesc = ContRoot -- ^ Contained at node or root level
                       | ContImport !NodeName !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
                       deriving (Eq, Generic, Ord, Show)
 
+-- | TODO related to Scope: explain ...
 data CurContainer = CurContainer
     { _cctype :: !CurContainerDesc
     , _cctags :: !(HS.HashSet T.Text)
-    } deriving (Eq)
-
-data ResRefOverride = ResRefOverride
-    { _rrid     :: !RIdentifier
-    , _rrparams :: !(Container PValue)
-    , _rrpos    :: !PPosition
     } deriving (Eq)
 
 data ScopeInformation = ScopeInformation
@@ -303,17 +321,14 @@ data InterpreterInstr a where
     CallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> InterpreterInstr PValue
 
 
-type InterpreterLog = Pair LOG.Priority Doc
-type InterpreterWriter = [InterpreterLog]
-
-
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
-
 instance MonadError PrettyError InterpreterMonad where
     throwError = singleton . ErrorThrow
     catchError a c = singleton (ErrorCatch a c)
 
+-- | Log
+type InterpreterWriter = [Pair LOG.Priority Doc]
 instance MonadWriter InterpreterWriter InterpreterMonad where
     tell = singleton . WriterTell
     pass = singleton . WriterPass
@@ -493,6 +508,18 @@ instance MonadThrowPos InterpreterMonad where
                          else mempty </> string (renderStack stack)
         throwError (PrettyError (s <+> "at" <+> showPos p <> dstack))
 
+instance ToRuby PValue where
+    toRuby = toRuby . toJSON
+instance FromRuby PValue where
+    fromRuby = fmap chk . fromRuby
+        where
+            chk (Left x) = Left x
+            chk (Right x) = case fromJSON x of
+                                Error rr -> Left rr
+
+                                Success suc -> Right suc
+
+-- JSON INSTANCES --
 
 instance FromJSON PValue where
     parseJSON Null       = return PUndef
@@ -510,23 +537,6 @@ instance ToJSON PValue where
     toJSON (PArray r)               = Array (V.map toJSON r)
     toJSON (PHash x)                = Object (HM.map toJSON x)
     toJSON (PNumber n)              = Number n
-
-instance ToRuby PValue where
-    toRuby = toRuby . toJSON
-instance FromRuby PValue where
-    fromRuby = fmap chk . fromRuby
-        where
-            chk (Left x) = Left x
-            chk (Right x) = case fromJSON x of
-                                Error rr -> Left rr
-                                Success suc -> Right suc
-
-rid2text :: RIdentifier -> T.Text
-rid2text (RIdentifier t n) = capitalizeRT t `T.append` "[" `T.append` capn `T.append` "]"
-    where
-        capn = if t == "classe"
-                   then capitalizeRT n
-                   else n
 
 instance ToJSON Resource where
     toJSON r = object [ ("type", String $ r ^. rid . itype)
@@ -546,6 +556,12 @@ instance ToJSON Resource where
             changeRelations (k,v) = do
                 c <- HS.toList v
                 return (rel2text c, V.singleton (String (rid2text k)))
+            rid2text :: RIdentifier -> T.Text
+            rid2text (RIdentifier t n) = capitalizeRT t `T.append` "[" `T.append` capn `T.append` "]"
+                where
+                    capn = if t == "classe"
+                             then capitalizeRT n
+                             else n
 
 instance FromJSON Resource where
     parseJSON (Object v) = do
@@ -715,16 +731,3 @@ instance FromJSON NodeInfo where
                                      <*> v .:  "facts_timestamp"
                                      <*> v .:  "report_timestamp"
     parseJSON _ = fail "invalide node info"
-
-
-instance AsNumber PValue where
-    _Number = prism num2PValue toNumber
-        where
-            num2PValue :: Scientific -> PValue
-            num2PValue = PNumber
-            toNumber :: PValue -> Either PValue Scientific
-            toNumber (PNumber n) = Right n
-            toNumber p@(PString x) = case text2Scientific x of
-                                         Just o -> Right o
-                                         _      -> Left p
-            toNumber p = Left p

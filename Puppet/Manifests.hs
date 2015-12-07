@@ -1,22 +1,22 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE LambdaCase       #-}
 module Puppet.Manifests (filterStatements) where
 
-import Puppet.PP
-import Puppet.Parser.Types
-import Puppet.Interpreter.Types
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad.Except
+import qualified Data.Either.Strict               as S
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.Text                        as T
+import qualified Data.Text.Encoding               as T
+import           Data.Tuple.Strict
+import qualified Data.Vector                      as V
+import           Text.Regex.PCRE.ByteString.Utils
 
-import Text.Regex.PCRE.ByteString.Utils
-import Control.Lens
-import Control.Applicative
-import Control.Monad.Except
-import qualified Data.Vector as V
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import Data.Tuple.Strict
-import qualified Data.Either.Strict as S
-import qualified Data.HashMap.Strict as HM
+import           Puppet.Interpreter.Types
+import           Puppet.Parser.Types
+import           Puppet.PP
 
 -- TODO pre-triage stuff
 filterStatements :: TopLevelType -> T.Text -> V.Vector Statement -> IO (S.Either PrettyError Statement)
