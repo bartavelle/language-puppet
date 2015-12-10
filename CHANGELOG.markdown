@@ -6,6 +6,10 @@
 * `merge` now works with an arbitrary number of hashes
 * Added the `hash` function
 
+## Bugs fixed
+
+* `create_resources` can now create virtual and exported resources
+
 # v1.1.4.1 (2015/11/15)
 
 ## New features

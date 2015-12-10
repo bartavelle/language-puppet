@@ -781,8 +781,14 @@ mainFunctionCall "include" includes = concat <$> mapM doInclude includes
             loadClass classname S.Nothing mempty ClassIncludeLike
 mainFunctionCall "create_resources" [t, hs] = mainFunctionCall "create_resources" [t, hs, PHash mempty]
 mainFunctionCall "create_resources" [PString t, PHash hs, PHash defparams] = do
+    let (ats, t') = T.span (== '@') t
+    virtuality <- case T.length ats of
+                      0 -> return Normal
+                      1 -> return Virtual
+                      2 -> return Exported
+                      _ -> throwPosError "Too many @'s"
     p <- use curPos
-    let genRes rname (PHash rargs) = registerResource t rname (rargs <> defparams) Normal p
+    let genRes rname (PHash rargs) = registerResource t' rname (rargs <> defparams) virtuality p
         genRes rname x = throwPosError ("create_resource(): the value corresponding to key" <+> ttext rname <+> "should be a hash, not" <+> pretty x)
     concat . HM.elems <$> itraverse genRes hs
 mainFunctionCall "create_resources" args = throwPosError ("create_resource(): expects between two and three arguments, of type [string,hash,hash], and not:" <+> pretty args)
