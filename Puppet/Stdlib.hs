@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
 import           Control.Lens
@@ -7,7 +8,9 @@ import           Data.Aeson.Lens
 import qualified Data.ByteString.Base16           as B16
 import           Data.Char
 import qualified Data.HashMap.Strict              as HM
+import           Data.Maybe                       (mapMaybe)
 import           Data.Monoid
+import           Data.List.Split                  (chunksOf)
 import qualified Data.Text                        as T
 import qualified Data.Text.Encoding               as T
 import           Data.Traversable                 (for)
@@ -43,6 +46,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "getvar"  getvar
                               , ("getparam", const $ throwPosError "The getparam function is uncool and shall not be implemented in language-puppet")
                               , ("grep", _grep)
+                              , ("hash", hash)
                               , singleArgument "is_array" isArray
                               , singleArgument "is_domain_name" isDomainName
                               , singleArgument "is_integer" isInteger
@@ -208,6 +212,14 @@ _grep [PArray vls, rawre] = do
     return $ PArray $ V.map (PString . fst) (V.filter snd rvls)
 _grep [x,_] = throwPosError ("grep(): The first argument must be an Array, not" <+> pretty x)
 _grep _ = throwPosError "grep(): Expected two arguments."
+
+hash :: [PValue] -> InterpreterMonad PValue
+hash [PArray elems] = do
+    let xs = mapMaybe assocPairs $ chunksOf 2 $ V.toList elems
+        assocPairs [a,b] = Just (a,b)
+        assocPairs _ = Nothing
+    PHash . HM.fromList <$> mapM (\(k,v) -> (,v) <$> resolvePValueString k) xs
+hash _ = throwPosError "hash(): Expected and array."
 
 isArray :: PValue -> InterpreterMonad PValue
 isArray = return . PBoolean . has _PArray
