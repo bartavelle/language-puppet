@@ -3,6 +3,7 @@
 ## New features
 
 * Added the `pick_default` function
+* `merge` now works with an arbitrary number of hashes
 
 # v1.1.4.1 (2015/11/15)
 

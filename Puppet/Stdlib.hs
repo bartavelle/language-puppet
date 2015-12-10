@@ -264,9 +264,11 @@ hasKey [a, _] = throwPosError ("has_key(): expected a Hash, not" <+> pretty a)
 hasKey _ = throwPosError "has_key(): expected two arguments."
 
 merge :: [PValue] -> InterpreterMonad PValue
-merge [PHash a, PHash b] = return (PHash (b `HM.union` a))
-merge [a,b] = throwPosError ("merge(): Expects two hashes, not" <+> pretty a <+> pretty b)
-merge _ = throwPosError "merge(): Expects two hashes"
+merge xs | length xs < 2 = throwPosError "merge(): Expects at least two hashes"
+         | otherwise = let hashcontents = mapM (preview _PHash) xs
+                       in  case hashcontents of
+                               Nothing -> throwPosError "merge(): Expects hashes"
+                               Just hashes -> return $ PHash (mconcat hashes)
 
 pick :: [PValue] -> InterpreterMonad PValue
 pick [] = throwPosError "pick(): must receive at least one non empty value"
