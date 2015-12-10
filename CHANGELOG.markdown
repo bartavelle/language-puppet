@@ -1,3 +1,9 @@
+# v1.1.5 (TBA)
+
+## New features
+
+* Added the `pick_default` function
+
 # v1.1.4.1 (2015/11/15)
 
 ## New features

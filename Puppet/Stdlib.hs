@@ -56,6 +56,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("merge", merge)
                               , ("member", member)
                               , ("pick", pick)
+                              , ("pick_default", pickDefault)
                               , ("rstrip", stringArrayFunction T.stripEnd)
                               , singleArgument "size" size
                               , singleArgument "str2bool" str2Bool
@@ -269,9 +270,15 @@ merge _ = throwPosError "merge(): Expects two hashes"
 
 pick :: [PValue] -> InterpreterMonad PValue
 pick [] = throwPosError "pick(): must receive at least one non empty value"
-pick (a:as)
-    | a `elem` [PUndef, PString "", PString "undef"] = pick as
-    | otherwise = return a
+pick xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
+              [] -> throwPosError "pick(): no value suitable to be picked"
+              (x:_) -> return x
+
+pickDefault :: [PValue] -> InterpreterMonad PValue
+pickDefault [] = throwPosError "pick_default(): must receive at least one non empty value"
+pickDefault xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
+                     [] -> return (last xs)
+                     (x:_) -> return x
 
 size :: PValue -> InterpreterMonad PValue
 size (PHash h) = return (_Integer # fromIntegral (HM.size h))
