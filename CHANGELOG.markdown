@@ -5,10 +5,12 @@
 * Added the `pick_default` function
 * `merge` now works with an arbitrary number of hashes
 * Added the `hash` function
+* puppet native type `file` resource accept selinux parameters
 
 ## Bugs fixed
 
 * `create_resources` can now create virtual and exported resources
+* puppet native type `file` fix for parameters `sourceselect` and `recurselimit`
 
 # v1.1.4.1 (2015/11/15)
 
