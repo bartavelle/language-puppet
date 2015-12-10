@@ -365,7 +365,7 @@ data ResourceModifier = ResourceModifier
     }
 
 instance Show ResourceModifier where
-  show (ResourceModifier rt mt ct se mu p) = unwords$ [show rt, show mt, show ct, "(" ++ show se ++ ")", show p]
+  show (ResourceModifier rt mt ct se _ p) = unwords$ [show rt, show mt, show ct, "(" ++ show se ++ ")", show p]
 
 data LinkInformation = LinkInformation
     { _linksrc  :: !RIdentifier
