@@ -1,19 +1,23 @@
 module Puppet.PP
     ( ttext
-    , pshow
+    , prettyToText
     , displayNocolor
       -- * Re-exports
     , module Text.PrettyPrint.ANSI.Leijen
     ) where
 
+import  Data.Text (Text)
 import qualified Data.Text                    as T
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 ttext :: T.Text -> Doc
 ttext = text . T.unpack
 
-pshow :: Doc -> String
-pshow d = displayS (renderPretty 0.4 120 d) ""
+prettyToText :: Doc -> Text
+prettyToText = T.pack . prettyToShow
+
+prettyToShow :: Doc -> String
+prettyToShow d = displayS (renderCompact d) ""
 
 -- | A rendering function that drops colors:
 displayNocolor :: Doc -> String

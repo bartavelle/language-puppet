@@ -11,6 +11,7 @@ module Puppet.Utils (
     , scientific2text
     , text2Scientific
     , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
+    -- * re-export
     , module Data.Monoid
 ) where
 

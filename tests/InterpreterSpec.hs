@@ -16,16 +16,17 @@ import           Puppet.Interpreter.Types
 import           Puppet.Lens
 import           Puppet.Parser
 import           Puppet.Parser.Types
+import           Puppet.PP
 
 appendArrowNode :: Text
 appendArrowNode = "appendArrow"
 
-appendArrowInput :: Text
-appendArrowInput = T.unlines [ "node " <> appendArrowNode <> " {"
+arrowOperationInput :: ArrowOp -> Text
+arrowOperationInput arr = T.unlines [ "node " <> appendArrowNode <> " {"
                   , "user { 'jenkins':"
                   , "  groups => 'ci'"
                   , "}"
-                  , "User <| title == 'jenkins' |> { groups +> 'docker'}"
+                  , "User <| title == 'jenkins' |> { groups " <> (prettyToText . pretty) arr <> " 'docker'}"
                   , "}"
                   ]
 
@@ -34,7 +35,13 @@ spec = do
   describe "AppendArrow in AttributeDecl" $
     it "should append the group attribute in the user resource" $ do
       pendingWith "see issue #134"
-      pureCompute appendArrowNode appendArrowInput ^.._1._Right._1.traverse.rattributes.at "groups"._Just._PArray.traverse._PString
+      pureCompute appendArrowNode (arrowOperationInput AppendArrow) ^.._1._Right._1.traverse.rattributes.at "groups"._Just._PArray.traverse._PString
+        `shouldBe` ["ci", "docker"]
+
+  describe "AssignArrow in AttributeDecl" $
+    it "should throw an exception ?" $ do
+      pendingWith "see issue #134"
+      pureCompute appendArrowNode (arrowOperationInput AssignArrow) ^.._1._Right._1.traverse.rattributes.at "groups"._Just._PArray.traverse._PString
         `shouldBe` ["ci", "docker"]
 
 main :: IO ()

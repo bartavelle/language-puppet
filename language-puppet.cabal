@@ -81,50 +81,51 @@ library
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields -j1
   -- ghc-prof-options:    -auto-all -caf-all
-  build-depends:       base >=4.8 && < 4.9
-                        , aeson                >= 0.8     && < 0.10
-                        , ansi-wl-pprint       == 0.6.*
-                        , attoparsec           >= 0.12    && < 0.14
-                        , base16-bytestring    == 0.1.*
-                        , bifunctors           == 5
-                        , bytestring
-                        , case-insensitive     == 1.2.*
-                        , containers           == 0.5.*
-                        , cryptonite           >= 0.6
-                        , directory            == 1.2.*
-                        , either               >= 4.3     && < 4.5
-                        , exceptions           >= 0.8     && < 0.9
-                        , filecache            >= 0.2.9   && < 0.3
-                        , formatting
-                        , hashable             == 1.2.*
-                        , hruby                >= 0.3.1.6 && <0.4
-                        , hslogger             == 1.2.*
-                        , hslua                >= 0.4     && < 0.5
-                        , lens                 >= 4.9     && < 5
-                        , lens-aeson           >= 1.0
-                        , memory               >= 0.7
-                        , mtl                  >= 2.2     && < 2.3
-                        , operational          >= 0.2.3   && < 0.3
-                        , megaparsec           == 4.1.*
-                        , parsec               == 3.1.*
-                        , pcre-utils           >= 0.1.7   && < 0.2
-                        , process              >= 1.1     && < 1.3
-                        , random
-                        , regex-pcre-builtin   >= 0.94.4
-                        , scientific           >= 0.2   && < 0.4
-                        , servant              == 0.4.*
-                        , servant-client       == 0.4.*
-                        , semigroups
-                        , split                == 0.2.*
-                        , stm                  == 2.4.*
-                        , strict-base-types    == 0.3.*
-                        , text                 >= 0.11
-                        , time                 >= 1.5  && < 2
-                        , transformers         == 0.4.*
-                        , unix                 >= 2.6     && < 2.8
-                        , unordered-containers == 0.2.*
-                        , vector               == 0.10.*
-                        , yaml                 >= 0.8.8   && < 0.9
+  build-depends:       aeson                >= 0.8     && < 0.10
+                     , ansi-wl-pprint       == 0.6.*
+                     , attoparsec           >= 0.12    && < 0.14
+                     , base >=4.8 && < 4.9
+                     , base16-bytestring    == 0.1.*
+                     , bifunctors           == 5
+                     , bytestring
+                     , case-insensitive     == 1.2.*
+                     , containers           == 0.5.*
+                     , cryptonite           >= 0.6
+                     , directory            == 1.2.*
+                     , either               >= 4.3     && < 4.5
+                     , exceptions           >= 0.8     && < 0.9
+                     , filecache            >= 0.2.9   && < 0.3
+                     , formatting
+                     , hashable             == 1.2.*
+                     , hruby                >= 0.3.1.6 && <0.4
+                     , hslogger             == 1.2.*
+                     , hslua                >= 0.4     && < 0.5
+                     , hspec
+                     , lens                 >= 4.9     && < 5
+                     , lens-aeson           >= 1.0
+                     , megaparsec           == 4.1.*
+                     , memory               >= 0.7
+                     , mtl                  >= 2.2     && < 2.3
+                     , operational          >= 0.2.3   && < 0.3
+                     , parsec               == 3.1.*
+                     , pcre-utils           >= 0.1.7   && < 0.2
+                     , process              >= 1.1     && < 1.3
+                     , random
+                     , regex-pcre-builtin   >= 0.94.4
+                     , scientific           >= 0.2   && < 0.4
+                     , semigroups
+                     , servant              == 0.4.*
+                     , servant-client       == 0.4.*
+                     , split                == 0.2.*
+                     , stm                  == 2.4.*
+                     , strict-base-types    == 0.3.*
+                     , text                 >= 0.11
+                     , time                 >= 1.5  && < 2
+                     , transformers         == 0.4.*
+                     , unix                 >= 2.6     && < 2.8
+                     , unordered-containers == 0.2.*
+                     , vector               == 0.10.*
+                     , yaml                 >= 0.8.8   && < 0.9
 Test-Suite test-evals
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
@@ -180,7 +181,24 @@ executable puppetresources
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -funbox-strict-fields -threaded -with-rtsopts "-A2M" -eventlog
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,text,megaparsec,vector,ansi-wl-pprint,bytestring,mtl,hslogger,Diff,unordered-containers,strict-base-types,optparse-applicative >=0.11,regex-pcre-builtin,lens,aeson,yaml,parallel-io,containers,Glob,hspec >= 1.9, either, servant-client
+  build-depends:       base
+                     , Glob
+                     , aeson
+                     , bytestring
+                     , containers
+                     , either
+                     , hslogger
+                     , language-puppet
+                     , lens
+                     , megaparsec
+                     , optparse-applicative
+                     , parallel-io
+                     , regex-pcre-builtin
+                     , servant-client
+                     , strict-base-types
+                     , text
+                     , unordered-containers
+                     , vector
   main-is:             PuppetResources.hs
 
 executable pdbquery
@@ -188,5 +206,16 @@ executable pdbquery
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
-  build-depends:       language-puppet,base,optparse-applicative >= 0.11,text,yaml,bytestring,strict-base-types,lens,unordered-containers,vector,either,servant-client
+  build-depends:       base
+                     , bytestring
+                     , either
+                     , language-puppet
+                     , lens
+                     , optparse-applicative
+                     , servant-client
+                     , strict-base-types
+                     , text
+                     , unordered-containers
+                     , vector
+                     , yaml
   main-is:             pdbQuery.hs
