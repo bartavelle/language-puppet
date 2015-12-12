@@ -124,10 +124,10 @@ queryCombinator :: HieraQueryType -> [IO (Maybe PValue)] -> IO (Maybe PValue)
 queryCombinator Priority = foldr (liftA2 mplus) (pure mzero)
 queryCombinator ArrayMerge  = fmap rejoin . sequence
     where
-        rejoin = Just . PArray . V.concat . map toA
-        toA Nothing = V.empty
-        toA (Just (PArray r)) = r
-        toA (Just a) = V.singleton a
+        rejoin = Just . PArray . V.fromList . L.nub . concatMap toA
+        toA Nothing = []
+        toA (Just (PArray r)) = V.toList r
+        toA (Just a) = [a]
 queryCombinator HashMerge = fmap (Just . PHash . mconcat . map toH) . sequence
     where
         toH Nothing = mempty

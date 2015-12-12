@@ -11,6 +11,7 @@
 
 * `create_resources` can now create virtual and exported resources
 * puppet native type `file` fix for parameters `sourceselect` and `recurselimit`
+* Hiera array merge now only keeps unique values
 
 # v1.1.4.1 (2015/11/15)
 
