@@ -39,10 +39,10 @@ spec = do
         `shouldBe` ["ci", "docker"]
 
   describe "AssignArrow in AttributeDecl" $
-    it "should throw an exception ?" $ do
-      pendingWith "see issue #134"
+    it "should create a user with the group docker and then add ci to its groups" $ do
+      pendingWith "see issue #165"
       pureCompute appendArrowNode (arrowOperationInput AssignArrow) ^.._1._Right._1.traverse.rattributes.at "groups"._Just._PArray.traverse._PString
-        `shouldBe` ["ci", "docker"]
+        `shouldBe` ["docker"]
 
 main :: IO ()
 main = hspec spec
