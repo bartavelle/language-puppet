@@ -20,6 +20,7 @@ module Puppet.Interpreter.Types (
  , RIdentifier(RIdentifier)
  , HasScopeInformation(..)
  , ScopeInformation(ScopeInformation)
+ , ScopeEnteringContext(..)
  , HasResourceModifier(..)
  , ResourceModifier(ResourceModifier)
  , HasIoMethods(..)
@@ -96,6 +97,7 @@ import qualified Data.Maybe.Strict           as S
 import           Data.Monoid
 import           Data.Scientific
 import           Data.String                 (IsString (..))
+import           Data.Text (Text)
 import qualified Data.Text                   as T
 import qualified Data.Text.Encoding          as T
 import           Data.Time.Clock
@@ -116,12 +118,12 @@ import           Puppet.Paths
 import           Puppet.PP                   hiding (rational)
 import           Puppet.Utils
 
-metaparameters :: HS.HashSet T.Text
+metaparameters :: HS.HashSet Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
 
-type NodeName = T.Text
-type Container = HM.HashMap T.Text
-type Scope = T.Text
+type NodeName = Text
+type Container = HM.HashMap Text
+type Scope = Text
 type Facts = Container PValue
 
 newtype PrettyError = PrettyError { getError :: Doc }
@@ -141,8 +143,8 @@ instance Exception PrettyError
 
 data PValue = PBoolean !Bool
             | PUndef
-            | PString !T.Text -- integers and doubles are internally serialized as strings by puppet
-            | PResourceReference !T.Text !T.Text
+            | PString !Text -- integers and doubles are internally serialized as strings by puppet
+            | PResourceReference !Text !T.Text
             | PArray !(V.Vector PValue)
             | PHash !(Container PValue)
             | PNumber !Scientific
@@ -169,8 +171,8 @@ data HieraQueryType = Priority   -- ^ standard hiera query
                     | HashMerge  -- ^ hiera_hash
 
 -- | The type of the Hiera API function
-type HieraQueryFunc m = Container T.Text -- ^ All the variables that Hiera can interpolate, the top level ones being prefixed with ::
-                     -> T.Text -- ^ The query
+type HieraQueryFunc m = Container Text -- ^ All the variables that Hiera can interpolate, the top level ones being prefixed with ::
+                     -> Text -- ^ The query
                      -> HieraQueryType
                      -> m (S.Either PrettyError (Maybe PValue))
 
@@ -185,8 +187,8 @@ instance FromJSON Strictness where
   parseJSON (Bool False) = pure Permissive
   parseJSON _ = mzero
 
-data RSearchExpression = REqualitySearch !T.Text !PValue
-                       | RNonEqualitySearch !T.Text !PValue
+data RSearchExpression = REqualitySearch !Text !PValue
+                       | RNonEqualitySearch !Text !PValue
                        | RAndSearch !RSearchExpression !RSearchExpression
                        | ROrSearch !RSearchExpression !RSearchExpression
                        | RAlwaysTrue
@@ -211,17 +213,15 @@ data TopLevelType
 
 instance Hashable TopLevelType
 
--- | Resource default statement
--- https://docs.puppetlabs.com/puppet/latest/reference/lang_defaults.html#language:-resource-default-statements
+-- | From the evaluation of Resource Default Declaration
 data ResDefaults = ResDefaults
-    { _defType     :: !T.Text
-    , _defSrcScope :: !T.Text
-    , _defValues   :: !(Container PValue)
-    , _defPos      :: !PPosition
+    { _resDefType     :: !Text
+    , _resDefSrcScope :: !Text
+    , _resDefValues   :: !(Container PValue)
+    , _resDefPos      :: !PPosition
     }
 
--- | TODO: why do we need both ResourceModifier and this one
--- what's the role of each ?
+-- | From the evaluation of Resource Override Declaration
 data ResRefOverride = ResRefOverride
     { _rrid     :: !RIdentifier
     , _rrparams :: !(Container PValue)
@@ -229,25 +229,29 @@ data ResRefOverride = ResRefOverride
     } deriving (Eq)
 
 data CurContainerDesc = ContRoot -- ^ Contained at node or root level
-                      | ContClass !T.Text -- ^ Contained in a class
-                      | ContDefine !T.Text !T.Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
+                      | ContClass !Text -- ^ Contained in a class
+                      | ContDefine !Text !T.Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
                       | ContImported !CurContainerDesc -- ^ Dummy container for imported resources, so that we know we must update the nodename
                       | ContImport !NodeName !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
                       deriving (Eq, Generic, Ord, Show)
 
+data ScopeEnteringContext = SENormal
+                          | SEChild  !Text -- ^ We enter the scope as the child of another class
+                          | SEParent !Text -- ^ We enter the scope as the parent of another class
+
 -- | TODO related to Scope: explain ...
 data CurContainer = CurContainer
     { _cctype :: !CurContainerDesc
-    , _cctags :: !(HS.HashSet T.Text)
+    , _cctags :: !(HS.HashSet Text)
     } deriving (Eq)
 
 data ScopeInformation = ScopeInformation
-    { _scopeVariables :: !(Container (Pair (Pair PValue PPosition) CurContainerDesc))
-    , _scopeDefaults  :: !(Container ResDefaults)
-    , _scopeExtraTags :: !(HS.HashSet T.Text)
-    , _scopeContainer :: !CurContainer
-    , _scopeOverrides :: !(HM.HashMap RIdentifier ResRefOverride)
-    , _scopeParent    :: !(S.Maybe T.Text)
+    { _scopeVariables   :: !(Container (Pair (Pair PValue PPosition) CurContainerDesc))
+    , _scopeResDefaults :: !(Container ResDefaults)
+    , _scopeExtraTags   :: !(HS.HashSet Text)
+    , _scopeContainer   :: !CurContainer
+    , _scopeOverrides   :: !(HM.HashMap RIdentifier ResRefOverride)
+    , _scopeParent      :: !(S.Maybe Text)
     }
 
 data InterpreterState = InterpreterState
@@ -256,46 +260,46 @@ data InterpreterState = InterpreterState
     , _definedResources   :: !(HM.HashMap RIdentifier Resource)
     , _curScope           :: ![CurContainerDesc]
     , _curPos             :: !PPosition
-    , _nestedDeclarations :: !(HM.HashMap (TopLevelType,T.Text) Statement)
+    , _nestedDeclarations :: !(HM.HashMap (TopLevelType,Text) Statement)
     , _extraRelations     :: ![LinkInformation]
     , _resMod             :: ![ResourceModifier]
     }
 
 data InterpreterReader m = InterpreterReader
     { _readerNativeTypes     :: !(Container NativeTypeMethods)
-    , _readerGetStatement    :: TopLevelType -> T.Text -> m (S.Either PrettyError Statement)
-    , _readerGetTemplate     :: Either T.Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
+    , _readerGetStatement    :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
+    , _readerGetTemplate     :: Either Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
     , _readerPdbApi          :: PuppetDBAPI m
     , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue)
-    , _readerNodename        :: T.Text
+    , _readerNodename        :: Text
     , _readerHieraQuery      :: HieraQueryFunc m
     , _readerIoMethods       :: IoMethods m
-    , _readerIgnoredModules  :: HS.HashSet T.Text
-    , _readerExternalModules :: HS.HashSet T.Text
+    , _readerIgnoredModules  :: HS.HashSet Text
+    , _readerExternalModules :: HS.HashSet Text
     , _readerIsStrict        :: Bool
     , _readerPuppetPaths     :: PuppetDirPaths
     }
 
 data IoMethods m = IoMethods
     { _ioGetCurrentCallStack :: m [String]
-    , _ioReadFile            :: [T.Text] -> m (Either String T.Text)
+    , _ioReadFile            :: [Text] -> m (Either String T.Text)
     , _ioTraceEvent          :: String -> m ()
-    , _ioCallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> m (Either String PValue)
+    , _ioCallLua             :: MVar Lua.LuaState -> Text -> [PValue] -> m (Either String PValue)
     }
 
 data InterpreterInstr a where
     -- Utility for using what's in "InterpreterReader"
     GetNativeTypes      :: InterpreterInstr (Container NativeTypeMethods)
-    GetStatement        :: TopLevelType -> T.Text -> InterpreterInstr Statement
-    ComputeTemplate     :: Either T.Text T.Text -> InterpreterState -> InterpreterInstr T.Text
-    ExternalFunction    :: T.Text -> [PValue] -> InterpreterInstr PValue
-    GetNodeName         :: InterpreterInstr T.Text
-    HieraQuery          :: Container T.Text -> T.Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
+    GetStatement        :: TopLevelType -> Text -> InterpreterInstr Statement
+    ComputeTemplate     :: Either Text T.Text -> InterpreterState -> InterpreterInstr T.Text
+    ExternalFunction    :: Text -> [PValue] -> InterpreterInstr PValue
+    GetNodeName         :: InterpreterInstr Text
+    HieraQuery          :: Container Text -> T.Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
     GetCurrentCallStack :: InterpreterInstr [String]
-    IsIgnoredModule     :: T.Text -> InterpreterInstr Bool
-    IsExternalModule    :: T.Text -> InterpreterInstr Bool
+    IsIgnoredModule     :: Text -> InterpreterInstr Bool
+    IsExternalModule    :: Text -> InterpreterInstr Bool
     IsStrict            :: InterpreterInstr Bool
-    PuppetPaths        :: InterpreterInstr PuppetDirPaths
+    PuppetPaths         :: InterpreterInstr PuppetDirPaths
     -- error
     ErrorThrow          :: PrettyError -> InterpreterInstr a
     ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a
@@ -314,11 +318,11 @@ data InterpreterInstr a where
     PDBCommitDB         :: InterpreterInstr ()
     PDBGetResourcesOfNode :: NodeName -> Query ResourceField -> InterpreterInstr [Resource]
     -- Reading the first file that can be read in a list
-    ReadFile            :: [T.Text] -> InterpreterInstr T.Text
+    ReadFile            :: [Text] -> InterpreterInstr T.Text
     -- Tracing events
     TraceEvent          :: String -> InterpreterInstr ()
     -- Calling Lua
-    CallLua             :: MVar Lua.LuaState -> T.Text -> [PValue] -> InterpreterInstr PValue
+    CallLua             :: MVar Lua.LuaState -> Text -> [PValue] -> InterpreterInstr PValue
 
 
 -- | The main monad
@@ -335,8 +339,8 @@ instance MonadWriter InterpreterWriter InterpreterMonad where
     listen = singleton . WriterListen
 
 data RIdentifier = RIdentifier
-    { _itype :: !T.Text
-    , _iname :: !T.Text
+    { _itype :: !Text
+    , _iname :: !Text
     } deriving (Show,Eq,Generic,Ord)
 
 instance Hashable RIdentifier
@@ -356,7 +360,7 @@ data ResourceCollectorType = RealizeVirtual
 
 
 data ResourceModifier = ResourceModifier
-    { _rmResType      :: !T.Text
+    { _rmResType      :: !Text
     , _rmModifierType :: !ModifierType
     , _rmType         :: !ResourceCollectorType
     , _rmSearch       :: !RSearchExpression
@@ -379,12 +383,12 @@ type EdgeMap = HM.HashMap RIdentifier [LinkInformation]
 {-| A fully resolved puppet resource that will be used in the 'FinalCatalog'. -}
 data Resource = Resource
     { _rid         :: !RIdentifier                                    -- ^ Resource name.
-    , _ralias      :: !(HS.HashSet T.Text)                            -- ^ All the resource aliases
+    , _ralias      :: !(HS.HashSet Text)                            -- ^ All the resource aliases
     , _rattributes :: !(Container PValue)                             -- ^ Resource parameters.
     , _rrelations  :: !(HM.HashMap RIdentifier (HS.HashSet LinkType)) -- ^ Resource relations.
     , _rscope      :: ![CurContainerDesc]                             -- ^ Resource scope when it was defined, the real container will be the first item
     , _rvirtuality :: !Virtuality
-    , _rtags       :: !(HS.HashSet T.Text)
+    , _rtags       :: !(HS.HashSet Text)
     , _rpos        :: !PPosition -- ^ Source code position of the resource definition.
     , _rnode       :: !NodeName -- ^ The node were this resource was created, if remote
     }
@@ -395,7 +399,7 @@ type NativeTypeValidate = Resource -> Either PrettyError Resource
 -- | Attributes (and providers) of a puppet resource type bundled with validation rules
 data NativeTypeMethods = NativeTypeMethods
     { _puppetValidate :: NativeTypeValidate
-    , _puppetFields   :: HS.HashSet T.Text
+    , _puppetFields   :: HS.HashSet Text
     }
 
 type FinalCatalog = HM.HashMap RIdentifier Resource
@@ -407,15 +411,15 @@ data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType deriving Show
 -- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
 data WireCatalog = WireCatalog
     { _wireCatalogNodename        :: !NodeName
-    , _wireCatalogVersion         :: !T.Text
+    , _wireCatalogVersion         :: !Text
     , _wireCatalogEdges           :: !(V.Vector PuppetEdge)
     , _wireCatalogResources       :: !(V.Vector Resource)
-    , _wireCatalogTransactionUUID :: !T.Text
+    , _wireCatalogTransactionUUID :: !Text
     } deriving Show
 
 data FactInfo = FactInfo
     { _factInfoNodename :: !NodeName
-    , _factInfoName     :: !T.Text
+    , _factInfoName     :: !Text
     , _factInfoVal      :: !PValue
     }
 
@@ -440,12 +444,12 @@ data PuppetDBAPI m = PuppetDBAPI
     }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
-data Query a = QEqual a T.Text
+data Query a = QEqual a Text
              | QG a Integer
              | QL a Integer
              | QGE a Integer
              | QLE a Integer
-             | QMatch T.Text T.Text
+             | QMatch Text T.Text
              | QAnd [Query a]
              | QOr [Query a]
              | QNot (Query a)
@@ -457,12 +461,12 @@ data FactField = FName
                | FCertname
 
 -- | Fields for the node endpoint
-data NodeField = NName | NFact T.Text
+data NodeField = NName | NFact Text
 
 -- | Fields for the resource endpoint
 data ResourceField = RTag
                    | RCertname
-                   | RParameter T.Text
+                   | RParameter Text
                    | RType
                    | RTitle
                    | RExported
@@ -552,11 +556,11 @@ instance ToJSON Resource where
             relations = r ^. rrelations & HM.fromListWith (V.++) . concatMap changeRelations . HM.toList & HM.map toValue
             toValue v | V.length v == 1 = V.head v
                       | otherwise = Array v
-            changeRelations :: (RIdentifier, HS.HashSet LinkType) -> [(T.Text, V.Vector Value)]
+            changeRelations :: (RIdentifier, HS.HashSet LinkType) -> [(Text, V.Vector Value)]
             changeRelations (k,v) = do
                 c <- HS.toList v
                 return (rel2text c, V.singleton (String (rid2text k)))
-            rid2text :: RIdentifier -> T.Text
+            rid2text :: RIdentifier -> Text
             rid2text (RIdentifier t n) = capitalizeRT t `T.append` "[" `T.append` capn `T.append` "]"
                 where
                     capn = if t == "classe"
@@ -581,7 +585,7 @@ instance FromJSON Resource where
                        _ -> Nothing
             getResourceIdentifier _ = Nothing
             -- TODO : properly handle metaparameters
-            separate :: (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType)) -> T.Text -> PValue -> (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType))
+            separate :: (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType)) -> Text -> PValue -> (Container PValue, HM.HashMap RIdentifier (HS.HashSet LinkType))
             separate (curAttribs, curRelations) k val = case (fromJSON (String k), getResourceIdentifier val) of
                                                            (Success rel, Just ri) -> (curAttribs, curRelations & at ri . non mempty . contains rel .~ True)
                                                            _                 -> (curAttribs & at k ?~ val, curRelations)

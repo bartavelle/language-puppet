@@ -455,7 +455,7 @@ resolveFunction' "file" args = mapM (resolvePValueString >=> fixFilePath) args >
                       | T.head s == '/' = return s
                       | otherwise = case T.splitOn "/" s of
                                         (md:x:rst) -> do
-                                            moduledir <- view modulesPath <$> getPuppetPathes
+                                            moduledir <- view modulesPath <$> getPuppetPaths
                                             return (T.intercalate "/" (T.pack moduledir : md : "files" : x : rst))
                                         _ -> throwPosError ("file() argument invalid: " <> ttext s)
 resolveFunction' "tagged" ptags = do

@@ -269,35 +269,52 @@ instance FromJSON LinkType where
 instance ToJSON LinkType where
     toJSON = String . rel2text
 
-data ResDecl         = ResDecl !Text !Expression !(V.Vector AttributeDecl) !Virtuality !PPosition deriving (Eq, Show)
-data ResDefaultDecl  = ResDefaultDecl !Text !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+-- | Resource declaration:  e.g `file { mode => 755}`
+data ResDecl = ResDecl !Text !Expression !(V.Vector AttributeDecl) !Virtuality !PPosition deriving (Eq, Show)
+
+-- | Resource default:  e.g `File { mode => 755 }`
+-- https://docs.puppetlabs.com/puppet/latest/reference/lang_defaults.html#language:-resource-default-statements
+data ResDefaultDecl = ResDefaultDecl !Text !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+
+-- | Resource override: e.g `File['title'] { mode => 755}`
+-- https://docs.puppetlabs.com/puppet/latest/reference/lang_resources_advanced.html#amending-attributes-with-a-resource-reference
 data ResOverrideDecl = ResOverrideDecl !Text !Expression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+
 -- | All types of conditional statements (@case@, @if@, etc.) are stored as an ordered list of pair (condition, statements)
 -- (interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ...")
 data ConditionalDecl = ConditionalDecl !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
-data ClassDecl       = ClassDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
-data DefineDecl      = DefineDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+
+data ClassDecl  = ClassDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data DefineDecl = DefineDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+
 -- | A node is a collection of statements + maybe an inherit node
-data NodeDecl        = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
-data VarAssignDecl       = VarAssignDecl !Text !Expression !PPosition deriving (Eq, Show)
+data NodeDecl = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
+
+-- | e.g $newvar = 'world'
+data VarAssignDecl = VarAssignDecl !Text !Expression !PPosition deriving (Eq, Show)
+
 data MainFuncDecl    = MainFuncDecl !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
+
 -- | /Higher order function/ call.
 data HigherOrderLambdaDecl   = HigherOrderLambdaDecl !HOLambdaCall !PPosition deriving (Eq, Show)
--- | For all types of collectors.
+
+-- | Collectors, all types of them
+-- e.g `User <| title == 'jenkins' |> { groups +> "docker"}`
 data ResCollDecl     = ResCollDecl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+
 data DepDecl         = DepDecl !(Pair Text Expression) !(Pair Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
 -- | All the possible statements
 data Statement
-    = ResourceDeclaration !ResDecl                 -- ^ e.g `file { mode => 755}`
-    | ResourceDefaultDeclaration !ResDefaultDecl   -- ^ Resource default e.g `File { mode => 755 }`
-    | ResourceOverrideDeclaration !ResOverrideDecl -- ^ e.g `File['title'] { mode => 755}`
-    | ResourceCollectionDeclaration !ResCollDecl   -- ^ e.g `User <| title == 'jenkins' |> { groups +> "docker"}`
+    = ResourceDeclaration !ResDecl
+    | ResourceDefaultDeclaration !ResDefaultDecl
+    | ResourceOverrideDeclaration !ResOverrideDecl
+    | ResourceCollectionDeclaration !ResCollDecl
     | ClassDeclaration !ClassDecl
     | DefineDeclaration !DefineDecl
     | NodeDeclaration !NodeDecl
     | ConditionalDeclaration !ConditionalDecl
-    | VarAssignmentDeclaration !VarAssignDecl      -- ^ e.g $newvar = 'world'
+    | VarAssignmentDeclaration !VarAssignDecl
     | MainFunctionDeclaration !MainFuncDecl
     | HigherOrderLambdaDeclaration !HigherOrderLambdaDecl
     | DependencyDeclaration !DepDecl

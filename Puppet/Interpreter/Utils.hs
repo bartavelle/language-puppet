@@ -1,17 +1,18 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE RankNTypes            #-}
+
+-- | The module should not depend on the Interpreter module
 module Puppet.Interpreter.Utils where
 
-import           Control.Exception
 import           Control.Lens               hiding (Strict)
 import           Control.Monad.Operational
 import           Control.Monad.Writer.Class
 import qualified Data.ByteString            as BS
-import qualified Data.Either.Strict         as S
 import qualified Data.HashMap.Strict        as HM
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Maybe.Strict          as S
+import           Data.Text (Text)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
 import           Data.Tuple.Strict
@@ -24,7 +25,7 @@ import           Puppet.Paths
 import           Puppet.PP
 
 initialState :: Facts
-             -> Container T.Text -- ^ Server settings
+             -> Container Text -- ^ Server settings
              -> InterpreterState
 initialState facts settings = InterpreterState baseVars initialclass mempty [ContRoot] dummyppos mempty [] []
     where
@@ -37,6 +38,45 @@ initialState facts settings = InterpreterState baseVars initialclass mempty [Con
         initialclass = mempty & at "::" ?~ (ClassIncludeLike :!: dummyppos)
 
 
+getModulename :: RIdentifier -> Text
+getModulename (RIdentifier t n) =
+    let gm x = case T.splitOn "::" x of
+                   [] -> x
+                   (y:_) -> y
+    in case t of
+        "class" -> gm n
+        _       -> gm t
+
+
+extractPrism :: Doc -> Prism' a b -> a -> InterpreterMonad b
+extractPrism msg p a = case preview p a of
+    Just b  -> return b
+    Nothing -> throwPosError ("Could not extract prism in" <+> msg)
+
+-- Scope
+popScope :: InterpreterMonad ()
+popScope = curScope %= tail
+
+pushScope :: CurContainerDesc -> InterpreterMonad ()
+pushScope s = curScope %= (s :)
+
+getScopeName :: InterpreterMonad Text
+getScopeName = scopeName <$> getScope
+
+scopeName :: CurContainerDesc -> Text
+scopeName (ContRoot        ) = "::"
+scopeName (ContImported x  ) = "::imported::" `T.append` scopeName x
+scopeName (ContClass x     ) = x
+scopeName (ContDefine dt dn _) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
+scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
+
+getScope :: InterpreterMonad CurContainerDesc
+{-# INLINABLE getScope #-}
+getScope = use curScope >>= \s -> if null s
+                                      then throwPosError "Internal error: empty scope!"
+                                      else return (head s)
+
+
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINABLE getCurContainer #-}
 getCurContainer = do
@@ -45,21 +85,18 @@ getCurContainer = do
         Just x -> return x
         Nothing -> throwPosError ("Internal error: can't find the current container for" <+> green (string (T.unpack scp)))
 
-getPuppetPathes :: InterpreterMonad PuppetDirPaths
-getPuppetPathes = singleton PuppetPaths
+rcurcontainer :: Resource -> CurContainerDesc
+rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
 
-warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-warn d = tell [LOG.WARNING :!: d]
+-- Singleton getters available in the InterpreterMonad --
+getPuppetPaths :: InterpreterMonad PuppetDirPaths
+getPuppetPaths = singleton PuppetPaths
 
-debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
-debug d = tell [LOG.DEBUG :!: d]
+getNodeName:: InterpreterMonad NodeName
+getNodeName = singleton GetNodeName
 
-logWriter :: (Monad m, MonadWriter InterpreterWriter m) => LOG.Priority -> Doc -> m ()
-logWriter prio d = tell [prio :!: d]
-
-safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad T.Text
-{-# INLINABLE safeDecodeUtf8 #-}
-safeDecodeUtf8 i = return (T.decodeUtf8 i)
+isIgnoredModule :: Text -> InterpreterMonad Bool
+isIgnoredModule m = singleton (IsIgnoredModule m)
 
 -- | Throws an error if we are in strict mode
 -- A warning in permissive mode
@@ -85,32 +122,27 @@ isExternalModule =
     where
       isExternal = singleton . IsExternalModule . head . T.splitOn "::"
 
-getScopeName :: InterpreterMonad T.Text
-getScopeName = fmap scopeName getScope
 
-getScope :: InterpreterMonad CurContainerDesc
-{-# INLINABLE getScope #-}
-getScope = use curScope >>= \s -> if null s
-                                      then throwPosError "Internal error: empty scope!"
-                                      else return (head s)
+-- Logging --
+warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
+warn d = tell [LOG.WARNING :!: d]
 
-scopeName :: CurContainerDesc -> T.Text
-scopeName (ContRoot        ) = "::"
-scopeName (ContImported x  ) = "::imported::" `T.append` scopeName x
-scopeName (ContClass x     ) = x
-scopeName (ContDefine dt dn _) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
-scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
+debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
+debug d = tell [LOG.DEBUG :!: d]
 
+logWriter :: (Monad m, MonadWriter InterpreterWriter m) => LOG.Priority -> Doc -> m ()
+logWriter prio d = tell [prio :!: d]
 
-fnull :: (Eq x, Monoid x) => x -> Bool
-{-# INLINABLE fnull #-}
-fnull = (== mempty)
+-- General --
+isEmpty :: (Eq x, Monoid x) => x -> Bool
+isEmpty = (== mempty)
 
-rcurcontainer :: Resource -> CurContainerDesc
-rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
+safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad Text
+{-# INLINABLE safeDecodeUtf8 #-}
+safeDecodeUtf8 i = return (T.decodeUtf8 i)
 
-eitherDocIO :: IO (S.Either PrettyError a) -> IO (S.Either PrettyError a)
-eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ PrettyError $ dullred $ text $ show (e :: SomeException))
-    where
-        check (S.Left r) = return (S.Left r)
-        check (S.Right x) = return (S.Right x)
+dropInitialColons :: Text -> T.Text
+dropInitialColons t = fromMaybe t (T.stripPrefix "::" t)
+
+normalizeRIdentifier :: Text -> T.Text -> RIdentifier
+normalizeRIdentifier = RIdentifier . dropInitialColons

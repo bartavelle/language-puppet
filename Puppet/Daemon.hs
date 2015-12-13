@@ -124,12 +124,12 @@ getCatalog' :: Preferences IO
          -> NodeName
          -> Facts
          -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
-getCatalog' pref getStatement getTemplate stats hquery node facts = do
+getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
     logDebug ("Received query for node " <> node)
     traceEventIO ("START getCatalog' " <> T.unpack node)
     let catalogComputation = interpretCatalog (InterpreterReader
                                                   (pref ^. prefNatTypes)
-                                                  getStatement
+                                                  parsingfunc
                                                   getTemplate
                                                   (pref ^. prefPDB)
                                                   (pref ^. prefExtFuncs)

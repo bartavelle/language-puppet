@@ -7,6 +7,7 @@ module Erb.Compute (
 ) where
 
 import           Control.Concurrent
+import           Control.Exception
 import           Control.Monad.Except
 import           Data.Aeson.Lens
 import qualified Data.Either.Strict           as S
@@ -34,7 +35,6 @@ import           Foreign.Ruby
 import           GHC.Conc (labelThread)
 
 import           Puppet.Interpreter.Types
-import           Puppet.Interpreter.Utils
 import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.Resolve
 import           Puppet.PP
@@ -224,3 +224,9 @@ computeTemplateWRuby fileinfo curcontext variables stt rdr = FR.freezeGC $ eithe
         Right r -> FR.fromRuby r >>= \case
             Right result -> return (S.Right result)
             Left rr -> return (S.Left $ PrettyError ("Could not deserialiaze ruby output" <+> text rr))
+
+eitherDocIO :: IO (S.Either PrettyError a) -> IO (S.Either PrettyError a)
+eitherDocIO computation = (computation >>= check) `catch` (\e -> return $ S.Left $ PrettyError $ dullred $ text $ show (e :: SomeException))
+    where
+        check (S.Left r) = return (S.Left r)
+        check (S.Right x) = return (S.Right x)
