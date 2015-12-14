@@ -7,4 +7,4 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Interpreter"  InterpreterSpec.spec
+  describe "Interpreter"  InterpreterSpec.collectorSpec

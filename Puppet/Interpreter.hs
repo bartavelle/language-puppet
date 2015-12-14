@@ -75,7 +75,6 @@ isParent _ _ = return False
 -- | Apply resource defaults, references overrides and expand defines
 finalize :: [Resource] -> InterpreterMonad [Resource]
 finalize rx = do
-    -- step 1, apply resDefaults and resRefOverride
     scp  <- getScopeName
     resdefaults <- use (scopes . ix scp . scopeResDefaults)
     let getOver = use (scopes . ix scp . scopeOverrides) -- retrieves current overrides
@@ -102,6 +101,7 @@ finalize rx = do
                                                     then return Replace -- we can override what's defined in a parent
                                                     else forb "Can't override something that was not defined in the parent."
             ifoldlM (addAttribute overrideType) r prms
+    -- step 1, apply resDefaults and resRefOverride
     withDefaults <- mapM (addOverrides >=> addResDefaults) rx
     -- There might be some overrides that could not be applied. The only
     -- valid reason is that they override something in exported resources.
@@ -777,9 +777,9 @@ mainFunctionCall "ensure_packages" args = ensurePackages args
 mainFunctionCall "ensure_resource" args = ensureResource args
 mainFunctionCall "realize" args = do
     pos <- use curPos
-    let realiz (PResourceReference t rn) = resMod %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return pos : )
-        realiz x = throwPosError ("realize(): all arguments must be resource references, not" <+> pretty x)
-    mapM_ realiz args
+    let updateMod (PResourceReference t rn) = resMod %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return pos : )
+        updateMod x = throwPosError ("realize(): all arguments must be resource references, not" <+> pretty x)
+    mapM_ updateMod args
     return []
 mainFunctionCall "tag" args = do
     scp <- getScopeName

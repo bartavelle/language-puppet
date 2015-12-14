@@ -345,6 +345,18 @@ data RIdentifier = RIdentifier
 
 instance Hashable RIdentifier
 
+data ResourceModifier = ResourceModifier
+    { _rmResType      :: !Text
+    , _rmModifierType :: !ModifierType
+    , _rmType         :: !ResourceCollectorType
+    , _rmSearch       :: !RSearchExpression
+    , _rmMutation     :: !(Resource -> InterpreterMonad Resource)
+    , _rmDeclaration  :: !PPosition
+    }
+
+instance Show ResourceModifier where
+  show (ResourceModifier rt mt ct se _ p) = unwords [show rt, show mt, show ct, "(" ++ show se ++ ")", show p]
+
 data ModifierType = ModifierCollector -- ^ For collectors, optional resources
                   | ModifierMustMatch -- ^ For stuff like realize
                   deriving (Show, Eq)
@@ -357,19 +369,6 @@ data ResourceCollectorType = RealizeVirtual
                            | RealizeCollected
                            | DontRealize
                            deriving (Show, Eq)
-
-
-data ResourceModifier = ResourceModifier
-    { _rmResType      :: !Text
-    , _rmModifierType :: !ModifierType
-    , _rmType         :: !ResourceCollectorType
-    , _rmSearch       :: !RSearchExpression
-    , _rmMutation     :: !(Resource -> InterpreterMonad Resource)
-    , _rmDeclaration  :: !PPosition
-    }
-
-instance Show ResourceModifier where
-  show (ResourceModifier rt mt ct se _ p) = unwords$ [show rt, show mt, show ct, "(" ++ show se ++ ")", show p]
 
 data LinkInformation = LinkInformation
     { _linksrc  :: !RIdentifier

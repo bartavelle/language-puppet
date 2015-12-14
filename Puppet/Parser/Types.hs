@@ -296,13 +296,14 @@ data VarAssignDecl = VarAssignDecl !Text !Expression !PPosition deriving (Eq, Sh
 data MainFuncDecl    = MainFuncDecl !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
 
 -- | /Higher order function/ call.
-data HigherOrderLambdaDecl   = HigherOrderLambdaDecl !HOLambdaCall !PPosition deriving (Eq, Show)
+data HigherOrderLambdaDecl = HigherOrderLambdaDecl !HOLambdaCall !PPosition deriving (Eq, Show)
 
--- | Collectors, all types of them
+-- | Resource Collector including exported collector (`<<| |>>`)
 -- e.g `User <| title == 'jenkins' |> { groups +> "docker"}`
-data ResCollDecl     = ResCollDecl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
+-- https://docs.puppetlabs.com/puppet/latest/reference/lang_collectors.html#language:-resource-collectors
+data ResCollDecl = ResCollDecl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
 
-data DepDecl         = DepDecl !(Pair Text Expression) !(Pair Text Expression) !LinkType !PPosition deriving (Eq, Show)
+data DepDecl = DepDecl !(Pair Text Expression) !(Pair Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
 -- | All the possible statements
 data Statement
