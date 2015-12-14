@@ -58,9 +58,9 @@ collectorSpec = do
       pendingWith "see issue #134"
       getResAttr (computeWith AppendArrow) "groups" `shouldBe` Just (PArray $ V.fromList ["docker", "ci"])
   describe "AssignArrow in AttributeDecl" $
-    it "should first create a user with the group docker and then add 'ci' to its groups" $ do
+    it "should override the 'groups' attributes from the user resource" $ do
       pendingWith "see issue #165"
-      getResAttr (computeWith AssignArrow) "groups" `shouldBe` Just (PArray $ V.fromList ["docker", "ci"])
+      getResAttr (computeWith AssignArrow) "groups" `shouldBe` Just (PArray $ V.fromList ["docker"])
 
 main :: IO ()
 main = hspec collectorSpec
