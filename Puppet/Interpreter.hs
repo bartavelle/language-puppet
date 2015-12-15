@@ -122,6 +122,10 @@ finalize rx = do
             if n || r ^. rvirtuality /= Normal
                 then return [r]
                 else expandDefine r
+    -- Now that all defaults / override have been applied, the defines can
+    -- finally be expanded.
+    -- The reason it has to be there is that parameters of the define could
+    -- be affected.
     concat <$> mapM expandableDefine withDefaults
     where
         expandDefine :: Resource -> InterpreterMonad [Resource]
