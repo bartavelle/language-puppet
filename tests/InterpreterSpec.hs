@@ -3,7 +3,6 @@ module InterpreterSpec (collectorSpec, main) where
 import           Control.Lens
 import           Data.HashMap.Strict      (HashMap)
 import qualified Data.HashMap.Strict      as HM
-import           Data.Maybe               (fromJust)
 import           Data.Monoid
 import           Data.Text                (Text)
 import qualified Data.Text                as T
@@ -29,7 +28,7 @@ arrowOperationInput arr = T.unlines [ "node " <> appendArrowNode <> " {"
                   , "}"
                   , "User <| title == 'jenkins' |> {"
                   , "groups " <> (prettyToText . pretty) arr <> " 'docker',"
-                  , "uid => 100}"
+                  , "uid => 1000}"
                   , "}"
                   ]
 
@@ -39,12 +38,11 @@ getResAttr ::
      (FinalCatalog, EdgeMap, FinalCatalog, [Resource]),
       InterpreterState,
       InterpreterWriter)
-  -> Text
-  -> Maybe PValue
-getResAttr s n =
+  -> Container PValue
+getResAttr s =
   let finalcatalog = s ^._1._Right._1
-      res = fromJust $ finalcatalog ^. at (RIdentifier "user" "jenkins")
-  in  res ^.rattributes.at n
+  in finalcatalog ^. at (RIdentifier "user" "jenkins")._Just.rattributes
+
 
 collectorSpec :: Spec
 collectorSpec = do
@@ -52,15 +50,15 @@ collectorSpec = do
   describe "Resource Collector" $
     it "should append the new 'uid' attribute in the user resource" $ do
       pendingWith "see issue #165"
-      getResAttr (computeWith AssignArrow) "uid" `shouldBe` Just (PNumber 100)
+      getResAttr (computeWith AssignArrow) ^. at "uid" `shouldBe` Just (PNumber 1000)
   describe "AppendArrow in AttributeDecl" $
     it "should add 'docker' to the 'groups' attribute of the user resource" $ do
       pendingWith "see issue #134"
-      getResAttr (computeWith AppendArrow) "groups" `shouldBe` Just (PArray $ V.fromList ["docker", "ci"])
+      getResAttr (computeWith AppendArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["docker", "ci"])
   describe "AssignArrow in AttributeDecl" $
     it "should override the 'groups' attributes from the user resource" $ do
       pendingWith "see issue #165"
-      getResAttr (computeWith AssignArrow) "groups" `shouldBe` Just (PArray $ V.fromList ["docker"])
+      getResAttr (computeWith AssignArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["docker"])
 
 main :: IO ()
 main = hspec collectorSpec
