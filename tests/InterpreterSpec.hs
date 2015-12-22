@@ -46,18 +46,15 @@ getResAttr s =
 
 collectorSpec :: Spec
 collectorSpec = do
-  let computeWith arr= pureCompute appendArrowNode (arrowOperationInput arr)
+  let computeWith arr = pureCompute appendArrowNode (arrowOperationInput arr)
   describe "Resource Collector" $
-    it "should append the new 'uid' attribute in the user resource" $ do
-      pendingWith "see issue #165"
+    it "should append the new 'uid' attribute in the user resource" $
       getResAttr (computeWith AssignArrow) ^. at "uid" `shouldBe` Just (PNumber 1000)
   describe "AppendArrow in AttributeDecl" $
-    it "should add 'docker' to the 'groups' attribute of the user resource" $ do
-      pendingWith "see issue #134"
-      getResAttr (computeWith AppendArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["docker", "ci"])
+    it "should add 'docker' to the 'groups' attribute of the user resource" $
+      getResAttr (computeWith AppendArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["ci", "docker"])
   describe "AssignArrow in AttributeDecl" $
-    it "should override the 'groups' attributes from the user resource" $ do
-      pendingWith "see issue #165"
+    it "should override the 'groups' attributes from the user resource" $
       getResAttr (computeWith AssignArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["docker"])
 
 main :: IO ()
@@ -75,8 +72,8 @@ pureCompute node input =
 
       getStatement :: NodeName -> Text -> HashMap (TopLevelType, NodeName) Statement
       getStatement n i = HM.singleton (TopNode, n) (nodeStatement i)
-      nodeStatement :: Text -> Statement
 
+      nodeStatement :: Text -> Statement
       nodeStatement i = V.head $ hush $ parse (puppetParser <* eof) "test" i
 
   in pureEval dummyFacts (getStatement node input) (computeCatalog node)

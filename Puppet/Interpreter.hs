@@ -385,8 +385,8 @@ evaluateStatement r@(ResourceCollectionDeclaration (ResCollDecl ct rtype searche
     let et = case ct of
                  Collector         -> RealizeVirtual
                  ExportedCollector -> RealizeCollected
-    resMod %= (ResourceModifier rtype ModifierCollector et rsearch return p : )
-    -- Now collectd from the PuppetDB !
+    resMod %= (ResourceModifier rtype ModifierCollector et rsearch (\r' -> foldM modifyCollectedAttribute r' mods) p : )
+    -- Now collected from the PuppetDB !
     if et == RealizeCollected
         then do
             let q = searchExpressionToPuppetDB rtype rsearch
@@ -436,8 +436,9 @@ evaluateStatement (ResourceDefaultDeclaration (ResDefaultDecl rtype decls p)) = 
     curPos .= p
     rdecls <- fromAttributeDecls decls
     scp <- getScopeName
-    -- invariant that must be respected : the current scope must me create
+    -- invariant that must be respected : the current scope must be created
     -- in "scopes", or nothing gets saved
+    preuse (scopes . ix scp) >>= maybe (throwPosError ("INTERNAL ERROR in evaluateStatement ResourceDefaultDeclaration: scope wasn't created - " <> pretty scp)) (const (return ()))
     let newDefaults = ResDefaults rtype scp rdecls p
         addDefaults x = scopes . ix scp . scopeResDefaults . at rtype ?= x
         -- default merging with parent
@@ -679,26 +680,60 @@ addAttribute _ "before"    r d = addRelationship RBefore d r
 addAttribute _ "notify"    r d = addRelationship RNotify d r
 addAttribute _ "require"   r d = addRelationship RRequire d r
 addAttribute _ "subscribe" r d = addRelationship RSubscribe d r
-addAttribute b t r v = case (r ^. rattributes . at t, b) of
-    (_, Replace)     -> return (r & rattributes . at t ?~ v)
-    (Nothing, _)     -> return (r & rattributes . at t ?~ v)
-    (_, CantReplace) -> return r
-    (Just curval, _) -> do
+addAttribute b t r v = go t r v
+    where
+        go = case b of
+                 CantOverride    -> setAttribute
+                 Replace         -> overrideAttribute
+                 CantReplace     -> defaultAttribute
+                 AppendAttribute -> appendAttribute
+
+setAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
+setAttribute attributename res value = case res ^. rattributes . at attributename of
+    Nothing -> return (res & rattributes . at attributename ?~ value)
+    Just curval -> do
         -- we must check if the resource scope is
         -- a parent of the current scope
         curscope <- getScopeName
-        i <- isParent curscope (rcurcontainer r)
+        i <- isParent curscope (rcurcontainer res)
         if i
-            then return (r & rattributes . at t ?~ v)
+            -- TODO check why this is set
+            then return (res & rattributes . at attributename ?~ value)
             else do
                 -- We will not bark if the same attribute
-                -- is defined multiple times with distinct
+                -- is defined multiple times with identical
                 -- values.
-                let errmsg = "Attribute" <+> dullmagenta (ttext t) <+> "defined multiple times for" <+> pretty r
-                if curval == v
+                let errmsg = "Attribute" <+> dullmagenta (ttext attributename) <+> "defined multiple times for" <+> pretty res
+                if curval == value
                     then checkStrict errmsg errmsg
                     else throwPosError errmsg
-                return r
+                return res
+
+overrideAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
+overrideAttribute attributename res value = return (res & rattributes . at attributename ?~ value)
+
+appendAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
+appendAttribute attributename res value = do
+    nvalue <- case (res ^. rattributes . at attributename, value) of
+                  (Nothing, _) -> return value
+                  (Just (PArray a), PArray b) -> return (PArray (a <> b))
+                  (Just (PArray a), b) -> return (PArray (V.snoc a b))
+                  (Just a, PArray b) -> return (PArray (V.cons a b))
+                  (Just a, b) -> return (PArray (V.fromList [a,b]))
+    return (res & rattributes . at attributename ?~ nvalue)
+
+defaultAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
+defaultAttribute attributename res value = return $ case res ^. rattributes . at attributename of
+    Nothing -> res & rattributes . at attributename ?~ value
+    Just _ -> res
+
+modifyCollectedAttribute :: Resource -> AttributeDecl -> InterpreterMonad Resource
+modifyCollectedAttribute res (AttributeDecl attributename arrowop expr) = do
+    value <- resolveExpression expr
+    let optype = case arrowop of
+                     AppendArrow -> AppendAttribute
+                     AssignArrow -> Replace
+    addAttribute optype attributename res value
 
 registerResource :: Text -> T.Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"

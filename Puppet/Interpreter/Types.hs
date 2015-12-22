@@ -355,7 +355,7 @@ data ResourceModifier = ResourceModifier
     }
 
 instance Show ResourceModifier where
-  show (ResourceModifier rt mt ct se _ p) = unwords [show rt, show mt, show ct, "(" ++ show se ++ ")", show p]
+  show (ResourceModifier rt mt ct se _ p) = unwords ["ResourceModifier", show rt, show mt, show ct, "(" ++ show se ++ ")", "???", show p]
 
 data ModifierType = ModifierCollector -- ^ For collectors, optional resources
                   | ModifierMustMatch -- ^ For stuff like realize
@@ -364,6 +364,8 @@ data ModifierType = ModifierCollector -- ^ For collectors, optional resources
 data OverrideType = CantOverride -- ^ Overriding forbidden, will throw an error
                   | Replace -- ^ Can silently replace
                   | CantReplace -- ^ Silently ignore errors
+                  | AppendAttribute -- ^ Can append values
+                  deriving (Show, Eq)
 
 data ResourceCollectorType = RealizeVirtual
                            | RealizeCollected
