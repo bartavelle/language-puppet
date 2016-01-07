@@ -1,6 +1,6 @@
 language: haskell
 env:
- - CABALVER=1.22 GHCVER=7.10.2
+ - CABALVER=1.22 GHCVER=7.10.3
 cache:
   apt: true
   directories:

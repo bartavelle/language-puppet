@@ -2,9 +2,6 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-- filecache-0.2.9
-- hruby-0.3.1.6
-- pcre-utils-0.1.7
-- strict-base-types-0.3.0
+- hruby-0.3.2
 - megaparsec-4.1.1
-resolver: lts-3.17
+resolver: lts-4.0
