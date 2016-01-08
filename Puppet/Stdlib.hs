@@ -144,9 +144,10 @@ bool2num x@(PBoolean _) = return x
 bool2num x = throwPosError ("bool2num(): Can't convert" <+> pretty x <+> "to boolean")
 
 puppetConcat :: [PValue] -> InterpreterMonad PValue
-puppetConcat [PArray a, PArray b] = return (PArray (a <> b))
-puppetConcat [a,b] = throwPosError ("concat(): both arguments must be arrays, not" <+> pretty a <+> "or" <+> pretty b)
-puppetConcat _ = throwPosError "concat(): expects 2 arguments"
+puppetConcat = return . PArray . V.concat . map toArr
+    where
+        toArr (PArray x) = x
+        toArr x = V.singleton x
 
 puppetCount :: [PValue] -> InterpreterMonad PValue
 puppetCount [PArray x] = return (_Integer # V.foldl' cnt 0 x)
