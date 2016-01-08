@@ -297,7 +297,8 @@ pickDefault xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) x
 size :: PValue -> InterpreterMonad PValue
 size (PHash h) = return (_Integer # fromIntegral (HM.size h))
 size (PArray v) = return (_Integer # fromIntegral (V.length v))
-size x = throwPosError ("size(): Expects a hash, not" <+> pretty x)
+size (PString s) = return (_Integer # fromIntegral (T.length s))
+size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+> pretty x)
 
 str2Bool :: PValue -> InterpreterMonad PValue
 str2Bool PUndef = return (PBoolean False)
