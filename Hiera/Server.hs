@@ -31,7 +31,7 @@ import qualified Data.Either.Strict          as S
 import qualified Data.FileCache              as F
 import qualified Data.HashMap.Strict         as HM
 import qualified Data.List                   as L
-import           Data.Maybe                  (fromMaybe)
+import           Data.Maybe                  (fromMaybe, catMaybes)
 import qualified Data.Text                   as T
 import qualified Data.Vector                 as V
 import qualified Data.Yaml                   as Y
@@ -121,18 +121,19 @@ dummyHiera _ _ _ = return $ S.Right Nothing
 
 -- | The combinator for "normal" queries
 queryCombinator :: HieraQueryType -> [IO (Maybe PValue)] -> IO (Maybe PValue)
-queryCombinator Priority = foldr (liftA2 mplus) (pure mzero)
-queryCombinator ArrayMerge  = fmap rejoin . sequence
+queryCombinator qt = fmap (createOutput . catMaybes) . sequence
     where
-        rejoin = Just . PArray . V.fromList . L.nub . concatMap toA
-        toA Nothing = []
-        toA (Just (PArray r)) = V.toList r
-        toA (Just a) = [a]
-queryCombinator HashMerge = fmap (Just . PHash . mconcat . map toH) . sequence
-    where
-        toH Nothing = mempty
-        toH (Just (PHash h)) = h
-        toH _ = error "The hiera value was not a hash"
+        createOutput :: [PValue] -> Maybe PValue
+        createOutput [] = Nothing
+        createOutput xs = case qt of
+                               Priority -> return (head xs)
+                               ArrayMerge -> return (rejoin xs)
+                               HashMerge -> PHash . mconcat <$> mapM toH xs
+        rejoin = PArray . V.fromList . L.nub . concatMap toA
+        toA (PArray r) = V.toList r
+        toA a = [a]
+        toH (PHash h) = Just h
+        toH _ = Nothing
 
 interpolateText :: Container T.Text -> T.Text -> T.Text
 interpolateText vars t = fromMaybe t ((parseInterpolableString t ^? _Right) >>= resolveInterpolable vars)

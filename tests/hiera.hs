@@ -34,6 +34,10 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
     hspec $ do
         describe "lookup data without a key" $ do
             it "returns an error when called with an empty string" $ q mempty "" Priority >>= checkOutput Nothing
+        describe "lookup data without a valid key" $ do
+            it "returns an error when called with a non existent key [Priority]" $ q mempty "foo" Priority >>= checkOutput Nothing
+            it "returns an error when called with a non existent key [ArrayMerge]" $ q mempty "foo" ArrayMerge >>= checkOutput Nothing
+            it "returns an error when called with a non existent key [HashMerge]" $ q mempty "foo" HashMerge >>= checkOutput Nothing
         describe "lookup data with no options" $ do
             it "can get string data" $ q mempty "http_port" Priority >>= checkOutput (Just (PNumber 8080))
             it "can get arrays" $ q mempty "ntp_servers" Priority >>= checkOutput (Just (PArray (V.fromList ["0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
