@@ -176,7 +176,9 @@ Test-Suite spec
   other-modules:  Function.ShellquoteSpec
                   Function.SizeSpec
                   Function.MergeSpec
+                  Function.EachSpec
                   InterpreterSpec
+                  Helpers
   main-is:        Spec.hs
 
 executable puppetresources
