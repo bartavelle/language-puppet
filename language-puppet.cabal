@@ -173,6 +173,8 @@ Test-Suite spec
   ghc-options:    -Wall -rtsopts -threaded
   extensions:     OverloadedStrings
   build-depends:  language-puppet,base,strict-base-types,lens,text,hspec,unordered-containers,megaparsec,vector
+  other-modules:  Function.ShellquoteSpec
+                  InterpreterSpec
   main-is:        Spec.hs
 
 executable puppetresources
