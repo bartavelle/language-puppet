@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 -- | All the types used for parsing, and helpers working on these types.
 module Puppet.Parser.Types
  ( -- * Position management
@@ -61,6 +62,7 @@ import qualified Data.Text              as T
 import           Data.Tuple.Strict
 import qualified Data.Vector            as V
 
+import           GHC.Exts
 import           GHC.Generics
 
 import           Text.Megaparsec.Pos
@@ -162,6 +164,12 @@ data UnresolvedValue
     | UNumber !Scientific
     deriving (Show, Eq)
 
+instance IsList UnresolvedValue where
+    type Item UnresolvedValue  = Expression
+    fromList = UArray . V.fromList
+    toList u = case u of
+                   UArray lst -> V.toList lst
+                   _ -> [Terminal u]
 
 instance IsString UnresolvedValue where
     fromString = UString . T.pack
@@ -198,6 +206,13 @@ data Expression
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
     | Terminal !UnresolvedValue -- ^ Terminal object contains no expression
     deriving (Eq, Show)
+
+instance IsList Expression where
+    type Item Expression = Expression
+    fromList = Terminal . fromList
+    toList u = case u of
+                   Terminal t -> toList t
+                   _ -> [u]
 
 instance Num Expression where
     (+) = Addition
