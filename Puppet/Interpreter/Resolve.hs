@@ -49,6 +49,7 @@ import           Data.ByteArray (convert)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base16           as B16
 import           Data.CaseInsensitive             (mk)
+import           Data.Char                        (isAlphaNum)
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.Maybe                       (mapMaybe,fromMaybe)
@@ -447,6 +448,21 @@ resolveFunction' "split" [psrc, psplt] = do
         Right x -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
 resolveFunction' "sha1" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha1 . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
+resolveFunction' "shellquote" args = do
+    sargs <- forM args $ \arg -> case arg of
+                                     PArray vals -> mapM resolvePValueString vals
+                                     _ -> V.singleton <$> resolvePValueString arg
+    let escape str | T.all isSafe str            = str
+                   | not (T.any isDangerous str) = between "\"" str
+                   | T.any (== '\'') str          = between "\"" (T.concatMap escapeDangerous str)
+                   | otherwise                   = between "'" str
+        isSafe x = isAlphaNum x || x `elem` ("@%_+=:,./-" :: String)
+        isDangerous x = x `elem` ("!\"`$\\" :: String)
+        escapeDangerous x | isDangerous x = T.snoc "\\" x
+                          | otherwise = T.singleton x
+        between c s = c <> s <> c
+    return $ PString $ T.unwords $ V.toList $ fmap escape $ mconcat sargs
+
 resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha1 . sha1  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
 resolveFunction' "file" args = mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . singleton . ReadFile

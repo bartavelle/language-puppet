@@ -6,6 +6,7 @@
 * `merge` now works with an arbitrary number of hashes
 * Added the `hash` function
 * puppet native type `file` resource accept selinux parameters
+* Added the `shellquote` function
 
 ## Bugs fixed
 

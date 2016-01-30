@@ -9,4 +9,4 @@ main = hspec spec
 spec :: Spec
 spec = do
   describe "Interpreter"  InterpreterSpec.collectorSpec
-  describe "Function/shellquote"  Function.ShellquoteSpec.spec
+  describe "The shellquote function"  Function.ShellquoteSpec.spec

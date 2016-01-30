@@ -24,7 +24,7 @@ evalArgs = dummyEval . resolveValue . UFunctionCall "shellquote" . V.fromList
                       _ -> Left ("Expected a string, not " <> PrettyError (pretty pv))
 
 spec :: Spec
-spec = describe "the shellquote function" $ do
+spec = do
     let check args res = case evalArgs args of
                              Left rr -> expectationFailure (show rr)
                              Right res' -> res' `shouldBe` res
@@ -34,7 +34,7 @@ spec = describe "the shellquote function" $ do
               "foo bar@example.com localhost:/dev/null xyzzy+-4711,23"
     it "should quote unsafe characters" $
         check ["/etc/passwd ", "(ls)", "*", "[?]", "'&'"]
-              "/etc/passwd \" \"(ls)\" \"*\" \"[?]\" \"'&'\""
+              "\"/etc/passwd \" \"(ls)\" \"*\" \"[?]\" \"'&'\""
     it "should deal with double quotes" $
         check ["\"foo\"bar\""]
               "'\"foo\"bar\"'"
