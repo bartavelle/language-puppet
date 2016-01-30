@@ -175,6 +175,7 @@ Test-Suite spec
   build-depends:  language-puppet,base,strict-base-types,lens,text,hspec,unordered-containers,megaparsec,vector,scientific
   other-modules:  Function.ShellquoteSpec
                   Function.SizeSpec
+                  Function.MergeSpec
                   InterpreterSpec
   main-is:        Spec.hs
 
