@@ -281,7 +281,7 @@ merge xs | length xs < 2 = throwPosError "merge(): Expects at least two hashes"
          | otherwise = let hashcontents = mapM (preview _PHash) xs
                        in  case hashcontents of
                                Nothing -> throwPosError "merge(): Expects hashes"
-                               Just hashes -> return $ PHash (mconcat hashes)
+                               Just hashes -> return $ PHash (getDual $ foldMap Dual hashes)
 
 pick :: [PValue] -> InterpreterMonad PValue
 pick [] = throwPosError "pick(): must receive at least one non empty value"
