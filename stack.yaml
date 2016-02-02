@@ -4,4 +4,4 @@ packages:
 extra-deps:
 - hruby-0.3.2
 - megaparsec-4.1.1
-resolver: lts-4.0
+resolver: lts-5.1
