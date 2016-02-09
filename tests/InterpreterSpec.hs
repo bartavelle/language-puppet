@@ -1,4 +1,4 @@
-module InterpreterSpec (collectorSpec, main) where
+module InterpreterSpec (collectorSpec, classIncludeSpec, main) where
 
 import           Control.Lens
 import           Data.HashMap.Strict      (HashMap)
@@ -57,8 +57,18 @@ collectorSpec = do
     it "should override the 'groups' attributes from the user resource" $
       getResAttr (computeWith AssignArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["docker"])
 
+classIncludeSpec :: Spec
+classIncludeSpec = do
+    let compute i = pureCompute "dummy" i ^. _1
+    describe "Multiple loading" $ do
+        it "should work when using several include statements" $ compute (T.unlines [ "node 'dummy' {",  "include foo",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
+        it "should work when using class before include" $ compute (T.unlines [ "node 'dummy' {",  "class { 'foo': }",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
+        it "should work when using include before class" $ compute (T.unlines [ "node 'dummy' {",  "include foo", "class { 'foo': }", "}" ]) `shouldSatisfy` (has _Right)
+
 main :: IO ()
-main = hspec collectorSpec
+main = hspec $ do
+    describe "Collectors" collectorSpec
+    describe "Class inclusion" classIncludeSpec
 
 -- | Given a node and raw text input to be parsed, compute the manifest in a dummy setting.
 pureCompute :: NodeName
@@ -71,7 +81,9 @@ pureCompute node input =
       hush = either (error . show) id
 
       getStatement :: NodeName -> Text -> HashMap (TopLevelType, NodeName) Statement
-      getStatement n i = HM.singleton (TopNode, n) (nodeStatement i)
+      getStatement n i = HM.fromList [ ((TopNode, n), nodeStatement i)
+                                     , ((TopClass, "foo"), ClassDeclaration $ ClassDecl mempty mempty mempty mempty (initialPPos "dummy"))
+                                     ]
 
       nodeStatement :: Text -> Statement
       nodeStatement i = V.head $ hush $ parse (puppetParser <* eof) "test" i

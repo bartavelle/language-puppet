@@ -11,7 +11,9 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Interpreter"  InterpreterSpec.collectorSpec
+  describe "Interpreter" $ do
+    describe "Collector" InterpreterSpec.collectorSpec
+    describe "Class include" InterpreterSpec.classIncludeSpec
   describe "The shellquote function" Function.ShellquoteSpec.spec
   describe "stdlib functions" $ do
       describe "The size function" Function.SizeSpec.spec
