@@ -609,13 +609,11 @@ loadClass name loadedfrom params incltype = do
     p <- use curPos
     -- check if the class has already been loaded
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
-    use (loadedClasses . at name') >>= \case
-        Just (loadedincltype :!: pp) -> do
-            when ((incltype == ClassResourceLike) || (loadedincltype == ClassResourceLike)) $
-                throwPosError ("Can't include class" <+> ttext name' <+> "twice when using the resource-like syntax (first occurence at"
-                               <+> showPPos pp <> ")")
-            -- already loaded, go on
-            return []
+    preuse (loadedClasses . ix name' . _2) >>= \case
+        Just pp -> case incltype of
+            ClassIncludeLike -> return []
+            _ -> throwPosError ("Can't include class" <+> ttext name' <+> "twice when using the resource-like syntax (first occurence at"
+                           <+> showPPos pp <> ")")
         Nothing -> do
             loadedClasses . at name' ?= (incltype :!: p)
             -- load the actual class, note we are not changing the current position right now
@@ -762,9 +760,7 @@ registerResource t rn arg vrt p = do
         "class" -> {-# SCC "rrClass" #-} do
             definedResources . at resid ?= r
             let attrs = r ^. rattributes
-            fmap (r:) $ loadClass rn S.Nothing attrs $ if HM.null attrs
-                                                           then ClassIncludeLike
-                                                           else ClassResourceLike
+            fmap (r:) $ loadClass rn S.Nothing attrs ClassResourceLike
         _ -> {-# SCC "rrGeneralCase" #-}
             use (definedResources . at resid) >>= \case
                 Just otheres -> throwPosError ("Resource" <+> pretty resid <+> "already defined:" </>

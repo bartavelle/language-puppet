@@ -63,7 +63,7 @@ classIncludeSpec = do
     describe "Multiple loading" $ do
         it "should work when using several include statements" $ compute (T.unlines [ "node 'dummy' {",  "include foo",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
         it "should work when using class before include" $ compute (T.unlines [ "node 'dummy' {",  "class { 'foo': }",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
-        it "should work when using include before class" $ compute (T.unlines [ "node 'dummy' {",  "include foo", "class { 'foo': }", "}" ]) `shouldSatisfy` (has _Right)
+        it "should fail when using include before class" $ compute (T.unlines [ "node 'dummy' {",  "include foo", "class { 'foo': }", "}" ]) `shouldSatisfy` (has _Left)
 
 main :: IO ()
 main = hspec $ do
