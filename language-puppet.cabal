@@ -44,6 +44,7 @@ library
                        , Puppet.Interpreter.Pure
                        , Puppet.Interpreter.Resolve
                        , Puppet.Interpreter.Types
+                       , Puppet.Interpreter.Utils
                        , Puppet.Lens
                        , Puppet.NativeTypes
                        , Puppet.NativeTypes.Helpers
@@ -61,7 +62,6 @@ library
   other-modules:         Erb.Compute
                        , Paths_language_puppet
                        , Puppet.Interpreter.RubyRandom
-                       , Puppet.Interpreter.Utils
                        , Puppet.Manifests
                        , Puppet.NativeTypes.Concat
                        , Puppet.NativeTypes.Cron
@@ -177,6 +177,7 @@ Test-Suite spec
                   Function.SizeSpec
                   Function.MergeSpec
                   Function.EachSpec
+                  Function.AssertPrivateSpec
                   InterpreterSpec
                   Helpers
   main-is:        Spec.hs

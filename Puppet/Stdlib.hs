@@ -28,6 +28,7 @@ import           Puppet.PP
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
 stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
+                              , ("assert_private", assertPrivate)
                               , ("any2array", any2array)
                               , ("base64", base64)
                               , singleArgument "bool2num" bool2num
@@ -105,6 +106,22 @@ puppetAbs :: PValue -> InterpreterMonad PValue
 puppetAbs y = case y ^? _Number of
                   Just x -> return $ _Number # abs x
                   Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
+
+assertPrivate :: [PValue] -> InterpreterMonad PValue
+assertPrivate args = case args of
+                         [] -> go Nothing
+                         [t] -> resolvePValueString t >>= go . Just
+                         _ -> throwPosError "assert_private: expects no or a single string argument"
+    where
+        go msg = do
+            scp <- use curScope
+            case scp of
+                funScope : callerScope : _ ->
+                    let takeModule = T.takeWhile (/= ':') . moduleName
+                    in  if takeModule funScope == takeModule callerScope
+                            then return PUndef
+                            else throwPosError $ maybe ("assert_private: failed: " <> pretty funScope <> " is private") ttext msg
+                _ -> return PUndef
 
 any2array :: [PValue] -> InterpreterMonad PValue
 any2array [PArray v] = return (PArray v)

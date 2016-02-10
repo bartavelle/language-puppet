@@ -2,7 +2,8 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE RankNTypes            #-}
 
--- | The module should not depend on the Interpreter module
+-- | The module should not depend on the Interpreter module. It is an
+-- internal module and should not be used if expecting a stable API.
 module Puppet.Interpreter.Utils where
 
 import           Control.Lens               hiding (Strict)
@@ -69,6 +70,14 @@ scopeName (ContImported x  ) = "::imported::" `T.append` scopeName x
 scopeName (ContClass x     ) = x
 scopeName (ContDefine dt dn _) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
 scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
+
+moduleName :: CurContainerDesc -> Text
+moduleName (ContRoot        ) = "::"
+moduleName (ContImported x  ) = moduleName x
+moduleName (ContClass x     ) = x
+moduleName (ContDefine dt _ _) = dt
+moduleName (ContImport _ x  ) = moduleName x
+
 
 getScope :: InterpreterMonad CurContainerDesc
 {-# INLINABLE getScope #-}

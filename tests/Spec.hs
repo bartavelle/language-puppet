@@ -5,6 +5,7 @@ import qualified Function.ShellquoteSpec
 import qualified Function.SizeSpec
 import qualified Function.MergeSpec
 import qualified Function.EachSpec
+import qualified Function.AssertPrivateSpec
 
 main :: IO ()
 main = hspec spec
@@ -19,3 +20,4 @@ spec = do
       describe "The size function" Function.SizeSpec.spec
       describe "The merge function" Function.MergeSpec.spec
       describe "The each function" Function.EachSpec.spec
+      describe "The assert_private function" Function.AssertPrivateSpec.spec
