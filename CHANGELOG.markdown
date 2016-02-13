@@ -3,6 +3,7 @@
 ## New features
 
 * `assert_private` function
+* `join_keys_to_values` function
 
 # v1.1.5 (2016/02/02)
 

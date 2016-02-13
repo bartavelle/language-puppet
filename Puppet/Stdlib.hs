@@ -55,6 +55,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "is_hash" isHash
                               , singleArgument "is_string" isString
                               , ("join", puppetJoin)
+                              , ("join_keys_to_values", joinKeysToValues)
                               , singleArgument "keys" keys
                               , ("has_key", hasKey)
                               , ("lstrip", stringArrayFunction T.stripStart)
@@ -277,6 +278,16 @@ puppetJoin [PArray rr, PString interc] = do
     return (PString (T.intercalate interc rrt))
 puppetJoin [_,_] = throwPosError "join(): expected an array of strings, and a string"
 puppetJoin _ = throwPosError "join(): expected two arguments"
+
+joinKeysToValues :: [PValue] -> InterpreterMonad PValue
+joinKeysToValues [PHash h, separator] = do
+    ssep <- resolvePValueString separator
+    fmap (PArray . V.fromList) $ forM (itoList h) $ \(k,v) -> do
+        sv <- case v of
+                  PUndef -> return ""
+                  _ -> resolvePValueString v
+        return  (PString (k <> ssep <> sv))
+joinKeysToValues _ = throwPosError "join_keys_to_values(): expects 2 arguments, an hash and a string"
 
 keys :: PValue -> InterpreterMonad PValue
 keys (PHash h) = return (PArray $ V.fromList $ map PString $ HM.keys h)

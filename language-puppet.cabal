@@ -178,6 +178,7 @@ Test-Suite spec
                   Function.MergeSpec
                   Function.EachSpec
                   Function.AssertPrivateSpec
+                  Function.JoinKeysToValuesSpec
                   InterpreterSpec
                   Helpers
   main-is:        Spec.hs
