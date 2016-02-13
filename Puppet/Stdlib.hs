@@ -28,53 +28,121 @@ import           Puppet.PP
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
 stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
-                              , ("assert_private", assertPrivate)
                               , ("any2array", any2array)
+                              , ("assert_private", assertPrivate)
                               , ("base64", base64)
+                              -- basename
                               , singleArgument "bool2num" bool2num
+                              -- bool2str
+                              -- camelcase
                               , ("capitalize", stringArrayFunction (safeEmptyString (\t -> T.cons (toUpper (T.head t)) (T.tail t))))
+                              -- ceiling
                               , ("chomp", stringArrayFunction (T.dropWhileEnd (\c -> c == '\n' || c == '\r')))
                               , ("chop", stringArrayFunction (safeEmptyString T.init))
+                              -- clamp
                               , ("concat", puppetConcat)
+                              -- convert_base
                               , ("count", puppetCount)
+                              -- deep_merge
                               , ("defined_with_params", const (throwPosError "defined_with_params can't be implemented with language-puppet"))
                               , ("delete", delete)
                               , ("delete_at", deleteAt)
                               , singleArgument "delete_undef_values" deleteUndefValues
+                              -- delete_values
+                              -- difference
+                              -- dirname
+                              -- dos2unix
                               , ("downcase", stringArrayFunction T.toLower)
                               , singleArgument "empty" _empty
+                              -- ensure_packages
+                              -- ensure_resource
                               , singleArgument "flatten" flatten
-                              , singleArgument "getvar"  getvar
+                              -- floor
+                              -- fqdn_rand_string
+                              -- fqdn_rotate
+                              -- get_module_path
                               , ("getparam", const $ throwPosError "The getparam function is uncool and shall not be implemented in language-puppet")
+                              , singleArgument "getvar"  getvar
                               , ("grep", _grep)
                               , ("hash", hash)
+                              -- has_interface_with
+                              -- has_ip_address
+                              -- has_ip_network
+                              , ("has_key", hasKey)
+                              -- intersection
+                              -- is_absolute_path
                               , singleArgument "is_array" isArray
-                              , singleArgument "is_domain_name" isDomainName
-                              , singleArgument "is_integer" isInteger
                               , singleArgument "is_bool" isBool
+                              , singleArgument "is_domain_name" isDomainName
+                              -- is_float
+                              -- is_function_available
                               , singleArgument "is_hash" isHash
+                              , singleArgument "is_integer" isInteger
+                              -- is_ip_address
+                              -- is_mac_address
+                              -- is_numeric
                               , singleArgument "is_string" isString
                               , ("join", puppetJoin)
                               , ("join_keys_to_values", joinKeysToValues)
                               , singleArgument "keys" keys
-                              , ("has_key", hasKey)
+                              -- load_module_metadata
+                              -- loadyaml
                               , ("lstrip", stringArrayFunction T.stripStart)
-                              , ("merge", merge)
+                              -- max
                               , ("member", member)
+                              , ("merge", merge)
+                              -- min
+                              -- num2bool
+                              -- parsejson
+                              -- parseyaml
                               , ("pick", pick)
                               , ("pick_default", pickDefault)
+                              -- prefix
+                              -- private
+                              -- pw_hash
+                              -- range
+                              -- reject
+                              -- reverse
                               , ("rstrip", stringArrayFunction T.stripEnd)
+                              -- seeded_rand
+                              -- shuffle
                               , singleArgument "size" size
+                              -- sort
+                              -- squeeze
                               , singleArgument "str2bool" str2Bool
+                              -- strtosaltedshar512
+                              -- strftime
                               , ("strip", stringArrayFunction T.strip)
+                              -- suffix
+                              -- swapcase
+                              -- time
+                              -- to_bytes
+                              -- try_get_value
+                              -- type3x
+                              -- type
+                              -- union
+                              -- unique
+                              -- unix2dos
                               , ("upcase", stringArrayFunction T.toUpper)
+                              -- uriescape
                               , ("validate_absolute_path", validateAbsolutePath)
                               , ("validate_array", validateArray)
+                              -- validate_augeas
                               , ("validate_bool", validateBool)
+                              -- validate_cmd
                               , ("validate_hash", validateHash)
+                              -- validate_integer
+                              -- validate_ip_address
+                              -- validate_ipv4_address
+                              -- validate_ipv6_address
+                              -- validate_numeric
                               , ("validate_re", validateRe)
+                              -- validate_slength
                               , ("validate_string", validateString)
+                              -- validate_x509_rsa_key_pair
+                              -- values_at
                               , singleArgument "values" pvalues
+                              -- zip
                               ]
 
 singleArgument :: T.Text -> (PValue -> InterpreterMonad PValue) -> (T.Text, [PValue] -> InterpreterMonad PValue )
