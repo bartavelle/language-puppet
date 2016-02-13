@@ -16,10 +16,11 @@ spec = do
   describe "Interpreter" $ do
     describe "Collector" InterpreterSpec.collectorSpec
     describe "Class include" InterpreterSpec.classIncludeSpec
-  describe "The shellquote function" Function.ShellquoteSpec.spec
+  describe "Puppet functions" $ do
+    describe "The shellquote function" Function.ShellquoteSpec.spec
+    describe "The each function" Function.EachSpec.spec
   describe "stdlib functions" $ do
-      describe "The assert_private function" Function.AssertPrivateSpec.spec
-      describe "The each function" Function.EachSpec.spec
-      describe "The join_keys_to_values function" Function.JoinKeysToValuesSpec.spec
-      describe "The merge function" Function.MergeSpec.spec
-      describe "The size function" Function.SizeSpec.spec
+    describe "The assert_private function" Function.AssertPrivateSpec.spec
+    describe "The join_keys_to_values function" Function.JoinKeysToValuesSpec.spec
+    describe "The merge function" Function.MergeSpec.spec
+    describe "The size function" Function.SizeSpec.spec
