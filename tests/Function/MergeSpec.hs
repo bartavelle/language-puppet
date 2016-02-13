@@ -11,7 +11,8 @@ import           Data.Text (Text)
 import           Puppet.Interpreter.Pure
 import           Puppet.Interpreter.Types
 import           Puppet.PP
-import           Puppet.Stdlib
+
+import           Helpers
 
 main :: IO ()
 main = hspec spec
@@ -23,10 +24,7 @@ evalArgs = dummyEval
                       _ -> Left ("Expected a string, not " <> PrettyError (pretty pv))
 
 spec :: Spec
-spec = do
-    mergeFunc <- case HM.lookup "merge" stdlibFunctions of
-                    Just f -> return f
-                    Nothing -> fail "Don't know the size function"
+spec = withStdlibFunction "merge" $ \mergeFunc -> do
     let evalArgs' = evalArgs . mergeFunc
     let check args res = case evalArgs' (map PHash args) of
                              Left rr -> expectationFailure (show rr)

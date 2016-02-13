@@ -4,6 +4,7 @@ module Helpers ( compileCatalog
                , getResource
                , getAttribute
                , spretty
+               , withStdlibFunction
                ) where
 
 import           Puppet.Interpreter (computeCatalog)
@@ -12,11 +13,13 @@ import           Puppet.Interpreter.Types
 import           Puppet.Parser
 import           Puppet.Parser.Types
 import           Puppet.PP
+import           Puppet.Stdlib
 
 import           Control.Lens
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Maybe.Strict as S
 import           Data.Text (Text, unpack)
+import           Test.Hspec
 
 compileCatalog :: Monad m => Text -> m (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
 compileCatalog input = do
@@ -40,4 +43,10 @@ getAttribute :: Monad m => Text -> Resource -> m PValue
 getAttribute att res = case res ^? rattributes . ix att of
                            Nothing -> fail ("Unknown attribute: " ++ unpack att)
                            Just x -> return x
+
+withStdlibFunction :: Text -> ( ([PValue] -> InterpreterMonad PValue) -> Spec ) -> Spec
+withStdlibFunction fname testsuite =
+    case stdlibFunctions ^? ix fname of
+        Just f -> testsuite f
+        Nothing -> fail ("Don't know this function: " ++ show fname)
 

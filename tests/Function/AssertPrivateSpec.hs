@@ -12,8 +12,9 @@ import           Puppet.Interpreter.Pure
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils (initialState)
 import           Puppet.Interpreter.IO (interpretMonad)
-import           Puppet.Stdlib
 import           Puppet.Parser.Types
+
+import           Helpers
 
 main :: IO ()
 main = hspec spec
@@ -30,10 +31,7 @@ evalWithScope apFunc callerScope moduleScope = (_Left %~ show) . view _1 . ctxEv
 
 
 spec :: Spec
-spec = do
-    apFunc <- case stdlibFunctions ^? ix "assert_private" of
-                  Just f -> return f
-                  Nothing -> fail "Don't know the size function"
+spec = withStdlibFunction "assert_private" $ \apFunc -> do
     let errorWith a b = case a of
                             Right x -> fail ("Should have failed, got this instead: " ++ show x)
                             Left rr -> rr `shouldContain` b

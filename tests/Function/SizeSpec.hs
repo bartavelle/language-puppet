@@ -4,14 +4,14 @@ module Function.SizeSpec (spec, main) where
 import           Test.Hspec
 
 import           Control.Monad
-import qualified Data.HashMap.Strict as HM
 import           Data.Monoid
 import           Data.Scientific
 
 import           Puppet.Interpreter.Pure
 import           Puppet.Interpreter.Types
 import           Puppet.PP
-import           Puppet.Stdlib
+
+import           Helpers
 
 main :: IO ()
 main = hspec spec
@@ -23,10 +23,7 @@ evalArgs = dummyEval
                       _ -> Left ("Expected a string, not " <> PrettyError (pretty pv))
 
 spec :: Spec
-spec = do
-    sizeFunc <- case HM.lookup "size" stdlibFunctions of
-                    Just f -> return f
-                    Nothing -> fail "Don't know the size function"
+spec = withStdlibFunction "size" $ \sizeFunc -> do
     let evalArgs' = evalArgs . sizeFunc
     let check args res = case evalArgs' args of
                              Left rr -> expectationFailure (show rr)
