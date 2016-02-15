@@ -1,6 +1,7 @@
 import Test.Hspec
 
 import qualified InterpreterSpec
+import qualified Interpreter.CollectorSpec
 import qualified Function.ShellquoteSpec
 import qualified Function.SizeSpec
 import qualified Function.MergeSpec
@@ -16,6 +17,7 @@ spec = do
   describe "Interpreter" $ do
     describe "Collector" InterpreterSpec.collectorSpec
     describe "Class include" InterpreterSpec.classIncludeSpec
+    describe "Collector (puppet tests)" Interpreter.CollectorSpec.spec
   describe "Puppet functions" $ do
     describe "The shellquote function" Function.ShellquoteSpec.spec
     describe "The each function" Function.EachSpec.spec

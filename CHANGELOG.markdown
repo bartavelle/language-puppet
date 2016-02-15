@@ -1,9 +1,11 @@
 # v1.1.6 (TBA)
 
 ## New features
-
 * `assert_private` function
 * `join_keys_to_values` function
+
+## Bugs Fixed
+* Several resource collector misbehaviour
 
 # v1.1.5 (2016/02/02)
 

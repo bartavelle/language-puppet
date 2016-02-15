@@ -50,6 +50,7 @@ import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base16           as B16
 import           Data.CaseInsensitive             (mk)
 import           Data.Char                        (isAlphaNum)
+import qualified Data.Foldable                    as F
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import           Data.Maybe                       (mapMaybe,fromMaybe)
@@ -572,7 +573,6 @@ checkSearchExpression :: RSearchExpression -> Resource -> Bool
 checkSearchExpression RAlwaysTrue _ = True
 checkSearchExpression (RAndSearch a b) r = checkSearchExpression a r && checkSearchExpression b r
 checkSearchExpression (ROrSearch a b) r = checkSearchExpression a r || checkSearchExpression b r
-checkSearchExpression (RNonEqualitySearch a b) r = not (checkSearchExpression (REqualitySearch a b) r)
 checkSearchExpression (REqualitySearch "tag" (PString s)) r = r ^. rtags . contains s
 checkSearchExpression (REqualitySearch "tag" _) _ = False
 checkSearchExpression (REqualitySearch "title" v) r =
@@ -581,9 +581,18 @@ checkSearchExpression (REqualitySearch "title" v) r =
                          Just a -> puppetEquality v a
                          Nothing -> False
     in nameequal || aliasequal
-checkSearchExpression (REqualitySearch attributename v) r = case r ^. rattributes . at attributename of
-                                                                Nothing -> False
-                                                                Just x -> puppetEquality x v
+checkSearchExpression (REqualitySearch attributename v) r =
+    case r ^. rattributes . at attributename of
+        Nothing -> False
+        Just (PArray x) -> F.any (flip puppetEquality v) x
+        Just x -> puppetEquality x v
+checkSearchExpression (RNonEqualitySearch attributename v) r
+    | attributename  == "tag" = True
+    | attributename  == "title" = not (checkSearchExpression (REqualitySearch attributename v) r)
+    | otherwise = case r ^. rattributes . at attributename of
+        Nothing -> True
+        Just (PArray x) -> not (F.all (flip puppetEquality v) x)
+        Just x -> not (puppetEquality x v)
 
 -- | Generates variable associations for evaluation of blocks. Each item
 -- corresponds to an iteration in the calling block.

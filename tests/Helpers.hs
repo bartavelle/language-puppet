@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Helpers ( compileCatalog
                , getCatalog
                , getResource
@@ -16,21 +17,22 @@ import           Puppet.PP
 import           Puppet.Stdlib
 
 import           Control.Lens
+import           Control.Monad.Except
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Maybe.Strict as S
 import           Data.Text (Text, unpack)
 import           Test.Hspec
 
-compileCatalog :: Monad m => Text -> m (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
+compileCatalog :: MonadError String m => Text -> m (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
 compileCatalog input = do
-    statements <- either (fail . show) return (runPParser "dummy" input)
+    statements <- either (throwError . show) return (runPParser "dummy" input)
     let nodename = "node.fqdn"
         sttmap = [( (TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos "dummy")) ) ]
         (res, finalState, _) = pureEval dummyFacts sttmap (computeCatalog nodename)
-    (catalog,em,exported,defResources) <- either (fail . show) return res
+    (catalog,em,exported,defResources) <- either (throwError . show) return res
     return (catalog,em,exported,defResources,finalState)
 
-getCatalog :: Monad m => Text -> m FinalCatalog
+getCatalog :: MonadError String m => Text -> m FinalCatalog
 getCatalog = fmap (view _1) . compileCatalog
 
 spretty :: Pretty a => a -> String

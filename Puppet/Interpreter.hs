@@ -43,7 +43,6 @@ import           Puppet.Parser.Utils
 import           Puppet.PP
 import           Puppet.Utils
 
-
 {-| Call the operational 'interpretMonad' function to compute the catalog.
     Returns either an error, or a tuple containing all the resources,
     dependency map, exported resources, and defined resources alongside with
@@ -343,7 +342,7 @@ realize rs = do
             when (rmod ^. rmModifierType == ModifierMustMatch && null filtrd) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod <> ",no matching resource was found.")))
             return result
         equalModifier (ResourceModifier a1 b1 c1 d1 _ e1) (ResourceModifier a2 b2 c2 d2 _ e2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
-    result <- use resMod >>= foldM mutate (rma :!: mempty) . nubBy equalModifier
+    result <- use resMod >>= foldM mutate (rma :!: mempty) . reverse . nubBy equalModifier
     resMod .= []
     return result
 
@@ -380,7 +379,8 @@ evaluateStatement r@(DefineDeclaration (DefineDecl dname _ _ _)) =
                else nestedDeclarations . at (TopDefine, scp <> "::" <> dname) ?= r >> return []
 evaluateStatement r@(ResourceCollectionDeclaration (ResCollDecl ct rtype searchexp mods p)) = do
     curPos .= p
-    unless (isEmpty mods || ct == Collector) (throwPosError ("It doesnt seem possible to amend attributes with an exported resource collector:" </> pretty r))
+    unless (isEmpty mods || ct == Collector) (throwPosError ("It doesn't seem possible to amend attributes with an exported resource collector:" </> pretty r))
+    when (rtype == "class") (throwPosError "Classes cannot be collected")
     rsearch <- resolveSearchExpression searchexp
     let et = case ct of
                  Collector         -> RealizeVirtual
