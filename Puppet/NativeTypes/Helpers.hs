@@ -10,6 +10,7 @@ module Puppet.NativeTypes.Helpers
     , rarray
     , string
     , strings
+    , string_s
     , noTrailingSlash
     , fullyQualified
     , fullyQualifieds
@@ -114,6 +115,13 @@ string param res = case res ^. rattributes . at param of
 
 strings :: T.Text -> NativeTypeValidate
 strings param = runarray param string'
+
+-- | Validates a string or an array of strings
+string_s :: T.Text -> NativeTypeValidate
+string_s param res = case res ^. rattributes . at param of
+                         Nothing -> Right res
+                         Just (PArray _) -> strings param res
+                         Just _ -> string param res
 
 string' :: T.Text -> PValue -> NativeTypeValidate
 string' param rev res = case rev of
