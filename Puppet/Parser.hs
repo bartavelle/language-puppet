@@ -335,7 +335,7 @@ expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/que
                   ]
 
 indexLookupChain :: Parser (Expression -> Expression)
-indexLookupChain = chainl1 checkLookup (return (flip (.)))
+indexLookupChain = foldr1 (flip (.)) <$> some checkLookup
     where
         checkLookup = flip Lookup <$> between (operator "[") (operator "]") expression
 
