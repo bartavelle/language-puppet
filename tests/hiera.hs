@@ -9,11 +9,13 @@ import Test.HUnit
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
+import qualified System.Log.Logger as LOG
 
 import Puppet.Interpreter.Types
 
 main :: IO ()
 main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
+    LOG.updateGlobalLogger hieraLoggerName (LOG.setLevel LOG.ERROR)
     let ndname = "node.site.com"
         vars = HM.fromList [ ("::environment", "production")
                            , ("::fqdn"       , ndname)
