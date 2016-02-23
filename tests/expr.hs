@@ -1,8 +1,5 @@
 module Main where
 
-import           Control.Arrow               (first)
-import           Control.Monad
-import           Data.Maybe
 import qualified Data.Text                   as T
 import           Data.Tuple.Strict
 import qualified Data.Vector                 as V
@@ -10,6 +7,9 @@ import           Puppet.Parser
 import           Puppet.Parser.PrettyPrinter ()
 import           Puppet.Parser.Types
 import           Text.Megaparsec
+
+import           Test.Hspec
+import           Test.Hspec.Megaparsec
 
 testcases :: [(T.Text, Expression)]
 testcases =
@@ -29,13 +29,6 @@ testcases =
     ]
 
 main :: IO ()
-main = do
-    let testres = map (first (parse (expression <* eof) "tests")) testcases
-        isFailure (Left x, _) = Just (show x)
-        isFailure (Right x, e) = if x == e
-                                     then Nothing
-                                     else Just ("Expected: " ++ show e ++ "\nActual: " ++ show x)
-        bads = mapMaybe isFailure testres
-    unless (null bads) $ do
-        mapM_ putStrLn bads
-        error "failed"
+main = hspec $ describe "Expression parser" $ mapM_ test testcases
+    where
+        test (t,e) = it ("should parse " ++ show t) $ parse (expression <* eof) "" t `shouldParse` e
