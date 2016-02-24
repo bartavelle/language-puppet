@@ -10,7 +10,6 @@ nativeNotify = ("notify", nativetypemethods parameterfunctions return)
 
 parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
-    [("message"   , [string_s])
+    [("message"   , [])
     ,("withpath"  , [string, defaultvalue "false", values ["true","false"]])
     ]
-
