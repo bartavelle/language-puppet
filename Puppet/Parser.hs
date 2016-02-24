@@ -413,32 +413,24 @@ ifCondition = do
 
 caseCondition :: Parser ConditionalDecl
 caseCondition = do
-    let puppetRegexpCase = do
-            reg <- termRegexp
-            void $ symbolic ':'
-            stmts <- braces statementList
-            return [ (Terminal (URegexp reg), stmts) ]
-        defaultCase = do
-            try (reserved "default")
-            void $ symbolic ':'
-            stmts <- braces statementList
-            return [ (Terminal (UBoolean True), stmts) ]
-        puppetCase = do
-            compares <- expression `sepBy1` comma
-            void $ symbolic ':'
-            stmts <- braces statementList
-            return $ map (,stmts) compares
-        condsToExpression e (x, stmts) = f x :!: stmts
+    let puppetRegexpCase = Terminal . URegexp <$> termRegexp
+        defaultCase = Terminal (UBoolean True) <$ try (reserved "default")
+        matchesToExpression e (x, stmts) = f x :!: stmts
             where f = case x of
-                          (Terminal (UBoolean _))-> id
-                          (Terminal (URegexp _)) -> RegexMatch e
-                          _                      -> Equal e
+                          (Terminal (UBoolean _)) -> id
+                          (Terminal (URegexp _))  -> RegexMatch e
+                          _                       -> Equal e
+        cases = do
+            matches <- (puppetRegexpCase <|> defaultCase <|> expression) `sepBy1` comma
+            void $ symbolic ':'
+            stmts <- braces statementList
+            return $ map (,stmts) matches
     p <- getPosition
     reserved "case"
     expr1 <- expression
-    condlist <- braces (some (puppetRegexpCase <|> defaultCase <|> puppetCase))
+    condlist <- concat <$> braces (some cases)
     pe <- getPosition
-    return (ConditionalDecl (V.fromList (map (condsToExpression expr1) (concat condlist))) (p :!: pe) )
+    return (ConditionalDecl (V.fromList (map (matchesToExpression expr1) condlist)) (p :!: pe) )
 
 data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
                      | EndOfChain a

@@ -6,6 +6,7 @@
 
 ## Bugs Fixed
 * Several resource collector misbehaviour
+* Case expressions can now have multiple matchers of any kind as the same selector
 
 # v1.1.5 (2016/02/02)
 
