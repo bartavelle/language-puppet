@@ -1,4 +1,4 @@
-# v1.1.6 (TBA)
+# v1.1.5.1 (2016/03/14)
 
 ## New features
 * `assert_private` function
