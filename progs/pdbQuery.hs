@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs      #-}
+{-# LANGUAGE RecordWildCards #-}
 module Main where
 
 import           Puppet.Interpreter.Types
@@ -68,7 +69,7 @@ delnodeparser :: Parser Command
 delnodeparser = DeactivateNode <$> O.argument auto mempty
 
 createtestdb :: Parser Command
-createtestdb = CreateTestDB <$> O.argument auto mempty
+createtestdb = CreateTestDB <$> O.argument str (metavar "FILE")
 
 addfacts :: Parser Command
 addfacts = AddFacts <$> O.argument auto mempty
@@ -90,16 +91,16 @@ runCheck :: Show r => String -> EitherT r IO a -> IO a
 runCheck s = runEitherT >=> checkError s
 
 run :: Options -> IO ()
-run cmdl = do
-    epdbapi <- case (_pdbloc cmdl, _pdbtype cmdl) of
+run Options{..} = do
+    epdbapi <- case (_pdbloc, _pdbtype) of
                    (Just l, PDBRemote) -> pdbConnect $ either error id $ parseBaseUrl l
                    (Just l, PDBTest)   -> loadTestDB l
                    (_, x)              -> getDefaultDB x
     pdbapi <- case epdbapi of
                   Left r -> error (show r)
                   Right x -> return x
-    case _pdbcmd cmdl of
-        DumpFacts -> if _pdbtype cmdl == PDBDummy
+    case _pdbcmd of
+        DumpFacts -> if _pdbtype == PDBDummy
                          then puppetDBFacts "dummy"  pdbapi >>= mapM_ print . HM.toList
                          else do
                              allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
@@ -111,7 +112,7 @@ run cmdl = do
                              runCheck "commit db" (commitDB tmpdb)
         DumpNodes -> runEitherT (getNodes pdbapi QEmpty) >>= display "dump nodes"
         AddFacts n -> do
-            unless (_pdbtype cmdl == PDBTest) (error "This option only works with the test puppetdb")
+            unless (_pdbtype == PDBTest) (error "This option only works with the test puppetdb")
             fcts <- puppetDBFacts n pdbapi
             runCheck "replace facts" (replaceFacts pdbapi [(n, fcts)])
             runCheck "commit db" (commitDB pdbapi)
