@@ -100,7 +100,7 @@ initialPPos x =
 -- | Generates a 'PPosition' based on a filename and line number.
 toPPos :: Text -> Int -> PPosition
 toPPos fl ln =
-    let p = newPos (T.unpack fl) ln (-1)
+    let p = newPos (T.unpack fl) (min 1 ln) 1
     in  (p :!: p)
 
 -- | High Order "lambdas"
