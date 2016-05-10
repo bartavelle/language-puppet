@@ -600,7 +600,7 @@ instance FromJSON Resource where
                 <*> pure [ContImport contimport ContRoot]
                 <*> pure virtuality
                 <*> v .: "tags"
-                <*> (toPPos <$> v .:? "sourcefile" .!= "null" <*> v .:? "sourceline" .!= 0)
+                <*> (toPPos <$> v .:? "sourcefile" .!= "null" <*> v .:? "sourceline" .!= 1)
                 <*> pure contimport
 
     parseJSON _ = mempty
