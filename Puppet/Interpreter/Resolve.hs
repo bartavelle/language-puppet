@@ -11,6 +11,7 @@ module Puppet.Interpreter.Resolve
       resolveExpression,
       resolveValue,
       resolvePValueString,
+      resolvePValueNumber,
       resolveExpressionString,
       resolveExpressionStrings,
       resolveFunction',

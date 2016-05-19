@@ -135,7 +135,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- validate_ip_address
                               -- validate_ipv4_address
                               -- validate_ipv6_address
-                              -- validate_numeric
+                              , ("validate_numeric", validateNumeric)
                               , ("validate_re", validateRe)
                               -- validate_slength
                               , ("validate_string", validateString)
@@ -436,6 +436,22 @@ validateHash x = mapM_ vb x >> return PUndef
     where
         vb (PHash _) = return ()
         vb y = throwPosError (pretty y <+> "is not a hash.")
+
+validateNumeric :: [PValue] -> InterpreterMonad PValue
+validateNumeric [] = throwPosError "validate_numeric: invalid arguments"
+validateNumeric (arr:extra) = do
+    (mn, mx) <- case extra of
+                    [mx'] -> (Nothing,) . Just <$> resolvePValueNumber mx'
+                    [PUndef, mi'] -> (,Nothing) . Just <$> resolvePValueNumber mi'
+                    [mx',mi'] -> (,) <$> (Just <$> resolvePValueNumber mi') <*> (Just <$> resolvePValueNumber mx')
+                    [] -> pure (Nothing, Nothing)
+                    _ -> throwPosError "validate_numeric: invalid arguments"
+    numbers <- case arr of
+        PArray lst -> mapM resolvePValueNumber (V.toList lst)
+        _ -> pure <$> resolvePValueNumber arr
+    forM_ mn $ \mn' -> unless (all (>= mn') numbers) $ throwPosError "validate_numeric: failure"
+    forM_ mx $ \mx' -> unless (all (<= mx') numbers) $ throwPosError "validate_numeric: failure"
+    return PUndef
 
 validateRe :: [PValue] -> InterpreterMonad PValue
 validateRe [str, reg] = validateRe [str, reg, PString "Match failed"]

@@ -1,3 +1,8 @@
+#v1.1.6 (TBD)
+
+## New features
+* `validate_numeric` function
+
 # v1.1.5.1 (2016/03/14)
 
 ## New features
