@@ -12,6 +12,7 @@ import           Control.Lens hiding (ignored)
 import           Control.Monad.Except
 import           Control.Monad.Operational        hiding (view)
 import           Control.Monad.Trans.Except
+import           Data.Char                        (isDigit)
 import qualified Data.Either.Strict               as S
 import           Data.Foldable                    (foldl', foldlM, toList)
 import qualified Data.Graph                       as G
@@ -358,6 +359,17 @@ fromAttributeDecls = foldM resolve mempty
                   pv <- resolveExpression v
                   return (acc & at k ?~ pv)
 
+saveCaptureVariables :: InterpreterMonad (HM.HashMap T.Text (Pair (Pair PValue PPosition) CurContainerDesc))
+saveCaptureVariables = do
+    scp <- getScopeName
+    vars <- use (scopes . ix scp . scopeVariables)
+    return $ HM.filterWithKey (\k _ -> T.all isDigit k) vars
+
+restoreCaptureVariables :: HM.HashMap T.Text (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
+restoreCaptureVariables vars = do
+    scp <- getScopeName
+    scopes . ix scp . scopeVariables %= HM.union vars . HM.filterWithKey (\k _ -> not (T.all isDigit k))
+
 evaluateStatement :: Statement -> InterpreterMonad [Resource]
 evaluateStatement r@(ClassDeclaration (ClassDecl cname _ _ _ _)) =
     if "::" `T.isInfixOf` cname
@@ -427,10 +439,11 @@ evaluateStatement (ConditionalDeclaration (ConditionalDecl conds p)) = do
     curPos .= p
     let checkCond [] = return []
         checkCond ((e :!: stmts) : xs) = do
+            sv <- saveCaptureVariables
             result <- pValue2Bool <$> resolveExpression e
             if result
-                then evaluateStatementsFoldable stmts
-                else checkCond xs
+                then evaluateStatementsFoldable stmts <* restoreCaptureVariables sv
+                else restoreCaptureVariables sv *> checkCond xs
     checkCond (toList conds)
 evaluateStatement (ResourceDefaultDeclaration (ResDefaultDecl rtype decls p)) = do
     curPos .= p
@@ -747,7 +760,7 @@ registerResource t rn arg vrt p = do
         (!classtags, !defaultLink) = getClassTags cnt
         getClassTags (ContClass cn      ) = (allsegs cn,RIdentifier "class" cn)
         getClassTags (ContDefine dt dn _) = (allsegs dt,normalizeRIdentifier dt dn)
-        getClassTags (ContRoot          ) = ([],RIdentifier "class" "::")
+        getClassTags  ContRoot            = ([],RIdentifier "class" "::")
         getClassTags (ContImported _    ) = ([],RIdentifier "class" "::")
         getClassTags (ContImport _ _    ) = ([],RIdentifier "class" "::")
         defaultRelation = HM.singleton defaultLink (HS.singleton RRequire)

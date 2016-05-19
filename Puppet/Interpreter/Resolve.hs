@@ -221,7 +221,17 @@ resolveExpression (RegexMatch a v@(Terminal (URegexp (CompRegex _ rv)))) = do
     case execute' rv ra of
         Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> string rr)
         Right Nothing  -> return $ PBoolean False
-        Right (Just _) -> return $ PBoolean True
+        Right (Just matches) -> do
+            -- A bit of logic to save the capture variables.
+            -- Note that this will pollute the namespace, as it should only
+            -- happen in conditional expressions ...
+            p <- use curPos
+            ctype <- view cctype <$> getCurContainer
+            let captures = Prelude.zip (map (T.pack . show) [(0 :: Int)..]) (map mkMatch (F.toList matches))
+                mkMatch (offset, len) = PString (T.decodeUtf8 (BS.take len (BS.drop offset ra))) :!: p :!: ctype
+            scp <- getScopeName
+            scopes . ix scp . scopeVariables %= HM.union (HM.fromList captures)
+            return $ PBoolean True
 resolveExpression (RegexMatch _ t) = throwPosError ("The regexp matching operator expects a regular expression, not" <+> pretty t)
 resolveExpression (NotRegexMatch a v) = resolveExpression (Not (RegexMatch a v))
 resolveExpression (Equal a b) = do

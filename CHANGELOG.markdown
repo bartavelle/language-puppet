@@ -2,6 +2,7 @@
 
 ## New features
 * `validate_numeric` function
+* Preliminary implementation of variable captures in regexp matches
 
 # v1.1.5.1 (2016/03/14)
 
