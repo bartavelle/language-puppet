@@ -102,7 +102,7 @@ library
                      , hspec
                      , lens                 >= 4.12    && < 5
                      , lens-aeson           >= 1.0
-                     , megaparsec           == 4.3.*
+                     , megaparsec           >= 4.3 && <= 4.4
                      , memory               >= 0.7
                      , mtl                  >= 2.2     && < 2.3
                      , operational          >= 0.2.3   && < 0.3
