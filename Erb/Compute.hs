@@ -176,7 +176,8 @@ hrcallfunction _ rfname rargs rstt rrdr = do
     let err :: String -> IO RValue
         err rr = fmap (either Prelude.snd id) (FR.toRuby (T.pack rr) >>= FR.safeMethodCall "MyError" "new" . (:[]))
     case (,) <$> efname <*> eargs of
-        Right (fname, varray) -> do
+        Right (fname, varray) | fname `elem` ["template", "inline_template"] -> err "Can't call template from a Ruby function, as this will stall (yes it sucks ...)"
+                              | otherwise -> do
             let args = case varray of
                            [PArray vargs] -> V.toList vargs
                            _ -> varray

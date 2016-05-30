@@ -4,6 +4,9 @@
 * `validate_numeric` function
 * Preliminary implementation of variable captures in regexp matches
 
+## Bugs fixed
+* Fixed a deadlock when template code called the `template` or `inline_template` functions. It just stops now :(
+
 # v1.1.5.1 (2016/03/14)
 
 ## New features
