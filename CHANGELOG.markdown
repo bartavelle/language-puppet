@@ -3,6 +3,7 @@
 ## New features
 * `validate_numeric` function
 * Preliminary implementation of variable captures in regexp matches
+* Ready for GHC 8 and corresponding stackage nightly
 
 ## Bugs fixed
 * Fixed a deadlock when template code called the `template` or `inline_template` functions. It just stops now :(

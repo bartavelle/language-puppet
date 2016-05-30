@@ -29,7 +29,7 @@ import           Puppet.Parser.Types
 import           Puppet.Utils
 
 -- | Run a puppet parser against some 'T.Text' input.
-runPParser :: String -> T.Text -> Either ParseError (V.Vector Statement)
+runPParser :: String -> T.Text -> Either (ParseError Char Dec) (V.Vector Statement)
 runPParser = parse puppetParser
 
 someSpace :: Parser ()
@@ -105,7 +105,7 @@ variable = Terminal . UVariableReference <$> variableReference
 stringLiteral' :: Parser T.Text
 stringLiteral' = char '\'' *> interior <* symbolic '\''
     where
-        interior = T.pack . concat <$> many (some (noneOf "'\\") <|> (char '\\' *> fmap escape anyChar))
+        interior = T.pack . concat <$> many (some (noneOf ['\'', '\\']) <|> (char '\\' *> fmap escape anyChar))
         escape '\'' = "'"
         escape x = ['\\',x]
 
@@ -181,7 +181,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
      ( many (interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (Terminal . UString . T.singleton) (char '$')) )
     where
         doubleQuotedStringContent = Terminal . UString . T.pack . concat <$>
-            some ((char '\\' *> fmap stringEscape anyChar) <|> some (noneOf "\"\\$"))
+            some ((char '\\' *> fmap stringEscape anyChar) <|> some (noneOf [ '"', '\\', '$' ]))
         stringEscape :: Char -> String
         stringEscape 'n'  = "\n"
         stringEscape 't'  = "\t"
@@ -213,7 +213,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
 regexp :: Parser T.Text
 regexp = do
     void (char '/')
-    T.pack . concat <$> many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf "/\\") )
+    T.pack . concat <$> many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
         <* symbolic '/'
 
 puppetArray :: Parser UnresolvedValue

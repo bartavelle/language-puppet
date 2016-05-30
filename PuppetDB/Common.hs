@@ -13,6 +13,7 @@ import Control.Lens
 import System.Environment
 import Data.Vector.Lens
 import Servant.Common.BaseUrl
+import Network.HTTP.Client
 
 -- | The supported PuppetDB implementations.
 data PDBType = PDBRemote -- ^ Your standard PuppetDB, queried through the HTTP interface.
@@ -40,7 +41,7 @@ instance Read PDBType where
 getDefaultDB :: PDBType -> IO (Either PrettyError (PuppetDBAPI IO))
 getDefaultDB PDBDummy  = return (Right dummyPuppetDB)
 getDefaultDB PDBRemote = let Right url = parseBaseUrl "http://localhost:8080"
-                         in  pdbConnect url
+                         in  newManager defaultManagerSettings >>= \mgr -> pdbConnect mgr url
 getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
                                 Just h -> loadTestDB (h ++ "/.testdb")
                                 Nothing -> fmap Right initTestDB

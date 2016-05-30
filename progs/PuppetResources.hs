@@ -6,7 +6,7 @@ module Main where
 import           Control.Concurrent.ParallelIO (parallel)
 import           Control.Lens                  hiding (Strict)
 import           Control.Monad
-import           Control.Monad.Trans.Either
+import           Control.Monad.Trans.Except
 import           Data.Aeson                    (encode)
 import qualified Data.ByteString.Lazy.Char8    as BSL
 import           Data.Either                   (partitionEithers)
@@ -22,6 +22,7 @@ import qualified Data.Text.IO                  as T
 import           Data.Text.Strict.Lens
 import           Data.Tuple                    (swap)
 import qualified Data.Vector                   as V
+import           Network.HTTP.Client
 import           Options.Applicative
 import           Servant.Common.BaseUrl        (parseBaseUrl)
 import           System.Exit                   (exitFailure, exitSuccess)
@@ -45,6 +46,7 @@ import           PuppetDB.Remote               (pdbConnect)
 import           PuppetDB.TestDB               (loadTestDB)
 
 
+type ParseError' = P.ParseError Char P.Dec
 type QueryFunc = NodeName -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 data MultNodes =  MultNodes [T.Text] | AllNodes deriving Show
@@ -159,11 +161,12 @@ initializedaemonWithPuppet :: FilePath
                            -> Options
                            -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
 initializedaemonWithPuppet workingdir (Options {..}) = do
+    mgr <- newManager defaultManagerSettings
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> error "You must choose between a testing PuppetDB and a remote one"
                   (Just url, _)      -> checkError "Error when parsing url" (parseBaseUrl url)
-                                            >>= pdbConnect
+                                            >>= pdbConnect mgr
                                             >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     pref <- dfPreferences workingdir <&> prefPDB .~ pdbapi
@@ -180,7 +183,7 @@ initializedaemonWithPuppet workingdir (Options {..}) = do
       unifyFacts :: Container PValue -> Container PValue -> Container PValue -> Container PValue
       unifyFacts defaults override c = override `HM.union` c `HM.union` defaults
 
-parseFile :: FilePath -> IO (Either P.ParseError (V.Vector Statement))
+parseFile :: FilePath -> IO (Either ParseError' (V.Vector Statement))
 parseFile fp = runPParser fp <$> T.readFile fp
 
 printContent :: T.Text -> FinalCatalog -> IO ()
@@ -326,7 +329,7 @@ computeNodeCatalog (Options {..}) queryfunc pdbapi node =
           exported <- filterCatalog _optResourceType _optResourceName rawexported
           let wirecatalog    = generateWireCatalog node (catalog    <> exported   ) edgemap
               rawWireCatalog = generateWireCatalog node (rawcatalog <> rawexported) edgemap
-          when _optCheckExport $ void $ runEitherT $ replaceCatalog pdbapi rawWireCatalog
+          when _optCheckExport $ void $ runExceptT $ replaceCatalog pdbapi rawWireCatalog
           case (_optShowContent, _optShowjson) of
               (_, True) -> BSL.putStrLn (encode (prepareForPuppetApply wirecatalog))
               (True, _) -> do
@@ -374,7 +377,7 @@ run (Options {_optPuppetdir = Just _, _optNodename = Nothing, _optMultnodes = No
 run cmd@(Options {_optNodename = Just node, _optPuppetdir = Just workingdir, ..}) = do
     (queryfunc, pdbapi, _, _, _ ) <- initializedaemonWithPuppet workingdir cmd
     computeNodeCatalog cmd queryfunc pdbapi node
-    when _optCommitDB $ void $ runEitherT $ commitDB pdbapi
+    when _optCommitDB $ void $ runExceptT $ commitDB pdbapi
 
 -- | Multiple nodes mode (`--all`) option
 run cmd@(Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppetdir = Just workingdir}) = do

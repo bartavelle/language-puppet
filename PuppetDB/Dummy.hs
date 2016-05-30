@@ -3,7 +3,7 @@
 module PuppetDB.Dummy where
 
 import Puppet.Interpreter.Types
-import Control.Monad.Trans.Either
+import Control.Monad.Except
 
 dummyPuppetDB :: Monad m => PuppetDBAPI m
 dummyPuppetDB = PuppetDBAPI
@@ -11,9 +11,9 @@ dummyPuppetDB = PuppetDBAPI
                     (const (return ()))
                     (const (return ()))
                     (const (return ()))
-                    (const (left "not implemented"))
+                    (const (throwError "not implemented"))
                     (const (return [] ))
                     (const (return [] ))
-                    (left "not implemented")
+                    (throwError "not implemented")
                     (\_ _ -> return [] )
 

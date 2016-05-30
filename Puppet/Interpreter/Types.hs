@@ -85,7 +85,6 @@ import           Control.Lens                hiding (Strict)
 import           Control.Monad.Except
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
-import           Control.Monad.Trans.Either
 import           Control.Monad.Writer.Class
 import           Data.Aeson                  as A
 import           Data.Aeson.Lens
@@ -97,9 +96,9 @@ import qualified Data.Maybe.Strict           as S
 import           Data.Monoid
 import           Data.Scientific
 import           Data.String                 (IsString (..))
-import           Data.Text (Text)
+import           Data.Text                   (Text)
 import qualified Data.Text                   as T
-import qualified Data.Text.Encoding          as T
+import           Data.Text.Encoding          (decodeUtf8)
 import           Data.Time.Clock
 import qualified Data.Traversable            as TR
 import           Data.Tuple.Strict
@@ -108,9 +107,9 @@ import           Foreign.Ruby.Helpers
 import           GHC.Generics                hiding (to)
 import           GHC.Stack
 import qualified Scripting.Lua               as Lua
-import           Servant.Common.Text
 import qualified System.Log.Logger           as LOG
 import           Text.Megaparsec.Pos
+import           Web.HttpApiData             (ToHttpApiData(..))
 
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
@@ -434,14 +433,14 @@ data NodeInfo = NodeInfo
 
 data PuppetDBAPI m = PuppetDBAPI
     { pdbInformation     :: m Doc
-    , replaceCatalog     :: WireCatalog         -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
-    , replaceFacts       :: [(NodeName, Facts)] -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
-    , deactivateNode     :: NodeName            -> EitherT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-    , getFacts           :: Query FactField     -> EitherT PrettyError m [FactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
-    , getResources       :: Query ResourceField -> EitherT PrettyError m [Resource] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
-    , getNodes           :: Query NodeField     -> EitherT PrettyError m [NodeInfo]
-    , commitDB           ::                        EitherT PrettyError m () -- ^ This is only here to tell the test PuppetDB to save its content to disk.
-    , getResourcesOfNode :: NodeName -> Query ResourceField -> EitherT PrettyError m [Resource]
+    , replaceCatalog     :: WireCatalog         -> ExceptT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
+    , replaceFacts       :: [(NodeName, Facts)] -> ExceptT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
+    , deactivateNode     :: NodeName            -> ExceptT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
+    , getFacts           :: Query FactField     -> ExceptT PrettyError m [FactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+    , getResources       :: Query ResourceField -> ExceptT PrettyError m [Resource] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
+    , getNodes           :: Query NodeField     -> ExceptT PrettyError m [NodeInfo]
+    , commitDB           ::                        ExceptT PrettyError m () -- ^ This is only here to tell the test PuppetDB to save its content to disk.
+    , getResourcesOfNode :: NodeName -> Query ResourceField -> ExceptT PrettyError m [Resource]
     }
 
 -- | Pretty straightforward way to define the various PuppetDB queries
@@ -550,8 +549,8 @@ instance ToJSON Resource where
                       , ("exported", Bool $ r ^. rvirtuality == Exported)
                       , ("tags", toJSON $ r ^. rtags)
                       , ("parameters", Object ( HM.map toJSON (r ^. rattributes) `HM.union` relations ))
-                      , ("sourceline", r ^. rpos . _1 . to sourceLine . to toJSON)
-                      , ("sourcefile", r ^. rpos . _1 . to sourceName . to toJSON)
+                      , ("sourceline", r ^. rpos . _1 . lSourceLine . to (toJSON . unPos))
+                      , ("sourcefile", r ^. rpos . _1 . lSourceName . to toJSON)
                       ]
         where
             relations = r ^. rrelations & HM.fromListWith (V.++) . concatMap changeRelations . HM.toList & HM.map toValue
@@ -615,10 +614,11 @@ instance ToJSON a => ToJSON (Query a) where
     toJSON (QG     flds val) = toJSON [ ">",  toJSON flds, toJSON val ]
     toJSON (QLE    flds val) = toJSON [ "<=", toJSON flds, toJSON val ]
     toJSON (QGE    flds val) = toJSON [ ">=", toJSON flds, toJSON val ]
-    toJSON (QEmpty)          = Null
+    toJSON  QEmpty           = Null
 
-instance ToJSON a => ToText (Query a) where
-    toText = T.decodeUtf8 . Control.Lens.view strict . encode
+instance ToJSON a => ToHttpApiData (Query a) where
+    toHeader = Control.Lens.view strict . encode
+    toUrlPiece = decodeUtf8 . toHeader
 
 instance FromJSON a => FromJSON (Query a) where
     parseJSON Null = pure QEmpty

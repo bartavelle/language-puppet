@@ -6,7 +6,7 @@ import Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Control.Lens
-import Control.Monad.Trans.Either
+import Control.Monad.Trans.Except
 
 import Puppet.Interpreter.Types
 import PuppetDB.Common
@@ -17,8 +17,8 @@ checkError :: Show x => String -> Either x a -> IO a
 checkError _ (Right x) = return x
 checkError step (Left rr) = error (step ++ ": " ++ show rr)
 
-checkErrorE :: Show x => String -> EitherT x IO a -> IO a
-checkErrorE msg = runEitherT >=> either (error . ((msg ++ " ") ++) . show) return
+checkErrorE :: Show x => String -> ExceptT x IO a -> IO a
+checkErrorE msg = runExceptT >=> either (error . ((msg ++ " ") ++) . show) return
 
 main :: IO ()
 main = withSystemTempDirectory "hieratest" $ \tmpfp -> do

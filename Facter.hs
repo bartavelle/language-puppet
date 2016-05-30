@@ -16,7 +16,7 @@ import Data.List (intercalate,stripPrefix)
 import System.Environment
 import System.Directory (doesFileExist)
 import Data.Maybe (mapMaybe)
-import Control.Monad.Trans.Either
+import Control.Monad.Trans.Except
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -169,7 +169,7 @@ factProcessor = do
 
 puppetDBFacts :: NodeName -> PuppetDBAPI IO -> IO (Container PValue)
 puppetDBFacts node pdbapi =
-    runEitherT (getFacts pdbapi (QEqual FCertname node)) >>= \case
+    runExceptT (getFacts pdbapi (QEqual FCertname node)) >>= \case
         Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factInfoName, f ^. factInfoVal)) facts))
         _ -> do
             rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv, factProcessor])

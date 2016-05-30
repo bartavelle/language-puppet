@@ -14,7 +14,7 @@ import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Either
+import           Control.Monad.Except
 import           Data.Aeson.Lens
 import           Data.CaseInsensitive
 import qualified Data.HashMap.Strict      as HM
@@ -119,18 +119,18 @@ ncompare operation f a i v = case f a v of
                                                  _ -> False
                                  _ -> False
 
-replCat :: DB -> WireCatalog -> EitherT PrettyError IO ()
+replCat :: DB -> WireCatalog -> ExceptT PrettyError IO ()
 replCat db wc = liftIO $ atomically $ modifyTVar db (resources . at (wc ^. wireCatalogNodename) ?~ wc)
 
-replFacts :: DB -> [(NodeName, Facts)] -> EitherT PrettyError IO ()
+replFacts :: DB -> [(NodeName, Facts)] -> ExceptT PrettyError IO ()
 replFacts db lst = liftIO $ atomically $ modifyTVar db $
                     facts %~ (\r -> foldl' (\curr (n,f) -> curr & at n ?~ f) r lst)
 
-deactivate :: DB -> NodeName -> EitherT PrettyError IO ()
+deactivate :: DB -> NodeName -> ExceptT PrettyError IO ()
 deactivate db n = liftIO $ atomically $ modifyTVar db $
                     (resources . at n .~ Nothing) . (facts . at n .~ Nothing)
 
-getFcts :: DB -> Query FactField -> EitherT PrettyError IO [FactInfo]
+getFcts :: DB -> Query FactField -> ExceptT PrettyError IO [FactInfo]
 getFcts db f = fmap (filter (resolveQuery factQuery f) . toFactInfo) (liftIO $ readTVarIO db)
     where
         toFactInfo :: DBContent -> [FactInfo]
@@ -161,27 +161,27 @@ resourceQuery RExported r = if r ^. rvirtuality == Exported
 resourceQuery RFile r = r ^. rpos . _1 . to sourceName . to T.pack . to EText
 resourceQuery RLine r = r ^. rpos . _1 . to sourceLine . to show . to T.pack . to EText
 
-getRes :: DB -> Query ResourceField -> EitherT PrettyError IO [Resource]
+getRes :: DB -> Query ResourceField -> ExceptT PrettyError IO [Resource]
 getRes db f = fmap (filter (resolveQuery resourceQuery f) . toResources) (liftIO $ readTVarIO db)
     where
         toResources :: DBContent -> [Resource]
         toResources = concatMap (V.toList . view wireCatalogResources) .  HM.elems . view resources
 
-getResNode :: DB -> NodeName -> Query ResourceField -> EitherT PrettyError IO [Resource]
+getResNode :: DB -> NodeName -> Query ResourceField -> ExceptT PrettyError IO [Resource]
 getResNode db nn f = do
     c <- liftIO $ readTVarIO db
     case c ^. resources . at nn of
         Just cnt -> return $ filter (resolveQuery resourceQuery f) $ V.toList $ cnt ^. wireCatalogResources
-        Nothing -> left "Unknown node"
+        Nothing -> throwError "Unknown node"
 
-commit :: DB -> EitherT PrettyError IO ()
+commit :: DB -> ExceptT PrettyError IO ()
 commit db = do
     dbc <- liftIO $ atomically $ readTVar db
     case dbc ^. backingFile of
-        Nothing -> left "No backing file defined"
+        Nothing -> throwError "No backing file defined"
         Just bf -> liftIO (encodeFile bf dbc `catches` [ ])
 
-getNds :: DB -> Query NodeField -> EitherT PrettyError IO [NodeInfo]
+getNds :: DB -> Query NodeField -> ExceptT PrettyError IO [NodeInfo]
 getNds db QEmpty = fmap toNodeInfo (liftIO $ readTVarIO db)
     where
         toNodeInfo :: DBContent -> [NodeInfo]
@@ -190,4 +190,4 @@ getNds db QEmpty = fmap toNodeInfo (liftIO $ readTVarIO db)
                 g :: NodeName -> NodeInfo
                 g = \n -> NodeInfo n False S.Nothing S.Nothing S.Nothing
 
-getNds _ _ = left "getNds with query not implemented"
+getNds _ _ = throwError "getNds with query not implemented"

@@ -3,4 +3,7 @@ packages:
 - '.'
 extra-deps:
 - hruby-0.3.4.1
-resolver: lts-5.4
+- hslua-0.4.1
+- pcre-utils-0.1.8.1
+
+resolver: nightly-2016-05-29

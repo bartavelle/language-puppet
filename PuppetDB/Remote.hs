@@ -8,8 +8,11 @@ module PuppetDB.Remote (pdbConnect) where
 import Puppet.PP
 
 import Puppet.Interpreter.Types
+import Network.HTTP.Client (Manager)
 import Data.Text (Text)
-import Control.Monad.Trans.Either
+import Control.Monad.Except
+import Control.Monad.Trans.Except
+import Control.Lens
 import Servant.API
 import Servant.Client
 import Data.Aeson
@@ -26,26 +29,26 @@ api :: Proxy PDBAPI
 api = Proxy
 
 -- | Given an URL (ie. @http://localhost:8080@), will return an incomplete 'PuppetDBAPI'.
-pdbConnect :: BaseUrl -> IO (Either PrettyError (PuppetDBAPI IO))
-pdbConnect url =
+pdbConnect :: Manager -> BaseUrl -> IO (Either PrettyError (PuppetDBAPI IO))
+pdbConnect mgr url =
     return $ Right $ PuppetDBAPI
         (return (string $ show url))
-        (const (left "operation not supported"))
-        (const (left "operation not supported"))
-        (const (left "operation not supported"))
+        (const (throwError "operation not supported"))
+        (const (throwError "operation not supported"))
+        (const (throwError "operation not supported"))
         (q1 sgetFacts)
         (q1 sgetResources)
         (q1 sgetNodes)
-        (left "operation not supported")
-        (\ndename q -> prettyError $ sgetNodeResources ndename (Just q))
+        (throwError "operation not supported")
+        (\ndename q -> prettyError $ sgetNodeResources ndename (Just q) mgr url)
         where
-            sgetNodes :: Maybe (Query NodeField) -> EitherT ServantError IO [NodeInfo]
-            sgetNodeResources :: Text -> Maybe (Query ResourceField) -> EitherT ServantError IO [Resource]
-            sgetFacts :: Maybe (Query FactField) -> EitherT ServantError IO [FactInfo]
-            sgetResources :: Maybe (Query ResourceField) -> EitherT ServantError IO [Resource]
-            (sgetNodes :<|> sgetNodeResources :<|> sgetFacts :<|> sgetResources) = client api url
+            sgetNodes :: Maybe (Query NodeField) -> Manager -> BaseUrl -> ClientM [NodeInfo]
+            sgetNodeResources :: Text -> Maybe (Query ResourceField) -> Manager -> BaseUrl -> ClientM [Resource]
+            sgetFacts :: Maybe (Query FactField) -> Manager -> BaseUrl -> ClientM [FactInfo]
+            sgetResources :: Maybe (Query ResourceField) -> Manager -> BaseUrl -> ClientM [Resource]
+            (sgetNodes :<|> sgetNodeResources :<|> sgetFacts :<|> sgetResources) = client api
 
-            prettyError :: EitherT ServantError IO b -> EitherT PrettyError IO b
-            prettyError = bimapEitherT (PrettyError . string. show) id
-            q1 :: (ToText a, FromJSON b) => (Maybe a -> EitherT ServantError IO b) -> a -> EitherT PrettyError IO b
-            q1 f = prettyError . f . Just
+            prettyError :: ExceptT ServantError IO b -> ExceptT PrettyError IO b
+            prettyError = mapExceptT (fmap (_Left %~ PrettyError . string. show))
+            q1 :: FromJSON b => (Maybe a -> Manager -> BaseUrl -> ClientM b) -> a -> ExceptT PrettyError IO b
+            q1 f a = prettyError (f (Just a) mgr url)

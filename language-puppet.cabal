@@ -96,15 +96,17 @@ library
                      , filecache            >= 0.2.9   && < 0.3
                      , formatting
                      , hashable             == 1.2.*
+                     , http-api-data        == 0.2.*
+                     , http-client          == 0.4.*
                      , hruby                >= 0.3.2 && < 0.4
                      , hslogger             == 1.2.*
                      , hslua                >= 0.4.1   && < 0.5
                      , hspec
                      , lens                 >= 4.12    && < 5
                      , lens-aeson           >= 1.0
-                     , megaparsec           >= 4.3 && <= 4.5
+                     , megaparsec           == 5.0.*
                      , memory               >= 0.7
-                     , mtl                  >= 2.2     && < 2.3
+                     , mtl                  >= 2.2.1   && < 2.3
                      , operational          >= 0.2.3   && < 0.3
                      , parsec               == 3.1.*
                      , pcre-utils           >= 0.1.7   && < 0.2
@@ -113,14 +115,14 @@ library
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2   && < 0.4
                      , semigroups
-                     , servant              == 0.4.*
-                     , servant-client       == 0.4.*
+                     , servant              == 0.7.*
+                     , servant-client       == 0.7.*
                      , split                == 0.2.*
                      , stm                  == 2.4.*
                      , strict-base-types    >= 0.3
                      , text                 >= 0.11
                      , time                 >= 1.5  && < 2
-                     , transformers         == 0.4.*
+                     , transformers         >= 0.4  && < 0.6
                      , unix                 >= 2.7     && < 2.8
                      , unordered-containers == 0.2.*
                      , vector               >= 0.10
@@ -158,7 +160,7 @@ Test-Suite test-puppetdb
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -rtsopts -threaded
   extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,temporary,strict-base-types,lens,text,either
+  build-depends:  language-puppet,base,temporary,strict-base-types,lens,text,transformers,mtl
   main-is:        puppetdb.hs
 Test-Suite erbparser
   hs-source-dirs: tests
@@ -194,8 +196,10 @@ executable puppetresources
                      , aeson
                      , bytestring
                      , containers
-                     , either
+                     , transformers
+                     , mtl
                      , hslogger
+                     , http-client
                      , language-puppet
                      , lens
                      , megaparsec
@@ -216,13 +220,15 @@ executable pdbquery
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       base
                      , bytestring
-                     , either
+                     , http-client
                      , language-puppet
                      , lens
+                     , mtl
                      , optparse-applicative
                      , servant-client
                      , strict-base-types
                      , text
+                     , transformers
                      , unordered-containers
                      , vector
                      , yaml

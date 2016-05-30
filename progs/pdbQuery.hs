@@ -11,7 +11,7 @@ import           Facter
 
 import           Control.Lens
 import           Control.Monad (forM_,unless,(>=>))
-import           Control.Monad.Trans.Either
+import           Control.Monad.Trans.Except
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Either.Strict as S
 import qualified Data.HashMap.Strict as HM
@@ -20,6 +20,7 @@ import           Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import           Data.Yaml hiding (Parser)
+import           Network.HTTP.Client
 import           Options.Applicative as O
 import           Servant.Common.BaseUrl
 
@@ -87,13 +88,14 @@ checkError :: (Show r) => String -> Either r a -> IO a
 checkError s (Left rr) = error (s <> " " <> show rr)
 checkError _ (Right a) = return a
 
-runCheck :: Show r => String -> EitherT r IO a -> IO a
-runCheck s = runEitherT >=> checkError s
+runCheck :: Show r => String -> ExceptT r IO a -> IO a
+runCheck s = runExceptT >=> checkError s
 
 run :: Options -> IO ()
 run Options{..} = do
+    mgr <- newManager defaultManagerSettings
     epdbapi <- case (_pdbloc, _pdbtype) of
-                   (Just l, PDBRemote) -> pdbConnect $ either error id $ parseBaseUrl l
+                   (Just l, PDBRemote) -> pdbConnect mgr $ either (error . show) id $ parseBaseUrl l
                    (Just l, PDBTest)   -> loadTestDB l
                    (_, x)              -> getDefaultDB x
     pdbapi <- case epdbapi of
@@ -110,7 +112,7 @@ run Options{..} = do
                                      curmap & at ndname . non HM.empty %~ (at fctname ?~ fctval)
                              runCheck "replace facts in dummy db" (replaceFacts tmpdb (HM.toList groupfacts))
                              runCheck "commit db" (commitDB tmpdb)
-        DumpNodes -> runEitherT (getNodes pdbapi QEmpty) >>= display "dump nodes"
+        DumpNodes -> runExceptT (getNodes pdbapi QEmpty) >>= display "dump nodes"
         AddFacts n -> do
             unless (_pdbtype == PDBTest) (error "This option only works with the test puppetdb")
             fcts <- puppetDBFacts n pdbapi

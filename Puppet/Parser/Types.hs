@@ -83,13 +83,13 @@ type PPosition = Pair Position Position
 type Position = SourcePos
 
 lSourceName :: Lens' Position String
-lSourceName = lens sourceName setSourceName
+lSourceName = lens sourceName (\s n -> s { sourceName = n })
 
-lSourceLine :: Lens' Position Int
-lSourceLine = lens sourceLine setSourceLine
+lSourceLine :: Lens' Position Pos
+lSourceLine = lens sourceLine (\s l -> s { sourceLine = l })
 
-lSourceColumn :: Lens' Position Int
-lSourceColumn = lens sourceColumn setSourceColumn
+lSourceColumn :: Lens' Position Pos
+lSourceColumn = lens sourceColumn (\s c -> s { sourceColumn = c })
 
 -- | Generates an initial position based on a filename.
 initialPPos :: Text -> PPosition
@@ -100,7 +100,7 @@ initialPPos x =
 -- | Generates a 'PPosition' based on a filename and line number.
 toPPos :: Text -> Int -> PPosition
 toPPos fl ln =
-    let p = newPos (T.unpack fl) (max 1 ln) 1
+    let p = (initialPos (T.unpack fl)) { sourceLine = unsafePos $ fromIntegral (max 1 ln) }
     in  (p :!: p)
 
 -- | High Order "lambdas"
