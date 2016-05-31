@@ -3,6 +3,5 @@ packages:
 - '.'
 extra-deps:
 - hslua-0.4.1
-- pcre-utils-0.1.8.1
 
 resolver: nightly-2016-05-31
