@@ -160,7 +160,7 @@ These facts can be overriden at the command line (see 'Options').
 initializedaemonWithPuppet :: FilePath
                            -> Options
                            -> IO (QueryFunc, PuppetDBAPI IO, MStats, MStats, MStats)
-initializedaemonWithPuppet workingdir (Options {..}) = do
+initializedaemonWithPuppet workingdir Options {..} = do
     mgr <- newManager defaultManagerSettings
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
@@ -243,12 +243,12 @@ findDeadCode puppetdir catalogs allfiles = do
     unless (null parseFailed) $ do
         putDoc ("The following" <+> int (length parseFailed) <+> "files could not be parsed:" </> indent 4 (vcat (map (string . show) parseFailed)))
         putStrLn ""
-    let getSubStatements s@(ResourceDeclaration{}) = [s]
+    let getSubStatements s@ResourceDeclaration{} = [s]
         getSubStatements (ConditionalDeclaration (ConditionalDecl conds _)) = conds ^.. traverse . _2 . tgt
-        getSubStatements s@(ClassDeclaration{}) = extractPrism s
-        getSubStatements s@(DefineDeclaration{}) = extractPrism s
-        getSubStatements s@(NodeDeclaration{}) = extractPrism s
-        getSubStatements s@(HigherOrderLambdaDeclaration{}) = extractPrism s
+        getSubStatements s@ClassDeclaration{} = extractPrism s
+        getSubStatements s@DefineDeclaration{} = extractPrism s
+        getSubStatements s@NodeDeclaration{} = extractPrism s
+        getSubStatements s@HigherOrderLambdaDeclaration{} = extractPrism s
         getSubStatements (TopContainer v s) = getSubStatements s ++ v ^.. tgt
         getSubStatements _ = []
         tgt = folded . to getSubStatements . folded
@@ -272,7 +272,7 @@ instance (Ord a) => Monoid (Maximum a) where
 
 -- | For each node, queryfunc the catalog and return stats
 computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> [NodeName] -> IO ()
-computeStats workingdir (Options {..})
+computeStats workingdir Options {..}
              queryfunc (parsingStats, catalogStats, templateStats)
              topnodes = do
     -- the parsing statistics, so that we known which files
@@ -315,7 +315,7 @@ computeStats workingdir (Options {..})
 
 -- | Queryfunc the catalog for the node and PP the result
 computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> NodeName -> IO ()
-computeNodeCatalog (Options {..}) queryfunc pdbapi node =
+computeNodeCatalog Options {..} queryfunc pdbapi node =
     queryfunc node >>= \case
       S.Left rr -> do
           putDoc (line <> red "ERROR:" <+> parens (ttext node) <+> getError rr)
@@ -362,25 +362,25 @@ filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked)
 
 run :: Options -> IO ()
 -- | Parse mode
-run (Options {_optParse = Just fp, ..}) = parseFile fp >>= \case
+run Options {_optParse = Just fp, ..} = parseFile fp >>= \case
             Left rr -> error ("parse error:" ++ show rr)
             Right s -> if _optLoglevel == LOG.DEBUG
                           then mapM_ print  s
                           else putDoc $ ppStatements s
 
-run (Options {_optPuppetdir = Nothing, _optParse = Nothing }) =
+run Options {_optPuppetdir = Nothing, _optParse = Nothing } =
     error "Without a puppet dir, only the `--parse` option can be supported"
-run (Options {_optPuppetdir = Just _, _optNodename = Nothing, _optMultnodes = Nothing}) =
+run Options {_optPuppetdir = Just _, _optNodename = Nothing, _optMultnodes = Nothing} =
     error "You need to choose between single or multiple node"
 
 -- | Single node mode (`--node` option)
-run cmd@(Options {_optNodename = Just node, _optPuppetdir = Just workingdir, ..}) = do
+run cmd@Options {_optNodename = Just node, _optPuppetdir = Just workingdir, ..} = do
     (queryfunc, pdbapi, _, _, _ ) <- initializedaemonWithPuppet workingdir cmd
     computeNodeCatalog cmd queryfunc pdbapi node
     when _optCommitDB $ void $ runExceptT $ commitDB pdbapi
 
 -- | Multiple nodes mode (`--all`) option
-run cmd@(Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppetdir = Just workingdir}) = do
+run cmd@Options {_optNodename = Nothing , _optMultnodes = Just nodes, _optPuppetdir = Just workingdir} = do
     (queryfunc, _, mPStats,mCStats,mTStats) <- initializedaemonWithPuppet workingdir cmd
     computeStats workingdir cmd queryfunc (mPStats, mCStats, mTStats) =<< retrieveNodes nodes
   where
