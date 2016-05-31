@@ -18,7 +18,7 @@ cd language-puppet
 stack install
 ```
 
-There are also http://lpuppet.banquise.net/download/[binary packages available] and https://registry.hub.docker.com/u/pierrer/puppetresources[a docker images].
+https://hub.docker.com/r/pierrer/language-puppet/[A docker images] is available.
 
 == Puppetresources
 
