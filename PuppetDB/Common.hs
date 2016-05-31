@@ -40,8 +40,10 @@ instance Read PDBType where
 -- | Given a 'PDBType', will try return a sane default implementation.
 getDefaultDB :: PDBType -> IO (Either PrettyError (PuppetDBAPI IO))
 getDefaultDB PDBDummy  = return (Right dummyPuppetDB)
-getDefaultDB PDBRemote = let Right url = parseBaseUrl "http://localhost:8080"
-                         in  newManager defaultManagerSettings >>= \mgr -> pdbConnect mgr url
+getDefaultDB PDBRemote = do
+  url <- parseBaseUrl "http://localhost:8080"
+  mgr <- newManager defaultManagerSettings
+  pdbConnect mgr url
 getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
                                 Just h -> loadTestDB (h ++ "/.testdb")
                                 Nothing -> fmap Right initTestDB
