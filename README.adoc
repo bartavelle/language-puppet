@@ -18,7 +18,7 @@ cd language-puppet
 stack install
 ```
 
-https://hub.docker.com/r/pierrer/language-puppet/[A docker images] is available.
+https://hub.docker.com/r/pierrer/language-puppet/[A docker image] is available.
 
 == Puppetresources
 
