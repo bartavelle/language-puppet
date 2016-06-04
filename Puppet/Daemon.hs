@@ -16,7 +16,6 @@ import           Control.Exception.Lens
 import           Control.Lens              hiding (Strict)
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
-import qualified Data.HashMap.Strict       as HM
 import qualified Data.Text                 as T
 import qualified Data.Text.IO              as T
 import           Data.Tuple.Strict
@@ -40,7 +39,6 @@ import           Puppet.Manifests
 import           Puppet.OptionalTests
 import           Puppet.Parser
 import           Puppet.Parser.Types
-import           Puppet.Plugins
 import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
@@ -83,12 +81,10 @@ The recommended way to set it to http://localhost:8080 and set a SSH tunnel :
 > ssh -L 8080:localhost:8080 puppet.host
 -}
 initDaemon :: Preferences IO -> IO Daemon
-initDaemon pref0 = do
-    setupLogger (pref0 ^. prefLogLevel)
+initDaemon pref = do
+    setupLogger (pref ^. prefLogLevel)
     logDebug "initDaemon"
     traceEventIO "initDaemon"
-    luacontainer <- initLuaMaster (T.pack (pref0 ^. prefPuppetPaths.modulesPath))
-    let pref = pref0 & prefExtFuncs %~ HM.union luacontainer
     hquery <- case pref ^. prefHieraPath of
                   Just p  -> either error id <$> startHiera p
                   Nothing -> return dummyHiera

@@ -1,3 +1,8 @@
+#v1.3 (TBD)
+
+## Removed features
+* External Lua plugins are not a thing anymore
+
 #v1.2 (2016/05/31)
 
 ## New features

@@ -27,7 +27,7 @@ import           PuppetDB.Dummy
 -- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
 -- type.
 impurePure :: IoMethods Identity
-impurePure = IoMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ()) (\_ _ _ -> return (Left "Can't call lua"))
+impurePure = IoMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ())
 
 -- | A pure 'InterpreterReader', that can only evaluate a subset of the
 -- templates, and that can include only the supplied top level statements.

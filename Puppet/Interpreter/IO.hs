@@ -22,23 +22,18 @@ import qualified Data.Text                        as T
 import qualified Data.Text.IO                     as T
 import           Debug.Trace                      (traceEventIO)
 import           GHC.Stack
-import qualified Scripting.Lua                    as Lua
 
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
-import           Puppet.Plugins                   ()
 import           Puppet.PP
 
 defaultImpureMethods :: (Functor m, MonadIO m) => IoMethods m
 defaultImpureMethods = IoMethods (liftIO currentCallStack)
                                      (liftIO . file)
                                      (liftIO . traceEventIO)
-                                     (\c fname args -> liftIO (runlua c fname args))
     where
         file [] = return $ Left ""
         file (x:xs) = (Right <$> T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
-        runlua c fname args = liftIO $ withMVar c $ \lstt ->
-                catch (Right <$> Lua.callfunc lstt (T.unpack fname) args) (\e -> return $ Left $ show (e :: SomeException))
 
 
 -- | The operational interpreter function
@@ -102,6 +97,3 @@ eval r s (a :>>= k) =
             TraceEvent e                 -> (r ^. readerIoMethods . ioTraceEvent) e >>= runInstr
             IsIgnoredModule m            -> runInstr (r ^. readerIgnoredModules . contains m)
             IsExternalModule m           -> runInstr (r ^. readerExternalModules . contains m)
-            CallLua c fname args         -> (r ^. readerIoMethods . ioCallLua) c fname args >>= \case
-                                                Right x -> runInstr x
-                                                Left rr -> thpe (PrettyError (string rr))

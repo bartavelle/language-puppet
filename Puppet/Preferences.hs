@@ -26,7 +26,6 @@ import qualified System.Log.Logger         as LOG
 import           Puppet.Interpreter.Types
 import           Puppet.NativeTypes
 import           Puppet.NativeTypes.Helpers
-import           Puppet.Plugins
 import           Puppet.Stdlib
 import           Puppet.Paths
 import qualified Puppet.Puppetlabs          as Puppetlabs

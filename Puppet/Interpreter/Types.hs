@@ -79,7 +79,6 @@ module Puppet.Interpreter.Types (
  , showPos
 ) where
 
-import           Control.Concurrent.MVar     (MVar)
 import           Control.Exception
 import           Control.Lens                hiding (Strict)
 import           Control.Monad.Except
@@ -106,7 +105,6 @@ import qualified Data.Vector                 as V
 import           Foreign.Ruby.Helpers
 import           GHC.Generics                hiding (to)
 import           GHC.Stack
-import qualified Scripting.Lua               as Lua
 import qualified System.Log.Logger           as LOG
 import           Text.Megaparsec.Pos
 import           Web.HttpApiData             (ToHttpApiData(..))
@@ -283,7 +281,6 @@ data IoMethods m = IoMethods
     { _ioGetCurrentCallStack :: m [String]
     , _ioReadFile            :: [Text] -> m (Either String T.Text)
     , _ioTraceEvent          :: String -> m ()
-    , _ioCallLua             :: MVar Lua.LuaState -> Text -> [PValue] -> m (Either String PValue)
     }
 
 data InterpreterInstr a where
@@ -320,9 +317,6 @@ data InterpreterInstr a where
     ReadFile            :: [Text] -> InterpreterInstr T.Text
     -- Tracing events
     TraceEvent          :: String -> InterpreterInstr ()
-    -- Calling Lua
-    CallLua             :: MVar Lua.LuaState -> Text -> [PValue] -> InterpreterInstr PValue
-
 
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)

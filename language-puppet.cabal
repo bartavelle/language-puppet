@@ -79,7 +79,6 @@ library
                        , Puppet.NativeTypes.ZoneRecord
                        , Puppet.Parser.Utils
                        , Puppet.Paths
-                       , Puppet.Plugins
   extensions:          OverloadedStrings, BangPatterns
   ghc-options:         -Wall -funbox-strict-fields -j1
   -- ghc-prof-options:    -auto-all -caf-all
@@ -102,7 +101,6 @@ library
                      , http-client          == 0.4.*
                      , hruby                >= 0.3.2 && < 0.4
                      , hslogger             == 1.2.*
-                     , hslua                >= 0.4.1   && < 0.5
                      , hspec
                      , lens                 >= 4.12    && < 5
                      , lens-aeson           >= 1.0

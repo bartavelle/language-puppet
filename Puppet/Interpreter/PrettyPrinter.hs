@@ -139,7 +139,6 @@ instance Pretty (InterpreterInstr a) where
                       Left content -> pretty (PString content)
                       Right filena -> ttext filena
     pretty (ExternalFunction fn args)  = pf (ttext fn) (map pretty args)
-    pretty (CallLua _ f args)          = pf (ttext f) (map pretty args)
     pretty GetNodeName                 = pf "GetNodeName" []
     pretty (HieraQuery _ q _)          = pf "HieraQuery" [ttext q]
     pretty GetCurrentCallStack         = pf "GetCurrentCallStack" []

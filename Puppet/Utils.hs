@@ -10,6 +10,7 @@ module Puppet.Utils (
     , loadYamlFile
     , scientific2text
     , text2Scientific
+    , getFiles
     , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
     -- * re-export
     , module Data.Monoid
@@ -27,6 +28,7 @@ import Data.Monoid
 import System.Posix.Directory.ByteString
 import qualified Data.Either.Strict as S
 import Data.Scientific
+import Control.Exception
 import Control.Lens
 import Data.Aeson.Lens
 import qualified Data.Yaml as Y
@@ -138,3 +140,17 @@ iinsertWith f k v m = m & at k %~ mightreplace
 iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
 {-# INLINABLE iunionWith #-}
 iunionWith = HM.unionWith
+
+getFiles :: T.Text -> T.Text -> T.Text -> IO [T.Text]
+getFiles moduledir subdir extension = fmap concat $
+    getDirContents moduledir
+        >>= mapM ( checkForSubFiles extension . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
+
+checkForSubFiles :: T.Text -> T.Text -> IO [T.Text]
+checkForSubFiles extension dir =
+    catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException)) >>= \case
+        Right o -> return ((map (\x -> dir <> "/" <> x) . filter (T.isSuffixOf extension)) o )
+        Left _ -> return []
+
+getDirContents :: T.Text -> IO [T.Text]
+getDirContents x = fmap (filter (not . T.all (=='.'))) (getDirectoryContents x)
