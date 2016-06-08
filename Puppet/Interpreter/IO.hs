@@ -26,30 +26,30 @@ import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
 import           Puppet.PP
 
-defaultImpureMethods :: (Functor m, MonadIO m) => IoMethods m
+defaultImpureMethods :: MonadIO m => IoMethods m
 defaultImpureMethods = IoMethods (liftIO currentCallStack)
-                                     (liftIO . file)
-                                     (liftIO . traceEventIO)
+                                 (liftIO . file)
+                                 (liftIO . traceEventIO)
     where
         file [] = return $ Left ""
         file (x:xs) = (Right <$> T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
 
 
 -- | The operational interpreter function
-interpretMonad :: (Functor m, Monad m)
-                => InterpreterReader m
-                -> InterpreterState
-                -> InterpreterMonad a
-                -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
+interpretMonad :: Monad m
+               => InterpreterReader m
+               -> InterpreterState
+               -> InterpreterMonad a
+               -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
 interpretMonad r s0 instr = let (!p, !s1) = runState (viewT instr) s0
                             in eval r s1 p
 
 -- The internal (not exposed) eval function
-eval :: (Functor m, Monad m)
-                => InterpreterReader m
-                -> InterpreterState
-                -> ProgramViewT InterpreterInstr (State InterpreterState) a
-                -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
+eval :: Monad m
+     => InterpreterReader m
+     -> InterpreterState
+     -> ProgramViewT InterpreterInstr (State InterpreterState) a
+     -> m (Either PrettyError a, InterpreterState, InterpreterWriter)
 eval _ s (Return x) = return (Right x, s, mempty)
 eval r s (a :>>= k) =
     let runInstr = interpretMonad r s . k -- run one instruction

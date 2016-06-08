@@ -133,13 +133,13 @@ isExternalModule =
 
 
 -- Logging --
-warn :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
+warn :: MonadWriter InterpreterWriter m => Doc -> m ()
 warn d = tell [LOG.WARNING :!: d]
 
-debug :: (Monad m, MonadWriter InterpreterWriter m) => Doc -> m ()
+debug :: MonadWriter InterpreterWriter m => Doc -> m ()
 debug d = tell [LOG.DEBUG :!: d]
 
-logWriter :: (Monad m, MonadWriter InterpreterWriter m) => LOG.Priority -> Doc -> m ()
+logWriter :: MonadWriter InterpreterWriter m => LOG.Priority -> Doc -> m ()
 logWriter prio d = tell [prio :!: d]
 
 -- General --
