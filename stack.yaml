@@ -2,6 +2,5 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-- hslua-0.4.1
 
-resolver: nightly-2016-05-31
+resolver: nightly-2016-06-08
