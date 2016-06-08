@@ -7,7 +7,6 @@ module PuppetDB.Remote (pdbConnect) where
 
 import           Control.Lens
 import           Control.Monad.Except
-import           Data.Aeson
 import           Data.Proxy
 import           Data.Text                (Text)
 import           Network.HTTP.Client      (Manager)
@@ -49,5 +48,5 @@ pdbConnect mgr url =
 
             prettyError :: ExceptT ServantError IO b -> ExceptT PrettyError IO b
             prettyError = mapExceptT (fmap (_Left %~ PrettyError . string. show))
-            q1 :: FromJSON b => (Maybe a -> Manager -> BaseUrl -> ClientM b) -> a -> ExceptT PrettyError IO b
+            q1 :: (Maybe a -> Manager -> BaseUrl -> ClientM b) -> a -> ExceptT PrettyError IO b
             q1 f a = prettyError (f (Just a) mgr url)
