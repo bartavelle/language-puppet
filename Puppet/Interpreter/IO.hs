@@ -10,7 +10,6 @@ module Puppet.Interpreter.IO (
   , interpretMonad
   ) where
 
-import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad.Operational

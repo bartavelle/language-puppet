@@ -1,22 +1,21 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeOperators     #-}
 module PuppetDB.Remote (pdbConnect) where
 
-import Puppet.PP
+import           Control.Lens
+import           Control.Monad.Except
+import           Data.Aeson
+import           Data.Proxy
+import           Data.Text                (Text)
+import           Network.HTTP.Client      (Manager)
+import           Servant.API
+import           Servant.Client
 
-import Puppet.Interpreter.Types
-import Network.HTTP.Client (Manager)
-import Data.Text (Text)
-import Control.Monad.Except
-import Control.Monad.Trans.Except
-import Control.Lens
-import Servant.API
-import Servant.Client
-import Data.Aeson
-import Data.Proxy
+import           Puppet.Interpreter.Types
+import           Puppet.PP
 
 type PDBAPIv3 =    "nodes"     :> QueryParam "query" (Query NodeField)       :> Get '[JSON] [NodeInfo]
               :<|> "nodes"     :> Capture "resourcename" Text :> "resources" :> QueryParam "query" (Query ResourceField) :> Get '[JSON] [Resource]

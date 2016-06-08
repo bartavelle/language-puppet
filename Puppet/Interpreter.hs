@@ -53,12 +53,12 @@ import           Puppet.Utils
     'InterpreterState' and might not be up to date.
     There are only useful for coverage testing (checking dependencies for instance).
 -}
-interpretCatalog :: (Functor m, Monad m)
-           => InterpreterReader m -- ^ The whole environment required for computing catalog.
-           -> NodeName
-           -> Facts
-           -> Container Text -- ^ Server settings
-           -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
+interpretCatalog :: Monad m
+                 => InterpreterReader m -- ^ The whole environment required for computing catalog.
+                 -> NodeName
+                 -> Facts
+                 -> Container Text -- ^ Server settings
+                 -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
 interpretCatalog interpretReader node facts settings = do
     (output, _, warnings) <- interpretMonad interpretReader (initialState facts settings) (computeCatalog node)
     return (strictifyEither output :!: warnings)
