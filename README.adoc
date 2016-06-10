@@ -1,8 +1,8 @@
 = Language-puppet
 
-image:https://travis-ci.org/bartavelle/language-puppet.svg?branch=master["Build Status", link="https://travis-ci.org/bartavelle/language-puppet"]
 image:https://img.shields.io/hackage/v/language-puppet.svg[link="http://hackage.haskell.org/package/language-puppet"]
 image:https://www.stackage.org/package/language-puppet/badge/nightly[link="https://www.stackage.org/nightly/package/language-puppet"]
+image:https://travis-ci.org/bartavelle/language-puppet.svg?branch=master["Build Status", link="https://travis-ci.org/bartavelle/language-puppet"]
 
 A library to work with Puppet manifests, test them and eventually replace everything ruby.
 
@@ -163,4 +163,3 @@ puppet functions::
   * the deprecated `import` function is not supported (see https://github.com/bartavelle/language-puppet/issues/82[issue #82])
 
 custom ruby functions::
-Currently the only way to support your custom ruby functions is to rewrite them in Lua.
