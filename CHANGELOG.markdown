@@ -1,4 +1,6 @@
-#v1.3 (TBD)
+#v1.3 (2016/07/11)
+
+This release is about dependencies versions upgrades.
 
 ## Removed features
 * External Lua plugins are not a thing anymore
