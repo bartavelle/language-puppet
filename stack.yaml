@@ -2,5 +2,8 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-
-resolver: nightly-2016-06-08
+  - http-client-0.5.1
+  - http-client-tls-0.3.0
+  - servant-0.8
+  - servant-client-0.8
+resolver: nightly-2016-07-19
