@@ -1,32 +1,37 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE GADTs      #-}
+{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
+import           Control.Lens
+import           Control.Monad              (forM_, unless, (>=>))
+import           Control.Monad.Trans.Except
+import qualified Data.ByteString.Char8      as BS
+import qualified Data.Either.Strict         as S
+import qualified Data.HashMap.Strict        as HM
+import           Data.List                  (foldl')
+import           Data.Monoid
+import qualified Data.Text                  as T
+import qualified Data.Vector                as V
+import qualified Data.Version               (showVersion)
+import           Data.Yaml                  hiding (Parser)
+import           Network.HTTP.Client
+import           Options.Applicative        as O
+import qualified Paths_language_puppet
+import           Servant.Common.BaseUrl
+import           System.Exit                (exitFailure)
+
+import           Facter
 import           Puppet.Interpreter.Types
 import           PuppetDB.Common
-import           PuppetDB.TestDB
 import           PuppetDB.Remote
-import           Facter
+import           PuppetDB.TestDB
 
-import           Control.Lens
-import           Control.Monad (forM_,unless,(>=>))
-import           Control.Monad.Trans.Except
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Either.Strict as S
-import qualified Data.HashMap.Strict as HM
-import           Data.List (foldl')
-import           Data.Monoid
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import           Data.Yaml hiding (Parser)
-import           Network.HTTP.Client
-import           Options.Applicative as O
-import           Servant.Common.BaseUrl
 
-data Options = Options { _pdbloc :: Maybe FilePath
-                       , _pdbtype :: PDBType
-                       , _pdbcmd :: Command
+data Options = Options { _pdbloc     :: Maybe FilePath
+                       , _pdbtype    :: PDBType
+                       , _pdbcmd     :: Maybe Command
+                       , _pdbversion :: Bool
                        }
 
 data Command = DumpFacts
@@ -49,7 +54,11 @@ options = Options
         <> short 't'
         <> value PDBTest
         <> help "PuppetDB types : test, remote, dummy")
-    <*> cmd
+    <*> optional cmd
+
+    <*> switch
+        (  long "version"
+        <> help "Output version information and exit")
     where
         cmd = subparser (  command "dumpfacts" (info (pure DumpFacts)(progDesc "Dump all facts, store in /tmp/allfacts.yaml" <> failureCode 4))
                         <> command "editfact"  (info factedit (progDesc "Edit a fact corresponding to a node" <> failureCode 7 ))
@@ -91,17 +100,25 @@ checkError _ (Right a) = return a
 runCheck :: Show r => String -> ExceptT r IO a -> IO a
 runCheck s = runExceptT >=> checkError s
 
+showHelpText :: ParserPrefs -> ParserInfo a -> IO ()
+showHelpText pprefs pinfo = handleParseResult . Failure $
+  parserFailure pprefs pinfo ShowHelpText mempty
+
 run :: Options -> IO ()
-run Options{..} = do
+run Options {_pdbversion = False, _pdbcmd = Nothing} =
+  putStrLn "Please provide one of the available command (see --help for more information) " *> exitFailure
+run Options {_pdbversion = True, ..} = putStrLn ("language-puppet " ++ Data.Version.showVersion Paths_language_puppet.version)
+
+run Options{_pdbcmd = Just pdbcmd, ..} = do
     mgr <- newManager defaultManagerSettings
     epdbapi <- case (_pdbloc, _pdbtype) of
                    (Just l, PDBRemote) -> pdbConnect mgr $ either (error . show) id $ parseBaseUrl l
                    (Just l, PDBTest)   -> loadTestDB l
                    (_, x)              -> getDefaultDB x
     pdbapi <- case epdbapi of
-                  Left r -> error (show r)
+                  Left r  -> error (show r)
                   Right x -> return x
-    case _pdbcmd of
+    case pdbcmd of
         DumpFacts -> if _pdbtype == PDBDummy
                          then puppetDBFacts "dummy"  pdbapi >>= mapM_ print . HM.toList
                          else do

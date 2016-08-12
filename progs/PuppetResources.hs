@@ -22,8 +22,10 @@ import qualified Data.Text.IO                  as T
 import           Data.Text.Strict.Lens
 import           Data.Tuple                    (swap)
 import qualified Data.Vector                   as V
+import qualified Data.Version                  (showVersion)
 import           Network.HTTP.Client
 import           Options.Applicative
+import qualified Paths_language_puppet
 import           Servant.Common.BaseUrl        (parseBaseUrl)
 import           System.Exit                   (exitFailure, exitSuccess)
 import qualified System.FilePath.Glob          as G
@@ -44,7 +46,6 @@ import           PuppetDB.Common               (generateWireCatalog)
 import           PuppetDB.Dummy                (dummyPuppetDB)
 import           PuppetDB.Remote               (pdbConnect)
 import           PuppetDB.TestDB               (loadTestDB)
-
 
 type ParseError' = P.ParseError Char P.Dec
 type QueryFunc = NodeName -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
@@ -75,6 +76,7 @@ data Options = Options
     , _optParse        :: Maybe FilePath
     , _optStrictMode   :: Bool
     , _optNoExtraTests :: Bool
+    , _optVersion      :: Bool
     } deriving (Show)
 
 options :: Parser Options
@@ -144,6 +146,9 @@ options = Options
    <*> flag False True
        (  long "noextratests"
        <> help "Disable extra tests (eg.: check that files exist on local disk")
+   <*> switch
+       (  long "version"
+       <> help "Output version information and exit")
 
 
 -- | Like catMaybes, but it counts the Nothing values
@@ -360,7 +365,10 @@ filterCatalog typeFilter nameFilter = filterC typeFilter (_1 . itype . unpacked)
                                     Right Nothing -> return False
                                     _ -> return True
 
+
 run :: Options -> IO ()
+run Options {_optVersion = True, ..} = putStrLn ("language-puppet " ++ Data.Version.showVersion Paths_language_puppet.version)
+
 -- | Parse mode
 run Options {_optParse = Just fp, ..} = parseFile fp >>= \case
             Left rr -> error ("parse error:" ++ show rr)

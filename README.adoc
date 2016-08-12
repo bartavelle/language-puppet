@@ -116,6 +116,10 @@ Disable the extra tests from `Puppet.OptionalTests`.
 
 Enable `parse mode`. Specify the puppet file to be parsed. Variables are not resolved. No interpretation.
 
+`--version`::
+
+Output version information and exist.
+
 === Settings defaults using a yaml file
 
 Defaults for some of these options can be set using a `/yourworkingdirectory/tests/defaults.yaml` file. For instance `OptionalTests` is checking that all users and groups are known. Because some of these users and groups might be defined outside puppet, a list of known ones is used internally. This can be overridden in that file using the key `knownusers` and `knowngroups`.
@@ -155,6 +159,10 @@ Create a test DB from the current DB
 `addfacts`::
 
 Adds facts to the test DB for the given node name, if they are not already defined.
+
+`--version`::
+
+Output version information and exit.
 
 == Unsupported Puppet idioms or features
 

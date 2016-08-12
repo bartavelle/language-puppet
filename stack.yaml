@@ -6,4 +6,4 @@ extra-deps:
   - http-client-tls-0.3.0
   - servant-0.8
   - servant-client-0.8
-resolver: nightly-2016-07-19
+resolver: nightly-2016-08-12

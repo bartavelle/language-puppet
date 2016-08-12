@@ -1,4 +1,8 @@
-#v1.3 (2016/07/11)
+# v1.3.1 (next release)
+
+* Add `--version` to puppetresources and pdbquery
+
+# v1.3 (2016/07/11)
 
 This release is about dependencies versions upgrades.
 
