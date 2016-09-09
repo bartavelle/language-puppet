@@ -1,3 +1,7 @@
+# v1.3.2 ()
+
+* Add stdlib `validate_integer` 
+
 # v1.3.1 (2016/08/31)
 
 * Add `--version` to puppetresources and pdbquery
