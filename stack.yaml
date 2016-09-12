@@ -2,8 +2,6 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-  - http-client-0.5.2
-  - http-client-tls-0.3.0
   - servant-0.8
   - servant-client-0.8
   - http-api-date-0.3
