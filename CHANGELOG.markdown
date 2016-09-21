@@ -1,6 +1,7 @@
-# v1.3.2 ()
+# v1.3.2 (2016/09/21)
 
-* Add stdlib `validate_integer` 
+* Add stdlib `validate_integer`
+* Support for servant 0.9
 
 # v1.3.1 (2016/08/31)
 

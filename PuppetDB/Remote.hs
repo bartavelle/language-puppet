@@ -38,15 +38,15 @@ pdbConnect mgr url =
         (q1 sgetResources)
         (q1 sgetNodes)
         (throwError "operation not supported")
-        (\ndename q -> prettyError $ sgetNodeResources ndename (Just q) mgr url)
+        (\ndename q -> prettyError $ sgetNodeResources ndename (Just q))
         where
-            sgetNodes :: Maybe (Query NodeField) -> Manager -> BaseUrl -> ClientM [NodeInfo]
-            sgetNodeResources :: Text -> Maybe (Query ResourceField) -> Manager -> BaseUrl -> ClientM [Resource]
-            sgetFacts :: Maybe (Query FactField) -> Manager -> BaseUrl -> ClientM [FactInfo]
-            sgetResources :: Maybe (Query ResourceField) -> Manager -> BaseUrl -> ClientM [Resource]
+            sgetNodes :: Maybe (Query NodeField) -> ClientM [NodeInfo]
+            sgetNodeResources :: Text -> Maybe (Query ResourceField) -> ClientM [Resource]
+            sgetFacts :: Maybe (Query FactField) -> ClientM [FactInfo]
+            sgetResources :: Maybe (Query ResourceField) -> ClientM [Resource]
             (sgetNodes :<|> sgetNodeResources :<|> sgetFacts :<|> sgetResources) = client api
 
-            prettyError :: ExceptT ServantError IO b -> ExceptT PrettyError IO b
-            prettyError = mapExceptT (fmap (_Left %~ PrettyError . string. show))
-            q1 :: (Maybe a -> Manager -> BaseUrl -> ClientM b) -> a -> ExceptT PrettyError IO b
-            q1 f a = prettyError (f (Just a) mgr url)
+            prettyError :: ClientM b -> ExceptT PrettyError IO b
+            prettyError = ExceptT . fmap (_Left %~ PrettyError . string. show) . flip runClientM (ClientEnv mgr url)
+            q1 :: (Maybe a -> ClientM b) -> a -> ExceptT PrettyError IO b
+            q1 f a = prettyError (f (Just a))

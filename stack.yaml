@@ -2,7 +2,8 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-  - servant-0.8
-  - servant-client-0.8
+  - servant-client-0.9
   - http-api-date-0.3
+  - http-api-data-0.3
+  - servant-0.9
 resolver: lts-7.0
