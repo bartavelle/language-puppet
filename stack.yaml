@@ -2,8 +2,5 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-  - servant-client-0.9
-  - http-api-date-0.3
-  - http-api-data-0.3
-  - servant-0.9
-resolver: lts-7.0
+  - megaparsec-5.1.0
+resolver: nightly-2016-10-04

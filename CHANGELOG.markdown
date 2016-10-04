@@ -1,3 +1,7 @@
+# v1.3.2.1 (2016/10/04)
+
+* Support for megaparsec 5.1
+
 # v1.3.2 (2016/09/21)
 
 * Add stdlib `validate_integer`
