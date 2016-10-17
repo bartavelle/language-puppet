@@ -1,3 +1,7 @@
+# v1.3.3 (2016/10/16)
+
+* Fix `pdbquery dumpres NODENAME`
+
 # v1.3.2.1 (2016/10/04)
 
 * Support for megaparsec 5.1

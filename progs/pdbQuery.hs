@@ -73,7 +73,7 @@ factedit :: Parser Command
 factedit = EditFact <$> O.argument auto mempty <*> O.argument auto mempty
 
 resourcesparser :: Parser Command
-resourcesparser = DumpResources <$> O.argument auto mempty
+resourcesparser = DumpResources <$> (fmap T.pack (O.strArgument (metavar "NODE")))
 
 delnodeparser :: Parser Command
 delnodeparser = DeactivateNode <$> O.argument auto mempty
@@ -130,6 +130,7 @@ run Options{_pdbcmd = Just pdbcmd, ..} = do
                              runCheck "replace facts in dummy db" (replaceFacts tmpdb (HM.toList groupfacts))
                              runCheck "commit db" (commitDB tmpdb)
         DumpNodes -> runExceptT (getNodes pdbapi QEmpty) >>= display "dump nodes"
+        DumpResources n -> runExceptT (getResourcesOfNode pdbapi n QEmpty) >>= display "get resources"
         AddFacts n -> do
             unless (_pdbtype == PDBTest) (error "This option only works with the test puppetdb")
             fcts <- puppetDBFacts n pdbapi

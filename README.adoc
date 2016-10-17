@@ -153,6 +153,10 @@ Dump all facts, and store them in `/tmp/allfacts.yaml`.
 
 Dump all nodes
 
+`dumpres`::
+
+Dump all resources for a specific node
+
 `snapshot`::
 
 Create a test DB from the current DB
