@@ -73,7 +73,7 @@ factedit :: Parser Command
 factedit = EditFact <$> O.argument auto mempty <*> O.argument auto mempty
 
 resourcesparser :: Parser Command
-resourcesparser = DumpResources <$> (fmap T.pack (O.strArgument (metavar "NODE")))
+resourcesparser = DumpResources <$> fmap T.pack (O.strArgument (metavar "NODE"))
 
 delnodeparser :: Parser Command
 delnodeparser = DeactivateNode <$> O.argument auto mempty
