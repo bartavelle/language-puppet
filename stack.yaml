@@ -1,6 +1,7 @@
 flags: {}
 packages:
 - '.'
-extra-deps:
-  - megaparsec-5.1.0
-resolver: nightly-2016-10-04
+nix:
+  enable: false
+  packages: [zlib, pcre, ruby]
+resolver: nightly-2016-10-16
