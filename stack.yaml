@@ -2,6 +2,5 @@ flags: {}
 packages:
 - '.'
 nix:
-  enable: false
   packages: [zlib, pcre, ruby]
-resolver: nightly-2016-10-16
+resolver: nightly-2016-10-18
