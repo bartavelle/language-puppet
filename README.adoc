@@ -129,8 +129,12 @@ Please look at https://github.com/bartavelle/language-puppet/blob/master/tests/d
 
 == pdbQuery
 
-The `pdbQuery` command is used to work with different implementations of PuppetDB (the official one with its HTTP API, the file-based backend and dummy ones). Its main use is to
-export data from production PuppetDB to a file in order to debug some issue with `puppetresources`. Here is a list of command line arguments :
+The `pdbquery` command will work with different implementations of PuppetDB (the official one with its HTTP API, the file-based backend and dummy ones). It can be used to:
+
+* export data from production PuppetDB to a file (in order to debug some issue with `puppetresources`).
+* query a Puppetdb
+
+Here is a list of command line arguments :
 
 `-l` or `--location`::
 
@@ -145,28 +149,26 @@ The type of PuppetDB to work with:
 * test: a file-based backend emulating a PuppetDB.
 
 .Commands
-`dumpfacts`::
 
-Dump all facts, and store them in `/tmp/allfacts.yaml`.
+`facts`::
+Output facts for a specific node (json)
 
 `nodes`::
+Output all nodes (json)
 
-Dump all nodes
+`resources`::
+Output all resources for a specific node (json)
 
-`dumpres`::
-
-Dump all resources for a specific node
+`dumpfacts`::
+Dump all facts to `/tmp/allfacts.yaml`.
 
 `snapshot`::
-
 Create a test DB from the current DB
 
 `addfacts`::
-
 Adds facts to the test DB for the given node name, if they are not already defined.
 
 `--version`::
-
 Output version information and exit.
 
 == Unsupported Puppet idioms or features

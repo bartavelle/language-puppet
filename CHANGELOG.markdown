@@ -1,6 +1,9 @@
 # v1.3.3 (2016/10/16)
 
-* Fix `pdbquery dumpres NODENAME`
+* Rename some pdbquery subcommands
+* Output pdbquery in `json` instead of `yaml`
+* Fix `pdbquery resources NODENAME`
+* Add `pdbquery fact NODENAME`
 
 # v1.3.2.1 (2016/10/04)
 
