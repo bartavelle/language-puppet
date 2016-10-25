@@ -219,6 +219,7 @@ executable pdbquery
   ghc-options:         -Wall -rtsopts -threaded
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       base
+                     , aeson
                      , bytestring
                      , http-client
                      , language-puppet

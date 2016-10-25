@@ -6,7 +6,8 @@ module Main where
 import           Control.Lens
 import           Control.Monad              (forM_, unless, (>=>))
 import           Control.Monad.Trans.Except
-import qualified Data.ByteString.Char8      as BS
+import qualified Data.Aeson                 as Aeson
+import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.Either.Strict         as S
 import qualified Data.HashMap.Strict        as HM
 import           Data.List                  (foldl')
@@ -14,7 +15,6 @@ import           Data.Monoid
 import qualified Data.Text                  as T
 import qualified Data.Vector                as V
 import qualified Data.Version               (showVersion)
-import           Data.Yaml                  hiding (Parser)
 import           Network.HTTP.Client
 import           Options.Applicative        as O
 import qualified Paths_language_puppet
@@ -35,6 +35,7 @@ data Options = Options { _pdbloc     :: Maybe FilePath
                        }
 
 data Command = DumpFacts
+             | DumpFact T.Text
              | DumpNodes
              | EditFact T.Text T.Text
              | DeactivateNode T.Text
@@ -60,17 +61,21 @@ options = Options
         (  long "version"
         <> help "Output version information and exit")
     where
-        cmd = subparser (  command "dumpfacts" (info (pure DumpFacts)(progDesc "Dump all facts, store in /tmp/allfacts.yaml" <> failureCode 4))
-                        <> command "editfact"  (info factedit (progDesc "Edit a fact corresponding to a node" <> failureCode 7 ))
-                        <> command "dumpres"   (info resourcesparser (progDesc "Dump resources" <> failureCode 5))
-                        <> command "delnode"   (info delnodeparser   (progDesc "Deactivate node" <> failureCode 6))
-                        <> command "nodes"     (info (pure DumpNodes)(progDesc "Dump all nodes" <> failureCode 8))
+        cmd = subparser (  command "resources"   (info resourcesparser (progDesc "Output resources for one node" <> failureCode 5))
+                        <> command "facts"  (info factparser (progDesc "Output facts for one node" <> failureCode 12 ))
+                        <> command "nodes"     (info (pure DumpNodes)(progDesc "Output all nodes" <> failureCode 8))
+                        <> command "dumpfacts" (info (pure DumpFacts)(progDesc "Dump all facts, store in /tmp/allfacts.yaml" <> failureCode 4))
                         <> command "snapshot"  (info createtestdb    (progDesc "Create a test DB from the current DB" <> failureCode 10))
+                        <> command "delnode"   (info delnodeparser   (progDesc "Deactivate node" <> failureCode 6))
+                        <> command "editfact"  (info factedit (progDesc "Edit a fact corresponding to a node" <> failureCode 7 ))
                         <> command "addfacts"  (info addfacts        (progDesc "Adds facts to the test DB for the given node name, if they are not already defined" <> failureCode 11))
                         )
 
 factedit :: Parser Command
 factedit = EditFact <$> O.argument auto mempty <*> O.argument auto mempty
+
+factparser :: Parser Command
+factparser = DumpFact <$> fmap T.pack (O.strArgument (metavar "NODE"))
 
 resourcesparser :: Parser Command
 resourcesparser = DumpResources <$> fmap T.pack (O.strArgument (metavar "NODE"))
@@ -85,9 +90,9 @@ addfacts :: Parser Command
 addfacts = AddFacts <$> O.argument auto mempty
 
 
-display :: (Show r, ToJSON a) => String -> Either r a -> IO ()
+display :: (Show r, Aeson.ToJSON a) => String -> Either r a -> IO ()
 display s (Left rr) = error (s <> " " <> show rr)
-display _ (Right a) = BS.putStrLn (encode a)
+display _ (Right a) = BS.putStrLn (Aeson.encode a)
 
 checkErrorS :: (Show r) => String -> S.Either r a -> IO a
 checkErrorS s (S.Left rr) = error (s <> " " <> show rr)
@@ -129,6 +134,7 @@ run Options{_pdbcmd = Just pdbcmd, ..} = do
                                      curmap & at ndname . non HM.empty %~ (at fctname ?~ fctval)
                              runCheck "replace facts in dummy db" (replaceFacts tmpdb (HM.toList groupfacts))
                              runCheck "commit db" (commitDB tmpdb)
+        DumpFact n -> runExceptT (getFacts pdbapi (QEqual FCertname n ) ) >>= display "dump fact"
         DumpNodes -> runExceptT (getNodes pdbapi QEmpty) >>= display "dump nodes"
         DumpResources n -> runExceptT (getResourcesOfNode pdbapi n QEmpty) >>= display "get resources"
         AddFacts n -> do
