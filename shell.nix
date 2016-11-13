@@ -1,2 +1,2 @@
-with (import <nixpkgs> {}).pkgs;
-(haskellPackages.callPackage ./. {}).env
+with (import <nixpkgs> {});
+pkgs.haskellPackages.callPackage ./. {}
