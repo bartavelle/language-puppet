@@ -1,4 +1,4 @@
-# v1.3.3 (2016/10/16)
+# v1.3.3 (2016/12/05)
 
 * Rename some pdbquery subcommands
 * Output pdbquery in `json` instead of `yaml`
