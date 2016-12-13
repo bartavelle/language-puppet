@@ -35,7 +35,7 @@ testUsersGroups kusers kgroups c = do
         checkResource' lu lg res = do
             let msg att name = align (vsep [ "Resource" <+> ttext (res^.rid.itype)
                                              <+> ttext (res^.rid.iname) <+> showPos (res^.rpos._1)
-                                           , "reference the unknown" <+> string att <+> squotes (ttext name)])
+                                           , "references the unknown" <+> string att <+> squotes (ttext name)])
                                <> line
             case lu of
                 Just lu' -> do
