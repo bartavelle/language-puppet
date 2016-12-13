@@ -229,9 +229,37 @@ computeCatalog nodename = do
                     ExportedRealized -> i curr :!: i cure
                     _ -> curr :!: cure
     verified <- HM.fromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (HM.elems real)
-    edgemap <- makeEdgeMap verified
+    withResourceDependentRelations <- traverse getResourceDependentRelations verified
+    edgemap <- makeEdgeMap withResourceDependentRelations
     definedRes <- use definedResources
-    return (verified, edgemap, exported, HM.elems definedRes)
+    return (withResourceDependentRelations, edgemap, exported, HM.elems definedRes)
+
+-- | This extracts additional relationships between resources, that are
+-- dependent on whether some resources are defined. A canonical example is
+-- is the 'owner' field in a File, that can create problems if it's
+-- defined!
+--
+-- For this reason, this function only adds dependencies when the resources
+-- are defined.
+getResourceDependentRelations :: Resource -> InterpreterMonad Resource
+getResourceDependentRelations res = extract $ case res ^. rid . itype of
+                                                  "file" -> [depOn "user" "owner", depOn "group" "group"]
+                                                  "cron" -> [depOn "user" "user"]
+                                                  "exec" -> [depOn "user" "user", depOn "group" "group"]
+                                                  _ -> []
+    where
+        extract actions = do
+            newrelations <- fmap (foldl' (HM.unionWith (<>)) (res ^. rrelations)) (sequence actions)
+            return (res & rrelations .~ newrelations)
+        depOn :: Text -> Text -> InterpreterMonad (HM.HashMap RIdentifier (HS.HashSet LinkType))
+        depOn resType attributeName = case res ^? rattributes . ix attributeName of
+                                              Just (PString usr) -> do
+                                                  let targetResourceId = RIdentifier resType usr
+                                                  existing <- has (ix targetResourceId) <$> use definedResources
+                                                  return $ if existing
+                                                               then HM.singleton targetResourceId (HS.singleton RRequire)
+                                                               else HM.empty
+                                              _ -> return HM.empty
 
 makeEdgeMap :: FinalCatalog -> InterpreterMonad EdgeMap
 makeEdgeMap ct = do
@@ -262,11 +290,13 @@ makeEdgeMap ct = do
                newmap = ifromListWith (<>) resresources
                resid = r ^. rid
                respos = r ^. rpos
+               resresources :: [(RIdentifier, [LinkInformation])]
                resresources = do
                    (rawdst, lts) <- itoList (r ^. rrelations)
                    lt <- toList lts
                    let (nsrc, ndst, nlt) = reorderlink (resid, rawdst, lt)
                    return (nsrc, [LinkInformation nsrc ndst nlt respos])
+        step1 :: HM.HashMap RIdentifier [LinkInformation]
         step1 = foldl' addRR mempty ct
     -- step 2 - add other relations (mainly stuff made from the "->"
     -- operator)

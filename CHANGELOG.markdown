@@ -1,3 +1,7 @@
+# v1.3.4 (UNRELEASED)
+
+* Adds implicit dependencies for some types where users and groups are defined
+
 # v1.3.3 (2016/12/05)
 
 * Rename some pdbquery subcommands
