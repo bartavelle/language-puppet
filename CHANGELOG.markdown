@@ -1,4 +1,4 @@
-# v1.3.4 (UNRELEASED)
+# v1.3.4 (2016/12/14)
 
 * Adds implicit dependencies for some types where users and groups are defined
 
