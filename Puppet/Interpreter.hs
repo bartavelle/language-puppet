@@ -129,44 +129,44 @@ finalize rx = do
     concat <$> mapM expandableDefine withDefaults
     where
         expandDefine :: Resource -> InterpreterMonad [Resource]
-        expandDefine r = do
-            let deftype = dropInitialColons (r ^. rid . itype)
-                defname = r ^. rid . iname
-                modulename = getModulename (r ^. rid)
-                curContType = ContDefine deftype defname (r ^. rpos)
-            p <- use curPos
-            -- we add the relations of this define to the global list of relations
-            -- before dropping it, so that they are stored for the final
-            -- relationship resolving
-            let extr = do
-                    (dstid, linkset) <- itoList (r ^. rrelations)
-                    link <- toList linkset
-                    return (LinkInformation (r ^. rid) dstid link p)
-            extraRelations <>= extr
-            void $ enterScope SENormal curContType modulename p
-            (spurious, stmt) <- interpretTopLevel TopDefine deftype
-            DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
-            let isImported (ContImported _) = True
-                isImported _ = False
-            isImportedDefine <- isImported <$> getScope
-            curPos .= r ^. rpos
-            curscp <- getScope
-            when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
-            pushScope curContType
-            ignored <- isIgnoredModule modulename
-            out <- if ignored
-                       then return mempty
-                       else do
-                            loadVariable "title" (PString defname)
-                            loadVariable "name" (PString defname)
-                            -- not done through loadvariable because of override errors
-                            loadParameters (r ^. rattributes) defineParams cp S.Nothing
-                            curPos .= cp
-                            res <- evaluateStatementsFoldable stmts
-                            finalize (spurious ++ res)
-            when isImportedDefine popScope
-            popScope
-            return out
+        expandDefine r =
+            let modulename = getModulename (r ^. rid)
+            in  isIgnoredModule modulename >>= \i ->
+                  if i
+                      then return mempty
+                      else do
+                        let deftype = dropInitialColons (r ^. rid . itype)
+                            defname = r ^. rid . iname
+                            curContType = ContDefine deftype defname (r ^. rpos)
+                        p <- use curPos
+                        -- we add the relations of this define to the global list of relations
+                        -- before dropping it, so that they are stored for the final
+                        -- relationship resolving
+                        let extr = do
+                                (dstid, linkset) <- itoList (r ^. rrelations)
+                                link <- toList linkset
+                                return (LinkInformation (r ^. rid) dstid link p)
+                        extraRelations <>= extr
+                        void $ enterScope SENormal curContType modulename p
+                        (spurious, stmt) <- interpretTopLevel TopDefine deftype
+                        DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
+                        let isImported (ContImported _) = True
+                            isImported _ = False
+                        isImportedDefine <- isImported <$> getScope
+                        curPos .= r ^. rpos
+                        curscp <- getScope
+                        when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
+                        pushScope curContType
+                        loadVariable "title" (PString defname)
+                        loadVariable "name" (PString defname)
+                        -- not done through loadvariable because of override errors
+                        loadParameters (r ^. rattributes) defineParams cp S.Nothing
+                        curPos .= cp
+                        res <- evaluateStatementsFoldable stmts
+                        out <- finalize (spurious ++ res)
+                        when isImportedDefine popScope
+                        popScope
+                        return out
 
 -- | Given a toplevel (type, name),
 -- return the associated parsed statement together with its evaluated resources
@@ -659,40 +659,40 @@ loadClass name loadedfrom params incltype = do
                            <+> showPPos pp <> ")")
         Nothing -> do
             loadedClasses . at name' ?= (incltype :!: p)
-            -- load the actual class, note we are not changing the current position right now
-            (spurious, stmt) <- interpretTopLevel TopClass name'
-            ClassDecl _ classParams inh stmts cp <- extractPrism "loadClass" _ClassDecl stmt
-            -- check if we need to define a resource representing the class
-            -- This will be the case for the first standard include
-            inhstmts <- case inh of
-                            S.Nothing     -> return []
-                            S.Just ihname -> loadClass ihname (S.Just name') mempty ClassIncludeLike
-            let !scopedesc = ContClass name'
-                modulename = getModulename (RIdentifier "class" name')
-                secontext = case (inh, loadedfrom) of
-                                (S.Just x,_) -> SEChild (dropInitialColons x)
-                                (_,S.Just x) -> SEParent (dropInitialColons x)
-                                _ -> SENormal
-            void $ enterScope secontext scopedesc modulename p
-            classresource <- if incltype == ClassIncludeLike
-                                 then do
-                                     scp <- use curScope
-                                     fqdn <- getNodeName
-                                     return [Resource (RIdentifier "class" name') (HS.singleton name') mempty mempty scp Normal mempty p fqdn]
-                                 else return []
-            pushScope scopedesc
+            let modulename = getModulename (RIdentifier "class" name')
             ignored <- isIgnoredModule modulename
-            out <- if ignored
-                       then return mempty
-                       else do
-                            loadVariable "title" (PString name')
-                            loadVariable "name" (PString name')
-                            loadParameters params classParams cp (S.Just name')
-                            curPos .= cp
-                            res <- evaluateStatementsFoldable stmts
-                            finalize (classresource ++ spurious ++ inhstmts ++ res)
-            popScope
-            return out
+            if ignored
+              then return mempty
+              else do
+                    -- load the actual class, note we are not changing the current position right now
+                    (spurious, stmt) <- interpretTopLevel TopClass name'
+                    ClassDecl _ classParams inh stmts cp <- extractPrism "loadClass" _ClassDecl stmt
+                    -- check if we need to define a resource representing the class
+                    -- This will be the case for the first standard include
+                    inhstmts <- case inh of
+                                    S.Nothing     -> return []
+                                    S.Just ihname -> loadClass ihname (S.Just name') mempty ClassIncludeLike
+                    let !scopedesc = ContClass name'
+                        secontext = case (inh, loadedfrom) of
+                                        (S.Just x,_) -> SEChild (dropInitialColons x)
+                                        (_,S.Just x) -> SEParent (dropInitialColons x)
+                                        _ -> SENormal
+                    void $ enterScope secontext scopedesc modulename p
+                    classresource <- if incltype == ClassIncludeLike
+                                         then do
+                                             scp <- use curScope
+                                             fqdn <- getNodeName
+                                             return [Resource (RIdentifier "class" name') (HS.singleton name') mempty mempty scp Normal mempty p fqdn]
+                                         else return []
+                    pushScope scopedesc
+                    loadVariable "title" (PString name')
+                    loadVariable "name" (PString name')
+                    loadParameters params classParams cp (S.Just name')
+                    curPos .= cp
+                    res <- evaluateStatementsFoldable stmts
+                    out <- finalize (classresource ++ spurious ++ inhstmts ++ res)
+                    popScope
+                    return out
 
 -----------------------------------------------------------
 -- Resource stuff
