@@ -1,3 +1,7 @@
+# v1.3.5 (2017/01/31)
+
+* Ignored packages are not parsed anymore
+
 # v1.3.4.1 (2017/01/12)
 
 * Version bump for the directory dependency
