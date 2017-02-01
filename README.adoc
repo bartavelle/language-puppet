@@ -85,7 +85,7 @@ Expects the path to the `hiera.yaml` file.
 
 `--ignoredmodules`::
 
-Expects a list of comma-separated modules. The interpreter will not try to evaluate the defined types and classes from this module. This is useful for using modules that use bad
+Expects a list of comma-separated modules. The interpreter will not try to parse and evaluate the defined types and classes from this module. This is useful for using modules that use bad
 practices forbidden by `puppetresources`.
 
 `--commitdb`::
