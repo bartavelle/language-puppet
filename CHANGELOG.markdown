@@ -1,3 +1,7 @@
+# v1.3.5.1 (2017/02/02)
+
+* Version bumps for megaparsec & servant
+
 # v1.3.5 (2017/01/31)
 
 * Ignored packages are not parsed anymore

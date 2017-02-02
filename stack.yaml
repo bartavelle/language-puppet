@@ -3,4 +3,5 @@ packages:
 - '.'
 nix:
   packages: [zlib, pcre, ruby]
-resolver: nightly-2016-10-18
+resolver: nightly-2017-01-25
+extra-deps: []
