@@ -110,15 +110,16 @@ factOSLSB = do
                 | otherwise = takeWhile (/= '.') lrelease
         osfam   | distid == "Ubuntu" = "Debian"
                 | otherwise = distid
-    return  [ ("lsbdistid"              , distid)
-            , ("operatingsystem"        , distid)
-            , ("lsbdistrelease"         , lrelease)
-            , ("operatingsystemrelease" , lrelease)
-            , ("lsbmajdistrelease"      , maj)
-            , ("lsbminordistrelease"    , "")
-            , ("osfamily"               , osfam)
-            , ("lsbdistcodename"        , getval "DISTRIB_CODENAME")
-            , ("lsbdistdescription"     , getval "DISTRIB_DESCRIPTION")
+    return  [ ("lsbdistid"                 , distid)
+            , ("operatingsystem"           , distid)
+            , ("lsbdistrelease"            , lrelease)
+            , ("operatingsystemrelease"    , lrelease)
+            , ("operatingsystemmajrelease" , lrelease)
+            , ("lsbmajdistrelease"         , maj)
+            , ("lsbminordistrelease"       , "")
+            , ("osfamily"                  , osfam)
+            , ("lsbdistcodename"           , getval "DISTRIB_CODENAME")
+            , ("lsbdistdescription"        , getval "DISTRIB_DESCRIPTION")
             ]
 
 factMountPoints :: IO [(String, String)]
