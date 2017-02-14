@@ -264,7 +264,7 @@ deleteAt [PArray r, z] = case z ^? _Integer of
                                     lr = V.length r
                                     s1 = V.slice 0 n r
                                     s2 = V.slice (n+1) (lr - n - 1) r
-                                in  if V.length r >= n
+                                in  if V.length r <= n
                                        then throwPosError ("delete_at(): Out of bounds access detected, tried to remove index" <+> pretty z <+> "wheras the array only has" <+> string (show lr) <+> "elements")
                                        else return (PArray (s1 <> s2))
                               _ -> throwPosError ("delete_at(): The second argument must be an integer, not" <+> pretty z)

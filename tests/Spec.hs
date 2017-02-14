@@ -8,6 +8,7 @@ import qualified Function.MergeSpec
 import qualified Function.EachSpec
 import qualified Function.AssertPrivateSpec
 import qualified Function.JoinKeysToValuesSpec
+import qualified Function.DeleteAtSpec
 import qualified Interpreter.IfSpec
 
 main :: IO ()
@@ -28,3 +29,4 @@ spec = do
     describe "The join_keys_to_values function" Function.JoinKeysToValuesSpec.spec
     describe "The merge function" Function.MergeSpec.spec
     describe "The size function" Function.SizeSpec.spec
+    describe "The delete_at function" Function.DeleteAtSpec.spec

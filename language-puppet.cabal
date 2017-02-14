@@ -179,10 +179,12 @@ Test-Suite spec
                   Function.SizeSpec
                   Function.MergeSpec
                   Function.EachSpec
+                  Function.DeleteAtSpec
                   Function.AssertPrivateSpec
                   Function.JoinKeysToValuesSpec
                   InterpreterSpec
                   Interpreter.CollectorSpec
+                  Interpreter.IfSpec
                   Helpers
   main-is:        Spec.hs
 
