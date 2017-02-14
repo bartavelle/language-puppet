@@ -263,7 +263,7 @@ resolveExpression (Lookup a idx) =
                   checkStrict
                     ("Look up for an hash with the unknown key '" <> ttext ridx <> "' for" <+> pretty (PHash h))
                     ("Can't find index '" <> ttext ridx <> "' in" <+> pretty (PHash h))
-                  return "undef"
+                  return PUndef
         PArray ar -> do
             ridx <- resolveExpression idx
             i <- case ridx ^? _Integer of
