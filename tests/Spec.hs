@@ -8,6 +8,7 @@ import qualified Function.MergeSpec
 import qualified Function.EachSpec
 import qualified Function.AssertPrivateSpec
 import qualified Function.JoinKeysToValuesSpec
+import qualified Interpreter.IfSpec
 
 main :: IO ()
 main = hspec spec
@@ -18,6 +19,7 @@ spec = do
     describe "Collector" InterpreterSpec.collectorSpec
     describe "Class include" InterpreterSpec.classIncludeSpec
     describe "Collector (puppet tests)" Interpreter.CollectorSpec.spec
+    describe "If" Interpreter.IfSpec.spec
   describe "Puppet functions" $ do
     describe "The shellquote function" Function.ShellquoteSpec.spec
     describe "The each function" Function.EachSpec.spec
