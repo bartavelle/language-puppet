@@ -115,6 +115,7 @@ factOSLSB = do
             , ("lsbdistrelease"         , lrelease)
             , ("operatingsystemrelease" , lrelease)
             , ("lsbmajdistrelease"      , maj)
+            , ("lsbminordistrelease"    , "")
             , ("osfamily"               , osfam)
             , ("lsbdistcodename"        , getval "DISTRIB_CODENAME")
             , ("lsbdistdescription"     , getval "DISTRIB_DESCRIPTION")

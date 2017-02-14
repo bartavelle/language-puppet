@@ -1,3 +1,7 @@
+# v1.3.6 (UNRELEASED)
+
+* The `defined` function can now test variables
+
 # v1.3.5.1 (2017/02/02)
 
 * Version bumps for megaparsec & servant

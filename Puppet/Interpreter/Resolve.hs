@@ -421,15 +421,24 @@ resolveFunction' "defined" [ut] = do
     checkStrict "The use of the 'defined' function is a code smell."
                 "The 'defined' function is not allowed in strict mode."
     t <- resolvePValueString ut
-    -- case 1, netsted thingie
-    nestedStuff <- use nestedDeclarations
-    if has (ix (TopDefine, t)) nestedStuff || has (ix (TopClass, t)) nestedStuff
-        then return (PBoolean True)
-        else do -- case 2, loadeded class
-            lc <- use loadedClasses
-            if has (ix t) lc
+    if (not (T.null t) && T.head t == '$') -- variable test
+        then do
+            scps <- use scopes
+            scp <- getScopeName
+            return $ PBoolean $ case getVariable scps scp (T.tail t) of
+                Left _ -> False
+                Right _ -> True
+        else do -- resource test
+            -- case 1, nested thingie
+            nestedStuff <- use nestedDeclarations
+            if has (ix (TopDefine, t)) nestedStuff || has (ix (TopClass, t)) nestedStuff
                 then return (PBoolean True)
-                else fmap PBoolean (isNativeType t)
+                else do -- case 2, loaded class
+                    lc <- use loadedClasses
+                    if has (ix t) lc
+                        then return (PBoolean True)
+                        else fmap PBoolean (isNativeType t)
+
 resolveFunction' "defined" x = throwPosError ("defined(): expects a single resource reference, type or class name, and not" <+> pretty x)
 resolveFunction' "fail" x = throwPosError ("fail:" <+> pretty x)
 resolveFunction' "inline_template" [] = throwPosError "inline_template(): Expects at least one argument"
