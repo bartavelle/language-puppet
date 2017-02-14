@@ -61,7 +61,7 @@ import qualified Data.Text                        as T
 import qualified Data.Text.Encoding               as T
 import           Data.Tuple.Strict                as S
 import qualified Data.Vector                      as V
-import           Data.Version                     (parseVersion)
+import           Data.Version                     (parseVersion, Version(..))
 import           Text.ParserCombinators.ReadP     (readP_to_S)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
 import           Text.Regex.PCRE.ByteString.Utils
@@ -506,14 +506,15 @@ resolveFunction' "versioncmp" [pa,pb] = do
     a <- resolvePValueString pa
     b <- resolvePValueString pb
     let parser x = case filter (null . Prelude.snd) (readP_to_S parseVersion (T.unpack x)) of
-                       ( (v, _) : _ ) -> return v
-                       _ -> throwPosError ("Could not parse this string as a version:" <+> ttext x)
-    va <- parser a
-    vb <- parser b
+                       ( (v, _) : _ ) -> v
+                       _ -> Version [] [] -- fallback :(
+        va = parser a
+        vb = parser b
     return $ PString $ case compare va vb of
                            EQ -> "0"
                            LT -> "-1"
                            GT -> "1"
+
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
