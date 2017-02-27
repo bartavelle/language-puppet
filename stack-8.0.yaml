@@ -1,7 +1,5 @@
 flags: {}
 packages:
 - '.'
-nix:
-  packages: [zlib, pcre, ruby]
-resolver: nightly-2017-01-25
+resolver: lts-8.3
 extra-deps: []
