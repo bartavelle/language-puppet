@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                language-puppet
-version:             1.3.5.1
+version:             1.3.6
 synopsis:            Tools to parse and evaluate the Puppet DSL.
 description:         This is a set of tools that is supposed to fill all your Puppet needs : syntax checks, catalog compilation, PuppetDB queries, simulationg of complex interactions between nodes, Puppet master replacement, and more !
 homepage:            http://lpuppet.banquise.net/
