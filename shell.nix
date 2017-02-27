@@ -1,2 +1,1 @@
-with (import <nixpkgs> {});
-pkgs.haskellPackages.callPackage ./. {}
+(import .release.nix {}).language-puppet.env
