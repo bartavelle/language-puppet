@@ -2,6 +2,7 @@
 
 * The `defined` function can now test variables
 * Fixed the `delete_at` function, added new tests, TBC
+* Fixed the `ensure_resource` function, so that its second argument can take an array.
 
 # v1.3.5.1 (2017/02/02)
 
