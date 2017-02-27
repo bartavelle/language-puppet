@@ -911,6 +911,7 @@ ensureResource [PString t, PString title, PHash params] = do
     checkStrict "The use of the 'ensure_resource' function is a code smell."
                 "The 'ensure_resource' function is not allowed in strict mode."
     ensureResource' t params title
+ensureResource [t, PArray arr, params] = concat <$> mapM (\r -> ensureResource [t, r, params]) (V.toList arr)
 ensureResource [t,title] = ensureResource [t,title,PHash mempty]
 ensureResource [_, PString _, PHash _] = throwPosError "ensureResource(): The first argument must be a string."
 ensureResource [PString _, _, PHash _] = throwPosError "ensureResource(): The second argument must be a string."
