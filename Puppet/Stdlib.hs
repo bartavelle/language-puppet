@@ -55,8 +55,8 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- dos2unix
                               , ("downcase", stringArrayFunction T.toLower)
                               , singleArgument "empty" _empty
-                              -- ensure_packages
-                              -- ensure_resource
+                              -- ensure_packages (in main interpreter module)
+                              -- ensure_resource (in main interpreter module)
                               , singleArgument "flatten" flatten
                               -- floor
                               -- fqdn_rand_string
