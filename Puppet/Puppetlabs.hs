@@ -27,7 +27,6 @@ md5 = Text.pack . show . (Crypto.hash :: ByteString -> Digest MD5) . Text.encode
 extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
 extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
           , ("/docker", "docker_run_flags", mockDockerRunFlags)
-          , ("/docker", "docker_run_flags", mockDockerRunFlags)
           , ("/jenkins", "jenkins_port", mockJenkinsPort)
           , ("/jenkins", "jenkins_prefix", mockJenkinsPrefix)
           , ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
