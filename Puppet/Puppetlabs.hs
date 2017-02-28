@@ -27,6 +27,9 @@ md5 = Text.pack . show . (Crypto.hash :: ByteString -> Digest MD5) . Text.encode
 extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
 extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
           , ("/docker", "docker_run_flags", mockDockerRunFlags)
+          , ("/docker", "docker_run_flags", mockDockerRunFlags)
+          , ("/jenkins", "jenkins_port", mockJenkinsPort)
+          , ("/jenkins", "jenkins_prefix", mockJenkinsPrefix)
           , ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
           , ("/postgresql", "postgresql_password", pgPassword)
           , ("/extlib", "random_password", randomPassword)
@@ -65,6 +68,16 @@ randomPassword [PNumber s] =
 
 randomPassword _ = throwPosError "expect one single string arguments"
 
+
+-- | To be implemented if needed
+mockJenkinsPrefix :: MonadThrowPos m => [PValue] -> m PValue
+mockJenkinsPrefix [] = return $ PString ""
+mockJenkinsPrefix arg@_ = throwPosError $ "expect no argument" <+> pretty arg
+
+-- | To be implemented if needed
+mockJenkinsPort :: MonadThrowPos m => [PValue] -> m PValue
+mockJenkinsPort [] = return $ PString "8080"
+mockJenkinsPort arg@_ = throwPosError $ "expect no argument" <+> pretty arg
 
 mockCacheData :: MonadThrowPos m => [PValue] -> m PValue
 mockCacheData [_, _, b] = return b
