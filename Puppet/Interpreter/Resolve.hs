@@ -29,6 +29,35 @@ module Puppet.Interpreter.Resolve
       fixResourceName
     ) where
 
+import           Control.Lens
+import           Control.Monad
+import           Control.Monad.Operational        (singleton)
+import           Crypto.Hash
+import           Data.Aeson                       hiding ((.=))
+import           Data.Aeson.Lens                  hiding (key)
+import           Data.Bits
+import           Data.ByteArray                   (convert)
+import           Data.ByteString                  (ByteString)
+import qualified Data.ByteString                  as BS
+import qualified Data.ByteString.Base16           as B16
+import           Data.CaseInsensitive             (mk)
+import           Data.Char                        (isAlphaNum)
+import qualified Data.Foldable                    as F
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.HashSet                     as HS
+import           Data.Maybe                       (fromMaybe, mapMaybe)
+import qualified Data.Maybe.Strict                as S
+import           Data.Scientific
+import qualified Data.Text                        as T
+import qualified Data.Text.Encoding               as T
+import           Data.Tuple.Strict                as S
+import qualified Data.Vector                      as V
+import           Data.Version                     (Version (..), parseVersion)
+import           Text.ParserCombinators.ReadP     (readP_to_S)
+import qualified Text.PrettyPrint.ANSI.Leijen     as PP
+import qualified Text.Printf                      as Text
+import           Text.Regex.PCRE.ByteString.Utils
+
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.RubyRandom
 import           Puppet.Interpreter.Types
@@ -37,34 +66,6 @@ import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP
 import           Puppet.Utils
-
-import           Control.Lens
-import           Control.Monad
-import           Control.Monad.Operational        (singleton)
-import           Crypto.Hash
-import           Data.Aeson                       hiding ((.=))
-import           Data.Aeson.Lens                  hiding (key)
-import           Data.Bits
-import           Data.ByteString (ByteString)
-import           Data.ByteArray (convert)
-import qualified Data.ByteString                  as BS
-import qualified Data.ByteString.Base16           as B16
-import           Data.CaseInsensitive             (mk)
-import           Data.Char                        (isAlphaNum)
-import qualified Data.Foldable                    as F
-import qualified Data.HashMap.Strict              as HM
-import qualified Data.HashSet                     as HS
-import           Data.Maybe                       (mapMaybe,fromMaybe)
-import qualified Data.Maybe.Strict                as S
-import           Data.Scientific
-import qualified Data.Text                        as T
-import qualified Data.Text.Encoding               as T
-import           Data.Tuple.Strict                as S
-import qualified Data.Vector                      as V
-import           Data.Version                     (parseVersion, Version(..))
-import           Text.ParserCombinators.ReadP     (readP_to_S)
-import qualified Text.PrettyPrint.ANSI.Leijen     as PP
-import           Text.Regex.PCRE.ByteString.Utils
 
 sha1 :: ByteString -> ByteString
 sha1 = convert . (hash :: ByteString -> Digest SHA1)
@@ -95,7 +96,7 @@ runHiera q t = do
         -- we can't use _PString, because of dependency cycles
         toStr (k,v) = case v of
                           PString x -> Just (k,x)
-                          _ -> Nothing
+                          _         -> Nothing
         toplevels = map (_1 %~ ("::" <>)) $ getV "::"
         locals = getV ctx
         vars = HM.fromList (toplevels <> locals)
@@ -191,7 +192,7 @@ puppetEquality ra rb =
                  (PString sa, PString sb)      -> mk sa == mk sb
                  -- TODO, check if array / hash equality should be recursed
                  -- for case insensitive matching
-                 _ -> ra == rb
+                 _                             -> ra == rb
 
 -- | The main resolution function : turns an 'Expression' into a 'PValue',
 -- if possible.
@@ -244,7 +245,7 @@ resolveExpression (Contains idx a) =
         PHash h -> do
             ridx <- resolveExpressionString idx
             case h ^. at ridx of
-                Just _ -> return (PBoolean True)
+                Just _  -> return (PBoolean True)
                 Nothing -> return (PBoolean False)
         PArray ar -> do
             ridx <- resolveExpression idx
@@ -294,9 +295,9 @@ resolveExpression (Addition a b) = do
     ra <- resolveExpression a
     rb <- resolveExpression b
     case (ra, rb) of
-        (PHash ha, PHash hb) -> return (PHash (ha <> hb))
+        (PHash ha, PHash hb)   -> return (PHash (ha <> hb))
         (PArray ha, PArray hb) -> return (PArray (ha <> hb))
-        _ -> binaryOperation a b (+)
+        _                      -> binaryOperation a b (+)
 resolveExpression (Substraction a b)   = binaryOperation a b (-)
 resolveExpression (Division a b)       = do
     ra <- resolveExpressionNumber a
@@ -380,10 +381,10 @@ resolveExpressionStrings x =
 -- | Turns a 'PValue' into a 'Bool', as explained in the reference
 -- documentation.
 pValue2Bool :: PValue -> Bool
-pValue2Bool PUndef = False
+pValue2Bool PUndef       = False
 pValue2Bool (PString "") = False
 pValue2Bool (PBoolean x) = x
-pValue2Bool _ = True
+pValue2Bool _            = True
 
 -- | This resolve function calls at the expression level.
 resolveFunction :: T.Text -> V.Vector Expression -> InterpreterMonad PValue
@@ -406,7 +407,7 @@ resolveFunction "fqdn_rand" args = do
 resolveFunction fname args = mapM resolveExpression (V.toList args) >>= resolveFunction' fname . map undefEmptyString
     where
         undefEmptyString PUndef = PString ""
-        undefEmptyString x = x
+        undefEmptyString x      = x
 
 resolveFunction' :: T.Text -> [PValue] -> InterpreterMonad PValue
 resolveFunction' "defined" [PResourceReference "class" cn] = do
@@ -426,7 +427,7 @@ resolveFunction' "defined" [ut] = do
             scps <- use scopes
             scp <- getScopeName
             return $ PBoolean $ case getVariable scps scp (T.tail t) of
-                Left _ -> False
+                Left _  -> False
                 Right _ -> True
         else do -- resource test
             -- case 1, nested thingie
@@ -459,7 +460,7 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
                     Right x -> fmap PString (safeDecodeUtf8 x)
     case ptarget of
         PArray a -> fmap PArray (traverse sub a)
-        s -> sub s
+        s        -> sub s
 resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 arguments"
 resolveFunction' "split" [psrc, psplt] = do
     src  <- fmap T.encodeUtf8 (resolvePValueString psrc)
@@ -507,7 +508,7 @@ resolveFunction' "versioncmp" [pa,pb] = do
     b <- resolvePValueString pb
     let parser x = case filter (null . Prelude.snd) (readP_to_S parseVersion (T.unpack x)) of
                        ( (v, _) : _ ) -> v
-                       _ -> Version [] [] -- fallback :(
+                       _              -> Version [] [] -- fallback :(
         va = parser a
         vb = parser b
     return $ PString $ case compare va vb of
@@ -515,6 +516,13 @@ resolveFunction' "versioncmp" [pa,pb] = do
                            LT -> "-1"
                            GT -> "1"
 
+-- | TODO: implement sprintf with multiple args
+resolveFunction' "sprintf" (PString x0: x1: _) = do
+  args <- resolvePValueString x1
+  let handle0 e = throwPosError ("sprintf arg(s) invalid: " <> pretty args <> line <> pretty e)
+  fval <- catchError (pure $ Text.printf (T.unpack x0) args) handle0
+  pure $ PString (T.pack fval)
+resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects at least two arguments"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
@@ -548,7 +556,7 @@ pdbresourcequery q mkey = do
                                          Nothing -> throwPosError ("pdbresourcequery strange error, could not find key" <+> ttext ky <+> "in" <+> pretty (PHash h))
         extractSubHash _ x = throwPosError ("pdbresourcequery strange error, expected a hash, had" <+> pretty x)
     case mkey of
-        Nothing -> return (PArray rv)
+        Nothing  -> return (PArray rv)
         (Just k) -> fmap PArray (V.mapM (extractSubHash k) rv)
 
 calcTemplate :: (T.Text -> Either T.Text T.Text) -> PValue -> InterpreterMonad T.Text
@@ -583,9 +591,9 @@ searchExpressionToPuppetDB rtype res = QAnd ( QEqual RType (capitalizeRT rtype) 
         mkSE (RNonEqualitySearch a b) = fmap QNot (mkSE (REqualitySearch a b))
         mkSE (REqualitySearch a (PString b)) = [QEqual (mkFld a) b]
         mkSE _ = []
-        mkFld "tag" = RTag
+        mkFld "tag"   = RTag
         mkFld "title" = RTitle
-        mkFld z = RParameter z
+        mkFld z       = RParameter z
 
 -- | Checks whether a given 'Resource' matches a 'RSearchExpression'. Note
 -- that the expression doesn't check for type, so you must filter the
@@ -599,21 +607,21 @@ checkSearchExpression (REqualitySearch "tag" _) _ = False
 checkSearchExpression (REqualitySearch "title" v) r =
     let nameequal = puppetEquality v (PString (r ^. rid . iname))
         aliasequal = case r ^. rattributes . at "alias" of
-                         Just a -> puppetEquality v a
+                         Just a  -> puppetEquality v a
                          Nothing -> False
     in nameequal || aliasequal
 checkSearchExpression (REqualitySearch attributename v) r =
     case r ^. rattributes . at attributename of
-        Nothing -> False
+        Nothing         -> False
         Just (PArray x) -> F.any (flip puppetEquality v) x
-        Just x -> puppetEquality x v
+        Just x          -> puppetEquality x v
 checkSearchExpression (RNonEqualitySearch attributename v) r
     | attributename  == "tag" = True
     | attributename  == "title" = not (checkSearchExpression (REqualitySearch attributename v) r)
     | otherwise = case r ^. rattributes . at attributename of
-        Nothing -> True
+        Nothing         -> True
         Just (PArray x) -> not (F.all (flip puppetEquality v) x)
-        Just x -> not (puppetEquality x v)
+        Just x          -> not (puppetEquality x v)
 
 -- | Generates variable associations for evaluation of blocks. Each item
 -- corresponds to an iteration in the calling block.

@@ -10,6 +10,7 @@ import qualified Function.AssertPrivateSpec
 import qualified Function.JoinKeysToValuesSpec
 import qualified Function.DeleteAtSpec
 import qualified Interpreter.IfSpec
+import qualified Function.SprintfSpec
 
 main :: IO ()
 main = hspec spec
@@ -23,6 +24,7 @@ spec = do
     describe "If" Interpreter.IfSpec.spec
   describe "Puppet functions" $ do
     describe "The shellquote function" Function.ShellquoteSpec.spec
+    describe "The sprintf function" Function.SprintfSpec.spec
     describe "The each function" Function.EachSpec.spec
   describe "stdlib functions" $ do
     describe "The assert_private function" Function.AssertPrivateSpec.spec

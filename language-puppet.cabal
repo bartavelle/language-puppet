@@ -176,6 +176,7 @@ Test-Suite spec
   extensions:     OverloadedStrings
   build-depends:  language-puppet,base,strict-base-types,lens,text,hspec,unordered-containers,megaparsec,vector,scientific,mtl
   other-modules:  Function.ShellquoteSpec
+                  Function.SprintfSpec
                   Function.SizeSpec
                   Function.MergeSpec
                   Function.EachSpec

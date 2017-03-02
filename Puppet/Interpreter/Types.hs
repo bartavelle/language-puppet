@@ -74,6 +74,7 @@ module Puppet.Interpreter.Types (
  , EdgeMap
   -- * Classes
  , MonadThrowPos(..)
+ , MonadError(..)
   -- * definitions
  , metaparameters
  , showPos
