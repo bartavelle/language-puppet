@@ -8,6 +8,7 @@
 /.cabal-sandbox
 /cabal.sandbox.config
 TAGS
-/.stack-work/
+.stack-work/
 result
 *.orig
+stack.yaml
