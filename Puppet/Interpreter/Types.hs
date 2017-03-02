@@ -137,6 +137,8 @@ instance IsString PrettyError where
 
 instance Exception PrettyError
 
+instance Pretty PrettyError where
+  pretty = getError
 
 data PValue = PBoolean !Bool
             | PUndef
@@ -180,9 +182,9 @@ data Strictness = Strict | Permissive
                 deriving (Show, Eq)
 
 instance FromJSON Strictness where
-  parseJSON (Bool True) = pure Strict
+  parseJSON (Bool True)  = pure Strict
   parseJSON (Bool False) = pure Permissive
-  parseJSON _ = mzero
+  parseJSON _            = mzero
 
 data RSearchExpression = REqualitySearch !Text !PValue
                        | RNonEqualitySearch !Text !PValue
@@ -513,7 +515,7 @@ instance FromRuby PValue where
         where
             chk (Left x) = Left x
             chk (Right x) = case fromJSON x of
-                                Error rr -> Left rr
+                                Error rr    -> Left rr
 
                                 Success suc -> Right suc
 
@@ -626,7 +628,7 @@ instance FromJSON a => FromJSON (Query a) where
       [ "<", flds, val ] -> QL     <$> parseJSON flds    <*> parseJSON val
       [">=", flds, val ] -> QGE    <$> parseJSON flds    <*> parseJSON val
       ["<=", flds, val ] -> QLE    <$> parseJSON flds    <*> parseJSON val
-      x -> fail ("unknown query" ++ show x)
+      x                  -> fail ("unknown query" ++ show x)
     parseJSON _ = fail "Expected an array"
 
 instance ToJSON FactField where
@@ -641,13 +643,13 @@ instance FromJSON FactField where
     parseJSON _          = fail "Can't parse fact field"
 
 instance ToJSON NodeField where
-    toJSON NName = "name"
+    toJSON NName     = "name"
     toJSON (NFact t) = toJSON [ "fact", t ]
 
 instance FromJSON NodeField where
     parseJSON (Array xs) = case V.toList xs of
                                ["fact", x] -> NFact <$> parseJSON x
-                               _ -> fail "Invalid field syntax"
+                               _           -> fail "Invalid field syntax"
     parseJSON (String "name") = pure NName
     parseJSON _ = fail "invalid field"
 
@@ -676,7 +678,7 @@ instance FromJSON ResourceField where
 
 instance FromJSON RIdentifier where
     parseJSON (Object v) = RIdentifier <$> v .: "type" <*> v .: "title"
-    parseJSON _ = fail "invalid resource"
+    parseJSON _          = fail "invalid resource"
 
 instance ToJSON RIdentifier where
     toJSON (RIdentifier t n) = object [("type", String t), ("title", String n)]
