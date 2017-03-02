@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
 module Function.SprintfSpec (spec, main) where
 
 import           Test.Hspec
@@ -36,7 +35,8 @@ checkError args ins =
 spec :: Spec
 spec = do
     it "should fail with no argument" (checkError [] "at least two arguments")
-    it "should fail with more than one argument" (checkError ["hello", 1, 2] "not yet implemented")
+    it "should work with multiple arguments" (checkSuccess ["hello %s %s", "world", "!"] "hello world !")
     it "should work with one string argument" (checkSuccess ["hello %s", "world"] "hello world" )
     it "should fail when a wrong format instruction is used" (pendingWith "? catchError not firing ?" >> checkError ["hello %d", "world"] "arg(s) invalid" )
-    it "should work with one int argument" (pendingWith "not implemented" >> checkSuccess ["hello %d", 1] "hello 1" )
+    it "should work with one int argument" (checkSuccess ["hello %d", 10] "hello 10" )
+    it "should work with one int argument" (pendingWith "Does not work with floating number" >> checkSuccess ["hello %f", 10.0] "hello 10.0" )

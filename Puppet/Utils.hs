@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase      #-}
 -- | Those are utility functions, most of them being pretty much self
 -- explanatory.
@@ -12,6 +13,7 @@ module Puppet.Utils (
     , text2Scientific
     , getFiles
     , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
+    , popNPrintf
     -- * re-export
     , module Data.Monoid
 ) where
@@ -32,6 +34,7 @@ import Control.Exception
 import Control.Lens
 import Data.Aeson.Lens
 import qualified Data.Yaml as Y
+import           Text.Printf                 (PrintfArg, PrintfType)
 
 text2Scientific :: T.Text -> Maybe Scientific
 text2Scientific t = case parseOnly rational t of
@@ -154,3 +157,8 @@ checkForSubFiles extension dir =
 
 getDirContents :: T.Text -> IO [T.Text]
 getDirContents x = fmap (filter (not . T.all (=='.'))) (getDirectoryContents x)
+
+-- Evil hack to make sprintf work with multiple args
+popNPrintf :: (PrintfType q, PrintfArg a) => (forall p. PrintfType p => p) -> [a] -> q
+popNPrintf pf [] = pf
+popNPrintf pf (x:xs) = popNPrintf (pf x) xs

@@ -516,13 +516,14 @@ resolveFunction' "versioncmp" [pa,pb] = do
                            LT -> "-1"
                            GT -> "1"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
--- | TODO: implement sprintf with multiple args
-resolveFunction' "sprintf" (PString x0:x1:[]) = do
-  args <- resolvePValueString x1
-  let handle0 e = throwPosError ("sprintf arg(s) invalid: " <> pretty args <> line <> pretty e)
-  fval <- catchError (pure $ Text.printf (T.unpack x0) args) handle0
+resolveFunction' "sprintf" (PString str:args) = do
+  args' <- mapM resolvePValueString args
+  let str' = case substituteCompile' "(%.)" (T.encodeUtf8 str) "%s" of
+               Right x -> T.decodeUtf8 x
+               Left _ ->  str
+      handle0 e = throwPosError ("sprintf arg(s) invalid: " <> pretty args <> line <> pretty e)
+  fval <- catchError (pure $ Text.printf (T.unpack str') `popNPrintf` args') handle0
   pure $ PString (T.pack fval)
-resolveFunction' "sprintf" (PString _:_:_) = throwPosError "sprintf(): Multiple args is not yet implemented in language-puppet"
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects at least two arguments"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
