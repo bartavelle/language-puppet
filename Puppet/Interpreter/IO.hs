@@ -79,7 +79,6 @@ eval r s (a :>>= k) =
             PuppetPaths                  -> runInstr (r ^. readerPuppetPaths)
             GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
             ErrorThrow d                 -> return (Left d, s, mempty)
-            ErrorCatch _ _               -> thpe "ErrorCatch"
             GetNodeName                  -> runInstr (r ^. readerNodename)
             HieraQuery scps q t          -> canFail ((r ^. readerHieraQuery) scps q t)
             PDBInformation               -> pdbInformation pdb >>= runInstr
@@ -96,3 +95,9 @@ eval r s (a :>>= k) =
             TraceEvent e                 -> (r ^. readerIoMethods . ioTraceEvent) e >>= runInstr
             IsIgnoredModule m            -> runInstr (r ^. readerIgnoredModules . contains m)
             IsExternalModule m           -> runInstr (r ^. readerExternalModules . contains m)
+            -- on error, the program state is RESET and the logged messages are dropped
+            ErrorCatch atry ahandle      -> do
+                (eres, s', w) <- interpretMonad r s atry
+                case eres of
+                    Left rr -> interpretMonad r s (ahandle rr >>= k)
+                    Right x -> logStuff w (interpretMonad r s' (k x))
