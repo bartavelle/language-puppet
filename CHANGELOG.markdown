@@ -1,4 +1,8 @@
-# v1.3.6 (UNRELEASED)
+# v1.3.7 (UNRELEASED)
+
+* Add puppet `sprintf` function
+
+# v1.3.6 (2017/02/27)
 
 * The `defined` function can now test variables
 * Fixed the `delete_at` function, added new tests, TBC

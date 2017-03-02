@@ -11,7 +11,7 @@
 }:
 mkDerivation {
   pname = "language-puppet";
-  version = "1.3.6";
+  version = "1.3.7";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
