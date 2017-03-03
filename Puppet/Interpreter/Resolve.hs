@@ -55,7 +55,6 @@ import qualified Data.Vector                      as V
 import           Data.Version                     (Version (..), parseVersion)
 import           Text.ParserCombinators.ReadP     (readP_to_S)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
-import qualified Text.Printf                      as Text
 import           Text.Regex.PCRE.ByteString.Utils
 
 import           Puppet.Interpreter.PrettyPrinter ()
@@ -516,14 +515,14 @@ resolveFunction' "versioncmp" [pa,pb] = do
                            LT -> "-1"
                            GT -> "1"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
+-- | This implementation of sprintf does not check for type mistakes
+--   sprintf("hello %d", "world") will succeed and return "hello world"
 resolveFunction' "sprintf" (PString str:args) = do
   args' <- mapM resolvePValueString args
-  let str' = case substituteCompile' "(%.)" (T.encodeUtf8 str) "%s" of
-               Right x -> T.decodeUtf8 x
-               Left _ ->  str
-      handle0 e = throwPosError ("sprintf arg(s) invalid: " <> pretty args <> line <> pretty e)
-  fval <- catchError (pure $ Text.printf (T.unpack str') `popNPrintf` args') handle0
-  pure $ PString (T.pack fval)
+  let (hstr':str') = T.splitOn "%" str
+  when (length str' /= length args) $ throwPosError "sprintf: invalid arg(s)"
+  let fval = hstr' : zipWith (\a b -> b <> T.tail a) str' args' -- tailing inside zipWith is safe
+  pure $ PString (T.concat fval)
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing

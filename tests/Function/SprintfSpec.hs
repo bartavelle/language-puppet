@@ -39,6 +39,6 @@ spec = do
     it "should work with multiple arguments" (checkSuccess ["hello %s %s", "world", "!"] "hello world !")
     it "should work with one string argument" (checkSuccess ["hello %s", "world"] "hello world" )
     it "should work with one int argument" (checkSuccess ["hello %d", 10] "hello 10" )
-    it "should fail if arg is not provided" (pendingWith "? catchError not firing ?" >> checkError ["hello %s"] "invalid arg(s)")
-    it "should fail when a wrong format instruction is used" (pendingWith "? catchError not firing ?" >> checkError ["hello %d", "world"] "invalid arg(s)" )
+    it "should fail if arg is not provided" (checkError ["hello %s"] "invalid arg(s)")
+    it "should fail when a wrong format instruction is used" (pendingWith "The current implementation does not check type validity" >> checkError ["hello %d", "world"] "invalid arg(s)" )
     it "should work with one int argument" (pendingWith "Does not work with floating number" >> checkSuccess ["hello %f", 10.0] "hello 10.0" )
