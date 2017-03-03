@@ -524,7 +524,7 @@ resolveFunction' "sprintf" (PString str:args) = do
       handle0 e = throwPosError ("sprintf arg(s) invalid: " <> pretty args <> line <> pretty e)
   fval <- catchError (pure $ Text.printf (T.unpack str') `popNPrintf` args') handle0
   pure $ PString (T.pack fval)
-resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects at least two arguments"
+resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
 resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
