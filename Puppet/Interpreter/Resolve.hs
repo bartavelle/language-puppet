@@ -515,14 +515,23 @@ resolveFunction' "versioncmp" [pa,pb] = do
                            LT -> "-1"
                            GT -> "1"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
--- | This implementation of sprintf does not check for type mistakes
---   sprintf("hello %d", "world") will succeed and return "hello world"
+-- | Simplified implementation of sprintf
 resolveFunction' "sprintf" (PString str:args) = do
-  args' <- mapM resolvePValueString args
   let (hstr':str') = T.splitOn "%" str
   when (length str' /= length args) $ throwPosError "sprintf: invalid arg(s)"
-  let fval = hstr' : zipWith (\a b -> b <> T.tail a) str' args' -- tailing inside zipWith is safe
-  pure $ PString (T.concat fval)
+  let zfunc s arg = do
+        -- manage the display of simple cases assuming '%' is followed by one char only
+        let Just (h,t) = T.uncons s -- tailing inside zipwith is safe
+            replaceFmtChar f = do
+              v <- f arg
+              pure $ v <> t
+        case h of
+          'd' -> replaceFmtChar (fmap scientific2text . resolvePValueNumber)
+          'f' -> replaceFmtChar (fmap scientific2text . resolvePValueNumber)
+          -- todo check other types if needed
+          _ -> replaceFmtChar resolvePValueString
+  fr <- zipWithM zfunc str' args
+  pure $ PString (T.concat (hstr':fr))
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
