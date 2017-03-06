@@ -45,6 +45,7 @@ library
                        , Puppet.Interpreter.PrettyPrinter
                        , Puppet.Interpreter.Pure
                        , Puppet.Interpreter.Resolve
+                       , Puppet.Interpreter.Resolve.Sprintf
                        , Puppet.Interpreter.Types
                        , Puppet.Interpreter.Utils
                        , Puppet.Lens

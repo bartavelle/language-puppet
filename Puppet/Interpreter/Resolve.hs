@@ -61,6 +61,7 @@ import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.RubyRandom
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
+import           Puppet.Interpreter.Resolve.Sprintf (sprintf)
 import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP
@@ -516,22 +517,7 @@ resolveFunction' "versioncmp" [pa,pb] = do
                            GT -> "1"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
 -- | Simplified implementation of sprintf
-resolveFunction' "sprintf" (PString str:args) = do
-  let (hstr':str') = T.splitOn "%" str
-  when (length str' /= length args) $ throwPosError "sprintf: invalid arg(s)"
-  let zfunc s arg = do
-        -- manage the display of simple cases assuming '%' is followed by one char only
-        let Just (h,t) = T.uncons s -- tailing inside zipwith is safe
-            replaceFmtChar f = do
-              v <- f arg
-              pure $ v <> t
-        case h of
-          'd' -> replaceFmtChar (fmap scientific2text . resolvePValueNumber)
-          'f' -> replaceFmtChar (fmap scientific2text . resolvePValueNumber)
-          -- todo check other types if needed
-          _ -> replaceFmtChar resolvePValueString
-  fr <- zipWithM zfunc str' args
-  pure $ PString (T.concat (hstr':fr))
+resolveFunction' "sprintf" (PString str:args) = sprintf str args
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
