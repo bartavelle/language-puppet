@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
 module Puppet.Interpreter.Resolve.Sprintf where
 
 import           Control.Applicative
@@ -125,15 +124,15 @@ sprintf str oargs = PString . TL.toStrict . TB.toLazyText . mconcat <$> go (pars
                    has flg = flg `elem` flags
                    content = TB.toLazyText (mkBuilder n)
         baseString <- case _pfType f of
-                          Td -> sh (TB.formatScientificBuilder TB.Fixed    (Just 0))    <$> numeric
-                          Tf -> sh (TB.formatScientificBuilder TB.Fixed    (_pfPrec f)) <$> numeric
-                          TF -> sh (TB.formatScientificBuilder TB.Fixed    (_pfPrec f)) <$> numeric
-                          Tg -> sh (TB.formatScientificBuilder TB.Generic  (_pfPrec f)) <$> numeric
-                          TG -> sh (TB.formatScientificBuilder TB.Generic  (_pfPrec f)) <$> numeric
-                          Te -> sh (TB.formatScientificBuilder TB.Exponent (_pfPrec f)) <$> numeric
-                          TE -> sh (TB.formatScientificBuilder TB.Exponent (_pfPrec f)) <$> numeric
-                          Tx -> sh (TB.hexadecimal . truncate @Scientific @Integer)     <$> numeric
-                          TX -> sh (TB.hexadecimal . truncate @Scientific @Integer)     <$> numeric
+                          Td -> sh (TB.formatScientificBuilder TB.Fixed    (Just 0))      <$> numeric
+                          Tf -> sh (TB.formatScientificBuilder TB.Fixed    (_pfPrec f))   <$> numeric
+                          TF -> sh (TB.formatScientificBuilder TB.Fixed    (_pfPrec f))   <$> numeric
+                          Tg -> sh (TB.formatScientificBuilder TB.Generic  (_pfPrec f))   <$> numeric
+                          TG -> sh (TB.formatScientificBuilder TB.Generic  (_pfPrec f))   <$> numeric
+                          Te -> sh (TB.formatScientificBuilder TB.Exponent (_pfPrec f))   <$> numeric
+                          TE -> sh (TB.formatScientificBuilder TB.Exponent (_pfPrec f))   <$> numeric
+                          Tx -> sh (TB.hexadecimal . (truncate :: Scientific -> Integer)) <$> numeric
+                          TX -> sh (TB.hexadecimal . (truncate :: Scientific -> Integer)) <$> numeric
                           Ts -> return $ case arg of
                                              PString s -> TL.fromStrict s
                                              _ -> TL.pack (show (pretty arg))
