@@ -31,7 +31,6 @@ import qualified Data.Either.Strict as S
 import Data.Scientific
 import Control.Exception
 import Control.Lens
-import Data.Aeson.Lens
 import qualified Data.Yaml as Y
 
 text2Scientific :: T.Text -> Maybe Scientific
@@ -40,9 +39,9 @@ text2Scientific t = case parseOnly rational t of
             Right s -> Just s
 
 scientific2text :: Scientific -> T.Text
-scientific2text n = T.pack $ case n ^? _Integer of
-                                 Just i -> show i
-                                 _      -> show n
+scientific2text n = T.pack $ case floatingOrInteger n of
+                                 Left r -> show (r :: Double)
+                                 Right i -> show (i :: Integer)
 
 strictifyEither :: Either a b -> S.Either a b
 strictifyEither (Left x) = S.Left x

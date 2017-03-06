@@ -1,6 +1,7 @@
 # v1.3.7 (UNRELEASED)
 
 * Add puppet `sprintf` function
+* Fix scientific2text (#196)
 
 # v1.3.6 (2017/02/27)
 
