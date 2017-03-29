@@ -12,3 +12,4 @@ TAGS
 result
 *.orig
 stack.yaml
+default.nix
