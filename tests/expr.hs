@@ -23,9 +23,11 @@ testcases =
            (V.fromList [SelectorValue UUndef :!: Terminal (UString "undef")
                        ,SelectorDefault :!: Terminal (UString "default")]))
     , ("$x", Terminal (UVariableReference "x"))
+    , ("x($y)", Terminal (UFunctionCall "x" (V.singleton (Terminal (UVariableReference "y")))))
     , ("\"${x}\"", Terminal (UInterpolable (V.fromList [Terminal (UVariableReference "x")])))
     , ("\"${x[3]}\"", Terminal (UInterpolable (V.fromList [Lookup (Terminal (UVariableReference "x")) 3])))
     , ("\"${x[$y]}\"", Terminal (UInterpolable (V.fromList [Lookup (Terminal (UVariableReference "x")) (Terminal (UVariableReference "y")) ])))
+    , ("\"${x($y)}\"", Terminal (UInterpolable (V.fromList [ Terminal (UFunctionCall "x" (V.singleton (Terminal (UVariableReference "y")))) ])))
     ]
 
 main :: IO ()

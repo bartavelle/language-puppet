@@ -198,17 +198,12 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
             return v
         rvariable = Terminal . UVariableReference <$> rvariableName
         simpleIndexing = Lookup <$> rvariable <*> between (symbolic '[') (symbolic ']') expression
-        interpolableVariableReference = try $ do
+        interpolableVariableReference = do
             void (char '$')
-            lookAhead anyChar >>= \c -> case c of
-                 '{' -> between (symbolic '{') (char '}') (   try simpleIndexing
-                                                          <|> rvariable
-                                                          )
-                 -- This is not as robust as the "qualif"
-                 -- implementation, but considerably shorter.
-                 --
-                 -- This needs refactoring.
-                 _   -> rvariable
+            let fenced =    try (simpleIndexing <* char '}')
+                        <|> try (rvariable <* char '}')
+                        <|> (expression <* char '}')
+            (symbolic '{' *> fenced) <|> rvariable
 
 regexp :: Parser T.Text
 regexp = do
