@@ -31,7 +31,10 @@ initialState :: Facts
 initialState facts settings = InterpreterState baseVars initialclass mempty [ContRoot] dummyppos mempty [] []
     where
         callervars = HM.fromList [("caller_module_name", PString "::" :!: dummyppos :!: ContRoot), ("module_name", PString "::" :!: dummyppos :!: ContRoot)]
-        factvars = fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts
+        factvars =
+          -- add the `facts` key: https://docs.puppet.com/puppet/4.10/lang_facts_and_builtin_vars.html#accessing-facts-from-puppet-code
+          let facts' = HM.insert "facts" (PHash facts) facts
+          in fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts'
         settingvars = fmap (\x -> PString x :!: initialPPos "settings" :!: ContClass "settings") settings
         baseVars = HM.fromList [ ("::", ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
                                , ("settings", ScopeInformation settingvars mempty mempty (CurContainer (ContClass "settings") mempty) mempty S.Nothing)

@@ -210,7 +210,7 @@ computeCatalog nodename = do
         evaluateNode (NodeDecl _ sx inheritnode p) = do
             curPos .= p
             pushScope ContRoot
-            unless (S.isNothing inheritnode) $ throwPosError "Node inheritance is not handled. It is a deprecated since puppet v4"
+            unless (S.isNothing inheritnode) $ throwPosError "Node inheritance is not handled. It is deprecated since puppet v4"
             mapM evaluateStatement sx >>= finalize . concat
 
     noderes <- evaluateNode nd >>= finalStep . (++ (mainstage : topres))
