@@ -270,7 +270,7 @@ data InterpreterReader m = InterpreterReader
     , _readerGetStatement    :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
     , _readerGetTemplate     :: Either Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
     , _readerPdbApi          :: PuppetDBAPI m
-    , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue)
+    , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue) -- ^ external func such as stdlib or puppetlabs
     , _readerNodename        :: Text
     , _readerHieraQuery      :: HieraQueryFunc m
     , _readerIoMethods       :: IoMethods m
