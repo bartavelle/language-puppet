@@ -28,6 +28,7 @@ testcases =
     , ("\"${x[3]}\"", Terminal (UInterpolable (V.fromList [Lookup (Terminal (UVariableReference "x")) 3])))
     , ("\"${x[$y]}\"", Terminal (UInterpolable (V.fromList [Lookup (Terminal (UVariableReference "x")) (Terminal (UVariableReference "y")) ])))
     , ("\"${x($y)}\"", Terminal (UInterpolable (V.fromList [ Terminal (UFunctionCall "x" (V.singleton (Terminal (UVariableReference "y")))) ])))
+    , ("\"${x($y)}$'\"", Terminal (UInterpolable (V.fromList [ Terminal (UFunctionCall "x" (V.singleton (Terminal (UVariableReference "y")))),Terminal (UString "$"),Terminal (UString "'")])))
     ]
 
 main :: IO ()

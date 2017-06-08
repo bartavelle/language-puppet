@@ -203,7 +203,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
             let fenced =    try (simpleIndexing <* char '}')
                         <|> try (rvariable <* char '}')
                         <|> (expression <* char '}')
-            (symbolic '{' *> fenced) <|> rvariable
+            (symbolic '{' *> fenced) <|> try rvariable <|> pure (Terminal (UString (T.singleton '$')))
 
 regexp :: Parser T.Text
 regexp = do
