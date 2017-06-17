@@ -17,10 +17,9 @@ puppetresources -p /where/your/puppet/files/are -o node.name.com
 git clone https://github.com/bartavelle/language-puppet.git
 cd language-puppet
 # Add ~/.local/bin to $PATH
+ln -s stack-8.0.yaml stack.yaml
 stack install
 ```
-
-https://hub.docker.com/r/pierrer/language-puppet/[A docker image] is available.
 
 == Puppetresources
 
@@ -173,8 +172,12 @@ Output version information and exit.
 
 == Unsupported Puppet idioms or features
 
+OS::
+  * `OS X` is currently not supported (https://github.com/bartavelle/language-puppet/issues/197[issue #197])
+
 puppet functions::
   * the `require` function is not supported (see https://github.com/bartavelle/language-puppet/issues/17[issue #17])
-  * the deprecated `import` function is not supported (see https://github.com/bartavelle/language-puppet/issues/82[issue #82])
+  * the deprecated `import` function is not supported
+  * the deprecated node inheritance feature is not supported
 
 custom ruby functions::

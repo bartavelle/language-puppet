@@ -1,3 +1,8 @@
+# v1.3.8 (2017/)
+
+* Add support for calling Functions in Strings (#199)
+* Add $facts hash for Puppet 4 (#198)
+
 # v1.3.7 (2017/03/14)
 
 * Add puppet `sprintf` function
