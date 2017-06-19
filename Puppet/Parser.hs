@@ -636,6 +636,8 @@ datatype = dtString
        <|> dtFloat
        <|> dtNumeric
        <|> (CoreBoolean <$ reserved "Boolean")
+       <|> (CoreScalar <$ reserved "Scalar")
+       <|> (CoreData <$ reserved "Data")
        <|> dtArray
        <|> dtHash
        <|> (reserved "Regexp" *> (CoreRegexp <$> optional (brackets termRegexp)))
@@ -646,21 +648,6 @@ datatype = dtString
        <|> (reserved "Pattern" *> (Pattern . NE.fromList <$> brackets (termRegexp `sepBy1` symbolic ',')))
        <|> (reserved "Enum" *> (Enum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
   where
-    corescalar = Variant ( CoreInteger Nothing Nothing
-                      :| [ CoreFloat Nothing Nothing
-                         , CoreString Nothing Nothing
-                         , CoreBoolean
-                         , CoreRegexp Nothing
-                         ])
-    coredata = Variant (CoreInteger Nothing Nothing
-                    :| [ CoreFloat Nothing Nothing
-                       , CoreString Nothing Nothing
-                       , CoreBoolean
-                       , CoreRegexp Nothing
-                       , CoreUndef
-                       , CoreArray coredata 0 Nothing
-                       , CoreHash corescalar coredata 0 Nothing
-                       ])
     integer = integerOrDouble >>= either return (const (fail "Integer value expected"))
     float = either fromIntegral id <$> integerOrDouble
     dtArgs str def parseArgs = do
@@ -683,7 +670,7 @@ datatype = dtString
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tp, rst)
       case ml of
-        Nothing -> return (CoreArray coredata 0 Nothing)
+        Nothing -> return (CoreArray CoreData 0 Nothing)
         Just (t, Nothing) -> return (CoreArray t 0 Nothing)
         Just (t, Just [mi]) -> return (CoreArray t mi Nothing)
         Just (t, Just [mi, mx]) -> return (CoreArray t mi (Just mx))
@@ -697,7 +684,7 @@ datatype = dtString
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tk, tv, rst)
       case ml of
-        Nothing -> return (CoreHash corescalar coredata 0 Nothing)
+        Nothing -> return (CoreHash CoreScalar CoreData 0 Nothing)
         Just (tk, tv, Nothing) -> return (CoreHash tk tv 0 Nothing)
         Just (tk, tv, Just [mi]) -> return (CoreHash tk tv mi Nothing)
         Just (tk, tv, Just [mi, mx]) -> return (CoreHash tk tv mi (Just mx))

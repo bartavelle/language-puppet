@@ -221,6 +221,8 @@ data DataType
     | CoreHash DataType DataType Integer (Maybe Integer)
     | CoreRegexp (Maybe CompRegex)
     | CoreUndef
+    | CoreScalar
+    | CoreData
     | Optional DataType
     | NotUndef
     | Variant (NonEmpty DataType)
