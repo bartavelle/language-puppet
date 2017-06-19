@@ -66,6 +66,7 @@ instance Pretty LambdaFunc where
     pretty LambReduce = bold $ red $ text "reduce"
     pretty LambFilter = bold $ red $ text "filter"
     pretty LambSlice  = bold $ red $ text "slice"
+    pretty LambLookup = bold $ red $ text "lookup"
 
 instance Pretty LambdaParameters where
     pretty b = magenta (char '|') <+> vars <+> magenta (char '|')

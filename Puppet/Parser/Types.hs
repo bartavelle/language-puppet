@@ -110,6 +110,7 @@ data LambdaFunc
     | LambReduce
     | LambFilter
     | LambSlice
+    | LambLookup
     deriving (Eq, Show)
 
 -- | Lambda block parameters:

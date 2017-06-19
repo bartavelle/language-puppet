@@ -646,6 +646,7 @@ lambdaCall = do
                <|> (reserved "reduce" *> pure LambReduce)
                <|> (reserved "filter" *> pure LambFilter)
                <|> (reserved "slice"  *> pure LambSlice)
+               <|> (reserved "lookup" *> pure LambLookup)
         lambParams :: Parser LambdaParameters
         lambParams = between (symbolic '|') (symbolic '|') hp
             where
