@@ -6,6 +6,7 @@ module Puppet.Parser (
   -- * Parsers
   , puppetParser
   , expression
+  , datatype
 ) where
 
 import           Control.Applicative
@@ -13,7 +14,10 @@ import           Control.Lens hiding (noneOf)
 import           Control.Monad
 import           Data.Char
 import qualified Data.Foldable as F
+import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Maybe.Strict as S
+import           Data.Maybe (fromMaybe)
 import           Data.Scientific
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -626,6 +630,78 @@ statement =
     <|> (pure . MainFunctionDeclaration <$> mainFuncDecl)
     <?> "Statement"
 
+datatype :: Parser DataType
+datatype = dtString
+       <|> dtInteger
+       <|> dtFloat
+       <|> dtNumeric
+       <|> (CoreBoolean <$ reserved "Boolean")
+       <|> dtArray
+       <|> dtHash
+       <|> (reserved "Regexp" *> (CoreRegexp <$> optional (brackets termRegexp)))
+       <|> (CoreUndef <$ reserved "Undef")
+       <|> (reserved "Optional" *> (Optional <$> brackets datatype))
+       <|> (NotUndef <$ reserved "NotUndef")
+       <|> (reserved "Variant" *> (Variant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
+       <|> (reserved "Pattern" *> (Pattern . NE.fromList <$> brackets (termRegexp `sepBy1` symbolic ',')))
+       <|> (reserved "Enum" *> (Enum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
+  where
+    corescalar = Variant ( CoreInteger Nothing Nothing
+                      :| [ CoreFloat Nothing Nothing
+                         , CoreString Nothing Nothing
+                         , CoreBoolean
+                         , CoreRegexp Nothing
+                         ])
+    coredata = Variant (CoreInteger Nothing Nothing
+                    :| [ CoreFloat Nothing Nothing
+                       , CoreString Nothing Nothing
+                       , CoreBoolean
+                       , CoreRegexp Nothing
+                       , CoreUndef
+                       , CoreArray coredata 0 Nothing
+                       , CoreHash corescalar coredata 0 Nothing
+                       ])
+    integer = integerOrDouble >>= either return (const (fail "Integer value expected"))
+    float = either fromIntegral id <$> integerOrDouble
+    dtArgs str def parseArgs = do
+      void $ try $ reserved str
+      fromMaybe def <$> optional (brackets parseArgs)
+    dtbounded s constructor parser = dtArgs s (constructor Nothing Nothing) $ do
+      lst <- parser `sepBy` symbolic ','
+      case lst of
+        [minlen] -> return $ constructor (Just minlen) Nothing
+        [minlen,maxlen] -> return $ constructor (Just minlen) (Just maxlen)
+        _ -> fail ("Too many arguments to datatype " ++ s)
+    dtString = dtbounded "String" CoreString integer
+    dtInteger = dtbounded "Integer" CoreInteger integer
+    dtFloat = dtbounded "Float" CoreFloat float
+    dtNumeric = dtbounded "Numeric" (\ma mb -> Variant (CoreFloat ma mb :| [CoreInteger (truncate <$> ma) (truncate <$> mb)])) float
+    dtArray = do
+      reserved "Array"
+      ml <- optional $ brackets $ do
+        tp <- datatype
+        rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
+        return (tp, rst)
+      case ml of
+        Nothing -> return (CoreArray coredata 0 Nothing)
+        Just (t, Nothing) -> return (CoreArray t 0 Nothing)
+        Just (t, Just [mi]) -> return (CoreArray t mi Nothing)
+        Just (t, Just [mi, mx]) -> return (CoreArray t mi (Just mx))
+        Just (_, Just _) -> fail "Too many arguments to datatype Array"
+    dtHash = do
+      reserved "Hash"
+      ml <- optional $ brackets $ do
+        tk <- datatype
+        symbolic ','
+        tv <- datatype
+        rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
+        return (tk, tv, rst)
+      case ml of
+        Nothing -> return (CoreHash corescalar coredata 0 Nothing)
+        Just (tk, tv, Nothing) -> return (CoreHash tk tv 0 Nothing)
+        Just (tk, tv, Just [mi]) -> return (CoreHash tk tv mi Nothing)
+        Just (tk, tv, Just [mi, mx]) -> return (CoreHash tk tv mi (Just mx))
+        Just (_, _, Just _) -> fail "Too many arguments to datatype Hash"
 
 statementList :: Parser (V.Vector Statement)
 statementList = (V.fromList . concat) <$> many statement

@@ -18,6 +18,7 @@ module Puppet.Parser.Types
    -- * Types
    -- ** Expressions
    Expression(..),
+   DataType(..),
    SelectorCase(..),
    UnresolvedValue(..),
    LambdaFunc(..),
@@ -61,6 +62,7 @@ import           Data.Text             (Text)
 import qualified Data.Text              as T
 import           Data.Tuple.Strict
 import qualified Data.Vector            as V
+import           Data.List.NonEmpty     (NonEmpty)
 
 import           GHC.Exts
 import           GHC.Generics
@@ -206,6 +208,27 @@ data Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression)) -- ^ All conditionals are stored in this format.
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
     | Terminal !UnresolvedValue -- ^ Terminal object contains no expression
+    | DataType !DataType
+    deriving (Eq, Show)
+
+data DataType
+    = CoreType
+    | CoreString (Maybe Integer) (Maybe Integer)
+    | CoreInteger (Maybe Integer) (Maybe Integer)
+    | CoreFloat (Maybe Double) (Maybe Double)
+    | CoreBoolean
+    | CoreArray DataType Integer (Maybe Integer)
+    | CoreHash DataType DataType Integer (Maybe Integer)
+    | CoreRegexp (Maybe CompRegex)
+    | CoreUndef
+    | Optional DataType
+    | NotUndef
+    | Variant (NonEmpty DataType)
+    | Pattern (NonEmpty CompRegex)
+    | Enum (NonEmpty Text)
+    -- | Tuple (NonEmpty DataType) Integer Integer
+    -- | CoreDefault
+    -- | Struct TODO
     deriving (Eq, Show)
 
 instance IsList Expression where

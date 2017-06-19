@@ -11,12 +11,15 @@ import qualified Function.JoinKeysToValuesSpec
 import qualified Function.DeleteAtSpec
 import qualified Interpreter.IfSpec
 import qualified Function.SprintfSpec
+import qualified DT.Parser
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = do
+  describe "Data types" $ do
+    describe "Parser" DT.Parser.spec
   describe "Interpreter" $ do
     describe "Collector" InterpreterSpec.collectorSpec
     describe "Class include" InterpreterSpec.classIncludeSpec
