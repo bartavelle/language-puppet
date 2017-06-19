@@ -635,17 +635,17 @@ lambdaCall = do
     let toStrict (Just x) = S.Just x
         toStrict Nothing  = S.Nothing
     HOLambdaCall <$> lambFunc
-                  <*> fmap (toStrict . join) (optional (parens (optional expression)))
-                  <*> lambParams
-                  <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
-                  <*> fmap toStrict (optional expression) <* symbolic '}'
+                 <*> fmap (toStrict . join) (optional (parens (optional expression)))
+                 <*> lambParams
+                 <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
+                 <*> fmap toStrict (optional expression) <* symbolic '}'
     where
         lambFunc :: Parser LambdaFunc
         lambFunc = (reserved "each"   *> pure LambEach)
-                     <|> (reserved "map"    *> pure LambMap )
-                     <|> (reserved "reduce" *> pure LambReduce)
-                     <|> (reserved "filter" *> pure LambFilter)
-                     <|> (reserved "slice"  *> pure LambSlice)
+               <|> (reserved "map"    *> pure LambMap )
+               <|> (reserved "reduce" *> pure LambReduce)
+               <|> (reserved "filter" *> pure LambFilter)
+               <|> (reserved "slice"  *> pure LambSlice)
         lambParams :: Parser LambdaParameters
         lambParams = between (symbolic '|') (symbolic '|') hp
             where
