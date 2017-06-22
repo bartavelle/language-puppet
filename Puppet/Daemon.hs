@@ -28,6 +28,7 @@ import qualified System.Log.Formatter      as LOG (simpleLogFormatter)
 import           System.Log.Handler        (setFormatter)
 import qualified System.Log.Handler.Simple as LOG (streamHandler)
 import qualified System.Log.Logger         as LOG
+import qualified Text.Megaparsec           as P
 
 import           Erb.Compute
 import           Hiera.Server
@@ -184,7 +185,7 @@ parseFile fname = do
     cnt <- T.readFile fname
     o <- case runPParser fname cnt of
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
-        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (show rr))
+        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (P.parseErrorPretty rr))
     traceEventIO ("STOP parsing " ++ fname)
     return o
 

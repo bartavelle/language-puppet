@@ -371,7 +371,7 @@ run Options {_optVersion = True, ..} = putStrLn ("language-puppet " ++ Data.Vers
 
 -- | Parse mode
 run Options {_optParse = Just fp, ..} = parseFile fp >>= \case
-            Left rr -> error ("parse error:" ++ show rr)
+            Left rr -> error (P.parseErrorPretty rr)
             Right s -> if _optLoglevel == LOG.DEBUG
                           then mapM_ print  s
                           else putDoc $ ppStatements s
