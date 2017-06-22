@@ -34,6 +34,31 @@ stringEscape = T.concatMap escapeChar
         escapeChar x = T.singleton x
 {-# INLINE stringEscape #-}
 
+instance Pretty DataType where
+  pretty t = case t of
+               CoreType              -> "Type"
+               CoreString ma mb      -> bounded "String" ma mb
+               CoreInteger ma mb     -> bounded "Integer" ma mb
+               CoreFloat ma mb       -> bounded "Float" ma mb
+               CoreBoolean           -> "Boolean"
+               CoreArray dt mi mmx   -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               CoreHash kt dt mi mmx -> "Hash" <> list (pretty kt : pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               CoreRegexp mre        -> "Regexp" <> maybe mempty (list . pure . pretty) mre
+               CoreUndef             -> "Undef"
+               CoreScalar            -> "Scalar"
+               CoreData              -> "Data"
+               Optional o            -> "Optional" <> brackets (pretty o)
+               NotUndef              -> "NotUndef"
+               Variant vs            -> "Variant" <> list (foldMap (pure . pretty) vs)
+               Pattern vs            -> "Pattern" <> list (foldMap (pure . pretty) vs)
+               Enum tx               -> "Enum" <> list (foldMap (pure . text . T.unpack) tx)
+    where
+      bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
+      bounded s ma mb = s <> case (ma, mb) of
+                               (Just a, Nothing) -> list [pretty a]
+                               (Just a, Just b) -> list [pretty a, pretty b]
+                               _ -> mempty
+
 instance Pretty Expression where
     pretty (Equal a b)            = parens (pretty a <+> text "==" <+> pretty b)
     pretty (Different a b)        = parens (pretty a <+> text "!=" <+> pretty b)
@@ -97,10 +122,13 @@ instance Pretty UnresolvedValue where
     pretty (UResourceReference t n) = capitalize t <> brackets (pretty n)
     pretty (UArray v) = list (map pretty (V.toList v))
     pretty (UHash g) = hashComma g
-    pretty (URegexp (CompRegex r _)) = char '/' <> text (T.unpack r) <> char '/'
+    pretty (URegexp r) = pretty r
     pretty (UVariableReference v) = dullblue (char '$' <> text (T.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
     pretty (UHOLambdaCall c) = pretty c
+
+instance Pretty CompRegex where
+    pretty (CompRegex r _) = char '/' <> text (T.unpack r) <> char '/'
 
 instance Pretty HOLambdaCall where
     pretty (HOLambdaCall hf me bp stts mee) = pretty hf <> mme <+> pretty bp <+> nest 2 (char '{' <$> ppStatements stts <> mmee) <$> char '}'
@@ -113,6 +141,7 @@ instance Pretty HOLambdaCall where
                        S.Nothing -> mempty
 instance Pretty SelectorCase where
     pretty SelectorDefault = dullmagenta (text "default")
+    pretty (SelectorType t) = pretty t
     pretty (SelectorValue v) = pretty v
 
 instance Pretty LinkType where

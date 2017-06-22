@@ -23,7 +23,6 @@ import           Text.Regex.PCRE.ByteString.Utils
 import           Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
-import           Puppet.Lens
 import           Puppet.PP
 
 -- | Contains the implementation of the StdLib functions.

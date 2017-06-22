@@ -97,6 +97,7 @@ expression = condExpression
                                                  <|> literalValue
                                                  <|> fmap UInterpolable interpolableString
                                                  <|> (URegexp <$> termRegexp))
+                       <|> fmap SelectorType datatype
                 void $ symbol "=>"
                 e <- expression
                 return (c :!: e)
@@ -648,7 +649,7 @@ datatype = dtString
        <|> (reserved "Pattern" *> (Pattern . NE.fromList <$> brackets (termRegexp `sepBy1` symbolic ',')))
        <|> (reserved "Enum" *> (Enum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
   where
-    integer = integerOrDouble >>= either return (const (fail "Integer value expected"))
+    integer = integerOrDouble >>= either (return . fromIntegral) (const (fail "Integer value expected"))
     float = either fromIntegral id <$> integerOrDouble
     dtArgs str def parseArgs = do
       void $ try $ reserved str

@@ -3,7 +3,7 @@ module Puppet.Lens
  ( -- * Pure resolution prisms
    _PResolveExpression
  , _PResolveValue
- -- * Prisms for PValues
+ -- * Prisms for PValues (reexport from "Puppet.Interpreter.Types")
  , _PHash
  , _PBoolean
  , _PString
@@ -67,8 +67,6 @@ import qualified Data.HashMap.Strict as HM
 import Data.Tuple.Strict hiding (uncurry)
 import Control.Exception (SomeException, toException, fromException)
 
--- Prisms
-makePrisms ''PValue
 --makePrisms ''Statement
 makePrisms ''Expression
 
@@ -152,6 +150,7 @@ _PResolveValue = prism toU toP
         toU (PResourceReference t n) = UResourceReference t (Terminal (UString n))
         toU (PArray r) = UArray (fmap (Terminal . toU) r)
         toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (Terminal (UString k) :!: Terminal (toU v))) $ HM.toList h)
+        toU (PType _) = error "TODO, _PResolveValue PType undefined"
 
 -- | Extracts the statements from 'ClassDeclaration', 'DefineDeclaration',
 -- 'Node' and the spurious statements of 'TopContainer'.

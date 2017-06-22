@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
 -- | This module is all about converting and resolving foreign data into
 -- the fully exploitable corresponding data type. The main use case is the
 -- conversion of 'Expression' to 'PValue'.
@@ -26,7 +27,8 @@ module Puppet.Interpreter.Resolve
       hfSetvars,
       hfRestorevars,
       toNumbers,
-      fixResourceName
+      fixResourceName,
+      datatypeMatch
     ) where
 
 import           Control.Lens
@@ -45,7 +47,8 @@ import           Data.Char                        (isAlphaNum)
 import qualified Data.Foldable                    as F
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
-import           Data.Maybe                       (fromMaybe, mapMaybe)
+import           Data.List.NonEmpty               (NonEmpty(..))
+import           Data.Maybe                       (fromMaybe, mapMaybe, catMaybes)
 import qualified Data.Maybe.Strict                as S
 import           Data.Scientific
 import qualified Data.Text                        as T
@@ -285,6 +288,9 @@ resolveExpression stmt@(ConditionalValue e conds) = do
                 Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> string rr)
                 Right Nothing  -> checkCond xs
                 Right (Just _) -> resolveExpression ce
+        checkCond ((SelectorType dt :!: ce) : xs) = if datatypeMatch dt rese
+                                                      then resolveExpression ce
+                                                      else checkCond xs
         checkCond ((SelectorValue uv :!: ce) : xs) = do
             rv <- resolveValue uv
             if puppetEquality rese rv
@@ -712,3 +718,35 @@ evaluateHFCPure hol' = do
                 PHash  hh -> return $ PHash  $ HM.fromList $ map Prelude.fst   $ filter Prelude.snd $ Prelude.zip (HM.toList hh) res
                 x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
         x -> throwPosError ("This type of function is not supported yet by language-puppet!" <+> pretty x)
+
+-- | Checks that a value matches a puppet datatype
+datatypeMatch :: DataType -> PValue -> Bool
+datatypeMatch dt v
+  = case dt of
+      CoreType  -> has _PType v
+      CoreUndef -> v == PUndef
+      NotUndef  -> v /= PUndef
+      CoreString mmin mmax -> boundedBy _PString T.length mmin mmax
+      CoreInteger mmin mmax -> boundedBy (_PNumber . to toBoundedInteger . _Just) id mmin mmax
+      CoreFloat mmin mmax -> boundedBy _PNumber toRealFloat mmin mmax
+      CoreBoolean -> has _PBoolean v
+      CoreArray sdt mi mmx -> container (_PArray . to V.toList) (datatypeMatch sdt) mi mmx
+      CoreHash kt sdt mi mmx -> container (_PHash . to itoList) (\(k,a) -> datatypeMatch kt (PString k) && datatypeMatch sdt a) mi mmx
+      CoreScalar -> datatypeMatch (Variant (CoreInteger Nothing Nothing :| [CoreString Nothing Nothing, CoreBoolean, CoreRegexp Nothing])) v
+      CoreData -> datatypeMatch (Variant (CoreScalar :| [CoreArray CoreData 0 Nothing, CoreHash CoreScalar CoreData 0 Nothing])) v
+      Optional sdt -> datatypeMatch (Variant (CoreUndef :| [sdt])) v
+      Variant sdts -> any (`datatypeMatch` v) sdts
+      Enum lst -> maybe False (`elem` lst) (v ^? _PString)
+      Pattern _ -> error "TODO"
+      CoreRegexp _ -> error "TODO"
+  where
+    container :: Fold PValue [a] -> (a -> Bool) -> Int -> Maybe Int -> Bool
+    container f c mi mmx =
+        let lst = v ^. f
+            ln = length lst
+        in  ln >= mi && (fmap (ln <=) mmx /= Just False) && all c lst
+    boundedBy :: Ord b => Fold PValue a -> (a -> b) -> Maybe b -> Maybe b -> Bool
+    boundedBy prm f mmin mmax
+      = fromMaybe False $ do
+          vr <- f <$> v ^? prm
+          return $ and $ catMaybes [fmap (vr >=) mmin, fmap (vr <=) mmax]

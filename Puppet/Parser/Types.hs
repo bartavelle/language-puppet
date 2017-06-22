@@ -18,7 +18,6 @@ module Puppet.Parser.Types
    -- * Types
    -- ** Expressions
    Expression(..),
-   DataType(..),
    SelectorCase(..),
    UnresolvedValue(..),
    LambdaFunc(..),
@@ -31,6 +30,8 @@ module Puppet.Parser.Types
    Virtuality(..),
    NodeDesc(..),
    LinkType(..),
+   -- ** Datatypes
+   DataType(..),
    -- ** Search Expressions
    SearchExpression(..),
    -- ** Statements
@@ -53,6 +54,7 @@ module Puppet.Parser.Types
 
 import           Control.Lens
 import           Data.Aeson
+import           Data.Aeson.TH          (deriveToJSON)
 import           Data.Char              (toUpper)
 import           Data.Hashable
 import qualified Data.Maybe.Strict      as S
@@ -150,6 +152,10 @@ instance Show CompRegex where
   show (CompRegex t _) = show t
 instance Eq CompRegex where
     (CompRegex a _) == (CompRegex b _) = a == b
+instance FromJSON CompRegex where
+  parseJSON = fail "Can't deserialize a regular expression"
+instance ToJSON CompRegex where
+  toJSON (CompRegex t _) = toJSON t
 
 -- | An unresolved value, typically the parser's output.
 data UnresolvedValue
@@ -179,6 +185,7 @@ instance IsString UnresolvedValue where
 
 data SelectorCase
     = SelectorValue !UnresolvedValue
+    | SelectorType !DataType
     | SelectorDefault
     deriving (Eq, Show)
 
@@ -208,17 +215,16 @@ data Expression
     | ConditionalValue !Expression !(V.Vector (Pair SelectorCase Expression)) -- ^ All conditionals are stored in this format.
     | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
     | Terminal !UnresolvedValue -- ^ Terminal object contains no expression
-    | DataType !DataType
     deriving (Eq, Show)
 
 data DataType
     = CoreType
-    | CoreString (Maybe Integer) (Maybe Integer)
-    | CoreInteger (Maybe Integer) (Maybe Integer)
+    | CoreString (Maybe Int) (Maybe Int)
+    | CoreInteger (Maybe Int) (Maybe Int)
     | CoreFloat (Maybe Double) (Maybe Double)
     | CoreBoolean
-    | CoreArray DataType Integer (Maybe Integer)
-    | CoreHash DataType DataType Integer (Maybe Integer)
+    | CoreArray DataType Int (Maybe Int)
+    | CoreHash DataType DataType Int (Maybe Int)
     | CoreRegexp (Maybe CompRegex)
     | CoreUndef
     | CoreScalar
@@ -364,3 +370,5 @@ data Statement
     deriving (Eq, Show)
 
 makeClassy ''HOLambdaCall
+$(deriveToJSON defaultOptions ''DataType)
+

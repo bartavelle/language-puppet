@@ -41,7 +41,17 @@ module Puppet.Interpreter.Types (
  , HasInterpreterState(..)
  , InterpreterState(InterpreterState)
   -- * Sum types
+  -- ** PValue
  , PValue(..)
+ , _PType
+ , _PBoolean
+ , _PString
+ , _PResourceReference
+ , _PArray
+ , _PHash
+ , _PNumber
+ , _PUndef
+  -- ** Misc
  , CurContainerDesc(..)
  , ResourceCollectorType(..)
  , RSearchExpression(..)
@@ -148,6 +158,7 @@ data PValue = PBoolean !Bool
             | PArray !(V.Vector PValue)
             | PHash !(Container PValue)
             | PNumber !Scientific
+            | PType DataType
             deriving (Eq, Show)
 
 instance IsString PValue where
@@ -485,7 +496,7 @@ makeClassy ''CurContainer
 makeClassy ''NodeInfo
 makeClassy ''WireCatalog
 makeClassy ''FactInfo
-
+makePrisms ''PValue
 
 class Monad m => MonadThrowPos m where
     throwPosError :: Doc -> m a
@@ -531,6 +542,7 @@ instance FromJSON PValue where
     parseJSON (Object o) = fmap PHash (TR.mapM parseJSON o)
 
 instance ToJSON PValue where
+    toJSON (PType t)                = toJSON t
     toJSON (PBoolean b)             = Bool b
     toJSON PUndef                   = Null
     toJSON (PString s)              = String s

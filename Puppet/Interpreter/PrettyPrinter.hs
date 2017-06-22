@@ -50,6 +50,7 @@ instance Pretty PValue where
     pretty (PResourceReference t n) = capitalize t <> brackets (text (T.unpack n))
     pretty (PArray v) = list (map pretty (V.toList v))
     pretty (PHash g) = containerComma g
+    pretty (PType dt) = pretty dt
 
 instance Pretty TopLevelType where
     pretty TopNode     = dullyellow (text "node")

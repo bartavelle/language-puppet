@@ -28,7 +28,6 @@ import           Data.Yaml
 import           Text.Megaparsec.Pos
 
 import           Puppet.Interpreter.Types
-import           Puppet.Lens
 import           Puppet.Parser.Types
 import           Puppet.PP
 
