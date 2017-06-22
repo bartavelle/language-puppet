@@ -379,15 +379,17 @@ defineDecl = do
     pe <- getPosition
     return (DefineDecl name params st (p :!: pe))
 
-puppetClassParameters :: Parser (V.Vector (Pair T.Text (S.Maybe Expression)))
+puppetClassParameters :: Parser (V.Vector (Pair (Pair T.Text (S.Maybe DataType)) (S.Maybe Expression)))
 puppetClassParameters = V.fromList <$> parens (sepComma var)
     where
         toStrictMaybe (Just x) = S.Just x
         toStrictMaybe Nothing  = S.Nothing
-        var :: Parser (Pair T.Text (S.Maybe Expression))
-        var = (:!:)
-                <$> variableReference
-                <*> (toStrictMaybe <$> optional (symbolic '=' *> expression))
+        var :: Parser (Pair (Pair T.Text (S.Maybe DataType)) (S.Maybe Expression))
+        var = do
+          tp <- toStrictMaybe <$> optional datatype
+          n  <- variableReference
+          df <- toStrictMaybe <$> optional (symbolic '=' *> expression)
+          return (n :!: tp :!: df)
 
 puppetIfStyleCondition :: Parser (Pair Expression (V.Vector Statement))
 puppetIfStyleCondition = (:!:) <$> expression <*> braces statementList

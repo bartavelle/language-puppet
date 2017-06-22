@@ -332,8 +332,8 @@ data ResOverrideDecl = ResOverrideDecl !Text !Expression !(V.Vector AttributeDec
 -- (interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ...")
 data ConditionalDecl = ConditionalDecl !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
 
-data ClassDecl  = ClassDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
-data DefineDecl = DefineDecl !Text !(V.Vector (Pair Text (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data ClassDecl  = ClassDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data DefineDecl = DefineDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 
 -- | A node is a collection of statements + maybe an inherit node
 data NodeDecl = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)

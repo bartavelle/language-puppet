@@ -557,11 +557,11 @@ loadVariable varname varval = do
 --
 -- It is able to fill unset parameters with values from Hiera (for classes
 -- only) or default values.
-loadParameters :: Foldable f => Container PValue -> f (Pair Text (S.Maybe Expression)) -> PPosition -> S.Maybe T.Text -> InterpreterMonad ()
+loadParameters :: Foldable f => Container PValue -> f (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)) -> PPosition -> S.Maybe T.Text -> InterpreterMonad ()
 loadParameters params classParams defaultPos wHiera = do
     p <- use curPos
     curPos .= defaultPos
-    let classParamSet        = HS.fromList (classParams ^.. folded . _1)
+    let classParamSet        = HS.fromList (classParams ^.. folded . _1 . _1)
         spuriousParams       = ikeys params `HS.difference` classParamSet
         mclassdesc           = S.maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ttext) wHiera
 
@@ -588,10 +588,12 @@ loadParameters params classParams defaultPos wHiera = do
 
     -- try to set a value to all parameters
     -- The order of evaluation is defined / hiera / default
-    unsetParams <- fmap concat $ for (toList classParams) $ \(k :!: defValue) -> do
+    unsetParams <- fmap concat $ for (toList classParams) $ \(k :!: mtype :!: defValue) -> do
         ev <- runExceptT (checkDef k <|> checkHiera k <|> checkDefault defValue)
         case ev of
-            Right v          -> loadVariable k v >> return []
+            Right v          -> do
+              forM_ mtype $ \dt -> unless (datatypeMatch dt v) (throwPosError ("Expected type" <+> pretty dt <+> "for parameter" <+> pretty k <+> "but its value was:" <+> pretty v))
+              loadVariable k v >> return []
             Left (Max True)  -> loadVariable k PUndef >> return []
             Left (Max False) -> return [k]
     curPos .= p

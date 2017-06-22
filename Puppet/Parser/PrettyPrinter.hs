@@ -169,15 +169,15 @@ showAss vx = folddoc (\a b -> a <> char ',' <$> b) prettyDecl (V.toList vx)
         maxlen = maximum (fmap (\(AttributeDecl k _ _) -> T.length k) vx)
         prettyDecl (AttributeDecl k op v) = dullblue (fill maxlen (ttext k)) <+> pretty op <+> pretty v
 
-showArgs :: V.Vector (Pair T.Text (S.Maybe Expression)) -> Doc
+showArgs :: V.Vector (Pair (Pair T.Text (S.Maybe DataType)) (S.Maybe Expression)) -> Doc
 showArgs vec = tupled (map ra lst)
     where
         lst = V.toList vec
-        maxlen = maximum (map (T.length . S.fst) lst)
-        ra (argname :!: rval) = dullblue (char '$' <> fill maxlen (text (T.unpack argname)))
-                                    <> case rval of
-                                           S.Nothing -> empty
-                                           S.Just v  -> empty <+> char '=' <+> pretty v
+        maxlen = maximum (map (T.length . S.fst . S.fst) lst)
+        ra (argname :!: mtype :!: rval)
+          = dullblue (char '$' <> foldMap (\t -> pretty t <+> empty) mtype
+                               <> fill maxlen (text (T.unpack argname)))
+                               <> foldMap (\v -> empty <+> char '=' <+> pretty v) rval
 
 showFunc :: T.Text -> V.Vector Expression -> Doc
 showFunc funcname args = bold (red (text (T.unpack funcname))) <> parensList args
