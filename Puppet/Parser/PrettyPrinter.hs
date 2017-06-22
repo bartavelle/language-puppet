@@ -36,22 +36,23 @@ stringEscape = T.concatMap escapeChar
 
 instance Pretty DataType where
   pretty t = case t of
-               CoreType              -> "Type"
-               CoreString ma mb      -> bounded "String" ma mb
-               CoreInteger ma mb     -> bounded "Integer" ma mb
-               CoreFloat ma mb       -> bounded "Float" ma mb
-               CoreBoolean           -> "Boolean"
-               CoreArray dt mi mmx   -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
-               CoreHash kt dt mi mmx -> "Hash" <> list (pretty kt : pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
-               CoreRegexp mre        -> "Regexp" <> maybe mempty (list . pure . pretty) mre
-               CoreUndef             -> "Undef"
-               CoreScalar            -> "Scalar"
-               CoreData              -> "Data"
-               Optional o            -> "Optional" <> brackets (pretty o)
-               NotUndef              -> "NotUndef"
-               Variant vs            -> "Variant" <> list (foldMap (pure . pretty) vs)
-               Pattern vs            -> "Pattern" <> list (foldMap (pure . pretty) vs)
-               Enum tx               -> "Enum" <> list (foldMap (pure . text . T.unpack) tx)
+               DTType              -> "Type"
+               DTString ma mb      -> bounded "String" ma mb
+               DTInteger ma mb     -> bounded "Integer" ma mb
+               DTFloat ma mb       -> bounded "Float" ma mb
+               DTBoolean           -> "Boolean"
+               DTArray dt mi mmx   -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               DTHash kt dt mi mmx -> "Hash" <> list (pretty kt : pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               DTUndef             -> "Undef"
+               DTScalar            -> "Scalar"
+               DTData              -> "Data"
+               DTOptional o        -> "Optional" <> brackets (pretty o)
+               NotUndef            -> "NotUndef"
+               DTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
+               DTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)
+               DTEnum tx           -> "Enum" <> list (foldMap (pure . text . T.unpack) tx)
+               DTAny               -> "Any"
+               DTCollection        -> "Collection"
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
       bounded s ma mb = s <> case (ma, mb) of

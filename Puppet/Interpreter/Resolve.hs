@@ -723,23 +723,28 @@ evaluateHFCPure hol' = do
 datatypeMatch :: DataType -> PValue -> Bool
 datatypeMatch dt v
   = case dt of
-      CoreType  -> has _PType v
-      CoreUndef -> v == PUndef
-      NotUndef  -> v /= PUndef
-      CoreString mmin mmax -> boundedBy _PString T.length mmin mmax
-      CoreInteger mmin mmax -> boundedBy (_PNumber . to toBoundedInteger . _Just) id mmin mmax
-      CoreFloat mmin mmax -> boundedBy _PNumber toRealFloat mmin mmax
-      CoreBoolean -> has _PBoolean v
-      CoreArray sdt mi mmx -> container (_PArray . to V.toList) (datatypeMatch sdt) mi mmx
-      CoreHash kt sdt mi mmx -> container (_PHash . to itoList) (\(k,a) -> datatypeMatch kt (PString k) && datatypeMatch sdt a) mi mmx
-      CoreScalar -> datatypeMatch (Variant (CoreInteger Nothing Nothing :| [CoreString Nothing Nothing, CoreBoolean, CoreRegexp Nothing])) v
-      CoreData -> datatypeMatch (Variant (CoreScalar :| [CoreArray CoreData 0 Nothing, CoreHash CoreScalar CoreData 0 Nothing])) v
-      Optional sdt -> datatypeMatch (Variant (CoreUndef :| [sdt])) v
-      Variant sdts -> any (`datatypeMatch` v) sdts
-      Enum lst -> maybe False (`elem` lst) (v ^? _PString)
-      Pattern _ -> error "TODO"
-      CoreRegexp _ -> error "TODO"
+      DTType               -> has _PType v
+      DTUndef              -> v == PUndef
+      NotUndef             -> v /= PUndef
+      DTString mmin mmax   -> boundedBy _PString T.length mmin mmax
+      DTInteger mmin mmax  -> boundedBy (_PNumber . to toBoundedInteger . _Just) id mmin mmax
+      DTFloat mmin mmax    -> boundedBy _PNumber toRealFloat mmin mmax
+      DTBoolean            -> has _PBoolean v
+      DTArray sdt mi mmx   -> container (_PArray . to V.toList) (datatypeMatch sdt) mi mmx
+      DTHash kt sdt mi mmx -> container (_PHash . to itoList) (\(k,a)                                                                          -> datatypeMatch kt (PString k) && datatypeMatch sdt a) mi mmx
+      DTScalar             -> datatypeMatch (DTVariant (DTInteger Nothing Nothing :| [DTString Nothing Nothing, DTBoolean])) v
+      DTData               -> datatypeMatch (DTVariant (DTScalar :| [DTArray DTData 0 Nothing, DTHash DTScalar DTData 0 Nothing])) v
+      DTOptional sdt       -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
+      DTVariant sdts       -> any (`datatypeMatch` v) sdts
+      DTEnum lst           -> maybe False (`elem` lst) (v ^? _PString)
+      DTAny                -> True
+      DTCollection         -> datatypeMatch (DTVariant (DTArray DTData 0 Nothing :| [DTHash DTScalar DTData 0 Nothing])) v
+      DTPattern patterns   -> maybe False (\str -> any (checkPattern (T.encodeUtf8 str)) patterns) (v ^? _PString)
   where
+    checkPattern str (CompRegex _ ptrn)
+      = case execute' ptrn str of
+          Right (Just _) -> True
+          _ -> False
     container :: Fold PValue [a] -> (a -> Bool) -> Int -> Maybe Int -> Bool
     container f c mi mmx =
         let lst = v ^. f

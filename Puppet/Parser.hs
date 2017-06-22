@@ -90,17 +90,19 @@ expression = condExpression
                 symbolic '?'
                 return $ maybe trm ($ trm) lookups
             let cas = do
-                c <- (SelectorDefault <$ symbol "default") -- default case
-                        <|> fmap SelectorValue (fmap UVariableReference variableReference
-                                                 <|> fmap UBoolean puppetBool
-                                                 <|> (UUndef <$ symbol "undef")
-                                                 <|> literalValue
-                                                 <|> fmap UInterpolable interpolableString
-                                                 <|> (URegexp <$> termRegexp))
-                       <|> fmap SelectorType datatype
-                void $ symbol "=>"
-                e <- expression
-                return (c :!: e)
+                  c <- (SelectorDefault <$ symbol "default") -- default case
+                          <|> fmap SelectorType (try datatype)
+                          <|> fmap SelectorValue
+                                (   fmap UVariableReference variableReference
+                                <|> fmap UBoolean puppetBool
+                                <|> (UUndef <$ symbol "undef")
+                                <|> literalValue
+                                <|> fmap UInterpolable interpolableString
+                                <|> (URegexp <$> termRegexp)
+                                )
+                  void $ symbol "=>"
+                  e <- expression
+                  return (c :!: e)
             cases <- braces (sepComma1 cas)
             return (ConditionalValue selectedExpression (V.fromList cases))
 
@@ -636,23 +638,25 @@ datatype = dtString
        <|> dtInteger
        <|> dtFloat
        <|> dtNumeric
-       <|> (CoreBoolean <$ reserved "Boolean")
-       <|> (CoreScalar <$ reserved "Scalar")
-       <|> (CoreData <$ reserved "Data")
+       <|> (DTBoolean <$ reserved "Boolean")
+       <|> (DTScalar <$ reserved "Scalar")
+       <|> (DTData <$ reserved "Data")
+       <|> (DTAny <$ reserved "Any")
+       <|> (DTCollection <$ reserved "Collection")
        <|> dtArray
        <|> dtHash
-       <|> (reserved "Regexp" *> (CoreRegexp <$> optional (brackets termRegexp)))
-       <|> (CoreUndef <$ reserved "Undef")
-       <|> (reserved "Optional" *> (Optional <$> brackets datatype))
+       <|> (DTUndef <$ reserved "Undef")
+       <|> (reserved "Optional" *> (DTOptional <$> brackets datatype))
        <|> (NotUndef <$ reserved "NotUndef")
-       <|> (reserved "Variant" *> (Variant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
-       <|> (reserved "Pattern" *> (Pattern . NE.fromList <$> brackets (termRegexp `sepBy1` symbolic ',')))
-       <|> (reserved "Enum" *> (Enum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
+       <|> (reserved "Variant" *> (DTVariant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
+       <|> (reserved "Pattern" *> (DTPattern . NE.fromList <$> brackets (termRegexp `sepBy1` symbolic ',')))
+       <|> (reserved "Enum" *> (DTEnum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
+       <?> "DataType"
   where
     integer = integerOrDouble >>= either (return . fromIntegral) (const (fail "Integer value expected"))
     float = either fromIntegral id <$> integerOrDouble
     dtArgs str def parseArgs = do
-      void $ try $ reserved str
+      void $ reserved str
       fromMaybe def <$> optional (brackets parseArgs)
     dtbounded s constructor parser = dtArgs s (constructor Nothing Nothing) $ do
       lst <- parser `sepBy` symbolic ','
@@ -660,10 +664,10 @@ datatype = dtString
         [minlen] -> return $ constructor (Just minlen) Nothing
         [minlen,maxlen] -> return $ constructor (Just minlen) (Just maxlen)
         _ -> fail ("Too many arguments to datatype " ++ s)
-    dtString = dtbounded "String" CoreString integer
-    dtInteger = dtbounded "Integer" CoreInteger integer
-    dtFloat = dtbounded "Float" CoreFloat float
-    dtNumeric = dtbounded "Numeric" (\ma mb -> Variant (CoreFloat ma mb :| [CoreInteger (truncate <$> ma) (truncate <$> mb)])) float
+    dtString = dtbounded "String" DTString integer
+    dtInteger = dtbounded "Integer" DTInteger integer
+    dtFloat = dtbounded "Float" DTFloat float
+    dtNumeric = dtbounded "Numeric" (\ma mb -> DTVariant (DTFloat ma mb :| [DTInteger (truncate <$> ma) (truncate <$> mb)])) float
     dtArray = do
       reserved "Array"
       ml <- optional $ brackets $ do
@@ -671,10 +675,10 @@ datatype = dtString
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tp, rst)
       case ml of
-        Nothing -> return (CoreArray CoreData 0 Nothing)
-        Just (t, Nothing) -> return (CoreArray t 0 Nothing)
-        Just (t, Just [mi]) -> return (CoreArray t mi Nothing)
-        Just (t, Just [mi, mx]) -> return (CoreArray t mi (Just mx))
+        Nothing -> return (DTArray DTData 0 Nothing)
+        Just (t, Nothing) -> return (DTArray t 0 Nothing)
+        Just (t, Just [mi]) -> return (DTArray t mi Nothing)
+        Just (t, Just [mi, mx]) -> return (DTArray t mi (Just mx))
         Just (_, Just _) -> fail "Too many arguments to datatype Array"
     dtHash = do
       reserved "Hash"
@@ -685,10 +689,10 @@ datatype = dtString
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tk, tv, rst)
       case ml of
-        Nothing -> return (CoreHash CoreScalar CoreData 0 Nothing)
-        Just (tk, tv, Nothing) -> return (CoreHash tk tv 0 Nothing)
-        Just (tk, tv, Just [mi]) -> return (CoreHash tk tv mi Nothing)
-        Just (tk, tv, Just [mi, mx]) -> return (CoreHash tk tv mi (Just mx))
+        Nothing -> return (DTHash DTScalar DTData 0 Nothing)
+        Just (tk, tv, Nothing) -> return (DTHash tk tv 0 Nothing)
+        Just (tk, tv, Just [mi]) -> return (DTHash tk tv mi Nothing)
+        Just (tk, tv, Just [mi, mx]) -> return (DTHash tk tv mi (Just mx))
         Just (_, _, Just _) -> fail "Too many arguments to datatype Hash"
 
 statementList :: Parser (V.Vector Statement)

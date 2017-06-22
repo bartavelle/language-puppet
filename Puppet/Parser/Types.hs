@@ -218,24 +218,25 @@ data Expression
     deriving (Eq, Show)
 
 data DataType
-    = CoreType
-    | CoreString (Maybe Int) (Maybe Int)
-    | CoreInteger (Maybe Int) (Maybe Int)
-    | CoreFloat (Maybe Double) (Maybe Double)
-    | CoreBoolean
-    | CoreArray DataType Int (Maybe Int)
-    | CoreHash DataType DataType Int (Maybe Int)
-    | CoreRegexp (Maybe CompRegex)
-    | CoreUndef
-    | CoreScalar
-    | CoreData
-    | Optional DataType
+    = DTType
+    | DTString (Maybe Int) (Maybe Int)
+    | DTInteger (Maybe Int) (Maybe Int)
+    | DTFloat (Maybe Double) (Maybe Double)
+    | DTBoolean
+    | DTArray DataType Int (Maybe Int)
+    | DTHash DataType DataType Int (Maybe Int)
+    | DTUndef
+    | DTScalar
+    | DTData
+    | DTOptional DataType
     | NotUndef
-    | Variant (NonEmpty DataType)
-    | Pattern (NonEmpty CompRegex)
-    | Enum (NonEmpty Text)
+    | DTVariant (NonEmpty DataType)
+    | DTPattern (NonEmpty CompRegex)
+    | DTEnum (NonEmpty Text)
+    | DTAny
+    | DTCollection
     -- | Tuple (NonEmpty DataType) Integer Integer
-    -- | CoreDefault
+    -- | DTDefault
     -- | Struct TODO
     deriving (Eq, Show)
 
