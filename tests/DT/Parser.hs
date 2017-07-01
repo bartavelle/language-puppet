@@ -12,8 +12,8 @@ spec = do
   let prs s r = it s $ parse datatype "?" (T.pack s) `shouldParse` r
       fl s = it s $ shouldFailOn (parse datatype "?") (T.pack s)
   describe "String" $ do
-    "String" `prs` CoreString Nothing Nothing
+    "String" `prs` DTString Nothing Nothing
     fl "String[]"
     fl "String[4,5,6]"
-    "String[5]" `prs` CoreString (Just 5) Nothing
-    "String[5,8]" `prs` CoreString (Just 5) (Just 8)
+    "String[5]" `prs` DTString (Just 5) Nothing
+    "String[5,8]" `prs` DTString (Just 5) (Just 8)
