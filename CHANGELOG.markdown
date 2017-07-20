@@ -1,7 +1,8 @@
-# v1.3.8 (2017/)
+# v1.3.8 (2017/07/20)
 
 * Add support for calling Functions in Strings (#199)
 * Add $facts hash for Puppet 4 (#198)
+* Initial support for datatype syntax (#206)
 
 # v1.3.7 (2017/03/14)
 
