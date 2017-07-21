@@ -632,17 +632,22 @@ hfGenerateAssociations hol = do
                             S.Just x -> return x
                             S.Nothing -> throwPosError ("No expression to run the function on" <+> pretty hol)
     sourcevalue <- resolveExpression sourceexpression
+    let check Nothing = const (return ())
+        check (Just dtype) = mapM_ (\v -> unless (datatypeMatch dtype v) (throwPosError (pretty v <+> "isn't of type" <+> pretty dtype)))
     case (sourcevalue, hol ^. hoLambdaParams) of
-         (PArray pr, BPSingle varname) -> return (map (\x -> [(varname, x)]) (V.toList pr))
-         (PArray pr, BPPair idx var) -> return $ do
-             (i,v) <- Prelude.zip ([0..] :: [Int]) (V.toList pr)
-             return [(idx,PString (T.pack (show i))),(var,v)]
-         (PHash hh, BPSingle varname) -> return $ do
-             (k,v) <- HM.toList hh
-             return [(varname, PArray (V.fromList [PString k,v]))]
-         (PHash hh, BPPair idx var) -> return $ do
-             (k,v) <- HM.toList hh
-             return [(idx,PString k),(var,v)]
+         (PArray pr, BPSingle (LParam mvtype varname)) -> do
+           check mvtype pr
+           return (map (\x -> [(varname, x)]) (V.toList pr))
+         (PArray pr, BPPair (LParam _ idx) (LParam mvtype var)) -> do
+           check mvtype pr
+           return [ [(idx,PString (T.pack (show i))),(var,v)]  |  (i,v) <- Prelude.zip ([0..] :: [Int]) (V.toList pr) ]
+         (PHash hh, BPSingle (LParam mvtype varname)) -> do
+           check mvtype hh
+           return [ [(varname, PArray (V.fromList [PString k,v]))]  |  (k,v) <- HM.toList hh]
+         (PHash hh, BPPair (LParam midxtype idx) (LParam mvtype var)) -> do
+           check mvtype hh
+           check midxtype (PString <$> HM.keys hh)
+           return [ [(idx,PString k),(var,v)]  |  (k,v) <- HM.toList hh]
          (invalid, _) -> throwPosError ("Can't iterate on this data type:" <+> pretty invalid)
 
 -- | Sets the proper variables, and returns the scope variables the way

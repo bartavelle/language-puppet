@@ -24,6 +24,7 @@ module Puppet.Parser.Types
    HOLambdaCall(..),
    ChainableRes(..),
    HasHOLambdaCall(..),
+   LambdaParameter(..),
    LambdaParameters(..),
    CompRegex(..),
    CollectorType(..),
@@ -121,8 +122,12 @@ data LambdaFunc
 -- Currently only two types of block parameters are supported:
 -- single values and pairs.
 data LambdaParameters
-    = BPSingle !Text -- ^ @|k|@
-    | BPPair   !Text !Text -- ^ @|k,v|@
+    = BPSingle !LambdaParameter -- ^ @|k|@
+    | BPPair   !LambdaParameter !LambdaParameter -- ^ @|k,v|@
+    deriving (Eq, Show)
+
+data LambdaParameter
+    = LParam !(Maybe DataType) !Text
     deriving (Eq, Show)
 
 -- The description of the /higher level lambda/ call.

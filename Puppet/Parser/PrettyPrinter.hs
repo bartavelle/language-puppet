@@ -97,9 +97,10 @@ instance Pretty LambdaFunc where
 instance Pretty LambdaParameters where
     pretty b = magenta (char '|') <+> vars <+> magenta (char '|')
         where
+            pmspace = foldMap ((<> " ") . pretty)
             vars = case b of
-                       BPSingle v -> pretty (UVariableReference v)
-                       BPPair v1 v2 -> pretty (UVariableReference v1) <> comma <+> pretty (UVariableReference v2)
+                       BPSingle (LParam mt v) -> pmspace mt <> pretty (UVariableReference v)
+                       BPPair (LParam mt1 v1) (LParam mt2 v2) -> pmspace mt1 <> pretty (UVariableReference v1) <> comma <+> pmspace mt2 <> pretty (UVariableReference v2)
 
 instance Pretty SearchExpression where
     pretty (EqualitySearch t e) = text (T.unpack t) <+> text "==" <+> pretty e
