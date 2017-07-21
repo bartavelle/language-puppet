@@ -235,9 +235,9 @@ data DataType
     | DTEnum (NonEmpty Text)
     | DTAny
     | DTCollection
-    -- | Tuple (NonEmpty DataType) Integer Integer
-    -- | DTDefault
-    -- | Struct TODO
+    -- Tuple (NonEmpty DataType) Integer Integer
+    -- DTDefault
+    -- Struct TODO
     deriving (Eq, Show)
 
 instance IsList Expression where
