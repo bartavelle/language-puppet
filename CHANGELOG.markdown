@@ -1,3 +1,7 @@
+# v1.3.8.1 (2017/07/21)
+
+* Fix haddocks error (#208)
+
 # v1.3.8 (2017/07/20)
 
 * Add support for calling Functions in Strings (#199)
