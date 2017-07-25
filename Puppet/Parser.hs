@@ -722,9 +722,9 @@ lambdaCall = do
             where
                 acceptablePart = T.pack <$> identifier
                 lambdaParameter :: Parser LambdaParameter
-                lambdaParameter = LParam <$> optional datatype <*> acceptablePart
+                lambdaParameter = LParam <$> optional datatype <*> (char '$' *> acceptablePart)
                 hp = do
-                    vars <- (char '$' *> lambdaParameter) `sepBy1` comma
+                    vars <- lambdaParameter `sepBy1` comma
                     case vars of
                         [a]   -> return (BPSingle a)
                         [a,b] -> return (BPPair a b)
