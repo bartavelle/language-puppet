@@ -93,7 +93,6 @@ library
                      , containers           == 0.5.*
                      , cryptonite           >= 0.6
                      , directory            >= 1.2     && < 1.4
-                     , either               >= 4.3     && < 4.5
                      , exceptions           >= 0.8     && < 0.9
                      , filecache            >= 0.2.9   && < 0.3
                      , formatting
