@@ -7,7 +7,7 @@ import Puppet.Parser
 import System.Environment
 import Puppet.Parser.PrettyPrinter
 import Text.PrettyPrint.ANSI.Leijen
-import Text.Megaparsec (parse, eof)
+import Text.Megaparsec (parse, eof, parseErrorPretty)
 import System.Posix.Terminal
 import System.Posix.Types
 import System.IO
@@ -26,7 +26,7 @@ testparser :: FilePath -> IO (String, Bool)
 testparser fp =
     fmap (parse (puppetParser <* eof) fp) (T.readFile fp) >>= \case
         Right _ -> return ("PASS", True)
-        Left rr -> return (show rr, False)
+        Left rr -> return (parseErrorPretty rr, False)
 
 check :: String -> IO ()
 check fname = do
@@ -38,7 +38,7 @@ check fname = do
                     then renderPretty 0.2 200
                     else renderCompact
     case res of
-        Left rr -> print rr
+        Left rr -> putStrLn (parseErrorPretty rr)
         Right x -> do
             putStrLn ""
             displayIO stdout (rfunc (pretty (ppStatements x)))
