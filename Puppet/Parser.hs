@@ -43,7 +43,7 @@ token :: Parser a -> Parser a
 token = L.lexeme someSpace
 
 integerOrDouble :: Parser (Either Integer Double)
-integerOrDouble = fmap Right (try (L.signed someSpace L.float)) <|> fmap Left (hex <|> dec)
+integerOrDouble = fmap Left hex <|> fmap Right (try (L.signed someSpace L.float)) <|> fmap Left dec
     where
         dec = L.signed someSpace L.integer
         hex = try (string "0x") *> L.hexadecimal
