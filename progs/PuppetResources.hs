@@ -23,6 +23,7 @@ import           Data.Text.Strict.Lens
 import           Data.Tuple                    (swap)
 import qualified Data.Vector                   as V
 import qualified Data.Version                  (showVersion)
+import           Data.Void                     (Void)
 import           Network.HTTP.Client
 import           Options.Applicative
 import qualified Paths_language_puppet
@@ -47,7 +48,7 @@ import           PuppetDB.Dummy                (dummyPuppetDB)
 import           PuppetDB.Remote               (pdbConnect)
 import           PuppetDB.TestDB               (loadTestDB)
 
-type ParseError' = P.ParseError Char P.Dec
+type ParseError' = P.ParseError Char Void
 type QueryFunc = NodeName -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 data MultNodes =  MultNodes [T.Text] | AllNodes deriving Show

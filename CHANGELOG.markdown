@@ -1,3 +1,7 @@
+# v1.3.9 (2017/07/30)
+
+* Moved to megaparsec 6
+
 # v1.3.8.1 (2017/07/21)
 
 * Fix haddocks error (#208)

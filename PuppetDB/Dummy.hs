@@ -3,7 +3,6 @@
 module PuppetDB.Dummy where
 
 import Puppet.Interpreter.Types
-import Control.Monad.Except
 
 dummyPuppetDB :: Monad m => PuppetDBAPI m
 dummyPuppetDB = PuppetDBAPI

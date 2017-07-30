@@ -23,17 +23,20 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Tuple.Strict hiding (fst,zip)
 import qualified Data.Vector as V
+import           Data.Void (Void)
 import           Text.Megaparsec hiding (token)
+import           Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Expr
-import qualified Text.Megaparsec.Lexer as L
-import           Text.Megaparsec.Text
 import           Text.Regex.PCRE.ByteString.Utils
 
 import           Puppet.Parser.Types
 import           Puppet.Utils
 
+type Parser = Parsec Void T.Text
+
 -- | Run a puppet parser against some 'T.Text' input.
-runPParser :: String -> T.Text -> Either (ParseError Char Dec) (V.Vector Statement)
+runPParser :: String -> T.Text -> Either (ParseError Char Void) (V.Vector Statement)
 runPParser = parse puppetParser
 
 someSpace :: Parser ()
@@ -43,17 +46,15 @@ token :: Parser a -> Parser a
 token = L.lexeme someSpace
 
 integerOrDouble :: Parser (Either Integer Double)
-integerOrDouble = fmap Left hex <|> fmap Right (try (L.signed someSpace L.float)) <|> fmap Left dec
+integerOrDouble = fmap Left hex <|> (either Right Left . floatingOrInteger <$> L.scientific)
     where
-        dec = L.signed someSpace L.integer
-        hex = try (string "0x") *> L.hexadecimal
+        hex = string "0x" *> L.hexadecimal
 
-
-symbol :: String -> Parser ()
+symbol :: T.Text -> Parser ()
 symbol = void . try . L.symbol someSpace
 
 symbolic :: Char -> Parser ()
-symbolic = symbol . pure
+symbolic = symbol . T.singleton
 
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
@@ -128,10 +129,10 @@ identl fstl nxtl = do
         nxt <- token $ many nxtl
         return $ T.pack $ f : nxt
 
-operator :: String -> Parser ()
+operator :: T.Text -> Parser ()
 operator = void . try . symbol
 
-reserved :: String -> Parser ()
+reserved :: T.Text -> Parser ()
 reserved s = try $ do
     void (string s)
     notFollowedBy (satisfy identifierPart)
@@ -147,8 +148,8 @@ variableName = do
 
 qualif :: Parser T.Text -> Parser T.Text
 qualif p = token $ do
-    header <- T.pack <$> option "" (try (string "::"))
-    ( header <> ) . T.intercalate "::" <$> p `sepBy1` try (string "::")
+    header <- option "" (string "::")
+    ( header <> ) . T.intercalate "::" <$> p `sepBy1` string "::"
 
 qualif1 :: Parser T.Text -> Parser T.Text
 qualif1 p = try $ do
@@ -200,7 +201,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
         -- this is specialized because we can't be "tokenized" here
         variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
         rvariableName = do
-            v <- T.pack . concat <$> some (string "::" <|> some (satisfy variableAccept))
+            v <- T.concat <$> some (string "::" <|> fmap T.pack (some (satisfy variableAccept)))
             when (v == "string") (fail "The special variable $string must not be used")
             return v
         rvariable = Terminal . UVariableReference <$> rvariableName
@@ -655,17 +656,17 @@ datatype = dtString
        <|> (reserved "Enum" *> (DTEnum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
        <?> "DataType"
   where
-    integer = integerOrDouble >>= either (return . fromIntegral) (const (fail "Integer value expected"))
+    integer = integerOrDouble >>= either (return . fromIntegral) (\d -> fail ("Integer value expected, instead of " ++ show d))
     float = either fromIntegral id <$> integerOrDouble
     dtArgs str def parseArgs = do
       void $ reserved str
       fromMaybe def <$> optional (brackets parseArgs)
     dtbounded s constructor parser = dtArgs s (constructor Nothing Nothing) $ do
-      lst <- parser `sepBy` symbolic ','
+      lst <- parser `sepBy1` symbolic ','
       case lst of
         [minlen] -> return $ constructor (Just minlen) Nothing
         [minlen,maxlen] -> return $ constructor (Just minlen) (Just maxlen)
-        _ -> fail ("Too many arguments to datatype " ++ s)
+        _ -> fail ("Too many arguments to datatype " ++ T.unpack s)
     dtString = dtbounded "String" DTString integer
     dtInteger = dtbounded "Integer" DTInteger integer
     dtFloat = dtbounded "Float" DTFloat float

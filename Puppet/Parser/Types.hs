@@ -105,7 +105,7 @@ initialPPos x =
 -- | Generates a 'PPosition' based on a filename and line number.
 toPPos :: Text -> Int -> PPosition
 toPPos fl ln =
-    let p = (initialPos (T.unpack fl)) { sourceLine = unsafePos $ fromIntegral (max 1 ln) }
+    let p = (initialPos (T.unpack fl)) { sourceLine = mkPos $ fromIntegral (max 1 ln) }
     in  (p :!: p)
 
 -- | High Order "lambdas"
