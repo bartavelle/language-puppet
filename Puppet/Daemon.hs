@@ -185,7 +185,7 @@ parseFile fname = do
     cnt <- T.readFile fname
     o <- case runPParser fname cnt of
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
-        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ show rr ++ ")") >> return (S.Left (P.parseErrorPretty rr))
+        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ P.parseErrorPretty rr ++ ")") >> return (S.Left (P.parseErrorPretty rr))
     traceEventIO ("STOP parsing " ++ fname)
     return o
 
