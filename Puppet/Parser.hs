@@ -599,7 +599,7 @@ chainableResources = do
 
     resDeclGroup :: Parser [ResDecl]
     resDeclGroup = do
-        let resourceName = token stringExpression
+        let resourceName = expression
             resourceDeclaration = do
                 p <- getPosition
                 names <- brackets (sepComma1 resourceName) <|> fmap return resourceName
