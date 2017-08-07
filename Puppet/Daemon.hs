@@ -48,6 +48,7 @@ import           Puppet.Utils
 {-| API for the Daemon.
 The main method is `getCatalog`: given a node and a list of facts, it returns the result of the compilation.
 This will be either an error, or a tuple containing:
+
 - all the resources in this catalog
 - the dependency map
 - the exported resources
@@ -55,10 +56,7 @@ This will be either an error, or a tuple containing:
 
 Notes :
 
-* It might be buggy when top level statements that are not class\/define\/nodes
-are altered, or when files loaded with require are changed.
-* The catalog is not computed exactly the same way Puppet does. Some good practices are enforced, particularly in strict mode.
-For instance, unknown variables are always an error. Querying a dictionary with a non existent key returns undef in puppet, whereas it would throw an error in strict mode.
+* It might be buggy when top level statements that are not class\/define\/nodes are altered.
 -}
 data Daemon = Daemon
     { getCatalog    :: NodeName -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
@@ -70,7 +68,7 @@ data Daemon = Daemon
 {-| Entry point to get a Daemon
 It will initialize the parsing and interpretation infrastructure from the 'Preferences'.
 
-Internally it initializes a thread for the LUA interpreter, and a thread for the Ruby one.
+Internally it initializes a thread for the Ruby interpreter.
 It should cache the AST of every .pp file, and could use a bit of memory. As a comparison, it
 fits in 60 MB with the author's manifests, but really breathes when given 300 MB
 of heap space. In this configuration, even if it spawns a ruby process for every

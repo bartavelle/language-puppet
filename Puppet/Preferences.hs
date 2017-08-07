@@ -90,7 +90,8 @@ dfPreferences basedir = do
     labsFunctions <- Puppetlabs.extFunctions modulesdir
     let loadedTypes = HM.fromList (map defaulttype typenames)
     return $ Preferences dirpaths
-                         dummyPuppetDB (baseNativeTypes `HM.union` loadedTypes)
+                         dummyPuppetDB
+                         (baseNativeTypes `HM.union` loadedTypes)
                          (HM.union stdlibFunctions labsFunctions)
                          (Just (basedir <> "/hiera.yaml"))
                          (getIgnoredmodules defaults)

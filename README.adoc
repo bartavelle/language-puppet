@@ -25,6 +25,8 @@ stack install
 
 The `puppetresources` command is a command line utility that let you interactively compute catalogs on your local computer.
 It is much faster than its ruby counterpart, and has been designed for giving assistance to the Puppet catalog writer.
+
+
 There are 4 different modes:
 
 * `--node` will display all resources on screen in a nice user-friendly colored fashion.
@@ -32,7 +34,7 @@ There are 4 different modes:
 * `--parse` only goes as far as parsing. No interpretation.
 * `--showcontent` to display file content.
 
-Catalog can be verified using strict or more permissive rules.
+Catalog is not computed exactly the same way Puppet does. Some good practices are enforced. A strict and more permissive mode are provided.
 
 === Command line arguments
 
