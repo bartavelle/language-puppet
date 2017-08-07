@@ -8,6 +8,7 @@ import           Data.Aeson.Lens
 import qualified Data.ByteString.Base16           as B16
 import           Data.Char
 import qualified Data.HashMap.Strict              as HM
+import qualified Data.List as List
 import           Data.List.Split                  (chunksOf)
 import           Data.Maybe                       (mapMaybe)
 import           Data.Monoid
@@ -107,7 +108,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- seeded_rand
                               -- shuffle
                               , singleArgument "size" size
-                              -- sort
+                              , singleArgument "sort" sort
                               -- squeeze
                               , singleArgument "str2bool" str2Bool
                               -- strtosaltedshar512
@@ -396,6 +397,14 @@ size (PHash h) = return (_Integer # fromIntegral (HM.size h))
 size (PArray v) = return (_Integer # fromIntegral (V.length v))
 size (PString s) = return (_Integer # fromIntegral (T.length s))
 size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+> pretty x)
+
+sort :: PValue -> InterpreterMonad PValue
+sort (PArray s) = do
+  let toText (PString v) = return v
+      toText _ = throwPosError ("sort(): the current implementation only sort a list of strings")
+  v <- mapM toText (V.toList s)
+  return $ PArray (V.fromList (map PString (List.sort v)))
+sort x = throwPosError ("sort(): Expect to sort an array, not" <+> pretty x)
 
 str2Bool :: PValue -> InterpreterMonad PValue
 str2Bool PUndef = return (PBoolean False)
