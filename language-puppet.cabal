@@ -61,7 +61,6 @@ library
                        , Puppet.Stdlib
                        , Puppet.OptionalTests
                        , Puppet.Utils
-                       , SafeProcess
   other-modules:         Erb.Compute
                        , Paths_language_puppet
                        , Puppet.Interpreter.RubyRandom
