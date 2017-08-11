@@ -22,8 +22,10 @@ let
   haskellPackages = if compiler == "default"
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
-  drv = hlib.dontCheck(hlib.dontHaddock (haskellPackages.callPackage ./. {}));
-
+  drv = hlib.dontHaddock (haskellPackages.callPackage ./. {
+    megaparsec = haskellPackages.megaparsec_6_0_2;
+    hspec-megaparsec = haskellPackages.hspec-megaparsec_1_0_0;
+  });
 in
 
 if pkgs.lib.inNixShell then drv.env else drv
