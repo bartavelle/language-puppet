@@ -399,11 +399,12 @@ size (PString s) = return (_Integer # fromIntegral (T.length s))
 size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+> pretty x)
 
 sort :: PValue -> InterpreterMonad PValue
-sort (PArray s) = do
-  let toText (PString v) = return v
-      toText _ = throwPosError ("sort(): the current implementation only sort a list of strings")
-  v <- mapM toText (V.toList s)
-  return $ PArray (V.fromList (map PString (List.sort v)))
+sort (PArray s) =
+  let lst = V.toList s
+  in  case (mapM (preview _PString) lst, mapM (preview _PNumber) lst) of
+        (Just strs, _) -> return (PArray (V.fromList (map PString (List.sort strs))))
+        (_, Just nums) -> return (PArray (V.fromList (map PNumber (List.sort nums))))
+        _ -> throwPosError ("sort(): only homogeneous arrays of numbers or strings are allowed")
 sort x = throwPosError ("sort(): Expect to sort an array, not" <+> pretty x)
 
 str2Bool :: PValue -> InterpreterMonad PValue
