@@ -1,7 +1,9 @@
+{-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE LambdaCase    #-}
 {-# LANGUAGE TupleSections #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
+import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Data.Aeson.Lens
@@ -401,10 +403,11 @@ size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+>
 sort :: PValue -> InterpreterMonad PValue
 sort (PArray s) =
   let lst = V.toList s
-  in  case (mapM (preview _PString) lst, mapM (preview _PNumber) lst) of
-        (Just strs, _) -> return (PArray (V.fromList (map PString (List.sort strs))))
-        (_, Just nums) -> return (PArray (V.fromList (map PNumber (List.sort nums))))
-        _ -> throwPosError ("sort(): only homogeneous arrays of numbers or strings are allowed")
+      msort :: Ord a => Prism' PValue a -> Maybe PValue
+      msort prsm = PArray . V.fromList . map (review prsm) . List.sort <$> mapM (preview prsm) lst
+  in  case (msort _PString <|> msort _PNumber) of
+        Just x -> return x
+        _ -> throwPosError "sort(): only homogeneous arrays of numbers or strings are allowed"
 sort x = throwPosError ("sort(): Expect to sort an array, not" <+> pretty x)
 
 str2Bool :: PValue -> InterpreterMonad PValue
