@@ -1,3 +1,9 @@
+# v1.3.10 (2017/08/28)
+
+* Add `sort` stdlib function
+* Remove `SafeProcess` module (fix `ghc-8.2` compilation)
+* Remove `ghc-7.x` support
+
 # v1.3.9 (2017/07/30)
 
 * Moved to megaparsec 6
