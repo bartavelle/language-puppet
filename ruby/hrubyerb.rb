@@ -101,8 +101,6 @@ class ErbBinding
             end
         elsif name == 'scope'
             @scope
-        elsif name == 'facts'
-            @scope.lookupvar('facts')
         else
             @scope.lookupvar(name)
         end
@@ -118,3 +116,4 @@ class Controller
         nerb.result(binding.get_binding)
     end
 end
+
