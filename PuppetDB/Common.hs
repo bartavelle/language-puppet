@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_HADDOCK hide, prune #-}
 -- | Common data types for PuppetDB.
 module PuppetDB.Common where
 
