@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK hide, prune #-}
 module Puppet.Interpreter.RubyRandom (rbGenrandInt32, randInit, limitedRand) where
 
 import qualified Data.Vector.Unboxed as V

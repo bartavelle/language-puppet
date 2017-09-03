@@ -1,4 +1,6 @@
-module Puppet.Interpreter.Resolve.Sprintf where
+module Puppet.Interpreter.Resolve.Sprintf (
+  sprintf
+) where
 
 import           Control.Applicative
 import           Control.Monad
@@ -141,4 +143,3 @@ sprintf str oargs = PString . TL.toStrict . TB.toLazyText . mconcat <$> go (pars
     go [] [] = return []
     go _ [] = throwPosError "sprintf: not enough arguments"
     go [] _ = [] <$ let msg = "sprintf: too many arguments" in checkStrict msg msg
-

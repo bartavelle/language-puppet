@@ -73,7 +73,7 @@ import           GHC.Generics
 import           Text.Megaparsec.Pos
 import           Text.Regex.PCRE.String
 
--- | Properly capitalizes resource types
+-- | Properly capitalizes resource types.
 capitalizeRT :: Text -> Text
 capitalizeRT = T.intercalate "::" . map capitalize' . T.splitOn "::"
     where
@@ -108,7 +108,7 @@ toPPos fl ln =
     let p = (initialPos (T.unpack fl)) { sourceLine = mkPos $ fromIntegral (max 1 ln) }
     in  (p :!: p)
 
--- | High Order "lambdas"
+-- | /High Order lambdas/.
 data LambdaFunc
     = LambEach
     | LambMap
@@ -119,6 +119,7 @@ data LambdaFunc
     deriving (Eq, Show)
 
 -- | Lambda block parameters:
+--
 -- Currently only two types of block parameters are supported:
 -- single values and pairs.
 data LambdaParameters
@@ -285,10 +286,10 @@ data CollectorType
     deriving (Eq, Show)
 
 data Virtuality
-    = Normal -- ^ Normal resource, that will be included in the catalog
-    | Virtual -- ^ Type for virtual resources
-    | Exported -- ^ Type for exported resources
-    | ExportedRealized -- ^ These are resources that are exported AND included in the catalogderiving (Generic, Eq, Show)
+    = Normal -- ^ Normal resource, that will be included in the catalog.
+    | Virtual -- ^ Type for virtual resources.
+    | Exported -- ^ Type for exported resources.
+    | ExportedRealized -- ^ These are resources that are exported AND included in the catalogderiving (Generic, Eq, Show).
     deriving (Eq, Show)
 
 data NodeDesc
@@ -322,28 +323,38 @@ instance FromJSON LinkType where
 instance ToJSON LinkType where
     toJSON = String . rel2text
 
--- | Resource declaration:  e.g `file { mode => 755}`
+-- | Resource declaration:
+--
+-- @ file { mode => 755} @
 data ResDecl = ResDecl !Text !Expression !(V.Vector AttributeDecl) !Virtuality !PPosition deriving (Eq, Show)
 
--- | Resource default:  e.g `File { mode => 755 }`
--- https://docs.puppetlabs.com/puppet/latest/reference/lang_defaults.html#language:-resource-default-statements
+-- | Resource default:
+--
+-- @ File { mode => 755 } @
+--
+-- <https://docs.puppetlabs.com/puppet/latest/reference/lang_defaults.html#language:-resource-default-statements puppet reference>.
 data ResDefaultDecl = ResDefaultDecl !Text !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
 
--- | Resource override: e.g `File['title'] { mode => 755}`
--- https://docs.puppetlabs.com/puppet/latest/reference/lang_resources_advanced.html#amending-attributes-with-a-resource-reference
+-- | Resource override:
+--
+-- @ File['title'] { mode => 755} @
+--
+-- See <https://docs.puppetlabs.com/puppet/latest/reference/lang_resources_advanced.html#amending-attributes-with-a-resource-reference puppet reference>.
 data ResOverrideDecl = ResOverrideDecl !Text !Expression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
 
--- | All types of conditional statements (@case@, @if@, etc.) are stored as an ordered list of pair (condition, statements)
--- (interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ...")
+-- | All types of conditional statements : @case@, @if@, ...
+--
+-- Stored as an ordered list of pair @ (condition, statements) @.
+-- Interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ..."
 data ConditionalDecl = ConditionalDecl !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
 
 data ClassDecl  = ClassDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 data DefineDecl = DefineDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 
--- | A node is a collection of statements + maybe an inherit node
+-- | A node is a collection of statements + maybe an inherit node.
 data NodeDecl = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
 
--- | e.g $newvar = 'world'
+-- | @ $newvar = 'world' @
 data VarAssignDecl = VarAssignDecl !Text !Expression !PPosition deriving (Eq, Show)
 
 data MainFuncDecl    = MainFuncDecl !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
@@ -351,14 +362,16 @@ data MainFuncDecl    = MainFuncDecl !Text !(V.Vector Expression) !PPosition deri
 -- | /Higher order function/ call.
 data HigherOrderLambdaDecl = HigherOrderLambdaDecl !HOLambdaCall !PPosition deriving (Eq, Show)
 
--- | Resource Collector including exported collector (`<<| |>>`)
--- e.g `User <| title == 'jenkins' |> { groups +> "docker"}`
--- https://docs.puppetlabs.com/puppet/latest/reference/lang_collectors.html#language:-resource-collectors
+-- | Resource Collector including exported collector (`\<\<| |>>`)
+--
+-- @ User \<| title == 'jenkins' |> { groups +> "docker"} @
+--
+-- See <https://docs.puppetlabs.com/puppet/latest/reference/lang_collectors.html#language:-resource-collectors puppet reference>
 data ResCollDecl = ResCollDecl !CollectorType !Text !SearchExpression !(V.Vector AttributeDecl) !PPosition deriving (Eq, Show)
 
 data DepDecl = DepDecl !(Pair Text Expression) !(Pair Text Expression) !LinkType !PPosition deriving (Eq, Show)
 
--- | All the possible statements
+-- | All possible statements.
 data Statement
     = ResourceDeclaration !ResDecl
     | ResourceDefaultDeclaration !ResDefaultDecl
@@ -377,4 +390,3 @@ data Statement
 
 makeClassy ''HOLambdaCall
 $(deriveToJSON defaultOptions ''DataType)
-

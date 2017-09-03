@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK hide, prune #-}
 -- | A dummy implementation of 'PuppetDBAPI', that will return empty
 -- responses.
 module PuppetDB.Dummy where
