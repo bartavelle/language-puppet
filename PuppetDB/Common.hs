@@ -1,5 +1,4 @@
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_HADDOCK hide, prune #-}
 -- | Common data types for PuppetDB.
 module PuppetDB.Common where
 
@@ -50,7 +49,7 @@ getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
                                 Nothing -> fmap Right initTestDB
 
 -- | Turns a 'FinalCatalog' and 'EdgeMap' into a document that can be
--- serialized and fed to @puppet apply@.
+  -- serialized and fed to @puppet apply@.
 generateWireCatalog :: NodeName -> FinalCatalog -> EdgeMap -> WireCatalog
 generateWireCatalog node cat edgemap = WireCatalog node "version" edges resources "uiid"
     where

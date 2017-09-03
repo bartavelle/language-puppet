@@ -28,7 +28,9 @@ module Puppet.Interpreter.Resolve
       hfRestorevars,
       toNumbers,
       fixResourceName,
-      datatypeMatch
+      datatypeMatch,
+      -- * Synonym
+      NumberPair
     ) where
 
 import           Control.Lens
@@ -76,12 +78,10 @@ sha1 = convert . (hash :: ByteString -> Digest SHA1)
 md5 :: ByteString -> ByteString
 md5 = convert . (hash :: ByteString -> Digest MD5)
 
--- | A useful type that is used when trying to perform arithmetic on Puppet
--- numbers.
+-- | A useful type that is used when trying to perform arithmetic on Puppet numbers.
 type NumberPair = Pair Scientific Scientific
 
--- | Converts class resource names to lowercase (fix for the jenkins
--- plugin).
+-- | Converts class resource names to lowercase (fix for the jenkins plugin).
 fixResourceName :: T.Text -- ^ Resource type
                 -> T.Text -- ^ Resource name
                 -> T.Text
@@ -117,7 +117,7 @@ hieraCall qt q df _ = do
                          Just d -> return d
                          Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
--- | Tries to convert a pair of 'PValue's into 'Number's, as defined in
+-- | Tries to convert a pair of 'PValue's into a 'NumberPair', as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
 -- that they are of the same type
 toNumbers :: PValue -> PValue -> S.Maybe NumberPair
@@ -130,7 +130,7 @@ toNumbers _ _ = S.Nothing
 
 -- | This tries to run a numerical binary operation on two puppet
 -- expressions. It will try to resolve them, then convert them to numbers
--- (using 'toNumbners'), and will finally apply the correct operation.
+-- (using 'toNumbers'), and will finally apply the correct operation.
 binaryOperation :: Expression -- ^ left operand
                 -> Expression -- ^ right operand
                 -> (Scientific -> Scientific -> Scientific) -- ^ operation

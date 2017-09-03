@@ -1,9 +1,11 @@
 {-# LANGUAGE TupleSections #-}
+
 {-| Parse puppet source code from text. -}
 module Puppet.Parser (
   -- * Runner
     runPParser
   -- * Parsers
+  , Parser
   , puppetParser
   , expression
   , datatype
@@ -558,6 +560,7 @@ resOverrideDecl = do
 
 -- | Heterogeneous chain (interleaving resource declarations with
 -- resource references)needs to be supported:
+--
 --   class { 'docker::service': } ->
 --   Class['docker']
 chainableResources :: Parser [Statement]

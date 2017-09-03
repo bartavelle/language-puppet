@@ -176,20 +176,19 @@ instance AsNumber PValue where
                                          _      -> Left p
             toNumber p = Left p
 
--- | The different kind of hiera queries
+-- | The different kind of hiera queries.
 data HieraQueryType = Priority   -- ^ standard hiera query
                     | ArrayMerge -- ^ hiera_array
                     | HashMerge  -- ^ hiera_hash
 
--- | The type of the Hiera API function
+-- | The type of the Hiera API function.
 type HieraQueryFunc m = Container Text -- ^ All the variables that Hiera can interpolate, the top level ones being prefixed with ::
                      -> Text -- ^ The query
                      -> HieraQueryType
                      -> m (S.Either PrettyError (Maybe PValue))
 
 -- | The intepreter can run in two modes : a strict mode (recommended), and
--- a permissive mode. The permissive mode let known antipatterns work with
--- the interpreter.
+-- a permissive mode.
 data Strictness = Strict | Permissive
                 deriving (Show, Eq)
 
@@ -206,13 +205,12 @@ data RSearchExpression = REqualitySearch !Text !PValue
                        deriving (Show, Eq)
 
 -- | Puppet has two main ways to declare classes: include-like and resource-like
--- https://docs.puppetlabs.com/puppet/latest/reference/lang_classes.html#include-like-vs-resource-like
+-- See <https://docs.puppetlabs.com/puppet/latest/reference/lang_classes.html#include-like-vs-resource-like puppet reference>
 data ClassIncludeType = ClassIncludeLike  -- ^ using the include or contain function
                       | ClassResourceLike -- ^ resource like declaration
                       deriving (Eq)
 
--- |This type is used to differenciate the distinct top level types that are
--- exposed by the DSL.
+-- | This type is used to differenciate the distinct top level types that are exposed by the DSL.
 data TopLevelType
     -- |This is for node entries.
     = TopNode
@@ -250,7 +248,7 @@ data ScopeEnteringContext = SENormal
                           | SEChild  !Text -- ^ We enter the scope as the child of another class
                           | SEParent !Text -- ^ We enter the scope as the parent of another class
 
--- | TODO related to Scope: explain ...
+-- TODO related to Scope: explain ...
 data CurContainer = CurContainer
     { _cctype :: !CurContainerDesc
     , _cctags :: !(HS.HashSet Text)
@@ -416,7 +414,9 @@ type FinalCatalog = HM.HashMap RIdentifier Resource
 -- See <http://docs.puppetlabs.com/puppetdb/2.3/api/wire_format/catalog_format_v5.html#data-type-edge>
 data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType deriving Show
 
--- | Wire format, see <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html>.
+-- | Wire format
+--
+-- See <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html puppet reference>.
 data WireCatalog = WireCatalog
     { _wireCatalogNodename        :: !NodeName
     , _wireCatalogVersion         :: !Text

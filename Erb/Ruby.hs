@@ -1,4 +1,3 @@
-{-# OPTIONS_HADDOCK hide, prune #-}
 -- | Base types for the internal ruby parser ("Erb.Parser").
 module Erb.Ruby where
 
@@ -56,4 +55,3 @@ data RubyStatement
     | DropPrevSpace'
     | DropNextSpace !RubyStatement
     deriving(Show,Eq)
-

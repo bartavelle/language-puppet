@@ -4,7 +4,6 @@ native types.
 module Puppet.NativeTypes.Helpers
     ( module Puppet.PP
     , ipaddr
-    -- smart constructor for NativeTypeMethods
     , nativetypemethods
     , paramname
     , rarray
@@ -57,6 +56,7 @@ paramname = red . ttext
 perror :: Doc -> Either PrettyError Resource
 perror = Left . PrettyError
 
+-- | Smart constructor for 'NativeTypeMethods'.
 nativetypemethods :: [(T.Text, [T.Text -> NativeTypeValidate])] -> NativeTypeValidate -> NativeTypeMethods
 nativetypemethods def extraV =
   let params = fromKeys def
@@ -98,7 +98,7 @@ addDefaults res = Right (res & rattributes %~ newparams)
         newparams p = HM.filter def $ HM.union p defaults
         defaults    = HM.empty
 
--- | Helper function that runs a validor on a PArray
+-- | Helper function that runs a validor on a 'PArray'
 runarray :: T.Text -> (T.Text -> PValue -> NativeTypeValidate) -> NativeTypeValidate
 runarray param func res = case res ^. rattributes . at param of
     Just (PArray x) -> V.foldM (flip (func param)) res x
@@ -146,8 +146,8 @@ values valuelist param res = case res ^. rattributes . at param of
 defaultvalue :: T.Text -> T.Text -> NativeTypeValidate
 defaultvalue value param = Right . over (rattributes . at param) (Just . fromMaybe (PString value))
 
--- | Checks that a given parameter, if set, is a 'ResolvedInt'. If it is a
--- 'PString' it will attempt to parse it.
+-- | Checks that a given parameter, if set, is a 'ResolvedInt'.
+-- If it is a 'PString' it will attempt to parse it.
 integer :: T.Text -> NativeTypeValidate
 integer prm res = string prm res >>= integer' prm
     where
@@ -163,8 +163,8 @@ integer'' param val res = case val ^? _Integer of
     Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
     _ -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
 
--- | Copies the "name" value into the parameter if this is not set. It implies
--- the `string` validator.
+-- | Copies the "name" value into the parameter if this is not set.
+-- It implies the `string` validator.
 nameval :: T.Text -> NativeTypeValidate
 nameval prm res = string prm res
                     >>= \r -> case r ^. rattributes . at prm of

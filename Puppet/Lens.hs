@@ -11,8 +11,7 @@ module Puppet.Lens
  , _PResourceReference
  , _PUndef
  , _PArray
- -- * Parsing prism
- -- * Lenses and Prisms for 'Statement's
+ -- * Lenses and prims for 'Statement's
  , _Statements
  , _ResDecl
  , _ResDefaultDecl
@@ -26,7 +25,7 @@ module Puppet.Lens
  , _MainFuncDecl
  , _HigherOrderLambdaDecl
  , _DepDecl
- -- * Lenses and Prisms for 'Expression's
+ -- * Prim for 'Expression's
  , _Equal
  , _Different
  , _Not
@@ -67,7 +66,6 @@ import qualified Data.HashMap.Strict as HM
 import Data.Tuple.Strict hiding (uncurry)
 import Control.Exception (SomeException, toException, fromException)
 
---makePrisms ''Statement
 makePrisms ''Expression
 
 _PrettyError :: Prism' SomeException PrettyError
@@ -152,8 +150,6 @@ _PResolveValue = prism toU toP
         toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (Terminal (UString k) :!: Terminal (toU v))) $ HM.toList h)
         toU (PType _) = error "TODO, _PResolveValue PType undefined"
 
--- | Extracts the statements from 'ClassDeclaration', 'DefineDeclaration',
--- 'Node' and the spurious statements of 'TopContainer'.
 _Statements :: Lens' Statement [Statement]
 _Statements = lens (V.toList . sget) (\s v -> sset s (V.fromList v))
     where

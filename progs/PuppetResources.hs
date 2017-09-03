@@ -38,7 +38,7 @@ import qualified Text.Regex.PCRE.String        as REG
 import qualified Facter
 import           Puppet.Daemon
 import           Puppet.Lens
-import           Puppet.Parser
+import           Puppet.Parser hiding (Parser)
 import           Puppet.Parser.PrettyPrinter   (ppStatements)
 import           Puppet.Parser.Types
 import           Puppet.Preferences
