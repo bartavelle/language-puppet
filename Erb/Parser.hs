@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_HADDOCK hide, prune #-}
 module Erb.Parser where
 
 import Text.Parsec.String

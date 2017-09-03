@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK hide, prune #-}
 module Erb.Native where
 
 import Puppet.Interpreter.Type
