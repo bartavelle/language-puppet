@@ -2,6 +2,7 @@
 -- responses.
 module PuppetDB.Dummy where
 
+import           Control.Monad.Except
 import Puppet.Interpreter.Types
 
 dummyPuppetDB :: Monad m => PuppetDBAPI m

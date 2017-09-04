@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
+
 module Puppet.Interpreter.Types (
   -- * Record & lenses
    HasResource(..)
@@ -84,8 +85,7 @@ module Puppet.Interpreter.Types (
  , EdgeMap
   -- * Classes
  , MonadThrowPos(..)
- , MonadError(..)
-  -- * definitions
+  -- * Definitions
  , metaparameters
  , showPos
 ) where
@@ -332,6 +332,7 @@ data InterpreterInstr a where
 
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
+
 instance MonadError PrettyError InterpreterMonad where
     throwError = singleton . ErrorThrow
     catchError a c = singleton (ErrorCatch a c)

@@ -3,7 +3,7 @@ module Puppet.Interpreter.Resolve.Sprintf (
 ) where
 
 import           Control.Applicative
-import           Control.Monad
+import           Control.Monad.Except
 import           Data.Attoparsec.Text
 import           Data.Scientific (Scientific)
 import qualified Data.Text                         as T
