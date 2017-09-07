@@ -12,13 +12,21 @@ A library to work with Puppet manifests, test them and eventually replace everyt
 puppetresources -p /where/your/puppet/files/are -o node.name.com
 ```
 
-.Easy build instructions:
+.Quick install instruction with stack
+```bash
+stack install language-puppet
+```
+
+.Build instructions:
 ```bash
 git clone https://github.com/bartavelle/language-puppet.git
 cd language-puppet
-# Add ~/.local/bin to $PATH
-ln -s stack-8.0.yaml stack.yaml
-stack install
+# Using nix
+cabal2nix . > default.nix
+nix-build shell.nix # or nix-shell
+# Using stack
+ln -s stack-9.yaml stack.yaml
+stack build
 ```
 
 == Puppetresources
