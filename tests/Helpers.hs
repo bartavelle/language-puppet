@@ -17,6 +17,7 @@ import           Puppet.PP
 import           Puppet.Stdlib
 
 import           Control.Lens
+import           Control.Monad.Except
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Maybe.Strict as S
 import           Data.Text (Text, unpack)
@@ -50,4 +51,3 @@ withStdlibFunction fname testsuite =
     case stdlibFunctions ^? ix fname of
         Just f -> testsuite f
         Nothing -> fail ("Don't know this function: " ++ show fname)
-
