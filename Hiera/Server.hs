@@ -143,7 +143,10 @@ resolveInterpolable vars = fmap T.concat . mapM resolvePart
     where
         resolvePart :: HieraStringPart -> Maybe T.Text
         resolvePart (HString x) = Just x
-        resolvePart (HVariable v) = vars ^. at v
+        resolvePart (HVariable v)
+            = case T.stripPrefix "lookup('" v >>= T.stripSuffix "')" of
+                Nothing -> vars ^. at v
+                Just vname -> vars ^. at vname
 
 interpolatePValue :: Container T.Text -> PValue -> PValue
 interpolatePValue v (PHash h) = PHash . HM.fromList . map ( (_1 %~ interpolateText v) . (_2 %~ interpolatePValue v) ) . HM.toList $ h
@@ -152,8 +155,8 @@ interpolatePValue v (PString t) = PString (interpolateText v t)
 interpolatePValue _ x = x
 
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
-query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
-    fmap S.Right (queryCombinator qtype (map query' _hierarchy)) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
+query HieraConfigFile {_backends, _hierarchy} fp cache vars hquery qtype =
+    (S.Right <$> queryCombinator qtype (map query' _hierarchy)) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
     where
         varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))
         query' :: InterpolableHieraString -> IO (Maybe PValue)
@@ -166,9 +169,10 @@ query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
                     return Nothing
         query'' :: T.Text -> Backend -> IO (Maybe PValue)
         query'' hierastring backend = do
-            let (decodefunction, datadir, extension) = case backend of
-                                                (JsonBackend d) -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
-                                                (YamlBackend d) -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
+            let (decodefunction, datadir, extension)
+                        = case backend of
+                            JsonBackend d -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
+                            YamlBackend d -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
                 filename = basedir <> datadir <> "/" <> T.unpack hierastring <> extension
                     where
                       basedir = case datadir of
@@ -176,11 +180,12 @@ query (HieraConfigFile {_backends, _hierarchy}) fp cache vars hquery qtype =
                                   _       -> fp^.directory <> "/"
                 mfromJSON :: Maybe Value -> IO (Maybe PValue)
                 mfromJSON Nothing = return Nothing
-                mfromJSON (Just v) = case A.fromJSON v of
-                                         A.Success a -> return (Just (interpolatePValue vars a))
-                                         _           -> do
-                                             LOG.warningM hieraLoggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v))
-                                             return Nothing
+                mfromJSON (Just v)
+                        = case A.fromJSON v of
+                            A.Success a -> return (Just (interpolatePValue vars a))
+                            _ -> do
+                                LOG.warningM hieraLoggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v))
+                                return Nothing
             v <- liftIO (F.query cache filename (decodefunction filename))
             case v of
                 S.Left r -> do
