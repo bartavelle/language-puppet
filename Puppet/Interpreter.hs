@@ -805,7 +805,7 @@ registerResource t rn arg vrt p = do
         "class" -> {-# SCC "rrClass" #-} do
             definedResources . at resid ?= r
             let attrs = r ^. rattributes
-            fmap (r:) $ loadClass rn S.Nothing attrs ClassResourceLike
+            (r:) <$> loadClass rn S.Nothing attrs ClassResourceLike
         _ -> {-# SCC "rrGeneralCase" #-}
             use (definedResources . at resid) >>= \case
                 Just otheres -> throwPosError ("Resource" <+> pretty resid <+> "already defined:" </>
