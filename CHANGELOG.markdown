@@ -1,3 +1,7 @@
+# v1.3.11 (TBD)
+
+* Added yera command
+
 # v1.3.10 (2017/08/28)
 
 * Add `sort` stdlib function

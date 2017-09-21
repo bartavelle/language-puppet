@@ -216,6 +216,19 @@ executable puppetresources
                      , vector
   main-is:             PuppetResources.hs
 
+executable yera
+  hs-source-dirs:      progs
+  extensions:          BangPatterns, OverloadedStrings
+  ghc-options:         -Wall -rtsopts -threaded
+  build-depends:       base
+                     , language-puppet
+                     , optparse-applicative
+                     , text
+                     , strict-base-types
+                     , ansi-wl-pprint
+                     , unordered-containers
+  main-is:             yera.hs
+
 executable pdbquery
   hs-source-dirs:      progs
   extensions:          BangPatterns, OverloadedStrings
