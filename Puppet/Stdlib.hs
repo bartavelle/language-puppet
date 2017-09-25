@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE LambdaCase    #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PatternGuards #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
 import           Control.Applicative
@@ -27,6 +28,7 @@ import           Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
 import           Puppet.PP
+import           Puppet.Utils (text2Scientific)
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
@@ -484,10 +486,12 @@ validateString x = mapM_ resolvePValueString x >> return PUndef
 
 validateInteger :: [PValue] -> InterpreterMonad PValue
 validateInteger [] = throwPosError "validate_integer(): wrong number of arguments, must be > 0"
-validateInteger x = mapM_ vb x >> return PUndef
+validateInteger x = PUndef <$ mapM_ vb x
     where
         msg d = pretty d <+> "is not an integer."
-        vb (PNumber n) = unless (Scientific.isInteger n) $ throwPosError (msg (show n))
+        check n = unless (Scientific.isInteger n) $ throwPosError (msg (show n))
+        vb (PNumber n) = check n
+        vb (PString s) | Just n <- text2Scientific s = check n
         vb a = throwPosError (msg a)
 
 pvalues :: PValue -> InterpreterMonad PValue
