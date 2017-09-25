@@ -56,17 +56,28 @@ module Puppet.Lens
 
 import Control.Lens
 
+import Puppet.Parser (puppetParser)
 import Puppet.Parser.Types
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.Pure
 import Puppet.Interpreter.Resolve
+import qualified Puppet.Parser.PrettyPrinter()
 
 import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as HM
 import Data.Tuple.Strict hiding (uncurry)
 import Control.Exception (SomeException, toException, fromException)
+import qualified Data.Text as T
+import Text.PrettyPrint.ANSI.Leijen (pretty)
+
+import Text.Megaparsec (parse)
 
 makePrisms ''Expression
+
+_PuppetParser :: Prism' T.Text (V.Vector Statement)
+_PuppetParser = prism' (T.pack . unlines . V.toList . fmap (show . pretty)) $ \t -> case parse puppetParser "dummy" t of
+                                                                                      Left _ -> Nothing
+                                                                                      Right r -> Just r
 
 _PrettyError :: Prism' SomeException PrettyError
 _PrettyError = prism' toException fromException

@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE PackageImports #-}
 -- | This module is all about converting and resolving foreign data into
 -- the fully exploitable corresponding data type. The main use case is the
 -- conversion of 'Expression' to 'PValue'.
@@ -36,7 +37,7 @@ module Puppet.Interpreter.Resolve
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Operational        (singleton)
-import           Crypto.Hash
+import "cryptonite" Crypto.Hash
 import           Data.Aeson                       hiding ((.=))
 import           Data.Aeson.Lens                  hiding (key)
 import           Data.Bits

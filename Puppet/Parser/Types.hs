@@ -48,6 +48,9 @@ module Puppet.Parser.Types
    DefineDecl(..),
    NodeDecl(..),
    VarAssignDecl(..),
+   vadname,
+   vadpos,
+   vadvalue,
    MainFuncDecl(..),
    HigherOrderLambdaDecl(..),
    ResCollDecl(..)
@@ -355,7 +358,12 @@ data DefineDecl = DefineDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe DataType
 data NodeDecl = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
 
 -- | @ $newvar = 'world' @
-data VarAssignDecl = VarAssignDecl !Text !Expression !PPosition deriving (Eq, Show)
+data VarAssignDecl
+    = VarAssignDecl
+    { _vadname  :: !Text
+    , _vadvalue :: !Expression
+    , _vadpos   :: !PPosition
+    } deriving (Eq, Show)
 
 data MainFuncDecl    = MainFuncDecl !Text !(V.Vector Expression) !PPosition deriving (Eq, Show)
 
@@ -389,4 +397,5 @@ data Statement
     deriving (Eq, Show)
 
 makeClassy ''HOLambdaCall
+makeLenses ''VarAssignDecl
 $(deriveToJSON defaultOptions ''DataType)
