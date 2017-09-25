@@ -11,10 +11,10 @@ parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
 parameterfunctions =
     [("atboot"      , [string, values ["true","false"]])
     ,("blockdevice" , [string])
-    ,("device"      , [string, mandatory])
+    ,("device"      , [string, mandatoryIfNotAbsent])
     ,("dump"        , [integer, inrange 0 2])
     ,("ensure"      , [defaultvalue "present", string, values ["present","absent","mounted"]])
-    ,("fstype"      , [string, mandatory])
+    ,("fstype"      , [string, mandatoryIfNotAbsent])
     ,("name"        , [nameval])
     ,("options"     , [string])
     ,("pass"        , [defaultvalue "0", integer])
