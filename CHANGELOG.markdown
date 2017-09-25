@@ -1,6 +1,7 @@
 # v1.3.11 (TBD)
 
 * Added yera command
+* Minor fixes to the validate_integer function, and to the mount resource
 
 # v1.3.10 (2017/08/28)
 
