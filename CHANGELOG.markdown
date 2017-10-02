@@ -2,6 +2,7 @@
 
 * Added yera command
 * Minor fixes to the validate_integer function, and to the mount resource
+* Support for the "lookup" command in hiera files
 
 # v1.3.10 (2017/08/28)
 

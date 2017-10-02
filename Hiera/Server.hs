@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE NamedFieldPuns         #-}
 {-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE TypeApplications       #-}
 
 {- | This module runs a Hiera server that caches Hiera data. There is
 a huge caveat : only the data files are watched for changes, not the main configuration file.
@@ -19,8 +20,9 @@ module Hiera.Server (
 ) where
 
 import           Control.Applicative
-import           Control.Exception
 import           Control.Lens
+import           Control.Monad.Except
+import           Control.Monad.Trans.Reader
 import           Control.Monad.Writer.Strict
 import           Data.Aeson                  (FromJSON, Value (..), (.!=), (.:?))
 import qualified Data.Aeson                  as A
@@ -29,9 +31,9 @@ import qualified Data.Attoparsec.Text        as AT
 import qualified Data.ByteString.Lazy        as BS
 import qualified Data.Either.Strict          as S
 import qualified Data.FileCache              as F
-import qualified Data.HashMap.Strict         as HM
 import qualified Data.List                   as L
-import           Data.Maybe                  (fromMaybe, catMaybes)
+import           Data.Maybe                  (catMaybes, mapMaybe)
+import           Data.String                 (fromString)
 import qualified Data.Text                   as T
 import qualified Data.Vector                 as V
 import qualified Data.Yaml                   as Y
@@ -54,21 +56,29 @@ data Backend = YamlBackend FilePath
              | JsonBackend FilePath
              deriving Show
 
-newtype InterpolableHieraString = InterpolableHieraString [HieraStringPart]
+newtype InterpolableHieraString = InterpolableHieraString { getInterpolableHieraString :: [HieraStringPart] }
                                   deriving Show
 
-data HieraStringPart = HString T.Text
-                     | HVariable T.Text
+data HieraStringPart = HPString T.Text
+                     | HPVariable T.Text
                      deriving Show
 
 instance Pretty HieraStringPart where
-    pretty (HString t) = ttext t
-    pretty (HVariable v) = dullred (string "%{" <> ttext v <> string "}")
+    pretty (HPString t) = ttext t
+    pretty (HPVariable v) = dullred (string "%{" <> ttext v <> string "}")
     prettyList = mconcat . map pretty
 
-type Cache = F.FileCacheR String Y.Value
+type Cache = F.FileCacheR String Value
+
+data QRead
+    = QRead
+    { _qvars :: Container T.Text
+    , _qtype :: HieraQueryType
+    , _qhier :: [Value]
+    }
 
 makeClassy ''HieraConfigFile
+makeLenses ''QRead
 
 instance FromJSON InterpolableHieraString where
     parseJSON (String s) = case parseInterpolableString s of
@@ -91,12 +101,12 @@ instance FromJSON HieraConfigFile where
                 return (backendConstructor (T.unpack datadir))
         HieraConfigFile
             <$> (v .:? ":backends" .!= ["yaml"] >>= mapM genBackend)
-            <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HString "common"]])
+            <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HPString "common"]])
     parseJSON _ = fail "Not a valid Hiera configuration"
 
 -- | An attoparsec parser that turns text into parts that are ready for interpolation
 interpolableString :: AT.Parser [HieraStringPart]
-interpolableString = AT.many1 (fmap HString rawPart <|> fmap HVariable interpPart)
+interpolableString = AT.many1 (fmap HPString rawPart <|> fmap HPVariable interpPart)
     where
         rawPart = AT.takeWhile1 (/= '%')
         interpPart = AT.string "%{" *> AT.takeWhile1 (/= '}') <* AT.char '}'
@@ -119,79 +129,106 @@ startHiera fp = Y.decodeFileEither fp >>= \case
 dummyHiera :: Monad m => HieraQueryFunc m
 dummyHiera _ _ _ = return $ S.Right Nothing
 
--- | The combinator for "normal" queries
-queryCombinator :: HieraQueryType -> [IO (Maybe PValue)] -> IO (Maybe PValue)
-queryCombinator qt = fmap (createOutput . catMaybes) . sequence
-    where
-        createOutput :: [PValue] -> Maybe PValue
-        createOutput [] = Nothing
-        createOutput xs = case qt of
-                               Priority -> return (head xs)
-                               ArrayMerge -> return (rejoin xs)
-                               HashMerge -> PHash . mconcat <$> mapM toH xs
-        rejoin = PArray . V.fromList . L.nub . concatMap toA
-        toA (PArray r) = V.toList r
-        toA a = [a]
-        toH (PHash h) = Just h
-        toH _ = Nothing
-
-interpolateText :: Container T.Text -> T.Text -> T.Text
-interpolateText vars t = fromMaybe t ((parseInterpolableString t ^? _Right) >>= resolveInterpolable vars)
-
-resolveInterpolable :: Container T.Text -> [HieraStringPart] -> Maybe T.Text
-resolveInterpolable vars = fmap T.concat . mapM resolvePart
-    where
-        resolvePart :: HieraStringPart -> Maybe T.Text
-        resolvePart (HString x) = Just x
-        resolvePart (HVariable v)
-            = case T.stripPrefix "lookup('" v >>= T.stripSuffix "')" of
-                Nothing -> vars ^. at v
-                Just vname -> vars ^. at vname
-
-interpolatePValue :: Container T.Text -> PValue -> PValue
-interpolatePValue v (PHash h) = PHash . HM.fromList . map ( (_1 %~ interpolateText v) . (_2 %~ interpolatePValue v) ) . HM.toList $ h
-interpolatePValue v (PArray r) = PArray (fmap (interpolatePValue v) r)
-interpolatePValue v (PString t) = PString (interpolateText v t)
-interpolatePValue _ x = x
+resolveString :: Container T.Text -> InterpolableHieraString -> Maybe T.Text
+resolveString vars = fmap T.concat . mapM resolve . getInterpolableHieraString
+  where
+    resolve (HPString x) = Just x
+    resolve (HPVariable v) = vars ^? ix v
 
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
-query HieraConfigFile {_backends, _hierarchy} fp cache vars hquery qtype =
-    (S.Right <$> queryCombinator qtype (map query' _hierarchy)) `catch` (\e -> return . S.Left . PrettyError . string . show $ (e :: SomeException))
-    where
-        varlist = hcat (L.intersperse comma (map (dullblue . ttext) (L.sort (HM.keys vars))))
-        query' :: InterpolableHieraString -> IO (Maybe PValue)
-        query' (InterpolableHieraString strs) =
-            case resolveInterpolable vars strs of
-                Just s  -> queryCombinator qtype (map (query'' s) _backends)
-                Nothing -> do
-                    LOG.infoM hieraLoggerName (show $ "Hiera lookup: skipping using hierarchy level" <+> pretty strs
-                                            <$$> "It couldn't be interpolated with known variables:" <+> varlist)
-                    return Nothing
-        query'' :: T.Text -> Backend -> IO (Maybe PValue)
-        query'' hierastring backend = do
-            let (decodefunction, datadir, extension)
-                        = case backend of
-                            JsonBackend d -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
-                            YamlBackend d -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
-                filename = basedir <> datadir <> "/" <> T.unpack hierastring <> extension
-                    where
-                      basedir = case datadir of
-                                  '/' : _ -> mempty
-                                  _       -> fp^.directory <> "/"
-                mfromJSON :: Maybe Value -> IO (Maybe PValue)
-                mfromJSON Nothing = return Nothing
-                mfromJSON (Just v)
-                        = case A.fromJSON v of
-                            A.Success a -> return (Just (interpolatePValue vars a))
-                            _ -> do
-                                LOG.warningM hieraLoggerName (show $ "Hiera:" <+> dullred "could not convert this Value to a Puppet type" <> ":" <+> string (show v))
-                                return Nothing
-            v <- liftIO (F.query cache filename (decodefunction filename))
-            case v of
-                S.Left r -> do
-                    let errs = "Hiera: error when reading file " <> string filename <+> string r
-                    if "Yaml file not found: " `L.isInfixOf` r
-                        then LOG.debugM hieraLoggerName (show errs)
-                        else LOG.warningM hieraLoggerName (show errs)
-                    return Nothing
-                S.Right x -> mfromJSON (x ^? key hquery)
+query HieraConfigFile {_backends, _hierarchy} fp cache vars hquery qt = do
+    -- step 1, resolve hierarchies
+    let searchin = do
+            mhierarchy <- resolveString vars <$> _hierarchy
+            Just hier  <- [mhierarchy]
+            backend    <- _backends
+            let decodeInfo :: (FilePath -> IO (S.Either String Value), String, String)
+                decodeInfo
+                    = case backend of
+                        JsonBackend d -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
+                        YamlBackend d -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
+            return (decodeInfo, hier)
+    -- step 2, read all the files, returning a raw data structure
+    mvals <- forM searchin $ \((decodefunction, datadir, extension), hier) -> do
+        let filename = basedir <> datadir <> "/" <> T.unpack hier <> extension
+            basedir = case datadir of
+                '/' : _ -> mempty
+                _       -> fp ^. directory <> "/"
+        efilecontent <- F.query cache filename (decodefunction filename)
+        case efilecontent of
+            S.Left r -> do
+                let errs = "Hiera: error when reading file " <> string filename <+> string r
+                if "Yaml file not found: " `L.isInfixOf` r
+                    then LOG.debugM hieraLoggerName (show errs)
+                    else LOG.warningM hieraLoggerName (show errs)
+                return Nothing
+            S.Right val -> return (Just val)
+    let vals = catMaybes mvals
+    -- step 3, query through all the results
+    return (strictifyEither $ runReader (runExceptT (recursiveQuery hquery [])) (QRead vars qt vals))
+
+type QM a = ExceptT PrettyError (Reader QRead) a
+
+checkLoop :: T.Text -> [T.Text] -> QM ()
+checkLoop x xs =
+    when (x `elem` xs) (throwError ("Loop in hiera: " <> fromString (T.unpack (T.intercalate ", " (x:xs)))))
+
+recursiveQuery :: T.Text -> [T.Text] -> QM (Maybe PValue)
+recursiveQuery curquery prevqueries = do
+  checkLoop curquery prevqueries
+  rawlookups <- mapMaybe (preview (key curquery)) <$> view qhier
+  lookups <- mapM (resolveValue (curquery : prevqueries)) rawlookups
+  case lookups of
+    [] -> return Nothing
+    (x:xs) -> do
+        qt <- view qtype
+        let evalue = foldM (mergeWith qt) x xs
+        case A.fromJSON <$> evalue of
+            Left _ ->  return Nothing
+            Right (A.Success o) -> return o
+            Right (A.Error rr) -> throwError ("Something horrible happened in recursiveQuery: " <> fromString (show rr))
+
+resolveValue :: [T.Text] -> Value -> QM Value
+resolveValue prevqueries value =
+    case value of
+        String t  -> String <$> resolveText prevqueries t
+        Array arr -> Array <$> mapM (resolveValue prevqueries) arr
+        Object hh -> Object <$> mapM (resolveValue prevqueries) hh
+        _         -> return value
+
+resolveText :: [T.Text] -> T.Text -> QM T.Text
+resolveText prevqueries t
+    = case parseInterpolableString t of
+        Right qparts -> T.concat <$> mapM (resolveStringPart prevqueries) qparts
+        Left _ -> return t
+
+resolveStringPart :: [T.Text] -> HieraStringPart -> QM T.Text
+resolveStringPart prevqueries sp
+    = case sp of
+        HPString s -> return s
+        HPVariable varname -> do
+            let varsolve = fmap PString . preview (ix varname) <$> view qvars
+            r <- case T.stripPrefix "lookup('" varname >>= T.stripSuffix "')" of
+                    Just lk -> recursiveQuery lk prevqueries
+                    Nothing -> varsolve
+            case r of
+                Just (PString v) -> return v
+                _ -> return mempty
+
+mergeWith :: HieraQueryType -> Value -> Value -> Either PrettyError Value
+mergeWith qt cur new
+  = case qt of
+    QFirst -> return cur
+    QUnique ->
+        let getArray x = case x of
+                Array array -> V.toList array
+                _ -> [x]
+            curarray = getArray cur
+            newarray = getArray new
+        in  case new of
+                Object _ -> throwError "Tried to merge a hash"
+                _ -> return (Array (V.fromList (L.nub (curarray ++ newarray))))
+    QHash -> case (cur, new) of
+        (Object curh, Object newh) -> return (Object (curh <> newh))
+        _ -> throwError (PrettyError ("Tried to merge things that are not hashes: " <> text (show cur) <+> text (show new)))
+    QDeep{} -> throwError "deep queries not supported"

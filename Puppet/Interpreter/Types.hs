@@ -177,9 +177,15 @@ instance AsNumber PValue where
             toNumber p = Left p
 
 -- | The different kind of hiera queries.
-data HieraQueryType = Priority   -- ^ standard hiera query
-                    | ArrayMerge -- ^ hiera_array
-                    | HashMerge  -- ^ hiera_hash
+data HieraQueryType
+    = QFirst   -- ^ standard hiera query
+    | QUnique -- ^ hiera_array
+    | QHash  -- ^ hiera_hash
+    | QDeep
+    { _knockoutPrefix  :: Maybe Text
+    , _sortMerged      :: Bool
+    , _mergeHashArray :: Bool
+    } deriving (Show)
 
 -- | The type of the Hiera API function.
 type HieraQueryFunc m = Container Text -- ^ All the variables that Hiera can interpolate, the top level ones being prefixed with ::

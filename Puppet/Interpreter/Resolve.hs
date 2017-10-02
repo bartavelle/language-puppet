@@ -429,7 +429,7 @@ resolveFunction' "defined" [ut] = do
     checkStrict "The use of the 'defined' function is a code smell."
                 "The 'defined' function is not allowed in strict mode."
     t <- resolvePValueString ut
-    if (not (T.null t) && T.head t == '$') -- variable test
+    if not (T.null t) && T.head t == '$' -- variable test
         then do
             scps <- use scopes
             scp <- getScopeName
@@ -490,7 +490,7 @@ resolveFunction' "shellquote" args = do
         escapeDangerous x | isDangerous x = T.snoc "\\" x
                           | otherwise = T.singleton x
         between c s = c <> s <> c
-    return $ PString $ T.unwords $ V.toList $ fmap escape $ mconcat sargs
+    return $ PString $ T.unwords $ V.toList (escape <$> mconcat sargs)
 
 resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha1 . sha1  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
@@ -530,15 +530,15 @@ resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
 resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
 resolveFunction' "pdbresourcequery" _     = throwPosError "pdbresourcequery(): Expects one or two arguments"
-resolveFunction' "hiera"       [q]     = hieraCall Priority   q Nothing  Nothing
-resolveFunction' "hiera"       [q,d]   = hieraCall Priority   q (Just d) Nothing
-resolveFunction' "hiera"       [q,d,o] = hieraCall Priority   q (Just d) (Just o)
-resolveFunction' "hiera_array" [q]     = hieraCall ArrayMerge q Nothing  Nothing
-resolveFunction' "hiera_array" [q,d]   = hieraCall ArrayMerge q (Just d) Nothing
-resolveFunction' "hiera_array" [q,d,o] = hieraCall ArrayMerge q (Just d) (Just o)
-resolveFunction' "hiera_hash"  [q]     = hieraCall HashMerge  q Nothing  Nothing
-resolveFunction' "hiera_hash"  [q,d]   = hieraCall HashMerge  q (Just d) Nothing
-resolveFunction' "hiera_hash"  [q,d,o] = hieraCall HashMerge  q (Just d) (Just o)
+resolveFunction' "hiera"       [q]     = hieraCall QFirst   q Nothing  Nothing
+resolveFunction' "hiera"       [q,d]   = hieraCall QFirst   q (Just d) Nothing
+resolveFunction' "hiera"       [q,d,o] = hieraCall QFirst   q (Just d) (Just o)
+resolveFunction' "hiera_array" [q]     = hieraCall QUnique q Nothing  Nothing
+resolveFunction' "hiera_array" [q,d]   = hieraCall QUnique q (Just d) Nothing
+resolveFunction' "hiera_array" [q,d,o] = hieraCall QUnique q (Just d) (Just o)
+resolveFunction' "hiera_hash"  [q]     = hieraCall QHash  q Nothing  Nothing
+resolveFunction' "hiera_hash"  [q,d]   = hieraCall QHash  q (Just d) Nothing
+resolveFunction' "hiera_hash"  [q,d,o] = hieraCall QHash  q (Just d) (Just o)
 resolveFunction' "hiera" _ = throwPosError "hiera(): Expects one, two or three arguments"
 
 -- user functions
@@ -615,14 +615,14 @@ checkSearchExpression (REqualitySearch "title" v) r =
 checkSearchExpression (REqualitySearch attributename v) r =
     case r ^. rattributes . at attributename of
         Nothing         -> False
-        Just (PArray x) -> F.any (flip puppetEquality v) x
+        Just (PArray x) -> F.any (`puppetEquality` v) x
         Just x          -> puppetEquality x v
 checkSearchExpression (RNonEqualitySearch attributename v) r
     | attributename  == "tag" = True
     | attributename  == "title" = not (checkSearchExpression (REqualitySearch attributename v) r)
     | otherwise = case r ^. rattributes . at attributename of
         Nothing         -> True
-        Just (PArray x) -> not (F.all (flip puppetEquality v) x)
+        Just (PArray x) -> not (F.all (`puppetEquality` v) x)
         Just x          -> not (puppetEquality x v)
 
 -- | Generates variable associations for evaluation of blocks. Each item

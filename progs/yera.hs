@@ -22,10 +22,10 @@ data Config
 readQT :: String -> Maybe HieraQueryType
 readQT s
   = case s of
-    "priority"   -> Just Priority
-    "arraymerge" -> Just ArrayMerge
-    "hashmerge"  -> Just HashMerge
-    _            -> Nothing
+    "first"  -> Just QFirst
+    "unique" -> Just QUnique
+    "hash"   -> Just QHash
+    _        -> Nothing
 
 parseVariable :: String -> Either String (T.Text, T.Text)
 parseVariable s =
@@ -39,7 +39,7 @@ parseVariable s =
 configParser :: Parser Config
 configParser = Config <$> strOption (long "config" <> short 'c' <> metavar "CONFIG" <> value "hiera.yaml")
                       <*> strOption (long "query" <> short 'q' <> metavar "QUERY")
-                      <*> option (maybeReader readQT) (long "querytype" <> short 't' <> metavar "QUERYTYPE" <> value Priority <> help "values: priority (default), arraymerge, hashmerge")
+                      <*> option (maybeReader readQT) (long "querytype" <> short 't' <> metavar "QUERYTYPE" <> value QFirst <> help "values: first (default), unique, hash")
                       <*> many (argument (eitherReader parseVariable) (metavar "VARIABLE" <> help "Variables, in the form key=value"))
 
 configInfo :: ParserInfo Config

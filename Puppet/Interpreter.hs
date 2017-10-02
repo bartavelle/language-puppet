@@ -575,7 +575,7 @@ loadParameters params classParams defaultPos wHiera = do
         checkHiera :: T.Text -> ExceptT (Max Bool) InterpreterMonad PValue
         checkHiera k = case wHiera of
                            S.Nothing -> throwE (Max False)
-                           S.Just classname -> lift (runHiera (classname <> "::" <> k) Priority) >>= checkUndef
+                           S.Just classname -> lift (runHiera (classname <> "::" <> k) QFirst) >>= checkUndef
 
         checkDef :: T.Text -> ExceptT (Max Bool) InterpreterMonad PValue
         checkDef k = checkUndef (params ^. at k)
@@ -870,7 +870,7 @@ mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ttext <$> resolvePValueS
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
 mainFunctionCall "hiera_include" [x] = do
     ndname <- resolvePValueString x
-    classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname ArrayMerge
+    classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname QUnique
     p <- use curPos
     curPos . _1 . lSourceName <>= " [hiera_include call]"
     o <- mainFunctionCall "include" classes
