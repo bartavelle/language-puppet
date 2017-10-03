@@ -23,7 +23,7 @@ let
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
   drv = hlib.dontHaddock (haskellPackages.callPackage ./. {
-    megaparsec = haskellPackages.megaparsec_6_1_1;
+    megaparsec = haskellPackages.megaparsec_6_2_0;
     hspec-megaparsec = haskellPackages.hspec-megaparsec_1_0_0;
   });
 in
