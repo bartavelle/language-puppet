@@ -195,7 +195,7 @@ executable puppetresources
   ghc-options:         -Wall -rtsopts -funbox-strict-fields -threaded -with-rtsopts "-A2M" -eventlog
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   build-depends:       base
-                     , Glob
+                     , Glob < 0.9
                      , aeson
                      , bytestring
                      , containers
