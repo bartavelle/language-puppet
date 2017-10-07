@@ -1,8 +1,9 @@
-# v1.3.11 (TBD)
+# v1.3.11 (2017/10/07)
 
 * Added yera command
 * Minor fixes to the validate_integer function, and to the mount resource
 * Support for the "lookup" command in hiera files
+* Fix Glob compilation problem
 
 # v1.3.10 (2017/08/28)
 
