@@ -15,7 +15,7 @@ import qualified Data.Text.IO as T
 
 allchecks :: IO ()
 allchecks = do
-    filelist <- fmap (head . fst) (globDir [compile "*.pp"] "tests/lexer")
+    filelist <- globDir1 (compile "*.pp") "tests/lexer"
     testres <- mapM testparser filelist
     let isgood = all snd testres
     mapM_ (\(rr, t) -> unless t (putStrLn rr)) testres

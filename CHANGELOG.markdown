@@ -1,3 +1,7 @@
+# v1.3.12.1 (2017/10/09)
+
+* Support for Glob >= 0.9, even for the test suite :)
+
 # v1.3.12 (2017/10/09)
 
 * Support for Glob >= 0.9
