@@ -494,15 +494,17 @@ resolveFunction' "shellquote" args = do
 
 resolveFunction' "mysql_password" [pstr] = fmap (PString . T.decodeUtf8 . B16.encode . sha1 . sha1  . T.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
-resolveFunction' "file" args = mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . singleton . ReadFile
-    where
-        fixFilePath s | T.null s = let rr = "Empty file path passed to the 'file' function" in checkStrict rr rr >> return s
-                      | T.head s == '/' = return s
+resolveFunction' "file" args = do
+    rebasefile <- fmap T.pack <$> singleton RebaseFile
+    let fixFilePath s | T.null s = let rr = "Empty file path passed to the 'file' function" in checkStrict rr rr >> return s
+                      | T.head s == '/' = return (maybe s (<> s) rebasefile)
                       | otherwise = case T.splitOn "/" s of
                                         (md:x:rst) -> do
                                             moduledir <- view modulesPath <$> getPuppetPaths
                                             return (T.intercalate "/" (T.pack moduledir : md : "files" : x : rst))
                                         _ -> throwPosError ("file() argument invalid: " <> ttext s)
+    mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . singleton . ReadFile
+
 resolveFunction' "tagged" ptags = do
     tags <- fmap HS.fromList (mapM resolvePValueString ptags)
     scp <- getScopeName

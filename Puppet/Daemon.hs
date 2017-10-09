@@ -134,6 +134,7 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
                                                   (pref ^. prefExternalmodules)
                                                   (pref ^. prefStrictness == Strict)
                                                   (pref ^. prefPuppetPaths)
+                                                  (pref ^. prefRebaseFile)
                                               )
                                               node
                                               facts

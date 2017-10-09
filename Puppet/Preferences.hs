@@ -48,6 +48,7 @@ data Preferences m = Preferences
     , _prefFactsOverride   :: Container PValue
     , _prefFactsDefault    :: Container PValue
     , _prefLogLevel        :: LOG.Priority
+    , _prefRebaseFile      :: Maybe FilePath -- ^ Make all calls to file() with absolute pathes relative to the given path.
     }
 
 data Defaults = Defaults
@@ -60,6 +61,7 @@ data Defaults = Defaults
     , _dfPuppetSettings  :: Maybe (Container Text)
     , _dfFactsDefault    :: Maybe (Container PValue)
     , _dfFactsOverride   :: Maybe (Container PValue)
+    , _dfRebaseFile      :: Maybe FilePath
     } deriving Show
 
 
@@ -76,6 +78,7 @@ instance FromJSON Defaults where
                            <*> v .:? "settings"
                            <*> v .:? "factsdefault"
                            <*> v .:? "factsoverride"
+                           <*> v .:? "rebasefile"
     parseJSON _ = mzero
 
 -- | generate default preferences
@@ -104,6 +107,7 @@ dfPreferences basedir = do
                          (getFactsOverride defaults)
                          (getFactsDefault defaults)
                          LOG.NOTICE -- good default as INFO is quite noisy
+                         Nothing
 
 loadDefaults :: FilePath -> IO (Maybe Defaults)
 loadDefaults fp = do

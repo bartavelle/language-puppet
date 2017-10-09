@@ -131,6 +131,7 @@ showQuery = string . BSL.unpack . encode
 
 instance Pretty (InterpreterInstr a) where
     pretty PuppetPaths = pf "PuppetPathes" []
+    pretty RebaseFile = pf "RebaseFile" []
     pretty IsStrict = pf "IsStrict" []
     pretty GetNativeTypes = pf "GetNativeTypes" []
     pretty (GetStatement tlt nm) = pf "GetStatement" [pretty tlt,ttext nm]

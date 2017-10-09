@@ -77,6 +77,7 @@ eval r s (a :>>= k) =
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"
             PuppetPaths                  -> runInstr (r ^. readerPuppetPaths)
+            RebaseFile                   -> runInstr (r ^. readerRebaseFile)
             GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
             ErrorThrow d                 -> return (Left d, s, mempty)
             GetNodeName                  -> runInstr (r ^. readerNodename)

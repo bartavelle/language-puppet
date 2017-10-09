@@ -46,6 +46,7 @@ pureReader sttmap = InterpreterReader
                       mempty
                       True
                       (puppetPaths "/etc/puppet")
+                      Nothing
     where
         templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
         templatedummy (Left cnt) stt _ = return $ case extractFromState stt of

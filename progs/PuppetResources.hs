@@ -78,6 +78,7 @@ data Options = Options
     , _optStrictMode   :: Bool
     , _optNoExtraTests :: Bool
     , _optVersion      :: Bool
+    , _optRebaseFile   :: Maybe FilePath
     } deriving (Show)
 
 options :: Parser Options
@@ -150,6 +151,9 @@ options = Options
    <*> switch
        (  long "version"
        <> help "Output version information and exit")
+   <*> optional (strOption
+       (  long "rebasefile"
+       <> help "Rebase all calls to the 'file' function so that absolute path are relative to the Puppet directory"))
 
 
 -- | Like catMaybes, but it counts the Nothing values
@@ -181,6 +185,7 @@ initializedaemonWithPuppet workingdir Options {..} = do
                                      <&> (if _optStrictMode then prefStrictness .~ Strict else id)
                                      <&> (if _optNoExtraTests then prefExtraTests .~ False else id)
                                      <&> prefLogLevel .~ _optLoglevel
+                                     <&> prefRebaseFile .~ _optRebaseFile
     d <- initDaemon pref
     let queryfunc = \node -> fmap (unifyFacts (pref ^. prefFactsDefault) (pref ^. prefFactsOverride)) (Facter.puppetDBFacts node pdbapi) >>= getCatalog d node
     return (queryfunc, pdbapi, parserStats d, catalogStats d, templateStats d)

@@ -293,6 +293,7 @@ data InterpreterReader m = InterpreterReader
     , _readerExternalModules :: HS.HashSet Text
     , _readerIsStrict        :: Bool
     , _readerPuppetPaths     :: PuppetDirPaths
+    , _readerRebaseFile      :: Maybe FilePath
     }
 
 data IoMethods m = IoMethods
@@ -314,6 +315,7 @@ data InterpreterInstr a where
     IsExternalModule    :: Text -> InterpreterInstr Bool
     IsStrict            :: InterpreterInstr Bool
     PuppetPaths         :: InterpreterInstr PuppetDirPaths
+    RebaseFile          :: InterpreterInstr (Maybe FilePath)
     -- error
     ErrorThrow          :: PrettyError -> InterpreterInstr a
     ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a

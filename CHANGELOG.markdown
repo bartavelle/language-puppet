@@ -1,3 +1,7 @@
+# v1.3.13 (TBD)
+
+* Support for a "rebasefile" option to make file() calls with absolute files relative to another directory.
+
 # v1.3.12.1 (2017/10/09)
 
 * Support for Glob >= 0.9, even for the test suite :)
