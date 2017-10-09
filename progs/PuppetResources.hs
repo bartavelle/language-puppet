@@ -238,7 +238,7 @@ findDeadCode puppetdir catalogs allfiles = do
     -- first collect all files / positions from all the catalogs
     let allpositions = Set.fromList $ catalogs ^.. traverse . rpos
     -- now find all haskell files
-    puppetfiles <- Set.fromList . concat . fst <$> G.globDir [G.compile "**/*.pp"] (puppetdir <> "/modules")
+    puppetfiles <- Set.fromList <$> G.globDir1 (G.compile "**/*.pp") (puppetdir <> "/modules")
     let deadfiles = Set.filter ("/manifests/" `isInfixOf`) $ puppetfiles `Set.difference`   allfiles
         usedfiles = puppetfiles `Set.intersection` allfiles
     unless (Set.null deadfiles) $ do

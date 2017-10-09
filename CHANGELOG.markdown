@@ -1,3 +1,7 @@
+# v1.3.12 (2017/10/09)
+
+* Support for Glob >= 0.9
+
 # v1.3.11 (2017/10/07)
 
 * Added yera command
