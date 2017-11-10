@@ -33,12 +33,12 @@ parameterfunctions =
     ,("links"                , [string])
     ,("mode"                 , [defaultvalue "0644", string])
     ,("owner"                , [string])
-    ,("path"                 , [nameval, fullyQualified, noTrailingSlash])
+    ,("path"                 , [nameval, fullyQualified, noTrailingSlash'])
     ,("provider"             , [values ["posix","windows"]])
     ,("purge"                , [string, values ["true","false"]])
     ,("recurse"              , [string, values ["inf","true","false","remote"]])
     ,("recurselimit"         , [integer])
-    ,("replace"              , [string, values ["true","false"]])
+    ,("replace"              , [string, values ["true","false","yes","no"]])
     ,("sourceselect"         , [values ["first","all"]])
     ,("seltype"              , [string])
     ,("selrange"             , [string])
@@ -50,6 +50,11 @@ parameterfunctions =
     ,("validate_cmd"         , [string])
     ,("validate_replacement" , [string])
     ]
+
+noTrailingSlash' :: T.Text -> NativeTypeValidate
+noTrailingSlash' param res
+  | res ^? rattributes . ix "ensure" == Just "directory" = Right res
+  | otherwise = noTrailingSlash param res
 
 validateMode :: NativeTypeValidate
 validateMode res = do
