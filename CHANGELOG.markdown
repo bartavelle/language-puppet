@@ -1,6 +1,7 @@
 # v1.3.13 (TBD)
 
 * Support for a "rebasefile" option to make file() calls with absolute files relative to another directory.
+* Fix an infinite loop with fqdn_rand
 
 # v1.3.12.1 (2017/10/09)
 

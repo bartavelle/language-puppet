@@ -107,7 +107,8 @@ rbGenrandInt32 st =
     in (y4,nst)
 
 limitedRand :: RandState -> Int -> (Int, RandState)
-limitedRand s n = limitedRand' s
+limitedRand s n | n <= 0 = (0, s)
+                | otherwise = limitedRand' s
     where
         mask = foldl' (\x pow -> x .|. (x `shiftR` pow)) (n - 1) [1,2,4,8,16,32]
         limitedRand' s' =
