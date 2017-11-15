@@ -542,6 +542,7 @@ resolveFunction' "hiera_hash"  [q]     = hieraCall QHash  q Nothing  Nothing
 resolveFunction' "hiera_hash"  [q,d]   = hieraCall QHash  q (Just d) Nothing
 resolveFunction' "hiera_hash"  [q,d,o] = hieraCall QHash  q (Just d) (Just o)
 resolveFunction' "hiera" _ = throwPosError "hiera(): Expects one, two or three arguments"
+resolveFunction' "lookup" args = resolveFunction' "hiera" args
 
 -- user functions
 resolveFunction' fname args = singleton (ExternalFunction fname args)
