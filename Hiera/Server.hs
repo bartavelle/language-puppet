@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE NamedFieldPuns         #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE TypeApplications       #-}
 
@@ -13,6 +14,7 @@ A minor bug is that interpolation will not work for inputs containing the % char
 -}
 module Hiera.Server (
     startHiera
+  , startHiera'
   , dummyHiera
   , hieraLoggerName
     -- * Query API
@@ -24,7 +26,8 @@ import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Writer.Strict
-import           Data.Aeson                  (FromJSON, Value (..), (.!=), (.:?))
+import           Data.Aeson                  (FromJSON, Value (..), (.!=), (.:),
+                                              (.:?))
 import qualified Data.Aeson                  as A
 import           Data.Aeson.Lens
 import qualified Data.Attoparsec.Text        as AT
@@ -34,9 +37,11 @@ import qualified Data.FileCache              as F
 import qualified Data.List                   as L
 import           Data.Maybe                  (catMaybes, mapMaybe)
 import           Data.String                 (fromString)
+import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Vector                 as V
 import qualified Data.Yaml                   as Y
+import qualified System.FilePath             as FilePath
 import           System.FilePath.Lens        (directory)
 import qualified System.Log.Logger           as LOG
 
@@ -44,11 +49,13 @@ import           Puppet.Interpreter.Types
 import           Puppet.PP
 import           Puppet.Utils                (strictifyEither)
 
+
 hieraLoggerName :: String
 hieraLoggerName = "Hiera.Server"
 
 data HieraConfigFile = HieraConfigFile
-    { _backends  :: [Backend]
+    { _version   :: Int
+    , _backends  :: [Backend]
     , _hierarchy :: [InterpolableHieraString]
     } deriving (Show)
 
@@ -56,15 +63,17 @@ data Backend = YamlBackend FilePath
              | JsonBackend FilePath
              deriving Show
 
-newtype InterpolableHieraString = InterpolableHieraString { getInterpolableHieraString :: [HieraStringPart] }
-                                  deriving Show
+newtype InterpolableHieraString
+  = InterpolableHieraString
+  { getInterpolableHieraString :: [HieraStringPart]
+  } deriving Show
 
-data HieraStringPart = HPString T.Text
-                     | HPVariable T.Text
+data HieraStringPart = HPString Text
+                     | HPVariable Text
                      deriving Show
 
 instance Pretty HieraStringPart where
-    pretty (HPString t) = ttext t
+    pretty (HPString t)   = ttext t
     pretty (HPVariable v) = dullred (string "%{" <> ttext v <> string "}")
     prettyList = mconcat . map pretty
 
@@ -72,7 +81,7 @@ type Cache = F.FileCacheR String Value
 
 data QRead
     = QRead
-    { _qvars :: Container T.Text
+    { _qvars :: Container Text
     , _qtype :: HieraQueryType
     , _qhier :: [Value]
     }
@@ -80,29 +89,47 @@ data QRead
 makeClassy ''HieraConfigFile
 makeLenses ''QRead
 
+instance FromJSON HieraConfigFile where
+  parseJSON =
+    let
+      mkHiera5 v = do
+        [hierarchy_value] <- v .: "hierarchy"
+        datadir <- hierarchy_value .: "datadir" .!= "hieradata"
+        HieraConfigFile
+            <$> pure 5
+            <*> pure [ YamlBackend datadir ] -- TODO: support other backends if needed
+            <*> (hierarchy_value .:? "paths" .!= [InterpolableHieraString [HPString "common.yaml"]])
+      mkHiera3 v =
+        HieraConfigFile
+            <$> pure 3
+            <*> (v .:? ":backends" .!= ["yaml"] >>= mapM mkBackend3)
+            <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HPString "common"]])
+       where
+         mkBackend3 :: Text -> Y.Parser Backend
+         mkBackend3 name = do
+           (backendConstructor, skey) <- case name of
+                                             "yaml" -> return (YamlBackend, ":yaml")
+                                             "json" -> return (JsonBackend, ":json")
+                                             _      -> fail ("Unknown backend " ++ T.unpack name)
+           datadir <- case Object v ^? key skey . key ":datadir" of
+                             Just (String dir)   -> return dir
+                             Just _              -> fail ":datadir should be a string"
+                             Nothing             -> return "/etc/puppet/hieradata"
+           pure (backendConstructor (T.unpack datadir))
+
+    in
+    Y.withObject "v3 or v5" $ \o -> do
+      o .:? "version" >>= \case
+        Just (5::Int) -> mkHiera5 o
+        Just _ -> fail "Hiera configuration version different than 5 is not supported."
+        Nothing -> mkHiera3 o
+
 instance FromJSON InterpolableHieraString where
     parseJSON (String s) = case parseInterpolableString s of
                                Right x -> return (InterpolableHieraString x)
                                Left rr -> fail rr
     parseJSON _ = fail "Invalid value type"
 
-instance FromJSON HieraConfigFile where
-    parseJSON (Object v) = do
-        let genBackend :: T.Text -> Y.Parser Backend
-            genBackend name = do
-                (backendConstructor, skey) <- case name of
-                                                  "yaml" -> return (YamlBackend, ":yaml")
-                                                  "json" -> return (JsonBackend, ":json")
-                                                  _      -> fail ("Unknown backend " ++ T.unpack name)
-                datadir <- case Object v ^? key skey . key ":datadir" of
-                                  Just (String dir)   -> return dir
-                                  Just _              -> fail ":datadir should be a string"
-                                  Nothing             -> return "/etc/puppet/hieradata"
-                return (backendConstructor (T.unpack datadir))
-        HieraConfigFile
-            <$> (v .:? ":backends" .!= ["yaml"] >>= mapM genBackend)
-            <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HPString "common"]])
-    parseJSON _ = fail "Not a valid Hiera configuration"
 
 -- | An attoparsec parser that turns text into parts that are ready for interpolation
 interpolableString :: AT.Parser [HieraStringPart]
@@ -111,7 +138,7 @@ interpolableString = AT.many1 (fmap HPString rawPart <|> fmap HPVariable interpP
         rawPart = AT.takeWhile1 (/= '%')
         interpPart = AT.string "%{" *> AT.takeWhile1 (/= '}') <* AT.char '}'
 
-parseInterpolableString :: T.Text -> Either String [HieraStringPart]
+parseInterpolableString :: Text -> Either String [HieraStringPart]
 parseInterpolableString = AT.parseOnly interpolableString
 
 -- | The only method you'll ever need. It runs a Hiera server and gives you
@@ -125,32 +152,44 @@ startHiera fp = Y.decodeFileEither fp >>= \case
         cache <- F.newFileCache
         return (Right (query cfg fp cache))
 
+-- | A version of startHiera that throw all IO exceptions directly.
+-- To be use by a client command line instead of a daemon.
+startHiera' :: FilePath -> IO (HieraQueryFunc IO)
+startHiera' fp = do
+  Just cfg <- Y.decodeFile fp
+  cache <- F.newFileCache
+  pure (query cfg fp cache)
+
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: Monad m => HieraQueryFunc m
 dummyHiera _ _ _ = return $ S.Right Nothing
 
-resolveString :: Container T.Text -> InterpolableHieraString -> Maybe T.Text
+resolveString :: Container Text -> InterpolableHieraString -> Maybe T.Text
 resolveString vars = fmap T.concat . mapM resolve . getInterpolableHieraString
   where
-    resolve (HPString x) = Just x
+    resolve (HPString x)   = Just x
     resolve (HPVariable v) = vars ^? ix v
 
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
-query HieraConfigFile {_backends, _hierarchy} fp cache vars hquery qt = do
+query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt = do
+    LOG.infoM hieraLoggerName ("Detect a hiera configuration format at version " <> show (_version))
     -- step 1, resolve hierarchies
     let searchin = do
             mhierarchy <- resolveString vars <$> _hierarchy
-            Just hier  <- [mhierarchy]
+            Just h  <- [mhierarchy]
             backend    <- _backends
             let decodeInfo :: (FilePath -> IO (S.Either String Value), String, String)
-                decodeInfo
-                    = case backend of
-                        JsonBackend d -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , d, ".json")
-                        YamlBackend d -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, d, ".yaml")
-            return (decodeInfo, hier)
+                decodeInfo = do
+                  case backend of
+                        JsonBackend dir -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , dir, ".json")
+                        YamlBackend dir -> (fmap (strictifyEither . (_Left %~ show)) . Y.decodeFileEither, dir, ".yaml")
+            return (decodeInfo, T.unpack h)
     -- step 2, read all the files, returning a raw data structure
-    mvals <- forM searchin $ \((decodefunction, datadir, extension), hier) -> do
-        let filename = basedir <> datadir <> "/" <> T.unpack hier <> extension
+    mvals <- forM searchin $ \((decodefunction, datadir, extension), h) -> do
+        let extension' = if snd (FilePath.splitExtension h) == ".yaml"
+                         then ""
+                         else extension
+            filename = basedir <> datadir <> "/" <> h <> extension'
             basedir = case datadir of
                 '/' : _ -> mempty
                 _       -> fp ^. directory <> "/"
@@ -169,11 +208,11 @@ query HieraConfigFile {_backends, _hierarchy} fp cache vars hquery qt = do
 
 type QM a = ExceptT PrettyError (Reader QRead) a
 
-checkLoop :: T.Text -> [T.Text] -> QM ()
+checkLoop :: Text -> [T.Text] -> QM ()
 checkLoop x xs =
     when (x `elem` xs) (throwError ("Loop in hiera: " <> fromString (T.unpack (T.intercalate ", " (x:xs)))))
 
-recursiveQuery :: T.Text -> [T.Text] -> QM (Maybe PValue)
+recursiveQuery :: Text -> [T.Text] -> QM (Maybe PValue)
 recursiveQuery curquery prevqueries = do
   checkLoop curquery prevqueries
   rawlookups <- mapMaybe (preview (key curquery)) <$> view qhier
@@ -188,7 +227,7 @@ recursiveQuery curquery prevqueries = do
             Right (A.Success o) -> return o
             Right (A.Error rr) -> throwError ("Something horrible happened in recursiveQuery: " <> fromString (show rr))
 
-resolveValue :: [T.Text] -> Value -> QM Value
+resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =
     case value of
         String t  -> String <$> resolveText prevqueries t
@@ -196,13 +235,13 @@ resolveValue prevqueries value =
         Object hh -> Object <$> mapM (resolveValue prevqueries) hh
         _         -> return value
 
-resolveText :: [T.Text] -> T.Text -> QM T.Text
+resolveText :: [Text] -> T.Text -> QM T.Text
 resolveText prevqueries t
     = case parseInterpolableString t of
         Right qparts -> T.concat <$> mapM (resolveStringPart prevqueries) qparts
         Left _ -> return t
 
-resolveStringPart :: [T.Text] -> HieraStringPart -> QM T.Text
+resolveStringPart :: [Text] -> HieraStringPart -> QM Text
 resolveStringPart prevqueries sp
     = case sp of
         HPString s -> return s
@@ -213,7 +252,7 @@ resolveStringPart prevqueries sp
                     Nothing -> varsolve
             case r of
                 Just (PString v) -> return v
-                _ -> return mempty
+                _                -> return mempty
 
 mergeWith :: HieraQueryType -> Value -> Value -> Either PrettyError Value
 mergeWith qt cur new
@@ -222,7 +261,7 @@ mergeWith qt cur new
     QUnique ->
         let getArray x = case x of
                 Array array -> V.toList array
-                _ -> [x]
+                _           -> [x]
             curarray = getArray cur
             newarray = getArray new
         in  case new of

@@ -94,6 +94,7 @@ library
                      , directory            >= 1.2     && < 1.4
                      , exceptions           >= 0.8     && < 0.9
                      , filecache            >= 0.2.9   && < 0.3
+                     , filepath             >= 1.4
                      , formatting
                      , hashable             == 1.2.*
                      , http-api-data        >= 0.2   && < 0.4
@@ -152,7 +153,7 @@ Test-Suite test-hiera
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -rtsopts -threaded
   extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,hspec,temporary,strict-base-types,HUnit,lens,vector,unordered-containers,text,hslogger
+  build-depends:  language-puppet,base,hspec,temporary,strict-base-types,HUnit,lens,vector,unordered-containers,text,hslogger,neat-interpolation
   main-is:        hiera.hs
 Test-Suite test-puppetdb
   hs-source-dirs: tests
