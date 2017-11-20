@@ -20,15 +20,15 @@ import qualified Data.HashSet               as HS
 import           Data.Maybe                 (fromMaybe)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import qualified System.Log.Logger          as LOG
 import           System.Posix               (fileExist)
-import qualified System.Log.Logger         as LOG
 
 import           Puppet.Interpreter.Types
 import           Puppet.NativeTypes
 import           Puppet.NativeTypes.Helpers
-import           Puppet.Stdlib
 import           Puppet.Paths
 import qualified Puppet.Puppetlabs          as Puppetlabs
+import           Puppet.Stdlib
 import           Puppet.Utils
 import           PuppetDB.Dummy
 
@@ -88,15 +88,17 @@ dfPreferences basedir = do
     let dirpaths = puppetPaths basedir
         modulesdir = dirpaths ^. modulesPath
         testdir = dirpaths ^. testPath
-    typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
-    defaults <- loadDefaults (testdir ++ "/defaults.yaml")
+        hierafile = basedir <> "/hiera.yaml"
+        defaultfile = testdir <> "/defaults.yaml"
+    defaults <- ifM (fileExist defaultfile) (loadYamlFile defaultfile) (pure Nothing)
+    hieradir <- ifM (fileExist hierafile) (pure $ Just hierafile) (pure Nothing)
+    loadedtypes <- loadedTypes modulesdir
     labsFunctions <- Puppetlabs.extFunctions modulesdir
-    let loadedTypes = HM.fromList (map defaulttype typenames)
     return $ Preferences dirpaths
                          dummyPuppetDB
-                         (baseNativeTypes `HM.union` loadedTypes)
+                         (baseNativeTypes `HM.union` loadedtypes)
                          (HM.union stdlibFunctions labsFunctions)
-                         (Just (basedir <> "/hiera.yaml"))
+                         hieradir
                          (getIgnoredmodules defaults)
                          (getStrictness defaults)
                          (getExtraTests defaults)
@@ -109,10 +111,10 @@ dfPreferences basedir = do
                          LOG.NOTICE -- good default as INFO is quite noisy
                          Nothing
 
-loadDefaults :: FilePath -> IO (Maybe Defaults)
-loadDefaults fp = do
-  p <- fileExist fp
-  if p then loadYamlFile fp else return Nothing
+loadedTypes :: FilePath -> IO (HM.HashMap NativeTypeName NativeTypeMethods)
+loadedTypes modulesdir = do
+  typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
+  pure $ HM.fromList (map defaulttype typenames)
 
 -- Utilities for getting default values from the yaml file
 -- It provides (the same) static defaults (see the 'Nothing' case) when

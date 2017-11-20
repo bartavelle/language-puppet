@@ -61,8 +61,8 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
         pusers = HM.fromList [ ("bob", PHash (HM.singleton "uid" (PNumber 100)))
                              , ("tom" , PHash (HM.singleton "uid" (PNumber 12)))
                              ]
-    Right q3 <- startHiera (tmpfp ++ "/hiera3.yaml")
-    Right q5 <- startHiera (tmpfp ++ "/hiera5.yaml")
+    q3 <- startHiera (tmpfp ++ "/hiera3.yaml")
+    q5 <- startHiera (tmpfp ++ "/hiera5.yaml")
     let checkOutput v (S.Right x) = x @?= v
         checkOutput _ (S.Left rr) = assertFailure (show rr)
     hspec $ do
