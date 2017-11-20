@@ -81,13 +81,12 @@ moduleName (ContClass x     ) = x
 moduleName (ContDefine dt _ _) = dt
 moduleName (ContImport _ x  ) = moduleName x
 
-
 getScope :: InterpreterMonad CurContainerDesc
 {-# INLINABLE getScope #-}
-getScope = use curScope >>= \s -> if null s
-                                      then throwPosError "Internal error: empty scope!"
-                                      else return (head s)
-
+getScope =
+  use curScope >>= \s -> if null s
+                         then throwPosError "Internal error: empty scope!"
+                         else pure (head s)
 
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINABLE getCurContainer #-}

@@ -141,7 +141,7 @@ parseInterpolableString :: Text -> Either String [HieraStringPart]
 parseInterpolableString = AT.parseOnly interpolableString
 
 -- | The only method you'll ever need. It runs a Hiera server and gives you a querying function.
--- | All IO exceptions are thrown directly.
+-- | All IO exceptions are thrown directly including ParsingException.
 startHiera :: FilePath -> IO (HieraQueryFunc IO)
 startHiera fp = do
   Just cfg <- Y.decodeFile fp

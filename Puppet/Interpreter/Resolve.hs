@@ -1,6 +1,7 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase     #-}
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RankNTypes     #-}
+{-# LANGUAGE TupleSections  #-}
 -- | This module is all about converting and resolving foreign data into
 -- the fully exploitable corresponding data type. The main use case is the
 -- conversion of 'Expression' to 'PValue'.
@@ -36,38 +37,40 @@ module Puppet.Interpreter.Resolve
 
 import           Control.Lens
 import           Control.Monad
-import           Control.Monad.Operational        (singleton)
-import "cryptonite" Crypto.Hash
-import           Data.Aeson                       hiding ((.=))
-import           Data.Aeson.Lens                  hiding (key)
+import           Control.Monad.Operational          (singleton)
+import           "cryptonite" Crypto.Hash
+import           Data.Aeson                         hiding ((.=))
+import           Data.Aeson.Lens                    hiding (key)
 import           Data.Bits
-import           Data.ByteArray                   (convert)
-import           Data.ByteString                  (ByteString)
-import qualified Data.ByteString                  as BS
-import qualified Data.ByteString.Base16           as B16
-import           Data.CaseInsensitive             (mk)
-import           Data.Char                        (isAlphaNum)
-import qualified Data.Foldable                    as F
-import qualified Data.HashMap.Strict              as HM
-import qualified Data.HashSet                     as HS
-import           Data.List.NonEmpty               (NonEmpty(..))
-import           Data.Maybe                       (fromMaybe, mapMaybe, catMaybes)
-import qualified Data.Maybe.Strict                as S
+import           Data.ByteArray                     (convert)
+import           Data.ByteString                    (ByteString)
+import qualified Data.ByteString                    as BS
+import qualified Data.ByteString.Base16             as B16
+import           Data.CaseInsensitive               (mk)
+import           Data.Char                          (isAlphaNum)
+import qualified Data.Foldable                      as F
+import qualified Data.HashMap.Strict                as HM
+import qualified Data.HashSet                       as HS
+import           Data.List.NonEmpty                 (NonEmpty (..))
+import           Data.Maybe                         (catMaybes, fromMaybe,
+                                                     mapMaybe)
+import qualified Data.Maybe.Strict                  as S
 import           Data.Scientific
-import qualified Data.Text                        as T
-import qualified Data.Text.Encoding               as T
-import           Data.Tuple.Strict                as S
-import qualified Data.Vector                      as V
-import           Data.Version                     (Version (..), parseVersion)
-import           Text.ParserCombinators.ReadP     (readP_to_S)
-import qualified Text.PrettyPrint.ANSI.Leijen     as PP
+import           Data.Text                          (Text)
+import qualified Data.Text                          as T
+import qualified Data.Text.Encoding                 as T
+import           Data.Tuple.Strict                  as S
+import qualified Data.Vector                        as V
+import           Data.Version                       (Version (..), parseVersion)
+import           Text.ParserCombinators.ReadP       (readP_to_S)
+import qualified Text.PrettyPrint.ANSI.Leijen       as PP
 import           Text.Regex.PCRE.ByteString.Utils
 
-import           Puppet.Interpreter.PrettyPrinter ()
+import           Puppet.Interpreter.PrettyPrinter   ()
+import           Puppet.Interpreter.Resolve.Sprintf (sprintf)
 import           Puppet.Interpreter.RubyRandom
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
-import           Puppet.Interpreter.Resolve.Sprintf (sprintf)
 import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP
@@ -83,15 +86,15 @@ md5 = convert . (hash :: ByteString -> Digest MD5)
 type NumberPair = Pair Scientific Scientific
 
 -- | Converts class resource names to lowercase (fix for the jenkins plugin).
-fixResourceName :: T.Text -- ^ Resource type
-                -> T.Text -- ^ Resource name
-                -> T.Text
+fixResourceName :: Text -- ^ Resource type
+                -> Text -- ^ Resource name
+                -> Text
 fixResourceName "class" x = T.toLower $ fromMaybe x $ T.stripPrefix "::" x
 fixResourceName _       x = x
 
 -- | A hiera helper function, that will throw all Hiera errors and log
 -- messages to the main monad.
-runHiera :: T.Text -> HieraQueryType -> InterpreterMonad (Maybe PValue)
+runHiera :: Text -> HieraQueryType -> InterpreterMonad (Maybe PValue)
 runHiera q t = do
     -- We need to merge the current scope with the top level scope
     scps <- use scopes
@@ -108,15 +111,14 @@ runHiera q t = do
 
 -- | The implementation of all hiera_* functions
 hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe PValue -> InterpreterMonad PValue
-hieraCall _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not yet supported"
+hieraCall _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not supported (and deprecated in puppet)"
 hieraCall qt q df _ = do
     qs <- resolvePValueString q
-    o <- runHiera qs qt
-    case o of
-        Just p  -> return p
-        Nothing -> case df of
-                         Just d -> return d
-                         Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
+    runHiera qs qt >>= \case
+      Just p  -> pure p
+      Nothing -> case df of
+                   Just d -> pure d
+                   Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
 -- | Tries to convert a pair of 'PValue's into a 'NumberPair', as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
@@ -753,7 +755,7 @@ datatypeMatch dt v
     checkPattern str (CompRegex _ ptrn)
       = case execute' ptrn str of
           Right (Just _) -> True
-          _ -> False
+          _              -> False
     container :: Fold PValue [a] -> (a -> Bool) -> Int -> Maybe Int -> Bool
     container f c mi mmx =
         let lst = v ^. f

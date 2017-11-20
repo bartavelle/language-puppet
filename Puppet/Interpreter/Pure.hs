@@ -22,6 +22,7 @@ import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP
 import           PuppetDB.Dummy
+import           Hiera.Server(dummyHiera)
 
 
 -- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
@@ -56,7 +57,7 @@ pureReader sttmap = InterpreterReader
                                      Right stmts -> case rubyEvaluate scope ctx stmts of
                                                         Right x -> S.Right x
                                                         Left rr -> S.Left (PrettyError rr)
-        hieradummy _ _ _ = return (S.Right Nothing)
+        hieradummy = (dummyHiera, mempty)
         getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
                                                Just x -> S.Right x
                                                Nothing -> S.Left "Can't get statement"

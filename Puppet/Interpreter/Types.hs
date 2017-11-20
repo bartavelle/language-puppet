@@ -80,6 +80,7 @@ module Puppet.Interpreter.Types (
  , NodeName
  , Container
  , HieraQueryFunc
+ , HieraQueryLayers
  , Scope
  , Facts
  , EdgeMap
@@ -187,11 +188,18 @@ data HieraQueryType
     , _mergeHashArray :: Bool
     } deriving (Show)
 
--- | The type of the Hiera API function.
-type HieraQueryFunc m = Container Text -- ^ All the variables that Hiera can interpolate, the top level ones being prefixed with ::
+-- | The type of the Hiera API function associated to one hiera file.
+type HieraQueryFunc m = Container Text -- ^ Scope: all variables that Hiera can interpolate (the top level ones are prefixed with ::)
                      -> Text -- ^ The query
                      -> HieraQueryType
                      -> m (S.Either PrettyError (Maybe PValue))
+
+-- | All available queries including the global and module layer
+-- The environment layer is not implemented
+type HieraQueryLayers m =
+  ( HieraQueryFunc m -- Global layer
+  , Container (HieraQueryFunc m) -- Module layers
+  )
 
 -- | The intepreter can run in two modes : a strict mode (recommended), and
 -- a permissive mode.
@@ -287,7 +295,7 @@ data InterpreterReader m = InterpreterReader
     , _readerPdbApi          :: PuppetDBAPI m
     , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue) -- ^ external func such as stdlib or puppetlabs
     , _readerNodename        :: Text
-    , _readerHieraQuery      :: HieraQueryFunc m
+    , _readerHieraQuery      :: HieraQueryLayers m
     , _readerIoMethods       :: IoMethods m
     , _readerIgnoredModules  :: HS.HashSet Text
     , _readerExternalModules :: HS.HashSet Text

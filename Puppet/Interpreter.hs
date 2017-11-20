@@ -58,8 +58,8 @@ interpretCatalog :: Monad m
                  -> Facts
                  -> Container Text -- ^ Server settings
                  -> m (Pair (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
-interpretCatalog interpretReader node facts settings = do
-    (output, _, warnings) <- interpretMonad interpretReader (initialState facts settings) (computeCatalog node)
+interpretCatalog r node facts settings = do
+    (output, _, warnings) <- interpretMonad r (initialState facts settings) (computeCatalog node)
     pure (output :!: warnings)
 
 isParent :: Text -> CurContainerDesc -> InterpreterMonad Bool
@@ -132,40 +132,40 @@ finalize rx = do
             let modulename = getModulename (r ^. rid)
             in  isIgnoredModule modulename >>= \i ->
                   if i
-                      then return mempty
-                      else do
-                        let deftype = dropInitialColons (r ^. rid . itype)
-                            defname = r ^. rid . iname
-                            curContType = ContDefine deftype defname (r ^. rpos)
-                        p <- use curPos
-                        -- we add the relations of this define to the global list of relations
-                        -- before dropping it, so that they are stored for the final
-                        -- relationship resolving
-                        let extr = do
-                                (dstid, linkset) <- itoList (r ^. rrelations)
-                                link <- toList linkset
-                                return (LinkInformation (r ^. rid) dstid link p)
-                        extraRelations <>= extr
-                        void $ enterScope SENormal curContType modulename p
-                        (spurious, stmt) <- interpretTopLevel TopDefine deftype
-                        DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
-                        let isImported (ContImported _) = True
-                            isImported _ = False
-                        isImportedDefine <- isImported <$> getScope
-                        curPos .= r ^. rpos
-                        curscp <- getScope
-                        when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
-                        pushScope curContType
-                        loadVariable "title" (PString defname)
-                        loadVariable "name" (PString defname)
-                        -- not done through loadvariable because of override errors
-                        loadParameters (r ^. rattributes) defineParams cp S.Nothing
-                        curPos .= cp
-                        res <- evaluateStatementsFoldable stmts
-                        out <- finalize (spurious ++ res)
-                        when isImportedDefine popScope
-                        popScope
-                        return out
+                  then return mempty
+                  else do
+                    let deftype = dropInitialColons (r ^. rid . itype)
+                        defname = r ^. rid . iname
+                        curContType = ContDefine deftype defname (r ^. rpos)
+                    p <- use curPos
+                    -- we add the relations of this define to the global list of relations
+                    -- before dropping it, so that they are stored for the final
+                    -- relationship resolving
+                    let extr = do
+                            (dstid, linkset) <- itoList (r ^. rrelations)
+                            link <- toList linkset
+                            return (LinkInformation (r ^. rid) dstid link p)
+                    extraRelations <>= extr
+                    void $ enterScope SENormal curContType modulename p
+                    (spurious, stmt) <- interpretTopLevel TopDefine deftype
+                    DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
+                    let isImported (ContImported _) = True
+                        isImported _ = False
+                    isImportedDefine <- isImported <$> getScope
+                    curPos .= r ^. rpos
+                    curscp <- getScope
+                    when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
+                    pushScope curContType
+                    loadVariable "title" (PString defname)
+                    loadVariable "name" (PString defname)
+                    -- not done through loadvariable because of override errors
+                    loadParameters (r ^. rattributes) defineParams cp S.Nothing
+                    curPos .= cp
+                    res <- evaluateStatementsFoldable stmts
+                    out <- finalize (spurious ++ res)
+                    when isImportedDefine popScope
+                    popScope
+                    return out
 
 -- | Given a toplevel (type, name),
 -- return the associated parsed statement together with its evaluated resources
@@ -867,6 +867,7 @@ mainFunctionCall "tag" args = do
     return []
 mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ttext <$> resolvePValueString x >>= throwPosError
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
+-- hiera_include does a unique merge lookup for the requested key, then calls the include function on the resulting array.
 mainFunctionCall "hiera_include" [x] = do
     ndname <- resolvePValueString x
     classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname QUnique
@@ -876,6 +877,7 @@ mainFunctionCall "hiera_include" [x] = do
     curPos .= p
     return o
 mainFunctionCall "hiera_include" _ = throwPosError "hiera_include(): This function takes a single argument"
+-- dumpinfos is a debugging function specific to language-puppet
 mainFunctionCall "dumpinfos" _ = do
     let prntline = logWriter ALERT
         indentln = (<>) "  "

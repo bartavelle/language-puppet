@@ -1,5 +1,4 @@
-{-# LANGUAGE GADTs      #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
 module Puppet.Daemon (
     Daemon(..)
   , initDaemon
@@ -13,14 +12,19 @@ module Puppet.Daemon (
 import           Control.Exception
 import           Control.Exception.Lens
 import           Control.Lens              hiding (Strict)
+import qualified Control.Foldl as Foldl
+import Control.Foldl (FoldM)
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
+import qualified Data.HashMap.Strict       as HM
+import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import qualified Data.Text.IO              as T
 import           Data.Tuple.Strict
 import qualified Data.Vector               as V
 import           Debug.Trace               (traceEventIO)
 import           Foreign.Ruby.Safe
+import qualified System.Directory          as Directory
 import           System.Exit               (exitFailure)
 import           System.IO                 (stdout)
 import qualified System.Log.Formatter      as LOG (simpleLogFormatter)
@@ -83,9 +87,7 @@ initDaemon pref = do
     setupLogger (pref ^. prefLogLevel)
     logDebug "initDaemon"
     traceEventIO "initDaemon"
-    hquery <- case pref ^. prefHieraPath of
-                  Just p  -> startHiera p
-                  Nothing -> pure dummyHiera
+    hquery      <- hQueryApis pref
     fcache      <- newFileCache
     intr        <- startRubyInterpreter
     templStats  <- newStats
@@ -99,6 +101,33 @@ initDaemon pref = do
                 templStats
            )
 
+hQueryApis :: Preferences IO -> IO (HieraQueryLayers IO)
+hQueryApis pref = do
+  api0 <- case pref ^. prefHieraPath of
+            Just p  -> startHiera p
+            Nothing -> pure dummyHiera
+  modapis <- getModApis pref
+  pure (api0, modapis)
+
+prefilterM :: (Monad m) => (a -> m Bool) -> FoldM m a r -> FoldM m a r
+prefilterM f (Foldl.FoldM step begin done) = Foldl.FoldM step' begin done
+  where
+    step' x a = do
+      use <- f a
+      if use then step x a else return x
+{-# INLINABLE prefilterM #-}
+
+getModApis :: Preferences IO -> IO (Container (HieraQueryFunc IO))
+getModApis pref = do
+  let ignored_modules = pref^.prefIgnoredmodules
+  dirs <- Directory.listDirectory (pref^.prefPuppetPaths.modulesPath)
+  let
+    modapi :: FoldM IO FilePath (Container (HieraQueryFunc IO))
+    modapi =
+      Foldl.premapM (\m -> (T.pack m, "./modules/" <> m <> "/hiera.yaml"))
+      $ prefilterM (\(m,p) -> pure (not (m `elem`ignored_modules)) &&^  Directory.doesFileExist p)
+      $ Foldl.FoldM (\ s (m,p) -> do h <- startHiera p; pure $ (m,h):s) (pure []) (\l -> pure $ HM.fromList l)
+  Foldl.foldM modapi dirs
 
 -- | In case of a Left value, print the error and exit immediately
 checkError :: Show e => Doc -> Either e a -> IO a
@@ -111,10 +140,10 @@ checkError desc = either exit return
 -- Internal functions
 
 getCatalog' :: Preferences IO
-         -> ( TopLevelType -> T.Text -> IO (S.Either PrettyError Statement) )
-         -> (Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text))
+         -> ( TopLevelType -> Text -> IO (S.Either PrettyError Statement) )
+         -> (Either Text Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text))
          -> MStats
-         -> HieraQueryFunc IO
+         -> HieraQueryLayers IO
          -> NodeName
          -> Facts
          -> IO (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))

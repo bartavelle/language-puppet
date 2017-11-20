@@ -17,6 +17,7 @@ import           Control.Monad.State.Strict
 import           Control.Monad.Trans.Except
 import qualified Data.Either.Strict               as S
 import           Data.Monoid
+import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 import qualified Data.Text.IO                     as T
 import           Debug.Trace                      (traceEventIO)
@@ -81,7 +82,7 @@ eval r s (a :>>= k) =
             GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
             ErrorThrow d                 -> return (Left d, s, mempty)
             GetNodeName                  -> runInstr (r ^. readerNodename)
-            HieraQuery scps q t          -> canFail ((r ^. readerHieraQuery) scps q t)
+            HieraQuery scps q t          -> canFail (queryHiera (r ^. readerHieraQuery) scps q t)
             PDBInformation               -> pdbInformation pdb >>= runInstr
             PDBReplaceCatalog w          -> canFailX (replaceCatalog pdb w)
             PDBReplaceFacts fcts         -> canFailX (replaceFacts pdb fcts)
@@ -102,3 +103,20 @@ eval r s (a :>>= k) =
                 case eres of
                     Left rr -> interpretMonad r s (ahandle rr >>= k)
                     Right x -> logStuff w (interpretMonad r s' (k x))
+
+
+-- | Query hiera layers
+queryHiera :: Monad m =>  HieraQueryLayers m -> Container Text -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
+queryHiera layers scps q t = do
+  val <- (layers^._1) scps q t
+  case val of
+    S.Right Nothing -> do
+      let
+        modname =
+          case T.splitOn "::" (T.dropWhile (==':') q) of
+            [] -> Nothing
+            [_] -> Nothing
+            (m:_)  -> Just m
+        layer = modname >>= (\n -> layers ^._2.at n)
+      maybe (pure val) (\hq -> hq scps q t) layer
+    _ -> pure val
