@@ -84,8 +84,8 @@ initDaemon pref = do
     logDebug "initDaemon"
     traceEventIO "initDaemon"
     hquery <- case pref ^. prefHieraPath of
-                  Just p  -> either error id <$> startHiera p
-                  Nothing -> return dummyHiera
+                  Just p  -> startHiera p
+                  Nothing -> pure dummyHiera
     fcache      <- newFileCache
     intr        <- startRubyInterpreter
     templStats  <- newStats

@@ -50,7 +50,7 @@ configInfo = info (configParser <**> helper) mempty
 main :: IO ()
 main = do
   Config fp query qtype vars <- execParser configInfo
-  hiera <- startHiera' fp
+  hiera <- startHiera fp
   hiera (HM.fromList vars) (T.pack query) qtype >>= \case
     S.Left rr -> error (show rr)
     S.Right Nothing -> putStrLn "no match" >> exitFailure
