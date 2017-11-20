@@ -5,6 +5,7 @@
 module Puppet.Utils (
       textElem
     , getDirectoryContents
+    , ifM
     , takeBaseName
     , takeDirectory
     , strictifyEither
@@ -154,3 +155,6 @@ checkForSubFiles extension dir =
 
 getDirContents :: T.Text -> IO [T.Text]
 getDirContents x = fmap (filter (not . T.all (=='.'))) (getDirectoryContents x)
+
+ifM :: Monad m => m Bool -> m a -> m a -> m a
+ifM p x y = p >>= \b -> if b then x else y

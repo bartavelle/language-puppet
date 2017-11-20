@@ -10,7 +10,6 @@ import           Control.Monad.Trans.Except
 import           Data.Aeson                    (encode)
 import qualified Data.ByteString.Lazy.Char8    as BSL
 import           Data.Either                   (partitionEithers)
-import qualified Data.Either.Strict            as S
 import qualified Data.HashMap.Strict           as HM
 import qualified Data.HashSet                  as HS
 import           Data.List                     (isInfixOf)
@@ -49,7 +48,7 @@ import           PuppetDB.Remote               (pdbConnect)
 import           PuppetDB.TestDB               (loadTestDB)
 
 type ParseError' = P.ParseError Char Void
-type QueryFunc = NodeName -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+type QueryFunc = NodeName -> IO (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 data MultNodes =  MultNodes [T.Text] | AllNodes deriving Show
 
@@ -188,7 +187,7 @@ initializedaemonWithPuppet workingdir Options {..} = do
                                      <&> prefRebaseFile .~ _optRebaseFile
     d <- initDaemon pref
     let queryfunc = \node -> fmap (unifyFacts (pref ^. prefFactsDefault) (pref ^. prefFactsOverride)) (Facter.puppetDBFacts node pdbapi) >>= getCatalog d node
-    return (queryfunc, pdbapi, parserStats d, catalogStats d, templateStats d)
+    pure (queryfunc, pdbapi, parserStats d, catalogStats d, templateStats d)
     where
       -- merge 3 sets of facts : some defaults, the original set and some override
       unifyFacts :: Container PValue -> Container PValue -> Container PValue -> Container PValue
@@ -321,17 +320,17 @@ computeStats workingdir Options {..}
         computeCatalog :: QueryFunc -> NodeName -> IO (Maybe (FinalCatalog, [Resource]))
         computeCatalog func node =
             func node >>= \case
-              S.Left err -> putDoc (line <> red "ERROR:" <+> parens (ttext node) <+> ":" <+> getError err) >> return Nothing
-              S.Right (rawcatalog, _ , rawexported, knownRes) -> return (Just (rawcatalog <> rawexported, knownRes))
+             Left err -> putDoc (line <> red "ERROR:" <+> parens (ttext node) <+> ":" <+> getError err) >> return Nothing
+             Right (rawcatalog, _ , rawexported, knownRes) -> return (Just (rawcatalog <> rawexported, knownRes))
 
 -- | Queryfunc the catalog for the node and PP the result
 computeNodeCatalog :: Options -> QueryFunc -> PuppetDBAPI IO -> NodeName -> IO ()
 computeNodeCatalog Options {..} queryfunc pdbapi node =
     queryfunc node >>= \case
-      S.Left rr -> do
+      Left rr -> do
           putDoc (line <> red "ERROR:" <+> parens (ttext node) <+> getError rr)
           exitFailure
-      S.Right (rawcatalog, edgemap, rawexported, _) -> do
+      Right (rawcatalog, edgemap, rawexported, _) -> do
           printFunc <- hIsTerminalDevice stdout >>= \isterm -> return $ \x ->
             if isterm
                 then putDoc x >> putStrLn ""

@@ -58,7 +58,7 @@ Notes :
 * It might be buggy when top level statements that are not class\/define\/nodes are altered.
 -}
 data Daemon = Daemon
-    { getCatalog    :: NodeName -> Facts -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+    { getCatalog    :: NodeName -> Facts -> IO (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
     , parserStats   :: MStats
     , catalogStats  :: MStats
     , templateStats :: MStats
@@ -84,8 +84,8 @@ initDaemon pref = do
     logDebug "initDaemon"
     traceEventIO "initDaemon"
     hquery <- case pref ^. prefHieraPath of
-                  Just p  -> either error id <$> startHiera p
-                  Nothing -> return dummyHiera
+                  Just p  -> startHiera p
+                  Nothing -> pure dummyHiera
     fcache      <- newFileCache
     intr        <- startRubyInterpreter
     templStats  <- newStats
@@ -117,7 +117,7 @@ getCatalog' :: Preferences IO
          -> HieraQueryFunc IO
          -> NodeName
          -> Facts
-         -> IO (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
+         -> IO (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
     logDebug ("Received query for node " <> node)
     traceEventIO ("START getCatalog' " <> T.unpack node)
@@ -144,13 +144,13 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
     traceEventIO ("STOP getCatalog' " <> T.unpack node)
     if pref ^. prefExtraTests
        then runOptionalTests stmts
-       else return stmts
+       else pure stmts
     where
-      runOptionalTests stm = case stm ^? S._Right._1 of
-          Nothing  -> return stm
+      runOptionalTests stm = case stm ^? _Right._1 of
+          Nothing  -> pure stm
           (Just c) -> catching _PrettyError
-                              (do {testCatalog pref c; return stm})
-                              (return . S.Left)
+                              (do {testCatalog pref c; pure stm})
+                              (pure . Left)
 
 -- | Return an HOF that would parse the file associated with a toplevel.
 -- The toplevel is defined by the tuple (type, name)

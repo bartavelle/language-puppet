@@ -14,7 +14,6 @@ A minor bug is that interpolation will not work for inputs containing the % char
 -}
 module Hiera.Server (
     startHiera
-  , startHiera'
   , dummyHiera
   , hieraLoggerName
     -- * Query API
@@ -141,21 +140,10 @@ interpolableString = AT.many1 (fmap HPString rawPart <|> fmap HPVariable interpP
 parseInterpolableString :: Text -> Either String [HieraStringPart]
 parseInterpolableString = AT.parseOnly interpolableString
 
--- | The only method you'll ever need. It runs a Hiera server and gives you
--- a querying function. The 'Nil' output is explicitely given as a Maybe
--- type.
-startHiera :: FilePath -> IO (Either String (HieraQueryFunc IO))
-startHiera fp = Y.decodeFileEither fp >>= \case
-    Left (Y.InvalidYaml (Just (Y.YamlException "Yaml file not found: hiera.yaml"))) -> return (Right dummyHiera)
-    Left ex   -> return (Left (show ex))
-    Right cfg -> do
-        cache <- F.newFileCache
-        return (Right (query cfg fp cache))
-
--- | A version of startHiera that throw all IO exceptions directly.
--- To be use by a client command line instead of a daemon.
-startHiera' :: FilePath -> IO (HieraQueryFunc IO)
-startHiera' fp = do
+-- | The only method you'll ever need. It runs a Hiera server and gives you a querying function.
+-- | All IO exceptions are thrown directly.
+startHiera :: FilePath -> IO (HieraQueryFunc IO)
+startHiera fp = do
   Just cfg <- Y.decodeFile fp
   cache <- F.newFileCache
   pure (query cfg fp cache)

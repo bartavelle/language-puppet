@@ -13,7 +13,6 @@ import           Control.Monad.Except
 import           Control.Monad.Operational        hiding (view)
 import           Control.Monad.Trans.Except
 import           Data.Char                        (isDigit)
-import qualified Data.Either.Strict               as S
 import           Data.Foldable                    (foldl', foldlM, toList)
 import qualified Data.Graph                       as G
 import qualified Data.HashMap.Strict              as HM
@@ -58,10 +57,10 @@ interpretCatalog :: Monad m
                  -> NodeName
                  -> Facts
                  -> Container Text -- ^ Server settings
-                 -> m (Pair (S.Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
+                 -> m (Pair (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
 interpretCatalog interpretReader node facts settings = do
     (output, _, warnings) <- interpretMonad interpretReader (initialState facts settings) (computeCatalog node)
-    return (strictifyEither output :!: warnings)
+    pure (output :!: warnings)
 
 isParent :: Text -> CurContainerDesc -> InterpreterMonad Bool
 isParent cur (ContClass possibleparent) = preuse (scopes . ix cur . scopeParent) >>= \case

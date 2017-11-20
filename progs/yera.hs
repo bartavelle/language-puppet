@@ -1,11 +1,13 @@
+{-# LANGUAGE LambdaCase #-}
 module Main (main) where
-  
+
 import           Options.Applicative
 import           Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Either.Strict as S
 import qualified Data.HashMap.Strict as HM
 import           Text.PrettyPrint.ANSI.Leijen (pretty)
+import System.Exit
 
 import Puppet.Interpreter.Types
 import Puppet.Interpreter.PrettyPrinter()
@@ -48,12 +50,8 @@ configInfo = info (configParser <**> helper) mempty
 main :: IO ()
 main = do
   Config fp query qtype vars <- execParser configInfo
-  ehiera <- startHiera fp
-  case ehiera of
-    Left rr -> error rr
-    Right hiera -> do
-      r <- hiera (HM.fromList vars) (T.pack query) qtype
-      case r of
-        S.Left rr -> error (show rr)
-        S.Right Nothing -> putStrLn "no match"
-        S.Right (Just res) -> print (pretty res)
+  hiera <- startHiera fp
+  hiera (HM.fromList vars) (T.pack query) qtype >>= \case
+    S.Left rr -> error (show rr)
+    S.Right Nothing -> putStrLn "no match" >> exitFailure
+    S.Right (Just res) -> print (pretty res)
