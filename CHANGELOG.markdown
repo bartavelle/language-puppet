@@ -4,6 +4,12 @@
 * Fix an infinite loop with fqdn_rand
 * Recognize v5 hiera configuration format
 
+## Technical
+
+* Switch Strict Either with the common lazy variant in getCatalog (Daemon interface)
+* Hiera.Server.startHiera is now throwing an exception when the hiera.yaml file doesn't exist
+
+
 # v1.3.12.1 (2017/10/09)
 
 * Support for Glob >= 0.9, even for the test suite :)
