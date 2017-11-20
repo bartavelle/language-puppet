@@ -1,9 +1,6 @@
 flags: {}
 packages:
-- pcre-utils/
-- hruby/
-- language-puppet/
-- filecache/
+- .
 resolver: lts-8.4
 extra-deps:
 - megaparsec-6.0.2
