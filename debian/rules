@@ -7,10 +7,11 @@ override_dh_auto_test:
 override_dh_auto_build:
 override_dh_auto_install:
 	rm -rf debian/language-puppet
-	stack build
+	stack test
+	stack install
 	mkdir -p debian/language-puppet/usr/bin
 	mkdir -p debian/language-puppet/usr/share/language-puppet
-	cp -v ../.stack-work/install/x86_64-linux/lts-8.4/8.0.2/bin/pdbquery debian/language-puppet/usr/bin/
-	cp -v ../.stack-work/install/x86_64-linux/lts-8.4/8.0.2/bin/puppetresources debian/language-puppet/usr/bin/
-	cp -v ../.stack-work/install/x86_64-linux/lts-8.4/8.0.2/bin/yera debian/language-puppet/usr/bin/
+	cp -v ~/.local/bin/pdbquery debian/language-puppet/usr/bin/
+	cp -v ~/.local/bin/puppetresources debian/language-puppet/usr/bin/
+	cp -v ~/.local/bin/yera debian/language-puppet/usr/bin/
 	cp -v ruby/hrubyerb.rb debian/language-puppet/usr/bin/
