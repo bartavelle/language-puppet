@@ -1,0 +1,580 @@
+language-puppet (1.3.13) UNRELEASED; urgency=medium
+
+  * Support for a "rebasefile" option to make file() calls with absolute files relative to another directory.
+  * Fix an infinite loop with fqdn_rand
+  * Recognize v5 hiera configuration format
+  * Added debian stuff
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 21 Nov 2017 14:18:25 +0100
+
+language-puppet (1.3.12.1) xenial; urgency=medium
+
+  * Support for Glob >= 0.9, even for the test suite :)
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 09 Oct 2017 15:00:00 +0100
+
+language-puppet (1.3.12) xenial; urgency=medium
+
+  * Support for Glob >= 0.9
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 09 Oct 2017 15:00:00 +0100
+
+language-puppet (1.3.11) xenial; urgency=medium
+
+  * Added yera command
+  * Minor fixes to the validate_integer function, and to the mount resource
+  * Support for the "lookup" command in hiera files
+  * Fix Glob compilation problem
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sat, 07 Oct 2017 15:00:00 +0100
+
+language-puppet (1.3.10) xenial; urgency=medium
+
+  * Add `sort` stdlib function
+  * Remove `SafeProcess` module (fix `ghc-8.2` compilation)
+  * Remove `ghc-7.x` support
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 28 Aug 2017 15:00:00 +0100
+
+language-puppet (1.3.9) xenial; urgency=medium
+
+  * Moved to megaparsec 6
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sun, 30 Jul 2017 15:00:00 +0100
+
+language-puppet (1.3.8.1) xenial; urgency=medium
+
+  * Fix haddocks error (#208)
+
+ -- Simon Marechal <bartavelle@gmail.com>  Fri, 21 Jul 2017 15:00:00 +0100
+
+language-puppet (1.3.8) xenial; urgency=medium
+
+  * Add support for calling Functions in Strings (#199)
+  * Add $facts hash for Puppet 4 (#198)
+  * Initial support for datatype syntax (#206)
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 20 Jul 2017 15:00:00 +0100
+
+language-puppet (1.3.7) xenial; urgency=medium
+
+  * Add puppet `sprintf` function
+  * Fix scientific2text (#196)
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 14 Mar 2017 15:00:00 +0100
+
+language-puppet (1.3.6) xenial; urgency=medium
+
+  * The `defined` function can now test variables
+  * Fixed the `delete_at` function, added new tests, TBC
+  * Fixed the `ensure_resource` function, so that its second argument can take an array.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 27 Feb 2017 15:00:00 +0100
+
+language-puppet (1.3.5.1) xenial; urgency=medium
+
+  * Version bumps for megaparsec & servant
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 02 Feb 2017 15:00:00 +0100
+
+language-puppet (1.3.5) xenial; urgency=medium
+
+  * Ignored packages are not parsed anymore
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 31 Jan 2017 15:00:00 +0100
+
+language-puppet (1.3.4.1) xenial; urgency=medium
+
+  * Version bump for the directory dependency
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 12 Jan 2017 15:00:00 +0100
+
+language-puppet (1.3.4) xenial; urgency=medium
+
+  * Adds implicit dependencies for some types where users and groups are defined
+
+ -- Simon Marechal <bartavelle@gmail.com>  Wed, 14 Dec 2016 15:00:00 +0100
+
+language-puppet (1.3.3) xenial; urgency=medium
+
+  * Rename some pdbquery subcommands
+  * Output pdbquery in `json` instead of `yaml`
+  * Fix `pdbquery resources NODENAME`
+  * Add `pdbquery fact NODENAME`
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 05 Dec 2016 15:00:00 +0100
+
+language-puppet (1.3.2.1) xenial; urgency=medium
+
+  * Support for megaparsec 5.1
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 04 Oct 2016 15:00:00 +0100
+
+language-puppet (1.3.2) xenial; urgency=medium
+
+  * Add stdlib `validate_integer`
+  * Support for servant 0.9
+
+ -- Simon Marechal <bartavelle@gmail.com>  Wed, 21 Sep 2016 15:00:00 +0100
+
+language-puppet (1.3.1) xenial; urgency=medium
+
+  * Add `--version` to puppetresources and pdbquery
+  * Version bump for some dependencies
+
+ -- Simon Marechal <bartavelle@gmail.com>  Wed, 31 Aug 2016 15:00:00 +0100
+
+language-puppet (1.3) xenial; urgency=medium
+
+  * External Lua plugins are not a thing anymore
+  * `validate_numeric` function
+  * Preliminary implementation of variable captures in regexp matches
+  * Ready for GHC 8 and corresponding stackage nightly
+  * Fixed a deadlock when template code called the `template` or `inline_template` functions. It just stops now :(
+  * `assert_private` function
+  * `join_keys_to_values` function
+  * Several resource collector misbehaviour
+  * Case expressions can now have multiple matchers of any kind as the same selector
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 11 Jul 2016 15:00:00 +0100
+
+language-puppet (1.1.5) xenial; urgency=medium
+
+  * Added the `pick_default` function
+  * `merge` now works with an arbitrary number of hashes
+  * Added the `hash` function
+  * puppet native type `file` resource accept selinux parameters
+  * Added the `shellquote` function
+  * `create_resources` can now create virtual and exported resources
+  * puppet native type `file` fix for parameters `sourceselect` and `recurselimit`
+  * Hiera array merge now only keeps unique values
+  * `merge` now properly priorizes the lastest arguments
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 02 Feb 2016 15:00:00 +0100
+
+language-puppet (1.1.4.1) xenial; urgency=medium
+
+  * Support for the new puppet `contain` function
+  * Fix parser for search expression (see #132)
+  * Fix logger set up (see #136)
+  * Fix some regsubst (see #119)
+  * Fix the `template` and `inline_template` functions (see #142)
+  * Support lookups for expressions used in selector (TODO: arbitrary expression)
+  * Fix a ruby 1.8 syntax error
+  * Fix a case where resource overrides were not applied to the correct resource
+  * Fix a bug where a class value would be incorrectly inferred as having a default value whereas it doesn't
+  * Replace `parsec` `megaparsec` (see #138)
+  * All resource names are normalized. The leading `::` is ignored (see #140)
+  * Add CI using travis
+  * Drop support for ghc < 7.10 explicitly
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sun, 15 Nov 2015 15:00:00 +0100
+
+language-puppet (1.1.4) xenial; urgency=medium
+
+  * The `regsubst` function now works with arrays.
+  * The `file` variable is resolved in templates.
+  * Support for `function_x` calls in templates.
+  * Expressions such as (-1) are now supported.
+  * Selectors recognize the undef token now.
+  * Fixed a bug with parsing lines starting with `::`.
+  * Sanitize resource names in some missing instances to fix bugs
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 07 Sep 2015 15:00:00 +0100
+
+language-puppet (1.1.3) xenial; urgency=medium
+
+  * Support for the `$settings` variables.
+  * Support for the `to_yaml` function in templates.
+  * Settings can now be altered in the default YAML file.
+  * Defaults and overriden facts are now controlled in the YAML file too.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sun, 31 May 2015 15:00:00 +0100
+
+language-puppet (1.1.1.2) xenial; urgency=medium
+
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 28 Apr 2015 15:00:00 +0100
+
+language-puppet (1.1.1) xenial; urgency=medium
+
+  * Add 'notify' native type
+  * Ability to provide defaults via a yaml file for some options
+  * Added the 'ensure_packages' and 'ensure_resources' functions
+  * Enable 'package' native type (issue #102)
+  * Builds against GHC 7.10
+  * Even in Permissive mode, don't resolve unknown variable (see #103)
+  * Add priority to the logger permissive output (see #106)
+  * New hruby version
+  * Rename option `--ignoremodules` into `--ignoredmodules`
+  * Hiera config interpolation logs decrease from NOTICE to INFO
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 20 Apr 2015 15:00:00 +0100
+
+language-puppet (1.1.0) xenial; urgency=medium
+
+  * New `dumpinfos` debug function.
+  * The interpreter can now run in a strict or permissive mode.
+  * The new `-a` option accepts a comma separated list of nodes for gathering stats.
+  * The new `--noextratests` option disable optional tests from `Puppet.OptionalTests`.
+  * Implementation of `member()` from stdlib (see issue #100 for details)
+  * Exported/virtual custom types are not expanded. This is a huge bug.
+  * Class/define parameters that are explicitely set as undefined are now overriden by
+  * Empty resource groups are now rejected.
+  * An existing resource can now be realized.
+  * Hiera config interpolation logs decrease from WARN to NOTICE
+  * Remove option `--nousergrouptest`
+  * Ease the use of the puppetresources command options. See the README file for changes.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Wed, 11 Mar 2015 15:00:00 +0100
+
+language-puppet (1.0.1) xenial; urgency=medium
+
+  * Support for the `join` function.
+  * Support for filtering json puppetresources output (fix issue #64)
+  * Support for `cmpversion` in the templates.
+  * The various chaining modes have been implemented.
+  * Support for the `is_bool` function (Pierre Radermecker)
+  * Support for `concat` and `concat::fragment` (Pierre Radermecker)
+  * Fix array value extrapolation in string (issue #35)
+  * ${var} without quotes will now be rejected by the parser (issue #78)
+  * `README` moved to asciidoc (Pierre Radermecker)
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 13 Nov 2014 15:00:00 +0100
+
+language-puppet (1.0.0) xenial; urgency=medium
+
+  * Support for Debian distribution detection in facter.
+  * Support for the "~>" operator.
+  * Support for mixed-case resource references.
+  * Added the `grep` function.
+  * Better support for --ignoremodules.
+  * Fixed parsing of standalone `$` characters in strings.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sun, 31 Aug 2014 15:00:00 +0100
+
+language-puppet (0.14.0) xenial; urgency=medium
+
+  * Overhauled the dependency check system
+  * Added an option to skip the user and group checks
+  * Added an option to ignore some modules
+  * Added `vagrant`, `nagios`, `www-data`, `postgres` and `nginx` to the list of known users.
+  * Fixed how resource relationships were resolved with notify and before.
+  * Fixed a problem where inheritance whould be used with `::` prefix.
+  * The `defined` function now works with classes.
+  * All numbers are now strings in templates.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 12 Jun 2014 15:00:00 +0100
+
+language-puppet (0.13.0) xenial; urgency=medium
+
+  * Hacky support for `scope.get_hash`.
+  * New stuff from the new parser (adding hashes, arrays, etc.).
+  * Wrote a pure evaluation function, for unit tests and prisms.
+  * `Num` and `Fractional` instances for `Expression`.
+  * Numbers are now internally stored as numbers, just like the new parser does.
+  * Add support for "structured facts".
+  * New stdlib functions: `is_hash`, `has_key`, `size`, `values`.
+  * Puppetresources does not fail tests for file sources starting with `file://`.
+  * Escaped characters were not properly handled in the parser.
+  * Properly catch division by 0 (!!!!).
+  * Got rid of the orphan instances ... code is now a lot uglier.
+  * Fixed settings of "title" and "name" in classes. The original puppet version
+  * Fixed associativity priority between `=~` and `and`.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Wed, 21 May 2014 15:00:00 +0100
+
+language-puppet (0.12.3) xenial; urgency=medium
+
+  * puppetresources now tests that groups and users are defined before being used
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 13 Mar 2014 15:00:00 +0100
+
+language-puppet (0.12.2) xenial; urgency=medium
+
+  * Facts are now dumped in `TestDB` format by `pdbquery`.
+  * The `puppetresources` command now has switch controlling the PuppetDB commit and "catalog update".
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 18 Feb 2014 15:00:00 +0100
+
+language-puppet (0.12.1) xenial; urgency=medium
+
+  * *Dead code* finder in puppetresources.
+  * CPU related facts.
+  * `puppetresources` now exits with the proper error code.
+  * `puppetresources` can now display some statistics about compilation times.
+  * Bumped the version of the http-conduit dependency.
+  * Fixed dependencies so that builds with GHC 7.8-rc1 work.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 10 Feb 2014 15:00:00 +0100
+
+language-puppet (0.12.0) xenial; urgency=medium
+
+  * Builds against GHC 7.8-rc1.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Fri, 07 Feb 2014 15:00:00 +0100
+
+language-puppet (0.11.1) xenial; urgency=medium
+
+  * Fixed build issues with strict-base-types version.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Fri, 31 Jan 2014 15:00:00 +0100
+
+language-puppet (0.11.0) xenial; urgency=medium
+
+  * Removal of the dedicated parsing threads.
+  * Better default RTS options (for now, just the default allocation size)
+  * Upgraded dependencies : aeson 0.7, attoparsec 0.11, lens 4, parsers
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 30 Jan 2014 15:00:00 +0100
+
+language-puppet (0.10.6) xenial; urgency=medium
+
+  * New all nodes testing for puppetresources.
+  * Added some uname related facts.
+  * Added some lenses and prisms.
+  * Parsing function calls without parens at the expression level is not
+  * Allow parsing of boolean facts from YAML files.
+  * Allow resource references with array variables.
+  * Fix spurious multiple includes error.
+  * Fixed the implementation of some puppet functions.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sat, 25 Jan 2014 15:00:00 +0100
+
+language-puppet (0.10.5) xenial; urgency=medium
+
+  * Lambda blocks can now end with a bare function call
+  * Fix version bounds with hslua and luautils
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 06 Jan 2014 15:00:00 +0100
+
+language-puppet (0.10.4) xenial; urgency=medium
+
+  * Moved to the latest hruby version.
+  * Updated the text bound
+
+ -- Simon Marechal <bartavelle@gmail.com>  Wed, 18 Dec 2013 15:00:00 +0100
+
+language-puppet (0.10.3) xenial; urgency=medium
+
+  * The scope tracking system has been improved. It is now possible to know
+  * is_virtual fact
+  * new stdlib functions: flatten, str2bool, validate_absolute_path
+  * Hiera support
+  * JSON output that is compatible with "puppet apply"
+  * New addfacts command for the pdbquery utility
+  * Support for the classes variable in templates
+  * Support for @instance variables in inline_template
+  * Support for scope['key'] syntax in templates
+  * Support for facts overriding with puppetresources
+  * Deserialization problems with puppetDBs
+  * Fixed several bugs with imported resources
+  * Bug with relationships overrides that got stored as parameters
+  * Importing several exported resources from the same class now works
+  * Templates with an invalid encoding could crash the process
+  * Yaml parse errors of the puppetdb file now throw errors
+
+ -- Simon Marechal <bartavelle@gmail.com>  Tue, 03 Dec 2013 15:00:00 +0100
+
+language-puppet (0.10.2) xenial; urgency=medium
+
+  * PVP support
+  * Support for properly setting instance variables before computing
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sun, 27 Oct 2013 15:00:00 +0100
+
+language-puppet (0.10.1) xenial; urgency=medium
+
+  * The TestDB file was never created.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sun, 27 Oct 2013 15:00:00 +0100
+
+language-puppet (0.10.0) xenial; urgency=medium
+
+  * Map/each/filter functions with lambdas (not really tested)
+  * Rewrite of the PuppetDB API
+  * The whole scope stack is kept with each Resource, for easier debugging
+  * Inclusion of three PuppetDB backends : dummy (no effect), TestDB (stored
+  * This is a hack : variables declared in a parent (inheritance) can now be
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sun, 27 Oct 2013 15:00:00 +0100
+
+language-puppet (0.9.0) xenial; urgency=medium
+
+  * See http://lpuppet.banquise.net/blog/2013/08/15/version-0-dot-9-0-is-out-for-testing/
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 15 Aug 2013 15:00:00 +0100
+
+language-puppet (0.4.2) xenial; urgency=medium
+
+  * Functions 'values' and 'keys' from stdlib are now implemented.
+  * hruby integration
+
+ -- Simon Marechal <bartavelle@gmail.com>  Sat, 01 Jun 2013 15:00:00 +0100
+
+language-puppet (0.4.0) xenial; urgency=medium
+
+  * Big refactor of the PuppetDB API.
+  * New "fake" PuppetDB used for testing
+  * Support of the caller_module_name variable.
+  * Support for a dumpvariable() function.
+  * More details stored in the resource types, and in error messages.
+  * User native type
+  * Removal of the MissingH, filepath, monad-loop and directory dependency
+  * Puppet booleans are now handled at parse stage
+  * inline_template function
+  * fqdn_rand now puppet perfect (at least for 32 bit max values)
+  * Now depends on the built-in bytestring library that comes with
+  * Aliases should now work as expected ... I wish!
+  * regexp_subs now works in a PCRE manner
+  * Destination dependency can now be a variable resolving in an array.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 16 May 2013 15:00:00 +0100
+
+language-puppet (0.3.3) xenial; urgency=medium
+
+  * Tries to find calcerb.rb next to the executable.
+  * Started cleaning imports ...
+  * It is now possible to write "top level" functions in lua.
+  * Function getvar (stdlib)
+  * TENTATIVE support for aliases.
+  * Checks that file names don't have trailing slashes.
+  * Checks that exec commands are fully qualified if path is not defined.
+  * New native type : package.
+  * Fixed a ton of problems related to exported resources and relations.
+  * Minor fix about zonerecord.
+  * Resolving variable names starting with :: in templates
+  * Fixed the file function.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 21 Jan 2013 15:00:00 +0100
+
+language-puppet (0.3.2) xenial; urgency=medium
+
+  * It is now possible to use expressions in include blocks. This is
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 13 Dec 2012 15:00:00 +0100
+
+language-puppet (0.3.1) xenial; urgency=medium
+
+  * Yes, we can generate JSon catalogs now.
+  * Several bugs about resource relationships.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Fri, 23 Nov 2012 15:00:00 +0100
+
+language-puppet (0.3.0) xenial; urgency=medium
+
+  * Resource relationships are somehow supported. The API is broken as a
+  * Exported resources are now returned.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 19 Nov 2012 15:00:00 +0100
+
+language-puppet (0.2.2) xenial; urgency=medium
+
+  * A few statistics are exported.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 12 Nov 2012 15:00:00 +0100
+
+language-puppet (0.2.1) xenial; urgency=medium
+
+  * The defaults system was pretty much broken, it should be better now.
+  * Basic testing framework started.
+  * create_resources now supports the defaults system.
+  * defined() function works for resource references.
+  * in operator implemented for hashes.
+  * Multithreading works.
+  * The ruby <> daemon communication is now over ByteStrings.
+  * The toRuby function has been optimized, doubling the overall speed for
+  * Various internal changes.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 12 Nov 2012 15:00:00 +0100
+
+language-puppet (0.2.0) xenial; urgency=medium
+
+  * Lua integration for custom functions.
+  * Automatically creates magic types based on the content of the modules.
+  * Defaults parameters can now end with a comma.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 08 Oct 2012 15:00:00 +0100
+
+language-puppet (0.1.8.0) xenial; urgency=medium
+
+  * Refactoring of the PuppetDB API for interfacing with the facter library.
+  * Support of exported resource resolution through PuppetDB ! This results
+  * Make binary distribution possible (ruby helper path).
+  * Defines with spurious parameters, or unset mandatory parameters, should
+  * Exception handling for the HTTP failures.
+  * Handles undefined variables in Ruby templates.
+  * Undefined variables in Erbs now always throw exceptions. This is
+
+ -- Simon Marechal <bartavelle@gmail.com>  Thu, 20 Sep 2012 15:00:00 +0100
+
+language-puppet (0.1.7.2) xenial; urgency=medium
+
+  * Preliminary support for PuppetDB
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 17 Sep 2012 15:00:00 +0100
+
+language-puppet (0.1.7.1) xenial; urgency=medium
+
+  * Various details have been modified since the official language
+  * Better handling of collector conditions.
+  * Solves bug with interpolable strings that are not resolved when first
+  * Amending attributes with a collector.
+  * Stdlib functions : chomp
+  * Resource pretty printer now aligns =>.
+  * Case statements with regexps.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Fri, 14 Sep 2012 15:00:00 +0100
+
+language-puppet (0.1.7) xenial; urgency=medium
+
+  * Fix bug with '<' in the Erb parser !
+  * Assignments can now be any valid Puppet expression.
+  * Proper list of metaparameters.
+  * Quick resolution of boolean conditions.
+  * Start of the move to a real PCRE library.
+  * Function is_domain_name.
+  * New native types : zone_record, cron, exec, group, host, mount, file.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Fri, 24 Aug 2012 15:00:00 +0100
+
+language-puppet (0.1.6) xenial; urgency=medium
+
+  * Errors now print a stack trace (only works with profiling builds).
+  * Nested classes.
+  * generate() function.
+  * defines with spurious top level statements now should work.
+  * validate_* functions from puppetlabs/stdlib.
+  * Metaparameters now include stages (not handled).
+  * Resolving non empty arrays as boolean returns true.
+  * Duplicate parameters are now detected.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Wed, 01 Aug 2012 15:00:00 +0100
+
+language-puppet (0.1.5) xenial; urgency=medium
+
+  * Detection of spurious parameters when declaring parametrized classes now
+  * Resource overrides with non trivial names should now work.
+  * Require statements in required files would not be loaded.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Fri, 06 Jul 2012 15:00:00 +0100
+
+language-puppet (0.1.4) xenial; urgency=medium
+
+  * Basic native template function.
+  * Added anchor as a native type for now. A better fix will be to just parse
+  * Tentative defined() implementation. Will not work for resource references.
+  * Functions md5, sha1, lowcase, upcase, split.
+  * String comparison is not case insensitive.
+  * Variable scope for inherited classes should now work.
+  * Support for the $module_name variable (probably a bit buggy).
+  * Proper location of a "define not found" error.
+  * Parsing bug for single quoted strings and slashes.
+  * Bug where a resource name is a variable that is actually an array.
+  * Array indexing.
+  * Top level variables are now supported in Erb.
+  * Removed the title parameter from the catalog printing functions.
+  * Used hslint a bit.
+
+ -- Simon Marechal <bartavelle@gmail.com>  Mon, 02 Jul 2012 15:00:00 +0100
+

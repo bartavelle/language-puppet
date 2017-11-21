@@ -13,3 +13,7 @@ result
 *.orig
 stack.yaml
 default.nix
+debian/debhelper-build-stamp
+debian/language-puppet.debhelper.log
+debian/language-puppet.substvars
+debian/language-puppet/

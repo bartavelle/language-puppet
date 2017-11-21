@@ -1,0 +1,7 @@
+Source: language-puppet
+Maintainer: Simon Marechal <bartavelle@gmail.com>
+Priority: optional
+
+Package: language-puppet
+Architecture: amd64
+Description: Create tests and develop quickly with puppet

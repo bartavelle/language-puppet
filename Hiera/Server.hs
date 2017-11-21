@@ -117,7 +117,7 @@ instance FromJSON HieraConfigFile where
            pure (backendConstructor (T.unpack datadir))
 
     in
-    Y.withObject "v3 or v5" $ \o -> do
+    A.withObject "v3 or v5" $ \o -> do
       o .:? "version" >>= \case
         Just (5::Int) -> mkHiera5 o
         Just _ -> fail "Hiera configuration version different than 5 is not supported."
