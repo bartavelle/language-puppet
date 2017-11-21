@@ -18,7 +18,7 @@ cabal-version:       >=1.8
 Tested-With:         GHC == 8.0.2, GHC == 8.2.1
 
 extra-source-files:
-    CHANGELOG.markdown
+    CHANGELOG
     README.adoc
     HLint.hs
 
