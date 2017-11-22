@@ -126,8 +126,7 @@ options = Options
        <> value LOG.WARNING)
    <*> optional (strOption
        (  long "hiera"
-       <> help "Path to the Hiera configuration file (default hiera.yaml)"
-       <> value "hiera.yaml"))
+       <> help "Path to the Hiera configuration file (default hiera.yaml)"))
    <*> switch
        (  long "commitdb"
        <> help "Commit the computed catalogs in the puppetDB")
