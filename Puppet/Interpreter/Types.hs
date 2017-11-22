@@ -525,7 +525,7 @@ instance MonadThrowPos InterpreterMonad where
         p <- use (curPos . _1)
         stack <- getCurrentCallStack
         let dstack = if null stack
-                         then mempty
+                         then line
                          else mempty </> string (renderStack stack)
         throwError (PrettyError (s <+> "at" <+> showPos p <> dstack))
 
