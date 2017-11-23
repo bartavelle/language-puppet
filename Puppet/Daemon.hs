@@ -11,9 +11,9 @@ module Puppet.Daemon (
 
 import           Control.Exception
 import           Control.Exception.Lens
+import           Control.Foldl             (FoldM (..))
+import qualified Control.Foldl             as Foldl
 import           Control.Lens              hiding (Strict)
-import qualified Control.Foldl as Foldl
-import Control.Foldl (FoldM)
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
 import qualified Data.HashMap.Strict       as HM
@@ -109,14 +109,6 @@ hQueryApis pref = do
   modapis <- getModApis pref
   pure (api0, modapis)
 
-prefilterM :: (Monad m) => (a -> m Bool) -> FoldM m a r -> FoldM m a r
-prefilterM f (Foldl.FoldM step begin done) = Foldl.FoldM step' begin done
-  where
-    step' x a = do
-      use <- f a
-      if use then step x a else return x
-{-# INLINABLE prefilterM #-}
-
 getModApis :: Preferences IO -> IO (Container (HieraQueryFunc IO))
 getModApis pref = do
   let ignored_modules = pref^.prefIgnoredmodules
@@ -125,8 +117,8 @@ getModApis pref = do
     modapi :: FoldM IO FilePath (Container (HieraQueryFunc IO))
     modapi =
       Foldl.premapM (\m -> (T.pack m, "./modules/" <> m <> "/hiera.yaml"))
-      $ prefilterM (\(m,p) -> pure (not (m `elem`ignored_modules)) &&^  Directory.doesFileExist p)
-      $ Foldl.FoldM (\ s (m,p) -> do h <- startHiera p; pure $ (m,h):s) (pure []) (\l -> pure $ HM.fromList l)
+      $ Foldl.prefilterM (\(m,p) -> pure (not (m `elem`ignored_modules)) &&^  Directory.doesFileExist p)
+      $ FoldM (\ s (m,p) -> do h <- startHiera p; pure $ (m,h):s) (pure []) (\l -> pure $ HM.fromList l)
   Foldl.foldM modapi dirs
 
 -- | In case of a Left value, print the error and exit immediately
