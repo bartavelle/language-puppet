@@ -10,18 +10,14 @@ module Puppet.Interpreter.IO (
   , interpretMonad
   ) where
 
-import           Control.Exception
-import           Control.Lens
+import           Puppet.Prelude
+
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
-import           Control.Monad.Trans.Except
 import qualified Data.Either.Strict               as S
-import           Data.Monoid
-import           Data.Text                        (Text)
-import qualified Data.Text                        as T
-import qualified Data.Text.IO                     as T
+import qualified Data.Text                        as Text
+import qualified Data.Text.IO                     as Text
 import           Debug.Trace                      (traceEventIO)
-import           GHC.Stack
 
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
@@ -33,7 +29,7 @@ defaultImpureMethods = IoMethods (liftIO currentCallStack)
                                  (liftIO . traceEventIO)
     where
         file [] = return $ Left ""
-        file (x:xs) = (Right <$> T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
+        file (x:xs) = (Right <$> Text.readFile (Text.unpack x)) `catch` (\SomeException{} -> file xs)
 
 
 -- | The operational interpreter function
@@ -113,7 +109,7 @@ queryHiera layers scps q t = do
     S.Right Nothing -> do
       let
         modname =
-          case T.splitOn "::" (T.dropWhile (==':') q) of
+          case Text.splitOn "::" (Text.dropWhile (==':') q) of
             [] -> Nothing
             [_] -> Nothing
             (m:_)  -> Just m

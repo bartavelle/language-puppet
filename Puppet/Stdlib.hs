@@ -1,24 +1,21 @@
-{-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RankNTypes    #-}
+{-# LANGUAGE TupleSections #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
-import           Control.Applicative
-import           Control.Lens
-import           Control.Monad
+import           GHC.Show                         (Show (..))
+import           Puppet.Prelude                   hiding (show, sort)
+
 import           Data.Aeson.Lens
 import qualified Data.ByteString.Base16           as B16
-import           Data.Char
+import qualified Data.Char as Char
 import qualified Data.HashMap.Strict              as HM
-import qualified Data.List as List
-import           Data.List.Split                  (chunksOf)
-import           Data.Maybe                       (mapMaybe)
-import           Data.Monoid
+import qualified Data.List                        as List
+import qualified Data.List.Split                  as List (chunksOf)
 import qualified Data.Scientific                  as Scientific
 import qualified Data.Text                        as T
 import qualified Data.Text.Encoding               as T
-import           Data.Traversable                 (for)
 import qualified Data.Vector                      as V
 import           Data.Vector.Lens                 (toVectorOf)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
@@ -28,7 +25,6 @@ import           Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
 import           Puppet.PP
-import           Puppet.Utils (text2Scientific)
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
@@ -40,7 +36,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "bool2num" bool2num
                               -- bool2str
                               -- camelcase
-                              , ("capitalize", stringArrayFunction (safeEmptyString (\t -> T.cons (toUpper (T.head t)) (T.tail t))))
+                              , ("capitalize", stringArrayFunction (safeEmptyString (\t -> T.cons (Char.toUpper (T.head t)) (T.tail t))))
                               -- ceiling
                               , ("chomp", stringArrayFunction (T.dropWhileEnd (\c -> c == '\n' || c == '\r')))
                               , ("chop", stringArrayFunction (safeEmptyString T.init))
@@ -150,28 +146,28 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- zip
                               ]
 
-singleArgument :: T.Text -> (PValue -> InterpreterMonad PValue) -> (T.Text, [PValue] -> InterpreterMonad PValue )
+singleArgument :: Text -> (PValue -> InterpreterMonad PValue) -> (T.Text, [PValue] -> InterpreterMonad PValue )
 singleArgument fname ifunc = (fname, ofunc)
     where
         ofunc [x] = ifunc x
         ofunc _ = throwPosError (ttext fname <> "(): Expects a single argument.")
 
-safeEmptyString :: (T.Text -> T.Text) -> T.Text -> T.Text
+safeEmptyString :: (Text -> T.Text) -> T.Text -> T.Text
 safeEmptyString _ "" = ""
 safeEmptyString f x  = f x
 
-stringArrayFunction :: (T.Text -> T.Text) -> [PValue] -> InterpreterMonad PValue
+stringArrayFunction :: (Text -> T.Text) -> [PValue] -> InterpreterMonad PValue
 stringArrayFunction f [PString s] = return (PString (f s))
 stringArrayFunction f [PArray xs] = fmap PArray (V.mapM (fmap (PString . f) . resolvePValueString) xs)
 stringArrayFunction _ [a] = throwPosError ("function expects a string or an array of strings, not" <+> pretty a)
 stringArrayFunction _ _ = throwPosError "function expects a single argument"
 
-compileRE :: T.Text -> InterpreterMonad Regex
+compileRE :: Text -> InterpreterMonad Regex
 compileRE r = case compile' compBlank execBlank (T.encodeUtf8 r) of
                   Left rr -> throwPosError ("Could not compile" <+> ttext r <+> ":" <+> string (show rr))
                   Right x -> return x
 
-matchRE :: Regex -> T.Text -> InterpreterMonad Bool
+matchRE :: Regex -> Text -> InterpreterMonad Bool
 matchRE r t = case execute' r (T.encodeUtf8 t) of
                   Left rr -> throwPosError ("Could not match:" <+> string (show rr))
                   Right m -> return (has _Just m)
@@ -307,7 +303,7 @@ _grep _ = throwPosError "grep(): Expected two arguments."
 
 hash :: [PValue] -> InterpreterMonad PValue
 hash [PArray elems] = do
-    let xs = mapMaybe assocPairs $ chunksOf 2 $ V.toList elems
+    let xs = mapMaybe assocPairs $ List.chunksOf 2 $ V.toList elems
         assocPairs [a,b] = Just (a,b)
         assocPairs _     = Nothing
     PHash . HM.fromList <$> mapM (\(k,v) -> (,v) <$> resolvePValueString k) xs
@@ -327,7 +323,7 @@ isDomainName s = do
                         && (T.length x <= 63)
                         && (T.head x /= '-')
                         && (T.last x /= '-')
-                        && T.all (\y -> isAlphaNum y || y == '-') x
+                        && T.all (\y -> Char.isAlphaNum y || y == '-') x
     return $ PBoolean $ not (T.null rs) && T.length rs <= 255 && all checkPart prts
 
 isInteger :: PValue -> InterpreterMonad PValue
@@ -393,7 +389,7 @@ pick xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
 pickDefault :: [PValue] -> InterpreterMonad PValue
 pickDefault [] = throwPosError "pick_default(): must receive at least one non empty value"
 pickDefault xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
-                     []    -> return (last xs)
+                     []    -> return (List.last xs)
                      (x:_) -> return x
 
 size :: PValue -> InterpreterMonad PValue
@@ -492,7 +488,7 @@ validateInteger x = PUndef <$ mapM_ vb x
         check n = unless (Scientific.isInteger n) $ throwPosError (msg (show n))
         vb (PNumber n) = check n
         vb (PString s) | Just n <- text2Scientific s = check n
-        vb a = throwPosError (msg a)
+        vb a           = throwPosError (msg a)
 
 pvalues :: PValue -> InterpreterMonad PValue
 pvalues (PHash h) = return $ PArray (toVectorOf traverse h)

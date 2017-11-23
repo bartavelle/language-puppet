@@ -1,15 +1,16 @@
 module Puppet.NativeTypes.Exec (nativeExec) where
 
-import Puppet.NativeTypes.Helpers
-import Puppet.Interpreter.Types
-import qualified Data.Text as T
-import Control.Lens
+import qualified Data.Text                  as Text
+import           Puppet.Prelude
+
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
 
 nativeExec :: (NativeTypeName, NativeTypeMethods)
 nativeExec = ("exec", nativetypemethods parameterfunctions fullyQualifiedOrPath)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("command"     , [nameval])
     ,("creates"     , [rarray, strings, fullyQualifieds])
@@ -31,8 +32,9 @@ parameterfunctions =
     ]
 
 fullyQualifiedOrPath :: NativeTypeValidate
-fullyQualifiedOrPath res = case (res ^. rattributes . at "path", res ^. rattributes . at "command") of
-                               (Nothing, Just (PString x)) -> if T.head x == '/'
-                                                                       then Right res
-                                                                       else Left "Command must be fully qualified if path is not defined"
-                               _ -> Right res
+fullyQualifiedOrPath res =
+  case (res ^. rattributes . at "path", res ^. rattributes . at "command") of
+    (Nothing, Just (PString x)) -> if Text.head x == '/'
+                                     then Right res
+                                     else Left "Command must be fully qualified if path is not defined"
+    _ -> Right res

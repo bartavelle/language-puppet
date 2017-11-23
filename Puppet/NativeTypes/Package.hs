@@ -1,15 +1,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Puppet.NativeTypes.Package (nativePackage) where
 
-import Puppet.NativeTypes.Helpers
-import Puppet.Interpreter.Types
-import Control.Monad.Except
-import qualified Data.HashSet as HS
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as T
-import Control.Lens
-import GHC.Generics
-import Data.Hashable
+import           Puppet.Prelude
+
+import qualified Data.HashMap.Strict        as HM
+import qualified Data.HashSet               as HS
+
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
 
 nativePackage :: (NativeTypeName, NativeTypeMethods)
 nativePackage = ("package", nativetypemethods parameterfunctions (getFeature >=> checkFeatures))
@@ -19,7 +17,7 @@ data PackagingFeatures = Holdable | InstallOptions | Installable | Purgeable | U
 
 instance Hashable PackagingFeatures
 
-isFeatureSupported :: HM.HashMap T.Text (HS.HashSet PackagingFeatures)
+isFeatureSupported :: HM.HashMap Text (HS.HashSet PackagingFeatures)
 isFeatureSupported = HM.fromList [ ("aix", HS.fromList [Installable, Uninstallable, Upgradeable, Versionable])
                                   , ("appdmg", HS.fromList [Installable])
                                   , ("apple", HS.fromList [Installable])
@@ -56,7 +54,7 @@ isFeatureSupported = HM.fromList [ ("aix", HS.fromList [Installable, Uninstallab
                                   , ("zypper", HS.fromList [Installable, Uninstallable, Upgradeable, Versionable])
                                   ]
 
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("adminfile"        , [string, fullyQualified])
     ,("allowcdrom"       , [string, values ["true","false"]])
@@ -91,7 +89,7 @@ checkFeatures =
         checkFeature s r f = if HS.member f s
                                  then Right (s, r)
                                  else Left $ PrettyError ("Feature" <+> text (show f) <+> "is required for the current configuration")
-        checkParam :: T.Text -> PackagingFeatures -> (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
+        checkParam :: Text -> PackagingFeatures -> (HS.HashSet PackagingFeatures, Resource) -> Either PrettyError (HS.HashSet PackagingFeatures, Resource)
         checkParam pn f (s,r) = if has (ix pn) (r ^. rattributes)
                                     then checkFeature s r f
                                     else Right (s,r)

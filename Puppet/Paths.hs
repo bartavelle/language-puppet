@@ -1,8 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Puppet.Paths where
 
-import Control.Lens
-import Data.Monoid
+import Puppet.Prelude
 
 data PuppetDirPaths = PuppetDirPaths
     { _baseDir       :: FilePath -- ^ Puppet base working directory

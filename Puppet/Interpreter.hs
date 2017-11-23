@@ -7,41 +7,33 @@ module Puppet.Interpreter
        , computeCatalog
        ) where
 
-import           Control.Applicative
-import           Control.Lens hiding (ignored)
-import           Control.Monad.Except
+import           Puppet.Prelude
+
 import           Control.Monad.Operational        hiding (view)
 import           Control.Monad.Trans.Except
-import           Data.Char                        (isDigit)
-import           Data.Foldable                    (foldl', foldlM, toList)
+import qualified Data.Char                        as Char
 import qualified Data.Graph                       as G
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
-import           Data.List                        (nubBy, sortBy)
-import           Data.Maybe
+import qualified Data.List                        as List
 import qualified Data.Maybe.Strict                as S
-import           Data.Ord                         (comparing)
-import           Data.Semigroup                   (Max(..))
-import           Data.Text (Text)
-import qualified Data.Text                        as T
-import           Data.Traversable                 (for)
-import qualified Data.Tree                        as T
-import           Data.Tuple.Strict                (Pair (..))
+import           Data.Semigroup                   (Max (..))
+import qualified Data.Text                        as Text
+import qualified Data.Tree                        as Tree
 import qualified Data.Vector                      as V
-import           System.Log.Logger
+import qualified System.Log.Logger                as Log
 
+import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.PrettyPrinter (containerComma)
 import           Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
-import           Puppet.Interpreter.IO
 import           Puppet.Lens
 import           Puppet.NativeTypes
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.Parser.Utils
 import           Puppet.PP
-import           Puppet.Utils
 
 {-| Call the operational 'interpretMonad' function to compute the catalog.
     Returns either an error, or a tuple containing all the resources,
@@ -57,7 +49,7 @@ interpretCatalog :: Monad m
                  -> NodeName
                  -> Facts
                  -> Container Text -- ^ Server settings
-                 -> m (Pair (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Priority Doc])
+                 -> m (Pair (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Log.Priority Doc])
 interpretCatalog r node facts settings = do
     (output, _, warnings) <- interpretMonad r (initialState facts settings) (computeCatalog node)
     pure (output :!: warnings)
@@ -143,14 +135,14 @@ finalize rx = do
                     -- relationship resolving
                     let extr = do
                             (dstid, linkset) <- itoList (r ^. rrelations)
-                            link <- toList linkset
-                            return (LinkInformation (r ^. rid) dstid link p)
+                            linktype <- toList linkset
+                            return (LinkInformation (r ^. rid) dstid linktype p)
                     extraRelations <>= extr
                     void $ enterScope SENormal curContType modulename p
                     (spurious, stmt) <- interpretTopLevel TopDefine deftype
                     DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
                     let isImported (ContImported _) = True
-                        isImported _ = False
+                        isImported _                = False
                     isImportedDefine <- isImported <$> getScope
                     curPos .= r ^. rpos
                     curscp <- getScope
@@ -223,10 +215,10 @@ computeCatalog nodename = do
         classify (curr :!: cure) r =
             let i curm = curm & at (r ^. rid) ?~ r
             in  case r ^. rvirtuality of
-                    Normal   -> i curr :!: cure
-                    Exported -> curr :!: i cure
+                    Normal           -> i curr :!: cure
+                    Exported         -> curr :!: i cure
                     ExportedRealized -> i curr :!: i cure
-                    _ -> curr :!: cure
+                    _                -> curr :!: cure
     verified <- HM.fromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (HM.elems real)
     withResourceDependentRelations <- traverse getResourceDependentRelations verified
     edgemap <- makeEdgeMap withResourceDependentRelations
@@ -282,7 +274,7 @@ makeEdgeMap ct = do
     let reorderlink :: (RIdentifier, RIdentifier, LinkType) -> (RIdentifier, RIdentifier, LinkType)
         reorderlink (s, d, RRequire)   = (d, s, RBefore)
         reorderlink (s, d, RSubscribe) = (d, s, RNotify)
-        reorderlink x = x
+        reorderlink x                  = x
         addRR curmap r = iunionWith (<>) curmap newmap
             where
                -- compute the explicit resources, along with the container relationship
@@ -309,8 +301,8 @@ makeEdgeMap ct = do
         checkResDef (ri, lifs) = do
             let checkExists r msg = do
                     let modulename = getModulename r
-                    ignored <- isIgnoredModule modulename
-                    unless (has (ix r) defs || ignored) (throwPosError msg)
+                    is_ignored <- isIgnoredModule modulename
+                    unless (has (ix r) defs || is_ignored) (throwPosError msg)
                 errmsg = "Unknown resource" <+> pretty ri <+> "used in the following relationships:" <+> vcat (map pretty lifs)
             checkExists ri errmsg
             let genlnk :: LinkInformation -> InterpreterMonad RIdentifier
@@ -323,10 +315,10 @@ makeEdgeMap ct = do
     edgeList <- mapM checkResDef (itoList step2)
     let (graph, gresolver) = G.graphFromEdges' edgeList
     -- now check for scc
-    let sccs = filter ((>1) . length . T.flatten) (G.scc graph)
+    let sccs = filter ((>1) . length . Tree.flatten) (G.scc graph)
     unless (null sccs) $ do
         let trees = vcat (map showtree sccs)
-            showtree = indent 2 . vcat . map (mkp . gresolver) . T.flatten
+            showtree = indent 2 . vcat . map (mkp . gresolver) . Tree.flatten
             mkp (a,_,links) = resdesc <+> lnks
                 where
                    resdesc = case ct ^. at a of
@@ -372,7 +364,7 @@ realize rs = do
             when (rmod ^. rmModifierType == ModifierMustMatch && null filtrd) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod <> ",no matching resource was found.")))
             return result
         equalModifier (ResourceModifier a1 b1 c1 d1 _ e1) (ResourceModifier a2 b2 c2 d2 _ e2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
-    result <- use resMod >>= foldM mutate (rma :!: mempty) . reverse . nubBy equalModifier
+    result <- use resMod >>= foldM mutate (rma :!: mempty) . reverse . List.nubBy equalModifier
     resMod .= []
     return result
 
@@ -388,20 +380,20 @@ fromAttributeDecls = foldM resolve mempty
                   pv <- resolveExpression v
                   return (acc & at k ?~ pv)
 
-saveCaptureVariables :: InterpreterMonad (HM.HashMap T.Text (Pair (Pair PValue PPosition) CurContainerDesc))
+saveCaptureVariables :: InterpreterMonad (HM.HashMap Text (Pair (Pair PValue PPosition) CurContainerDesc))
 saveCaptureVariables = do
     scp <- getScopeName
     vars <- use (scopes . ix scp . scopeVariables)
-    return $ HM.filterWithKey (\k _ -> T.all isDigit k) vars
+    return $ HM.filterWithKey (\k _ -> Text.all Char.isDigit k) vars
 
-restoreCaptureVariables :: HM.HashMap T.Text (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
+restoreCaptureVariables :: HM.HashMap Text (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
 restoreCaptureVariables vars = do
     scp <- getScopeName
-    scopes . ix scp . scopeVariables %= HM.union vars . HM.filterWithKey (\k _ -> not (T.all isDigit k))
+    scopes . ix scp . scopeVariables %= HM.union vars . HM.filterWithKey (\k _ -> not (Text.all Char.isDigit k))
 
 evaluateStatement :: Statement -> InterpreterMonad [Resource]
 evaluateStatement r@(ClassDeclaration (ClassDecl cname _ _ _ _)) =
-    if "::" `T.isInfixOf` cname
+    if "::" `Text.isInfixOf` cname
        then nestedDeclarations . at (TopClass, cname) ?= r >> return []
        else do
            scp <- getScopeName
@@ -411,7 +403,7 @@ evaluateStatement r@(ClassDeclaration (ClassDecl cname _ _ _ _)) =
            nestedDeclarations . at (TopClass, rcname) ?= r
            return []
 evaluateStatement r@(DefineDeclaration (DefineDecl dname _ _ _)) =
-    if "::" `T.isInfixOf` dname
+    if "::" `Text.isInfixOf` dname
        then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
        else do
            scp <- getScopeName
@@ -556,7 +548,7 @@ loadVariable varname varval = do
 --
 -- It is able to fill unset parameters with values from Hiera (for classes
 -- only) or default values.
-loadParameters :: Foldable f => Container PValue -> f (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)) -> PPosition -> S.Maybe T.Text -> InterpreterMonad ()
+loadParameters :: Foldable f => Container PValue -> f (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)) -> PPosition -> S.Maybe Text -> InterpreterMonad ()
 loadParameters params classParams defaultPos wHiera = do
     p <- use curPos
     curPos .= defaultPos
@@ -567,20 +559,20 @@ loadParameters params classParams defaultPos wHiera = do
         -- the following functions `throwE (Max False)` when there is no value, and `throwE (Max True)` when this value
         -- in PUndef.
         checkUndef :: Maybe PValue -> ExceptT (Max Bool) InterpreterMonad PValue
-        checkUndef Nothing = throwE (Max False)
+        checkUndef Nothing       = throwE (Max False)
         checkUndef (Just PUndef) = throwE (Max True)
-        checkUndef (Just v) = return v
+        checkUndef (Just v)      = return v
 
-        checkHiera :: T.Text -> ExceptT (Max Bool) InterpreterMonad PValue
+        checkHiera :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
         checkHiera k = case wHiera of
                            S.Nothing -> throwE (Max False)
                            S.Just classname -> lift (runHiera (classname <> "::" <> k) QFirst) >>= checkUndef
 
-        checkDef :: T.Text -> ExceptT (Max Bool) InterpreterMonad PValue
+        checkDef :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
         checkDef k = checkUndef (params ^. at k)
 
         checkDefault :: S.Maybe Expression -> ExceptT (Max Bool) InterpreterMonad PValue
-        checkDefault S.Nothing = throwE (Max False)
+        checkDefault S.Nothing     = throwE (Max False)
         checkDefault (S.Just expr) = lift (resolveExpression expr)
 
     unless (isEmpty spuriousParams) $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ttext) $ toList spuriousParams) <> mclassdesc)
@@ -614,12 +606,12 @@ enterScope secontext cont modulename p = do
     -- This is a special hack for inheritance, because at this time we
     -- have not properly stacked the scopes.
     curcaller <- case secontext of
-                     SEParent l -> return (PString $ T.takeWhile (/=':') l)
+                     SEParent l -> return (PString $ Text.takeWhile (/=':') l)
                      _ -> resolveVariable "module_name"
     scopeAlreadyDefined <- has (ix scopename) <$> use scopes
     let isImported = case cont of
                          ContImported _ -> True
-                         _ -> False
+                         _              -> False
     -- it is OK to reuse a scope related to imported stuff
     unless (scopeAlreadyDefined && isImported) $ do
         when scopeAlreadyDefined (throwPosError ("Internal error: scope" <+> brackets (ttext scopename) <+> "already defined when loading scope for" <+> pretty cont))
@@ -649,7 +641,7 @@ loadClass :: Text
 loadClass name loadedfrom params incltype = do
     let name' = dropInitialColons name
     ndn <- getNodeName
-    singleton (TraceEvent ('[' : T.unpack ndn ++ "] loadClass " ++ T.unpack name'))
+    singleton (TraceEvent ('[' : Text.unpack ndn ++ "] loadClass " ++ Text.unpack name'))
     p <- use curPos
     -- check if the class has already been loaded
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
@@ -661,8 +653,8 @@ loadClass name loadedfrom params incltype = do
         Nothing -> do
             loadedClasses . at name' ?= (incltype :!: p)
             let modulename = getModulename (RIdentifier "class" name')
-            ignored <- isIgnoredModule modulename
-            if ignored
+            is_ignored <- isIgnoredModule modulename
+            if is_ignored
               then return mempty
               else do
                     -- load the actual class, note we are not changing the current position right now
@@ -767,7 +759,7 @@ appendAttribute attributename res value = do
 defaultAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
 defaultAttribute attributename res value = return $ case res ^. rattributes . at attributename of
     Nothing -> res & rattributes . at attributename ?~ value
-    Just _ -> res
+    Just _  -> res
 
 modifyCollectedAttribute :: Resource -> AttributeDecl -> InterpreterMonad Resource
 modifyCollectedAttribute res (AttributeDecl attributename arrowop expr) = do
@@ -777,7 +769,7 @@ modifyCollectedAttribute res (AttributeDecl attributename arrowop expr) = do
                      AssignArrow -> Replace
     addAttribute optype attributename res value
 
-registerResource :: Text -> T.Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
+registerResource :: Text -> Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"
 registerResource "class" _ _ Exported p = curPos .= p >> throwPosError "Cannot declare an exported class (or perhaps you can, but I do not know what this means)"
 registerResource t rn arg vrt p = do
@@ -787,7 +779,7 @@ registerResource t rn arg vrt p = do
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_tags.html#automatic-tagging
     -- http://docs.puppetlabs.com/puppet/3/reference/lang_tags.html#containment
     let !defaulttags = {-# SCC "rrGetTags" #-} HS.fromList (t : classtags) <> tgs
-        allsegs x = x : T.splitOn "::" x
+        allsegs x = x : Text.splitOn "::" x
         (!classtags, !defaultLink) = getClassTags cnt
         getClassTags (ContClass cn      ) = (allsegs cn,RIdentifier "class" cn)
         getClassTags (ContDefine dt dn _) = (allsegs dt,normalizeRIdentifier dt dn)
@@ -821,14 +813,14 @@ registerResource t rn arg vrt p = do
 mainFunctionCall :: Text -> [PValue] -> InterpreterMonad [Resource]
 mainFunctionCall "showscope" _ = use curScope >>= warn . pretty >> return []
 -- The logging functions
-mainFunctionCall "alert"   a = logWithModifier ALERT        red         a
-mainFunctionCall "crit"    a = logWithModifier CRITICAL     red         a
-mainFunctionCall "debug"   a = logWithModifier DEBUG        dullwhite   a
-mainFunctionCall "emerg"   a = logWithModifier EMERGENCY    red         a
-mainFunctionCall "err"     a = logWithModifier ERROR        dullred     a
-mainFunctionCall "info"    a = logWithModifier INFO         green       a
-mainFunctionCall "notice"  a = logWithModifier NOTICE       white       a
-mainFunctionCall "warning" a = logWithModifier WARNING      dullyellow  a
+mainFunctionCall "alert"   a = logWithModifier Log.ALERT        red         a
+mainFunctionCall "crit"    a = logWithModifier Log.CRITICAL     red         a
+mainFunctionCall "debug"   a = logWithModifier Log.DEBUG        dullwhite   a
+mainFunctionCall "emerg"   a = logWithModifier Log.EMERGENCY    red         a
+mainFunctionCall "err"     a = logWithModifier Log.ERROR        dullred     a
+mainFunctionCall "info"    a = logWithModifier Log.INFO         green       a
+mainFunctionCall "notice"  a = logWithModifier Log.NOTICE       white       a
+mainFunctionCall "warning" a = logWithModifier Log.WARNING      dullyellow  a
 mainFunctionCall "contain" includes = concat <$> mapM doContain includes
     where doContain e = do
             classname <- resolvePValueString e
@@ -841,8 +833,8 @@ mainFunctionCall "include" includes = concat <$> mapM doInclude includes
             loadClass classname S.Nothing mempty ClassIncludeLike
 mainFunctionCall "create_resources" [t, hs] = mainFunctionCall "create_resources" [t, hs, PHash mempty]
 mainFunctionCall "create_resources" [PString t, PHash hs, PHash defparams] = do
-    let (ats, t') = T.span (== '@') t
-    virtuality <- case T.length ats of
+    let (ats, t') = Text.span (== '@') t
+    virtuality <- case Text.length ats of
                       0 -> return Normal
                       1 -> return Virtual
                       2 -> return Exported
@@ -879,7 +871,7 @@ mainFunctionCall "hiera_include" [x] = do
 mainFunctionCall "hiera_include" _ = throwPosError "hiera_include(): This function takes a single argument"
 -- dumpinfos is a debugging function specific to language-puppet
 mainFunctionCall "dumpinfos" _ = do
-    let prntline = logWriter ALERT
+    let prntline = logWriter Log.ALERT
         indentln = (<>) "  "
     prntline "Scope stack :"
     scps <- use curScope
@@ -921,7 +913,7 @@ ensureResource [PString _, _, PHash _] = throwPosError "ensureResource(): The se
 ensureResource [PString _, PString _, _] = throwPosError "ensureResource(): The thrid argument must be a hash."
 ensureResource _ = throwPosError "ensureResource(): expects 2 or 3 arguments."
 
-ensureResource' :: Text -> HM.HashMap T.Text PValue -> T.Text -> InterpreterMonad [Resource]
+ensureResource' :: Text -> HM.HashMap Text PValue -> Text -> InterpreterMonad [Resource]
 ensureResource' t params title = do
     isdefined <- has (ix (normalizeRIdentifier t title)) <$> use definedResources
     if isdefined
@@ -937,7 +929,7 @@ evaluateStatementsFoldable :: Foldable f => f Statement -> InterpreterMonad [Res
 evaluateStatementsFoldable = fmap concat . mapM evaluateStatement . toList
 
 -- A helper function for the various loggers
-logWithModifier :: Priority -> (Doc -> Doc) -> [PValue] -> InterpreterMonad [Resource]
+logWithModifier :: Log.Priority -> (Doc -> Doc) -> [PValue] -> InterpreterMonad [Resource]
 logWithModifier prio m [v] = do
     p <- use curPos
     v' <- resolvePValueString v

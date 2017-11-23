@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts, TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell  #-}
 module Puppet.Lens
  ( -- * Pure resolution prisms
    _PResolveExpression
@@ -54,28 +55,25 @@ module Puppet.Lens
  , _PrettyError
  ) where
 
-import Control.Lens
+import           Puppet.Prelude
 
-import Puppet.Parser (puppetParser)
-import Puppet.Parser.Types
-import Puppet.Interpreter.Types
-import Puppet.Interpreter.Pure
-import Puppet.Interpreter.Resolve
-import qualified Puppet.Parser.PrettyPrinter()
+import qualified Data.HashMap.Strict          as HM
+import qualified Data.List                    as List
+import qualified Data.Vector                  as V
+import           Text.Megaparsec              (parse)
+import           Text.PrettyPrint.ANSI.Leijen (pretty)
 
-import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as HM
-import Data.Tuple.Strict hiding (uncurry)
-import Control.Exception (SomeException, toException, fromException)
-import qualified Data.Text as T
-import Text.PrettyPrint.ANSI.Leijen (pretty)
-
-import Text.Megaparsec (parse)
+import           Puppet.Interpreter.Pure
+import           Puppet.Interpreter.Resolve
+import           Puppet.Interpreter.Types
+import           Puppet.Parser                (puppetParser)
+import qualified Puppet.Parser.PrettyPrinter  ()
+import           Puppet.Parser.Types
 
 makePrisms ''Expression
 
-_PuppetParser :: Prism' T.Text (V.Vector Statement)
-_PuppetParser = prism' (T.pack . unlines . V.toList . fmap (show . pretty)) $ \t -> case parse puppetParser "dummy" t of
+_PuppetParser :: Prism' Text (V.Vector Statement)
+_PuppetParser = prism' (toS . List.unlines . V.toList . fmap (show . pretty)) $ \t -> case parse puppetParser "dummy" t of
                                                                                       Left _ -> Nothing
                                                                                       Right r -> Just r
 
@@ -105,7 +103,7 @@ _ConditionalDecl = prism ConditionalDeclaration $ \x -> case x of
 _ClassDecl :: Prism' Statement ClassDecl
 _ClassDecl = prism ClassDeclaration $ \x -> case x of
                                                 ClassDeclaration a -> Right a
-                                                _ -> Left x
+                                                _                  -> Left x
 _DefineDecl :: Prism' Statement DefineDecl
 _DefineDecl = prism DefineDeclaration $ \x -> case x of
                                                   DefineDeclaration a -> Right a
@@ -113,7 +111,7 @@ _DefineDecl = prism DefineDeclaration $ \x -> case x of
 _NodeDecl :: Prism' Statement NodeDecl
 _NodeDecl = prism NodeDeclaration $ \x -> case x of
                                               NodeDeclaration a -> Right a
-                                              _      -> Left x
+                                              _                 -> Left x
 
 _VarAssignDecl :: Prism' Statement VarAssignDecl
 _VarAssignDecl = prism VarAssignmentDeclaration $ \x -> case x of
@@ -159,7 +157,7 @@ _PResolveValue = prism toU toP
         toU (PResourceReference t n) = UResourceReference t (Terminal (UString n))
         toU (PArray r) = UArray (fmap (Terminal . toU) r)
         toU (PHash h) = UHash (V.fromList $ map (\(k,v) -> (Terminal (UString k) :!: Terminal (toU v))) $ HM.toList h)
-        toU (PType _) = error "TODO, _PResolveValue PType undefined"
+        toU (PType _) = panic "TODO, _PResolveValue PType undefined"
 
 _Statements :: Lens' Statement [Statement]
 _Statements = lens (V.toList . sget) (\s v -> sset s (V.fromList v))

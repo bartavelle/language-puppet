@@ -1,37 +1,37 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Puppet.Parser.PrettyPrinter where
 
+import           Puppet.Prelude               hiding (empty, (<$>))
+
 import qualified Data.Maybe.Strict            as S
-import qualified Data.Text                    as T
-import           Data.Tuple.Strict            (Pair ((:!:)))
-import qualified Data.Tuple.Strict            as S
+import qualified Data.Text                    as Text
+import qualified Data.Tuple.Strict            as Tuple
 import qualified Data.Vector                  as V
+import           Text.PrettyPrint.ANSI.Leijen ((<$>))
+
 import           Puppet.Parser.Types
 import           Puppet.PP
-import           Puppet.Utils
-import           Text.PrettyPrint.ANSI.Leijen ((<$>))
-import           Prelude                      hiding ((<$>))
 
-capitalize :: T.Text -> Doc
-capitalize = dullyellow . text . T.unpack . capitalizeRT
+capitalize :: Text -> Doc
+capitalize = dullyellow . text . Text.unpack . capitalizeRT
 
 parensList :: Pretty a => V.Vector a -> Doc
-parensList = tupled . map pretty . V.toList
+parensList = tupled . fmap pretty . V.toList
 
 hashComma :: (Pretty a, Pretty b) => V.Vector (Pair a b) -> Doc
-hashComma = encloseSep lbrace rbrace comma . map showC . V.toList
+hashComma = encloseSep lbrace rbrace comma . fmap showC . V.toList
     where
         showC (a :!: b) = pretty a <+> text "=>" <+> pretty b
 
 -- Extremely hacky escaping system
-stringEscape :: T.Text -> T.Text
-stringEscape = T.concatMap escapeChar
+stringEscape :: Text -> Text
+stringEscape = Text.concatMap escapeChar
     where
-        escapeChar '"' = "\\\""
+        escapeChar '"'  = "\\\""
         escapeChar '\n' = "\\n"
         escapeChar '\t' = "\\t"
         escapeChar '\r' = "\\r"
-        escapeChar x = T.singleton x
+        escapeChar x    = Text.singleton x
 {-# INLINE stringEscape #-}
 
 instance Pretty DataType where
@@ -50,15 +50,15 @@ instance Pretty DataType where
                NotUndef            -> "NotUndef"
                DTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
                DTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)
-               DTEnum tx           -> "Enum" <> list (foldMap (pure . text . T.unpack) tx)
+               DTEnum tx           -> "Enum" <> list (foldMap (pure . text . Text.unpack) tx)
                DTAny               -> "Any"
                DTCollection        -> "Collection"
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
       bounded s ma mb = s <> case (ma, mb) of
                                (Just a, Nothing) -> list [pretty a]
-                               (Just a, Just b) -> list [pretty a, pretty b]
-                               _ -> mempty
+                               (Just a, Just b)  -> list [pretty a, pretty b]
+                               _                 -> mempty
 
 instance Pretty Expression where
     pretty (Equal a b)            = parens (pretty a <+> text "==" <+> pretty b)
@@ -103,8 +103,8 @@ instance Pretty LambdaParameters where
                        BPPair (LParam mt1 v1) (LParam mt2 v2) -> pmspace mt1 <> pretty (UVariableReference v1) <> comma <+> pmspace mt2 <> pretty (UVariableReference v2)
 
 instance Pretty SearchExpression where
-    pretty (EqualitySearch t e) = text (T.unpack t) <+> text "==" <+> pretty e
-    pretty (NonEqualitySearch t e) = text (T.unpack t) <+> text "!=" <+> pretty e
+    pretty (EqualitySearch t e) = text (Text.unpack t) <+> text "==" <+> pretty e
+    pretty (NonEqualitySearch t e) = text (Text.unpack t) <+> text "!=" <+> pretty e
     pretty AlwaysTrue = empty
     pretty (AndSearch s1 s2) = parens (pretty s1) <+> text "and" <+> parens (pretty s2)
     pretty (OrSearch s1 s2) = parens (pretty s1) <+> text "and" <+> parens (pretty s2)
@@ -117,33 +117,33 @@ instance Pretty UnresolvedValue where
     pretty (UInterpolable v) = char '"' <> hcat (map specific (V.toList v)) <> char '"'
         where
             specific (Terminal (UString s)) = dullcyan (ttext (stringEscape s))
-            specific (Terminal (UVariableReference vr)) = dullblue (text "${" <> text (T.unpack vr) <> char '}')
-            specific (Lookup (Terminal (UVariableReference vr)) (Terminal x)) = dullblue (text "${" <> text (T.unpack vr) <> char '[' <> pretty x <> "]}")
+            specific (Terminal (UVariableReference vr)) = dullblue (text "${" <> text (Text.unpack vr) <> char '}')
+            specific (Lookup (Terminal (UVariableReference vr)) (Terminal x)) = dullblue (text "${" <> text (Text.unpack vr) <> char '[' <> pretty x <> "]}")
             specific x = bold (red (pretty x))
     pretty UUndef = dullmagenta (text "undef")
     pretty (UResourceReference t n) = capitalize t <> brackets (pretty n)
     pretty (UArray v) = list (map pretty (V.toList v))
     pretty (UHash g) = hashComma g
     pretty (URegexp r) = pretty r
-    pretty (UVariableReference v) = dullblue (char '$' <> text (T.unpack v))
+    pretty (UVariableReference v) = dullblue (char '$' <> text (Text.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
     pretty (UHOLambdaCall c) = pretty c
 
 instance Pretty CompRegex where
-    pretty (CompRegex r _) = char '/' <> text (T.unpack r) <> char '/'
+    pretty (CompRegex r _) = char '/' <> text (Text.unpack r) <> char '/'
 
 instance Pretty HOLambdaCall where
     pretty (HOLambdaCall hf me bp stts mee) = pretty hf <> mme <+> pretty bp <+> nest 2 (char '{' <$> ppStatements stts <> mmee) <$> char '}'
         where
             mme = case me of
-                      S.Just x -> mempty <+> pretty x
+                      S.Just x  -> mempty <+> pretty x
                       S.Nothing -> mempty
             mmee = case mee of
-                       S.Just x -> mempty </> pretty x
+                       S.Just x  -> mempty </> pretty x
                        S.Nothing -> mempty
 instance Pretty SelectorCase where
-    pretty SelectorDefault = dullmagenta (text "default")
-    pretty (SelectorType t) = pretty t
+    pretty SelectorDefault   = dullmagenta (text "default")
+    pretty (SelectorType t)  = pretty t
     pretty (SelectorValue v) = pretty v
 
 instance Pretty LinkType where
@@ -160,35 +160,35 @@ showPos :: Position -> Doc
 showPos p = green (char '#' <+> string (show p))
 
 showPPos :: PPosition -> Doc
-showPPos p = green (char '#' <+> string (show (S.fst p)))
+showPPos p = green (char '#' <+> string (show (Tuple.fst p)))
 
 showAss :: V.Vector AttributeDecl -> Doc
 showAss vx = folddoc (\a b -> a <> char ',' <$> b) prettyDecl (V.toList vx)
     where
-        folddoc _ _ [] = empty
+        folddoc _ _ []            = empty
         folddoc acc docGen (x:xs) = foldl acc (docGen x) (map docGen xs)
-        maxlen = maximum (fmap (\(AttributeDecl k _ _) -> T.length k) vx)
+        maxlen = maximum (fmap (\(AttributeDecl k _ _) -> Text.length k) vx)
         prettyDecl (AttributeDecl k op v) = dullblue (fill maxlen (ttext k)) <+> pretty op <+> pretty v
 
-showArgs :: V.Vector (Pair (Pair T.Text (S.Maybe DataType)) (S.Maybe Expression)) -> Doc
+showArgs :: V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)) -> Doc
 showArgs vec = tupled (map ra lst)
     where
         lst = V.toList vec
-        maxlen = maximum (map (T.length . S.fst . S.fst) lst)
+        maxlen = maximum (map (Text.length . Tuple.fst . Tuple.fst) lst)
         ra (argname :!: mtype :!: rval)
           = dullblue (char '$' <> foldMap (\t -> pretty t <+> empty) mtype
-                               <> fill maxlen (text (T.unpack argname)))
+                               <> fill maxlen (text (Text.unpack argname)))
                                <> foldMap (\v -> empty <+> char '=' <+> pretty v) rval
 
-showFunc :: T.Text -> V.Vector Expression -> Doc
-showFunc funcname args = bold (red (text (T.unpack funcname))) <> parensList args
+showFunc :: Text -> V.Vector Expression -> Doc
+showFunc funcname args = bold (red (text (Text.unpack funcname))) <> parensList args
 braceStatements :: V.Vector Statement -> Doc
 braceStatements stts = nest 2 (char '{' <$> ppStatements stts) <$> char '}'
 
 instance Pretty NodeDesc where
-    pretty NodeDefault     = dullmagenta (text "default")
-    pretty (NodeName n)    = pretty (UString n)
-    pretty (NodeMatch r)   = pretty (URegexp r)
+    pretty NodeDefault   = dullmagenta (text "default")
+    pretty (NodeName n)  = pretty (UString n)
+    pretty (NodeMatch r) = pretty (URegexp r)
 
 instance Pretty Statement where
     pretty (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) = pretty c <+> showPPos p
@@ -203,23 +203,23 @@ instance Pretty Statement where
     pretty (MainFunctionDeclaration (MainFuncDecl funcname args p)) = showFunc funcname args <+> showPPos p
     pretty (ResourceDefaultDeclaration (ResDefaultDecl rtype defaults p)) = capitalize rtype <+> nest 2 (char '{' <+> showPPos p <$> showAss defaults) <$> char '}'
     pretty (ResourceOverrideDeclaration (ResOverrideDecl rtype rnames overs p)) = pretty (UResourceReference rtype rnames) <+> nest 2 (char '{' <+> showPPos p <$> showAss overs) <$> char '}'
-    pretty (ResourceDeclaration (ResDecl rtype rname args virt p)) = nest 2 (red vrt <> dullgreen (text (T.unpack rtype)) <+> char '{' <+> showPPos p
+    pretty (ResourceDeclaration (ResDecl rtype rname args virt p)) = nest 2 (red vrt <> dullgreen (text (Text.unpack rtype)) <+> char '{' <+> showPPos p
                                                                            <$> nest 2 (pretty rname <> char ':' <$> showAss args))
                                                                            <$> char '}'
         where
             vrt = case virt of
-                      Normal -> empty
-                      Virtual -> char '@'
-                      Exported -> text "@@"
+                      Normal           -> empty
+                      Virtual          -> char '@'
+                      Exported         -> text "@@"
                       ExportedRealized -> text "!!"
     pretty (DefineDeclaration (DefineDecl cname args stts p)) = dullyellow (text "define") <+> dullgreen (ttext cname) <> showArgs args <+> showPPos p <$> braceStatements stts
-    pretty (ClassDeclaration (ClassDecl cname args inherit stts p)) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname)) <> showArgs args <> inheritance <+> showPPos p
+    pretty (ClassDeclaration (ClassDecl cname args inherit stts p)) = dullyellow (text "class") <+> dullgreen (text (Text.unpack cname)) <> showArgs args <> inheritance <+> showPPos p
                                                                <$> braceStatements stts
         where
             inheritance = case inherit of
                               S.Nothing -> empty
-                              S.Just x -> empty <+> text "inherits" <+> text (T.unpack x)
-    pretty (VarAssignmentDeclaration (VarAssignDecl a b p)) = dullblue (char '$' <> text (T.unpack a)) <+> char '=' <+> pretty b <+> showPPos p
+                              S.Just x -> empty <+> text "inherits" <+> text (Text.unpack x)
+    pretty (VarAssignmentDeclaration (VarAssignDecl a b p)) = dullblue (char '$' <> text (Text.unpack a)) <+> char '=' <+> pretty b <+> showPPos p
     pretty (NodeDeclaration (NodeDecl nodename stmts i p)) = dullyellow (text "node") <+> pretty nodename <> inheritance <+> showPPos p <$> braceStatements stmts
         where
             inheritance = case i of

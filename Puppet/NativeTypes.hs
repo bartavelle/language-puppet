@@ -4,7 +4,8 @@ module Puppet.NativeTypes (
   , validateNativeType
 ) where
 
-import           Control.Lens
+import           Puppet.Prelude
+
 import           Control.Monad.Operational
 import qualified Data.HashMap.Strict           as HM
 

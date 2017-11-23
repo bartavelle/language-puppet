@@ -91,41 +91,36 @@ module Puppet.Interpreter.Types (
  , showPos
 ) where
 
-import           Control.Exception
+import           Puppet.Prelude hiding (show)
+
 import           Control.Lens                hiding (Strict)
-import           Control.Monad.Except
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
 import           Control.Monad.Writer.Class
 import           Data.Aeson                  as A
 import           Data.Aeson.Lens
 import qualified Data.Either.Strict          as S
-import           Data.Hashable
 import qualified Data.HashMap.Strict         as HM
 import qualified Data.HashSet                as HS
 import qualified Data.Maybe.Strict           as S
-import           Data.Monoid
-import           Data.Scientific
 import           Data.String                 (IsString (..))
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
+import qualified Data.Text                   as Text
+import qualified Data.List                   as List
 import           Data.Text.Encoding          (decodeUtf8)
 import           Data.Time.Clock
 import qualified Data.Traversable            as TR
-import           Data.Tuple.Strict
 import qualified Data.Vector                 as V
 import           Foreign.Ruby.Helpers
-import           GHC.Generics                hiding (to)
+import           GHC.Show                    (Show (..))
 import           GHC.Stack
-import qualified System.Log.Logger           as LOG
+import qualified System.Log.Logger           as Log
 import           Text.Megaparsec.Pos
-import           Web.HttpApiData             (ToHttpApiData(..))
+import           Web.HttpApiData             (ToHttpApiData (..))
 
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP                   hiding (rational)
-import           Puppet.Utils
 
 metaparameters :: HS.HashSet Text
 metaparameters = HS.fromList ["tag","stage","name","title","alias","audit","check","loglevel","noop","schedule", "EXPORTEDSOURCE", "require", "before", "register", "notify"]
@@ -155,7 +150,7 @@ instance Pretty PrettyError where
 data PValue = PBoolean !Bool
             | PUndef
             | PString !Text -- integers and doubles are internally serialized as strings by puppet
-            | PResourceReference !Text !T.Text
+            | PResourceReference !Text !Text
             | PArray !(V.Vector PValue)
             | PHash !(Container PValue)
             | PNumber !Scientific
@@ -163,7 +158,7 @@ data PValue = PBoolean !Bool
             deriving (Eq, Show)
 
 instance IsString PValue where
-    fromString = PString . T.pack
+    fromString = PString . Text.pack
 
 instance AsNumber PValue where
     _Number = prism num2PValue toNumber
@@ -183,8 +178,8 @@ data HieraQueryType
     | QUnique -- ^ hiera_array
     | QHash  -- ^ hiera_hash
     | QDeep
-    { _knockoutPrefix  :: Maybe Text
-    , _sortMerged      :: Bool
+    { _knockoutPrefix :: Maybe Text
+    , _sortMerged     :: Bool
     , _mergeHashArray :: Bool
     } deriving (Show)
 
@@ -253,7 +248,7 @@ data ResRefOverride = ResRefOverride
 
 data CurContainerDesc = ContRoot -- ^ Contained at node or root level
                       | ContClass !Text -- ^ Contained in a class
-                      | ContDefine !Text !T.Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
+                      | ContDefine !Text !Text !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
                       | ContImported !CurContainerDesc -- ^ Dummy container for imported resources, so that we know we must update the nodename
                       | ContImport !NodeName !CurContainerDesc -- ^ This one is used when finalizing imported resources, and contains the current node name
                       deriving (Eq, Generic, Ord, Show)
@@ -291,7 +286,7 @@ data InterpreterState = InterpreterState
 data InterpreterReader m = InterpreterReader
     { _readerNativeTypes     :: !(Container NativeTypeMethods)
     , _readerGetStatement    :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
-    , _readerGetTemplate     :: Either Text T.Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError T.Text)
+    , _readerGetTemplate     :: Either Text Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
     , _readerPdbApi          :: PuppetDBAPI m
     , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue) -- ^ external func such as stdlib or puppetlabs
     , _readerNodename        :: Text
@@ -306,7 +301,7 @@ data InterpreterReader m = InterpreterReader
 
 data IoMethods m = IoMethods
     { _ioGetCurrentCallStack :: m [String]
-    , _ioReadFile            :: [Text] -> m (Either String T.Text)
+    , _ioReadFile            :: [Text] -> m (Either String Text)
     , _ioTraceEvent          :: String -> m ()
     }
 
@@ -314,10 +309,10 @@ data InterpreterInstr a where
     -- Utility for using what's in "InterpreterReader"
     GetNativeTypes      :: InterpreterInstr (Container NativeTypeMethods)
     GetStatement        :: TopLevelType -> Text -> InterpreterInstr Statement
-    ComputeTemplate     :: Either Text T.Text -> InterpreterState -> InterpreterInstr T.Text
+    ComputeTemplate     :: Either Text Text -> InterpreterState -> InterpreterInstr Text
     ExternalFunction    :: Text -> [PValue] -> InterpreterInstr PValue
     GetNodeName         :: InterpreterInstr Text
-    HieraQuery          :: Container Text -> T.Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
+    HieraQuery          :: Container Text -> Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
     GetCurrentCallStack :: InterpreterInstr [String]
     IsIgnoredModule     :: Text -> InterpreterInstr Bool
     IsExternalModule    :: Text -> InterpreterInstr Bool
@@ -342,7 +337,7 @@ data InterpreterInstr a where
     PDBCommitDB         :: InterpreterInstr ()
     PDBGetResourcesOfNode :: NodeName -> Query ResourceField -> InterpreterInstr [Resource]
     -- Reading the first file that can be read in a list
-    ReadFile            :: [Text] -> InterpreterInstr T.Text
+    ReadFile            :: [Text] -> InterpreterInstr Text
     -- Tracing events
     TraceEvent          :: String -> InterpreterInstr ()
 
@@ -354,7 +349,7 @@ instance MonadError PrettyError InterpreterMonad where
     catchError a c = singleton (ErrorCatch a c)
 
 -- | Log
-type InterpreterWriter = [Pair LOG.Priority Doc]
+type InterpreterWriter = [Pair Log.Priority Doc]
 instance MonadWriter InterpreterWriter InterpreterMonad where
     tell = singleton . WriterTell
     pass = singleton . WriterPass
@@ -377,7 +372,7 @@ data ResourceModifier = ResourceModifier
     }
 
 instance Show ResourceModifier where
-  show (ResourceModifier rt mt ct se _ p) = unwords ["ResourceModifier", show rt, show mt, show ct, "(" ++ show se ++ ")", "???", show p]
+  show (ResourceModifier rt mt ct se _ p) = List.unwords ["ResourceModifier", show rt, show mt, show ct, "(" ++ show se ++ ")", "???", show p]
 
 data ModifierType = ModifierCollector -- ^ For collectors, optional resources
                   | ModifierMustMatch -- ^ For stuff like realize
@@ -474,7 +469,7 @@ data Query a = QEqual a Text
              | QL a Integer
              | QGE a Integer
              | QLE a Integer
-             | QMatch Text T.Text
+             | QMatch Text Text
              | QAnd [Query a]
              | QOr [Query a]
              | QNot (Query a)
@@ -587,7 +582,7 @@ instance ToJSON Resource where
                 c <- HS.toList v
                 return (rel2text c, V.singleton (String (rid2text k)))
             rid2text :: RIdentifier -> Text
-            rid2text (RIdentifier t n) = capitalizeRT t `T.append` "[" `T.append` capn `T.append` "]"
+            rid2text (RIdentifier t n) = capitalizeRT t `Text.append` "[" `Text.append` capn `Text.append` "]"
                 where
                     capn = if t == "classe"
                              then capitalizeRT n
@@ -601,13 +596,13 @@ instance FromJSON Resource where
                              else Normal
             getResourceIdentifier :: PValue -> Maybe RIdentifier
             getResourceIdentifier (PString x) =
-                let (restype, brckts) = T.breakOn "[" x
-                    rna | T.null brckts        = Nothing
-                        | T.null restype       = Nothing
-                        | T.last brckts == ']' = Just (T.tail (T.init brckts))
+                let (restype, brckts) = Text.breakOn "[" x
+                    rna | Text.null brckts        = Nothing
+                        | Text.null restype       = Nothing
+                        | Text.last brckts == ']' = Just (Text.tail (Text.init brckts))
                         | otherwise            = Nothing
                 in case rna of
-                       Just resname -> Just (RIdentifier (T.toLower restype) (T.toLower resname))
+                       Just resname -> Just (RIdentifier (Text.toLower restype) (Text.toLower resname))
                        _ -> Nothing
             getResourceIdentifier _ = Nothing
             -- TODO : properly handle metaparameters
@@ -618,7 +613,7 @@ instance FromJSON Resource where
         (attribs,relations) <- HM.foldlWithKey' separate (mempty,mempty) <$> v .: "parameters"
         contimport <- v .:? "certname" .!= "unknown"
         Resource
-                <$> (RIdentifier <$> fmap T.toLower (v .: "type") <*> v .: "title")
+                <$> (RIdentifier <$> fmap Text.toLower (v .: "type") <*> v .: "title")
                 <*> v .:? "aliases" .!= mempty
                 <*> pure attribs
                 <*> pure relations

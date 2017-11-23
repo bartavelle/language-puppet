@@ -5,11 +5,10 @@ This is not accurate in the presence of lazy evaluation. Nothing is forced.
 -}
 module Puppet.Stats (measure, newStats, getStats, StatsTable, StatsPoint(..), MStats) where
 
+import Puppet.Prelude
+
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Control.Concurrent
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as T
-import Control.Lens
 
 data StatsPoint = StatsPoint { _statspointCount :: !Int    -- ^ Total number of calls to a computation
                              , _statspointTotal :: !Double -- ^ Total time spent during this computation
@@ -19,7 +18,7 @@ data StatsPoint = StatsPoint { _statspointCount :: !Int    -- ^ Total number of 
 
 -- | A table where keys are the names of the computations, and values are
 -- 'StatsPoint's.
-type StatsTable = HM.HashMap T.Text StatsPoint
+type StatsTable = HM.HashMap Text StatsPoint
 
 newtype MStats = MStats { unMStats :: MVar StatsTable }
 -- | Returns the actual statistical values.
@@ -32,7 +31,7 @@ newStats = MStats `fmap` newMVar HM.empty
 
 -- | Wraps a computation, and measures related execution statistics.
 measure :: MStats -- ^ Statistics container
-        -> T.Text -- ^ Action identifier
+        -> Text -- ^ Action identifier
         -> IO a   -- ^ Computation
         -> IO a
 measure (MStats mtable) statsname action = do

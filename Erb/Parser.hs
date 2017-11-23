@@ -1,6 +1,8 @@
 {-# LANGUAGE LambdaCase #-}
 module Erb.Parser where
 
+import Puppet.Prelude hiding (try, option)
+
 import Text.Parsec.String
 import Text.Parsec.Prim hiding ((<|>),many)
 import Text.Parsec.Char
@@ -13,9 +15,7 @@ import Text.Parsec.Pos
 import qualified Text.Parsec.Token as P
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Control.Monad.Identity
 import Control.Exception (catch,SomeException)
-import Control.Applicative
 
 def :: P.GenLanguageDef String u Identity
 def = emptyDef
@@ -163,7 +163,7 @@ rubyblock = do
     spaces
     let dn (x:xs) = DropNextSpace x : xs
         dn x = x
-    ns <- option id (char '-' >> return dn)
+    ns <- option identity (char '-' >> return dn)
     void $ string "%>"
     n <- textblock
     return (ps ++ parsed ++ ns n)

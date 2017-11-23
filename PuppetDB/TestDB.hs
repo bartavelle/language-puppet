@@ -10,18 +10,15 @@ module PuppetDB.TestDB
        , initTestDB
 ) where
 
+import           Puppet.Prelude
+
 import           Control.Concurrent.STM
-import           Control.Exception
-import           Control.Lens
-import           Control.Monad.IO.Class
-import           Control.Monad.Except
 import           Data.Aeson.Lens
 import           Data.CaseInsensitive
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.HashSet             as HS
 import           Data.List                (foldl')
 import qualified Data.Maybe.Strict        as S
-import           Data.Monoid
 import qualified Data.Text                as T
 import qualified Data.Vector              as V
 import           Data.Yaml
@@ -85,8 +82,8 @@ genDBAPI db = do
                         (getResNode d)
                         )
 
-data Extracted = EText T.Text
-               | ESet (HS.HashSet T.Text)
+data Extracted = EText Text
+               | ESet (HS.HashSet Text)
                | ENil
 
 resolveQuery :: (a -> b -> Extracted) -> Query a -> b -> Bool

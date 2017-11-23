@@ -12,14 +12,13 @@ module Puppet.Preferences (
   , HasPuppetDirPaths(..)
 ) where
 
-import           Control.Lens
-import           Control.Monad              (mzero)
+import           Puppet.Prelude
+
 import           Data.Aeson
 import qualified Data.HashMap.Strict        as HM
 import qualified Data.HashSet               as HS
-import           Data.Maybe                 (fromMaybe)
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
+import qualified Data.Text                  as Text
+import qualified Data.Yaml                  as Yaml
 import qualified System.Log.Logger          as LOG
 import           System.Posix               (fileExist)
 
@@ -29,7 +28,6 @@ import           Puppet.NativeTypes.Helpers
 import           Puppet.Paths
 import qualified Puppet.Puppetlabs          as Puppetlabs
 import           Puppet.Stdlib
-import           Puppet.Utils
 import           PuppetDB.Dummy
 
 data Preferences m = Preferences
@@ -90,7 +88,7 @@ dfPreferences basedir = do
         testdir = dirpaths ^. testPath
         hierafile = basedir <> "/hiera.yaml"
         defaultfile = testdir <> "/defaults.yaml"
-    defaults <- ifM (fileExist defaultfile) (loadYamlFile defaultfile) (pure Nothing)
+    defaults <- ifM (fileExist defaultfile) (Yaml.decodeFile defaultfile) (pure Nothing)
     hieradir <- ifM (fileExist hierafile) (pure $ Just hierafile) (pure Nothing)
     loadedtypes <- loadedTypes modulesdir
     labsFunctions <- Puppetlabs.extFunctions modulesdir
@@ -113,7 +111,7 @@ dfPreferences basedir = do
 
 loadedTypes :: FilePath -> IO (HM.HashMap NativeTypeName NativeTypeMethods)
 loadedTypes modulesdir = do
-  typenames <- fmap (map takeBaseName) (getFiles (T.pack modulesdir) "lib/puppet/type" ".rb")
+  typenames <- fmap (map takeBaseName) (getFiles (Text.pack modulesdir) "lib/puppet/type" ".rb")
   pure $ HM.fromList (map defaulttype typenames)
 
 -- Utilities for getting default values from the yaml file
@@ -142,7 +140,7 @@ getPuppetSettings :: PuppetDirPaths -> Maybe Defaults -> Container Text
 getPuppetSettings dirpaths = fromMaybe df . (>>= _dfPuppetSettings)
     where
       df :: Container Text
-      df = HM.fromList [ ("confdir", T.pack $ dirpaths^.baseDir)
+      df = HM.fromList [ ("confdir", Text.pack $ dirpaths^.baseDir)
                        , ("strict_variables", "true")
                        ]
 

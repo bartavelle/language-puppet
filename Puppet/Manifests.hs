@@ -3,14 +3,11 @@
 {-# LANGUAGE LambdaCase       #-}
 module Puppet.Manifests (filterStatements) where
 
-import           Control.Applicative
-import           Control.Lens
-import           Control.Monad.Except
+import           Puppet.Prelude
+
 import qualified Data.Either.Strict               as S
 import qualified Data.HashMap.Strict              as HM
-import qualified Data.Text                        as T
-import qualified Data.Text.Encoding               as T
-import           Data.Tuple.Strict
+import qualified Data.Text.Encoding               as Text
 import qualified Data.Vector                      as V
 import           Text.Regex.PCRE.ByteString.Utils
 
@@ -19,7 +16,7 @@ import           Puppet.Parser.Types
 import           Puppet.PP
 
 -- TODO pre-triage stuff
-filterStatements :: TopLevelType -> T.Text -> V.Vector Statement -> IO (S.Either PrettyError Statement)
+filterStatements :: TopLevelType -> Text -> V.Vector Statement -> IO (S.Either PrettyError Statement)
 -- the most complicated case, node matching
 filterStatements TopNode ndename stmts =
     -- this operation should probably get cached
@@ -28,7 +25,7 @@ filterStatements TopNode ndename stmts =
         triage curstuff n@(NodeDeclaration (NodeDecl (NodeMatch (CompRegex _ !rg)) _ _ _)) = curstuff & _3 %~ (|> (rg :!: n))
         triage curstuff n@(NodeDeclaration (NodeDecl  NodeDefault _  _ _)) = curstuff & _4 ?~ n
         triage curstuff x = curstuff & _1 %~ (|> x)
-        bsnodename = T.encodeUtf8 ndename
+        bsnodename = Text.encodeUtf8 ndename
         checkRegexp :: [Pair Regex Statement] -> ExceptT PrettyError IO (Maybe Statement)
         checkRegexp [] = return Nothing
         checkRegexp ((regexp  :!: s):xs) =

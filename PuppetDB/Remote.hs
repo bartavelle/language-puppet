@@ -5,10 +5,8 @@
 {-# LANGUAGE TypeOperators     #-}
 module PuppetDB.Remote (pdbConnect) where
 
-import           Control.Lens
-import           Control.Monad.Except
-import           Data.Proxy
-import           Data.Text                (Text)
+import           Puppet.Prelude
+
 import           Network.HTTP.Client      (Manager)
 import           Servant.API
 import           Servant.Client

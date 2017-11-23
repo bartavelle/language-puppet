@@ -20,33 +20,30 @@ module Hiera.Server (
   , HieraQueryFunc
 ) where
 
-import           Control.Applicative
-import           Control.Lens
+import           Puppet.Prelude
+
 import           Control.Monad.Except
-import           Control.Monad.Trans.Reader
-import           Control.Monad.Writer.Strict
-import           Data.Aeson                  (FromJSON, Value (..), (.!=), (.:),
-                                              (.:?))
-import qualified Data.Aeson                  as A
+import           Data.Aeson               (FromJSON, Value (..), (.!=), (.:),
+                                           (.:?))
+import qualified Data.Aeson               as A
 import           Data.Aeson.Lens
-import qualified Data.Attoparsec.Text        as AT
-import qualified Data.ByteString.Lazy        as BS
-import qualified Data.Either.Strict          as S
-import qualified Data.FileCache              as F
-import qualified Data.List                   as L
-import           Data.Maybe                  (catMaybes, mapMaybe)
-import           Data.String                 (fromString)
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import qualified Data.Vector                 as V
-import qualified Data.Yaml                   as Y
-import qualified System.FilePath             as FilePath
-import           System.FilePath.Lens        (directory)
-import qualified System.Log.Logger           as LOG
+import qualified Data.Attoparsec.Text     as AT
+import qualified Data.ByteString.Lazy     as BS
+import qualified Data.Either.Strict       as S
+import qualified Data.FileCache           as F
+import qualified Data.List                as L
+import           Data.Maybe               (catMaybes, mapMaybe)
+import           Data.String              (fromString)
+import           Data.Text                (Text)
+import qualified Data.Text                as T
+import qualified Data.Vector              as V
+import qualified Data.Yaml                as Y
+import qualified System.FilePath          as FilePath
+import           System.FilePath.Lens     (directory)
+import qualified System.Log.Logger        as LOG
 
 import           Puppet.Interpreter.Types
 import           Puppet.PP
-import           Puppet.Utils                (strictifyEither)
 
 
 hieraLoggerName :: String
@@ -152,7 +149,7 @@ startHiera fp = do
 dummyHiera :: Monad m => HieraQueryFunc m
 dummyHiera _ _ _ = return $ S.Right Nothing
 
-resolveString :: Container Text -> InterpolableHieraString -> Maybe T.Text
+resolveString :: Container Text -> InterpolableHieraString -> Maybe Text
 resolveString vars = fmap T.concat . mapM resolve . getInterpolableHieraString
   where
     resolve (HPString x)   = Just x
@@ -196,11 +193,11 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
 
 type QM a = ExceptT PrettyError (Reader QRead) a
 
-checkLoop :: Text -> [T.Text] -> QM ()
+checkLoop :: Text -> [Text] -> QM ()
 checkLoop x xs =
     when (x `elem` xs) (throwError ("Loop in hiera: " <> fromString (T.unpack (T.intercalate ", " (x:xs)))))
 
-recursiveQuery :: Text -> [T.Text] -> QM (Maybe PValue)
+recursiveQuery :: Text -> [Text] -> QM (Maybe PValue)
 recursiveQuery curquery prevqueries = do
   checkLoop curquery prevqueries
   rawlookups <- mapMaybe (preview (key curquery)) <$> view qhier
@@ -223,7 +220,7 @@ resolveValue prevqueries value =
         Object hh -> Object <$> mapM (resolveValue prevqueries) hh
         _         -> return value
 
-resolveText :: [Text] -> T.Text -> QM T.Text
+resolveText :: [Text] -> Text -> QM Text
 resolveText prevqueries t
     = case parseInterpolableString t of
         Right qparts -> T.concat <$> mapM (resolveStringPart prevqueries) qparts

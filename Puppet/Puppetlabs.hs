@@ -1,14 +1,13 @@
 -- | Contains an Haskell implementation (or mock implementation) of some ruby functions found in puppetlabs modules
 module Puppet.Puppetlabs (extFunctions) where
 
-import           Control.Lens
+import           Puppet.Prelude
+
 import           Crypto.Hash                      as Crypto
 import           Data.ByteString                  (ByteString)
 import           Data.Foldable                    (foldlM)
 import qualified Data.HashMap.Strict              as HM
-import           Data.Monoid
 import           Data.Scientific                  as Sci
-import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
 import           Data.Vector                      (Vector)

@@ -1,13 +1,14 @@
 module Puppet.NativeTypes.Mount (nativeMount) where
 
+import Puppet.Prelude
+
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import qualified Data.Text as T
 
 nativeMount :: (NativeTypeName, NativeTypeMethods)
 nativeMount = ("mount", nativetypemethods parameterfunctions return)
 
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("atboot"      , [string, values ["true","false"]])
     ,("blockdevice" , [string])

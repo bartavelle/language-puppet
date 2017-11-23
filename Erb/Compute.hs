@@ -5,12 +5,12 @@ module Erb.Compute (
   , initTemplateDaemon
 ) where
 
-import           Control.Concurrent
-import           Control.Exception
-import           Control.Monad.Except
+import           Puppet.Prelude
+
 import           Data.Aeson.Lens
 import qualified Data.Either.Strict           as S
 import           Data.FileCache
+import qualified Data.List as List
 import qualified Data.Text                    as T
 import           Data.String
 import qualified Data.Vector                  as V
@@ -25,9 +25,7 @@ import           System.Posix.Files
 import           Text.Parsec                  hiding (string)
 import           Text.Parsec.Error
 import           Text.Parsec.Pos
-import           Control.Lens
-
-import           Data.Tuple.Strict
+import           Data.Tuple.Strict (Pair(..))
 import qualified Foreign.Ruby.Helpers         as FR
 import qualified Foreign.Ruby.Bindings        as FR
 import           Foreign.Ruby
@@ -39,22 +37,21 @@ import           Puppet.Interpreter.Resolve
 import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
-import           Puppet.Utils
 
 instance IsString TemplateParseError where
   fromString s = TemplateParseError $ newErrorMessage (Message s) (initialPos "dummy")
 
 newtype TemplateParseError = TemplateParseError { tgetError :: ParseError }
 
-type TemplateQuery = (Chan TemplateAnswer, Either T.Text T.Text, InterpreterState, InterpreterReader IO)
-type TemplateAnswer = S.Either PrettyError T.Text
+type TemplateQuery = (Chan TemplateAnswer, Either Text Text, InterpreterState, InterpreterReader IO)
+type TemplateAnswer = S.Either PrettyError Text
 
 showRubyError :: RubyError -> PrettyError
 showRubyError (Stack msg stk) = PrettyError $ dullred (string msg) </> dullyellow (string stk)
 showRubyError (WithOutput str _) = PrettyError $ dullred (string str)
 showRubyError (OtherError rr) = PrettyError (dullred (text rr))
 
-initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text))
+initTemplateDaemon :: RubyInterpreter -> Preferences IO -> MStats -> IO (Either Text Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text))
 initTemplateDaemon intr prefs mvstats = do
     controlchan <- newChan
     templatecache <- newFileCache
@@ -72,13 +69,13 @@ initTemplateDaemon intr prefs mvstats = do
         return (templateQuery controlchan)
     either returnError return x
 
-templateQuery :: Chan TemplateQuery -> Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text)
+templateQuery :: Chan TemplateQuery -> Either Text Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text)
 templateQuery qchan filename stt rdr = do
     rchan <- newChan
     writeChan qchan (rchan, filename, stt, rdr)
     readChan rchan
 
-templateDaemon :: RubyInterpreter -> T.Text -> T.Text -> Chan TemplateQuery -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO ()
+templateDaemon :: RubyInterpreter -> Text -> Text -> Chan TemplateQuery -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO ()
 templateDaemon intr modpath templatepath qchan mvstats filecache = do
     let nameThread :: String -> IO ()
         nameThread n = myThreadId >>= flip labelThread n
@@ -88,16 +85,16 @@ templateDaemon intr modpath templatepath qchan mvstats filecache = do
     case fileinfo of
         Right filename -> do
             let prts = T.splitOn "/" filename
-                searchpathes | length prts > 1 = [modpath <> "/" <> head prts <> "/templates/" <> T.intercalate "/" (tail prts), templatepath <> "/" <> filename]
+                searchpathes | length prts > 1 = [modpath <> "/" <> List.head prts <> "/templates/" <> T.intercalate "/" (List.tail prts), templatepath <> "/" <> filename]
                              | otherwise        = [templatepath <> "/" <> filename]
             acceptablefiles <- filterM (fileExist . T.unpack) searchpathes
             if null acceptablefiles
                 then writeChan respchan (S.Left $ PrettyError $ "Can't find template file for" <+> ttext filename <+> ", looked in" <+> list (map ttext searchpathes))
-                else measure mvstats filename (computeTemplate intr (Right (head acceptablefiles)) stt rdr mvstats filecache) >>= writeChan respchan
+                else measure mvstats filename (computeTemplate intr (Right (List.head acceptablefiles)) stt rdr mvstats filecache) >>= writeChan respchan
         Left _ -> measure mvstats "inline" (computeTemplate intr fileinfo stt rdr mvstats filecache) >>= writeChan respchan
     templateDaemon intr modpath templatepath qchan mvstats filecache
 
-computeTemplate :: RubyInterpreter -> Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
+computeTemplate :: RubyInterpreter -> Either Text Text -> InterpreterState -> InterpreterReader IO -> MStats -> FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
 computeTemplate intr fileinfo stt rdr mstats filecache = do
     let (curcontext, fvariables) = case extractFromState stt of
                                        Nothing -> (mempty, mempty)
@@ -150,7 +147,7 @@ getRubyScriptPath rubybin = do
 -- This must be called from the proper thread. As this is callback, this
 -- should be ok.
 hrresolveVariable :: RValue -> RValue -> RValue -> RValue -> IO RValue
--- T.Text -> Container PValue -> RValue -> RValue -> IO RValue
+-- Text -> Container PValue -> RValue -> RValue -> IO RValue
 hrresolveVariable _ rscp rvariables rtoresolve = do
     scope <- FR.extractHaskellValue rscp
     variables <- FR.extractHaskellValue rvariables
@@ -173,7 +170,7 @@ hrcallfunction _ rfname rargs rstt rrdr = do
     rdr <- FR.extractHaskellValue rrdr
     stt <- FR.extractHaskellValue rstt
     let err :: String -> IO RValue
-        err rr = fmap (either Prelude.snd id) (FR.toRuby (T.pack rr) >>= FR.safeMethodCall "MyError" "new" . (:[]))
+        err rr = fmap (either snd identity) (FR.toRuby (T.pack rr) >>= FR.safeMethodCall "MyError" "new" . (:[]))
     case (,) <$> efname <*> eargs of
         Right (fname, varray) | fname `elem` ["template", "inline_template"] -> err "Can't call template from a Ruby function, as this will stall (yes it sucks ...)"
                               | otherwise -> do
@@ -188,7 +185,7 @@ hrcallfunction _ rfname rargs rstt rrdr = do
                 Left rr -> err (show rr)
         Left rr -> err rr
 
-computeTemplateWRuby :: Either T.Text T.Text -> T.Text -> Container ScopeInformation -> InterpreterState -> InterpreterReader IO -> IO TemplateAnswer
+computeTemplateWRuby :: Either Text Text -> Text -> Container ScopeInformation -> InterpreterState -> InterpreterReader IO -> IO TemplateAnswer
 computeTemplateWRuby fileinfo curcontext variables stt rdr = FR.freezeGC $ eitherDocIO $ do
     rscp <- FR.embedHaskellValue curcontext
     rvariables <- FR.embedHaskellValue variables
@@ -198,7 +195,7 @@ computeTemplateWRuby fileinfo curcontext variables stt rdr = FR.freezeGC $ eithe
     -- must be called from a "makeSafe" thingie
     contentinfo <- case fileinfo of
                        Right fname -> FR.toRuby fname
-                       Left _ -> FR.toRuby ("-" :: T.Text)
+                       Left _ -> FR.toRuby ("-" :: Text)
     let withBinding f = do
             erbBinding <- FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables,rstt,rrdr,contentinfo]
             case erbBinding of

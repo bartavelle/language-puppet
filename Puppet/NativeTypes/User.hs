@@ -1,15 +1,17 @@
 module Puppet.NativeTypes.User (nativeUser) where
 
+
+import           Puppet.Prelude
+
 import Puppet.NativeTypes.Helpers
 import Puppet.Interpreter.Types
-import qualified Data.Text as T
 
 nativeUser :: (NativeTypeName, NativeTypeMethods)
 nativeUser = ("user", nativetypemethods parameterfunctions return)
 
 -- Autorequires: If Puppet is managing the user or user that owns a file, the file resource will autorequire them.
 -- If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("allowdupe"               , [string, defaultvalue "false", values ["true","false"]])
     ,("attribute_membership"    , [string, defaultvalue "minimum", values ["inclusive","minimum"]])

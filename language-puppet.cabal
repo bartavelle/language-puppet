@@ -60,7 +60,7 @@ library
                        , Puppet.Stats
                        , Puppet.Stdlib
                        , Puppet.OptionalTests
-                       , Puppet.Utils
+                       , Puppet.Prelude
   other-modules:         Erb.Compute
                        , Paths_language_puppet
                        , Puppet.Interpreter.RubyRandom
@@ -79,7 +79,7 @@ library
                        , Puppet.NativeTypes.ZoneRecord
                        , Puppet.Parser.Utils
                        , Puppet.Paths
-  extensions:          OverloadedStrings, BangPatterns
+  extensions:          OverloadedStrings, BangPatterns, NoImplicitPrelude
   ghc-options:         -Wall -funbox-strict-fields -j1
   -- ghc-prof-options:    -auto-all -caf-all
   build-depends:       aeson                >= 0.8
@@ -112,6 +112,7 @@ library
                      , parsec               == 3.1.*
                      , pcre-utils           >= 0.1.7   && < 0.2
                      , process              >= 1.2
+                     , protolude            >= 0.2
                      , random
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2 && < 0.4

@@ -1,13 +1,14 @@
 -- | Base types for the internal ruby parser ("Erb.Parser").
 module Erb.Ruby where
 
-import qualified Data.Text as T
-import Text.PrettyPrint.ANSI.Leijen
+import           Puppet.Prelude hiding ((<>))
+
+import           Text.PrettyPrint.ANSI.Leijen
 
 data Value
-    = Literal !T.Text
+    = Literal !Text
     | Interpolable ![Expression]
-    | Symbol !T.Text
+    | Symbol !Text
     | Array ![Expression]
     deriving (Show, Ord, Eq)
 
@@ -34,7 +35,7 @@ data Expression
     | ConditionalValue !Expression !Expression
     | Object !Expression
     | MethodCall !Expression !Expression
-    | BlockOperation !T.Text
+    | BlockOperation !Text
     | Value !Value
     | BTrue
     | BFalse
