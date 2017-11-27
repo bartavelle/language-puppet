@@ -197,6 +197,7 @@ executable puppetresources
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -funbox-strict-fields -threaded -with-rtsopts "-A2M" -eventlog
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
+  other-modules:       Paths_language_puppet
   build-depends:       base
                      , Glob
                      , aeson
@@ -237,6 +238,7 @@ executable pdbquery
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
+  other-modules:       Paths_language_puppet
   build-depends:       base
                      , aeson
                      , bytestring

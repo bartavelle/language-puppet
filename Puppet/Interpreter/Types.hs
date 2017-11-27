@@ -106,7 +106,6 @@ import qualified Data.Maybe.Strict           as S
 import           Data.String                 (IsString (..))
 import qualified Data.Text                   as Text
 import qualified Data.List                   as List
-import           Data.Text.Encoding          (decodeUtf8)
 import           Data.Time.Clock
 import qualified Data.Traversable            as TR
 import qualified Data.Vector                 as V

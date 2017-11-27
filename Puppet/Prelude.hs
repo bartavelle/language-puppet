@@ -27,7 +27,7 @@ import           Protolude                         as Exports hiding (Down, Infi
 
 import           Control.Foldl                     as Exports (FoldM (..))
 import           Control.Lens                      as Exports hiding (Strict,
-                                                               noneOf, op)
+                                                               noneOf, op, argument)
 import           Data.Scientific                   as Exports (Scientific)
 import           Data.Tuple.Strict                 as Exports (Pair(..))
 import           Control.Monad.Trans.Except        as Exports (throwE)
