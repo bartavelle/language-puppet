@@ -30,6 +30,8 @@ import           Control.Lens                      as Exports hiding (Strict,
                                                                noneOf, op)
 import           Data.Scientific                   as Exports (Scientific)
 import           Data.Tuple.Strict                 as Exports (Pair(..))
+import           Control.Monad.Trans.Except        as Exports (throwE)
+import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
 
 import           Data.Attoparsec.Text              (parseOnly, rational)
 import qualified Data.ByteString                   as BS

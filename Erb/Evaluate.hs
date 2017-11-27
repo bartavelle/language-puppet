@@ -9,12 +9,11 @@ import qualified Data.Char                        as Char
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.List                        as List
 import           Data.Maybe                       (fromMaybe)
-import qualified Data.Text                        as T
+import qualified Data.Text                        as Text
 import           Data.Tuple.Strict                (Pair (..))
 import qualified Data.Vector                      as V
-import           Erb.Ruby
 
-import           Puppet.Interpreter.PrettyPrinter ()
+import           Erb.Ruby
 import           Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
@@ -49,10 +48,10 @@ evalruby _  _   (Left err)     _        = Left err
 evalruby _ _  (Right _) (DropPrevSpace') = Left "Could not evaluate a non optimize DropPrevSpace'"
 evalruby mp ctx (Right curstr) (DropNextSpace x) = case evalruby mp ctx (Right curstr) x of
                                                        Left err -> Left err
-                                                       Right y -> Right (T.dropWhile spaceNotCR y)
+                                                       Right y -> Right (Text.dropWhile spaceNotCR y)
 evalruby mp ctx (Right curstr) (DropPrevSpace x) = case evalruby mp ctx (Right curstr) x of
                                                        Left err -> Left err
-                                                       Right y -> Right (T.dropWhileEnd spaceNotCR y)
+                                                       Right y -> Right (Text.dropWhileEnd spaceNotCR y)
 evalruby mp ctx (Right curstr) (Puts e) = case evalExpression mp ctx e of
     Left err -> Left err
     Right ex -> Right (curstr <> ex)
@@ -79,7 +78,7 @@ evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
 evalValue :: PValue -> Either Doc Text
 evalValue (PString x) = Right x
 evalValue (PNumber x) = Right (scientific2text x)
-evalValue x           = Right $ T.pack $ show x
+evalValue x           = Right $ show x
 
 a2i :: Text -> Maybe Integer
 a2i x = case text2Scientific x of

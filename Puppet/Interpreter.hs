@@ -10,7 +10,6 @@ module Puppet.Interpreter
 import           Puppet.Prelude
 
 import           Control.Monad.Operational        hiding (view)
-import           Control.Monad.Trans.Except
 import qualified Data.Char                        as Char
 import qualified Data.Graph                       as G
 import qualified Data.HashMap.Strict              as HM

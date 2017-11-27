@@ -36,14 +36,15 @@ module Puppet.Interpreter.Resolve
 
 import           Puppet.Prelude
 
-import           Control.Monad.Operational          (singleton)
+import qualified Control.Monad.Operational          as Operational
 import           "cryptonite" Crypto.Hash
-import           Data.Aeson                         hiding ((.=))
-import           Data.Aeson.Lens                    hiding (key)
+import           Data.Aeson                         (fromJSON, toJSON)
+import qualified Data.Aeson                         as Aeson
+import           Data.Aeson.Lens                    (_Integer, _Number)
 import qualified Data.ByteArray                     as ByteArray
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Base16             as B16
-import           Data.CaseInsensitive               (mk)
+import qualified Data.CaseInsensitive               as CaseInsensitive
 import qualified Data.Char                          as Char
 import qualified Data.HashMap.Strict                as HM
 import qualified Data.HashSet                       as HS
@@ -57,7 +58,7 @@ import qualified Data.Vector                        as V
 import           Data.Version                       (Version (..), parseVersion)
 import           Text.ParserCombinators.ReadP       (readP_to_S)
 import qualified Text.PrettyPrint.ANSI.Leijen       as PP
-import           Text.Regex.PCRE.ByteString.Utils
+import qualified Text.Regex.PCRE.ByteString.Utils   as Regex
 
 import           Puppet.Interpreter.PrettyPrinter   ()
 import           Puppet.Interpreter.Resolve.Sprintf (sprintf)
@@ -99,7 +100,7 @@ runHiera q t = do
         toplevels = map (_1 %~ ("::" <>)) $ getV "::"
         locals = getV ctx
         vars = HM.fromList (toplevels <> locals)
-    singleton (HieraQuery vars q t)
+    Operational.singleton (HieraQuery vars q t)
 
 -- | The implementation of all hiera_* functions
 hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe PValue -> InterpreterMonad PValue
@@ -152,7 +153,7 @@ resolveVariable fullvar = do
 
 -- | A simple helper that checks if a given type is native or a define.
 isNativeType :: Text -> InterpreterMonad Bool
-isNativeType t = has (ix t) `fmap` singleton GetNativeTypes
+isNativeType t = has (ix t) `fmap` Operational.singleton GetNativeTypes
 
 -- | A pure function for resolving variables.
 getVariable :: Container ScopeInformation -- ^ The whole scope data.
@@ -187,7 +188,7 @@ puppetEquality ra rb =
                  (PString "false", PBoolean x) -> not x
                  (PBoolean x, PString "true")  -> x
                  (PBoolean x, PString "false") -> not x
-                 (PString sa, PString sb)      -> mk sa == mk sb
+                 (PString sa, PString sb)      -> CaseInsensitive.mk sa == CaseInsensitive.mk sb
                  -- TODO, check if array / hash equality should be recursed
                  -- for case insensitive matching
                  _                             -> ra == rb
@@ -217,7 +218,7 @@ resolveExpression (LessEqualThan a b) = numberCompare a b (<=)
 resolveExpression (MoreEqualThan a b) = numberCompare a b (>=)
 resolveExpression (RegexMatch a v@(Terminal (URegexp (CompRegex _ rv)))) = do
     ra <- fmap Text.encodeUtf8 (resolveExpressionString a)
-    case execute' rv ra of
+    case Regex.execute' rv ra of
         Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> string rr)
         Right Nothing  -> return $ PBoolean False
         Right (Just matches) -> do
@@ -279,7 +280,7 @@ resolveExpression stmt@(ConditionalValue e conds) = do
         checkCond ((SelectorDefault :!: ce) : _) = resolveExpression ce
         checkCond ((SelectorValue v@(URegexp (CompRegex _ rg)) :!: ce) : xs) = do
             rs <- fmap Text.encodeUtf8 (resolvePValueString rese)
-            case execute' rg rs of
+            case Regex.execute' rg rs of
                 Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> string rr)
                 Right Nothing  -> checkCond xs
                 Right (Just _) -> resolveExpression ce
@@ -456,7 +457,7 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
     replacement <- fmap Text.encodeUtf8 (resolvePValueString preplacement)
     let sub t = do
             t' <- fmap Text.encodeUtf8 (resolvePValueString t)
-            case substituteCompile' regexp t' replacement of
+            case Regex.substituteCompile' regexp t' replacement of
                     Left rr -> throwPosError ("regsubst():" <+> string rr)
                     Right x -> fmap PString (safeDecodeUtf8 x)
     case ptarget of
@@ -466,13 +467,13 @@ resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 argume
 resolveFunction' "split" [psrc, psplt] = do
     src  <- fmap Text.encodeUtf8 (resolvePValueString psrc)
     splt <- fmap Text.encodeUtf8 (resolvePValueString psplt)
-    case splitCompile' splt src of
+    case Regex.splitCompile' splt src of
         Left rr -> throwPosError ("splitCompile():" <+> string rr)
         Right x -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
 resolveFunction' "sha1" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . sha1 . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
 resolveFunction' "shellquote" args = do
-    sargs <- forM args $ \arg -> case arg of
+    sargs <- for args $ \arg -> case arg of
                                      PArray vals -> mapM resolvePValueString vals
                                      _ -> V.singleton <$> resolvePValueString arg
     let escape str | Text.all isSafe str            = str
@@ -489,7 +490,7 @@ resolveFunction' "shellquote" args = do
 resolveFunction' "mysql_password" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . sha1 . sha1  . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
 resolveFunction' "file" args = do
-    rebasefile <- fmap Text.pack <$> singleton RebaseFile
+    rebasefile <- fmap Text.pack <$> Operational.singleton RebaseFile
     let fixFilePath s | Text.null s = let rr = "Empty file path passed to the 'file' function" in checkStrict rr rr >> return s
                       | Text.head s == '/' = return (maybe s (<> s) rebasefile)
                       | otherwise = case Text.splitOn "/" s of
@@ -497,7 +498,7 @@ resolveFunction' "file" args = do
                                             moduledir <- view modulesPath <$> getPuppetPaths
                                             return (Text.intercalate "/" (Text.pack moduledir : md : "files" : x : rst))
                                         _ -> throwPosError ("file() argument invalid: " <> ttext s)
-    mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . singleton . ReadFile
+    mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . Operational.singleton . ReadFile
 
 resolveFunction' "tagged" ptags = do
     tags <- fmap HS.fromList (mapM resolvePValueString ptags)
@@ -539,16 +540,16 @@ resolveFunction' "hiera" _ = throwPosError "hiera(): Expects one, two or three a
 resolveFunction' "lookup" args = resolveFunction' "hiera" args
 
 -- user functions
-resolveFunction' fname args = singleton (ExternalFunction fname args)
+resolveFunction' fname args = Operational.singleton (ExternalFunction fname args)
 
 pdbresourcequery :: PValue -> Maybe Text -> InterpreterMonad PValue
 pdbresourcequery q mkey = do
     rrv <- case fromJSON (toJSON q) of
-               Success rq -> singleton (PDBGetResources rq)
-               Error rr   -> throwPosError ("Invalid resource query:" <+> Puppet.PP.string rr)
+               Aeson.Success rq -> Operational.singleton (PDBGetResources rq)
+               Aeson.Error rr   -> throwPosError ("Invalid resource query:" <+> Puppet.PP.string rr)
     rv <- case fromJSON (toJSON rrv) of
-              Success x -> return x
-              Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> Puppet.PP.string rr <+> pretty rrv)
+              Aeson.Success x -> return x
+              Aeson.Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> Puppet.PP.string rr <+> pretty rrv)
     let extractSubHash :: Text -> PValue -> InterpreterMonad PValue
         extractSubHash ky (PHash h) = case h ^. at ky of
                                          Just val -> return val
@@ -562,7 +563,7 @@ calcTemplate :: (Text -> Either Text Text) -> PValue -> InterpreterMonad Text
 calcTemplate templatetype templatename = do
     fname       <- resolvePValueString templatename
     stt         <- use identity
-    singleton (ComputeTemplate (templatetype fname) stt)
+    Operational.singleton (ComputeTemplate (templatetype fname) stt)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
 resolveExpressionSE e = resolveExpression e >>=
@@ -745,7 +746,7 @@ datatypeMatch dt v
       DTPattern patterns   -> maybe False (\str -> any (checkPattern (Text.encodeUtf8 str)) patterns) (v ^? _PString)
   where
     checkPattern str (CompRegex _ ptrn)
-      = case execute' ptrn str of
+      = case Regex.execute' ptrn str of
           Right (Just _) -> True
           _              -> False
     container :: Fold PValue [a] -> (a -> Bool) -> Int -> Maybe Int -> Bool

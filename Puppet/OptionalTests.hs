@@ -5,22 +5,22 @@ module Puppet.OptionalTests (testCatalog) where
 
 import           Puppet.Prelude
 
-import           Control.Monad.Catch
-import           Control.Monad.Trans.Except       (throwE)
-import qualified Data.HashSet                     as HS
-import qualified Data.Text                        as Text
-import           System.Posix.Files
+import           Control.Monad.Catch        (throwM)
+import qualified Data.HashSet               as HS
+import qualified Data.Text                  as Text
+import           System.Posix.Files         (fileExist)
 
-import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
-import           Puppet.Lens                      (_PString)
+import           Puppet.Lens                (_PString)
 import           Puppet.PP
 import           Puppet.Preferences
 
 
 -- | Entry point for all optional tests
 testCatalog :: Preferences IO -> FinalCatalog -> IO ()
-testCatalog prefs c = testFileSources (prefs ^. prefPuppetPaths.baseDir) c >> testUsersGroups (prefs ^. prefKnownusers) (prefs ^. prefKnowngroups) c
+testCatalog prefs c =
+     testFileSources (prefs ^. prefPuppetPaths.baseDir) c
+  *> testUsersGroups (prefs ^. prefKnownusers) (prefs ^. prefKnowngroups) c
 
 -- | Tests that all users and groups are defined
 testUsersGroups :: [Text] -> [Text] -> FinalCatalog -> IO ()
@@ -85,8 +85,8 @@ testFile fp = do
 checkFile :: FilePath -> PValue -> ExceptT PrettyError IO ()
 checkFile basedir (PString f) = case Text.stripPrefix "puppet:///" f of
     Just stringdir -> case Text.splitOn "/" stringdir of
-        ("modules":modname:rest) -> testFile (basedir <> "/modules/" <> Text.unpack modname <> "/files/" <> Text.unpack (Text.intercalate "/" rest))
-        ("files":rest)           -> testFile (basedir <> "/files/" <> Text.unpack (Text.intercalate "/" rest))
+        ("modules":modname:rest) -> testFile (basedir <> "/modules/" <> toS modname <> "/files/" <> toS (Text.intercalate "/" rest))
+        ("files":rest)           -> testFile (basedir <> "/files/" <> toS (Text.intercalate "/" rest))
         ("private":_)            -> pure ()
         _                        -> throwE (PrettyError $ "Invalid file source:" <+> ttext f)
     Nothing        -> return ()

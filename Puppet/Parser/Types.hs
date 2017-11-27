@@ -69,7 +69,6 @@ import qualified Data.Vector            as V
 import qualified GHC.Exts               as Exts
 import           GHC.Show               (Show (..))
 import           Text.Megaparsec.Pos
-import           Text.Regex.PCRE.String
 
 -- | Properly capitalizes resource types.
 capitalizeRT :: Text -> Text
