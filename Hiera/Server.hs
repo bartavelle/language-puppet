@@ -88,10 +88,13 @@ instance FromJSON HieraConfigFile where
     let
       mkHiera5 v = do
         [hierarchy_value] <- v .: "hierarchy"
-        datadir <- hierarchy_value .: "datadir" .!= "hieradata"
+        datadir <- case Object v ^? key "defaults" . key "datadir" of
+          Just (String dir) -> pure dir
+          Just _ -> fail ("datadir should be a string")
+          Nothing -> hierarchy_value .: "datadir" .!= "hieradata"
         HieraConfigFile
             <$> pure 5
-            <*> pure [ YamlBackend datadir ] -- TODO: support other backends if needed
+            <*> pure [ YamlBackend (toS datadir) ] -- TODO: support other backends if needed
             <*> (hierarchy_value .:? "paths" .!= [InterpolableHieraString [HPString "common.yaml"]])
       mkHiera3 v =
         HieraConfigFile
