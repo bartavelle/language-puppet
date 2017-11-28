@@ -139,7 +139,7 @@ parseInterpolableString = AT.parseOnly interpolableString
 -- | All IO exceptions are thrown directly including ParsingException.
 startHiera :: FilePath -> IO (HieraQueryFunc IO)
 startHiera fp = do
-  Just cfg <- Yaml.decodeFile fp
+  cfg <- either (panic.show) pure =<< Yaml.decodeFileEither fp
   cache <- Cache.newFileCache
   pure (query cfg fp cache)
 
