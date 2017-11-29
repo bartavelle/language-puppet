@@ -53,6 +53,7 @@ data HieraConfigFile = HieraConfigFile
     , _hierarchy :: [InterpolableHieraString]
     } deriving (Show)
 
+
 data Backend = YamlBackend FilePath
              | JsonBackend FilePath
              deriving Show
@@ -141,10 +142,16 @@ parseInterpolableString = AT.parseOnly interpolableString
 -- | The only method you'll ever need. It runs a Hiera server and gives you a querying function.
 -- | All IO exceptions are thrown directly including ParsingException.
 startHiera :: FilePath -> IO (HieraQueryFunc IO)
-startHiera fp = do
-  cfg <- either (panic.show) pure =<< Yaml.decodeFileEither fp
-  cache <- Cache.newFileCache
-  pure (query cfg fp cache)
+startHiera fp =
+  Yaml.decodeFileEither fp >>= \case
+    Left (Yaml.AesonException "Error in $: Hiera configuration version different than 5 is not supported.") -> do
+      Log.infoM hieraLoggerName ("Detect a hiera configuration format in " <> fp <> " at version 4. This format is not recognized. Using a dummy hiera.")
+      pure dummyHiera
+    Left ex   -> panic (show ex)
+    Right cfg -> do
+      Log.infoM hieraLoggerName ("Detect a hiera configuration format in " <> fp <> " at version " <> show(cfg^.version))
+      cache <- Cache.newFileCache
+      pure (query cfg fp cache)
 
 -- | A dummy hiera function that will be used when hiera is not detected
 dummyHiera :: Monad m => HieraQueryFunc m
@@ -158,7 +165,6 @@ resolveString vars = fmap Text.concat . mapM resolve . getInterpolableHieraStrin
 
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
 query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt = do
-    Log.infoM hieraLoggerName ("Detect a hiera configuration format at version " <> show (_version))
     -- step 1, resolve hierarchies
     let searchin = do
             mhierarchy <- resolveString vars <$> _hierarchy
