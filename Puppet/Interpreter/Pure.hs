@@ -5,7 +5,12 @@
 --
 -- > > dummyEval (resolveExpression (Addition "1" "2"))
 -- > Right (PString "3")
-module Puppet.Interpreter.Pure where
+module Puppet.Interpreter.Pure (
+    dummyEval
+  , dummyFacts
+  , pureEval
+  , pureReader
+) where
 
 import           Puppet.Prelude
 
@@ -23,7 +28,6 @@ import           Puppet.Parser.Types
 import           Puppet.Paths
 import           Puppet.PP
 import           PuppetDB.Dummy
-import           Hiera.Server(dummyHiera)
 
 
 -- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
@@ -58,7 +62,9 @@ pureReader sttmap = InterpreterReader
                                      Right stmts -> case rubyEvaluate scope ctx stmts of
                                                         Right x -> S.Right x
                                                         Left rr -> S.Left (PrettyError rr)
-        hieradummy = (dummyHiera, mempty)
+        pure_hiera :: HieraQueryFunc Identity
+        pure_hiera _ _ _ = pure (S.Right (Just "pure"))
+        hieradummy = (pure_hiera, mempty)
         getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
                                                Just x -> S.Right x
                                                Nothing -> S.Left "Can't get statement"

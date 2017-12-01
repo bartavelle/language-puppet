@@ -1,13 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 module Function.DeleteAtSpec (spec, main) where
 
-import           Test.Hspec
-
-import           Data.Monoid
-
-import           Puppet.Interpreter.Pure
-import           Puppet.Interpreter.Types
-
 import           Helpers
 
 main :: IO ()

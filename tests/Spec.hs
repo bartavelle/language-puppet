@@ -11,6 +11,7 @@ import qualified Function.JoinKeysToValuesSpec
 import qualified Function.DeleteAtSpec
 import qualified Interpreter.IfSpec
 import qualified Function.SprintfSpec
+import qualified Function.LookupSpec
 import qualified DT.Parser
 
 main :: IO ()
@@ -29,6 +30,7 @@ spec = do
     describe "The shellquote function" Function.ShellquoteSpec.spec
     describe "The sprintf function" Function.SprintfSpec.spec
     describe "The each function" Function.EachSpec.spec
+    describe "The lookup function" Function.LookupSpec.spec
   describe "stdlib functions" $ do
     describe "The assert_private function" Function.AssertPrivateSpec.spec
     describe "The join_keys_to_values function" Function.JoinKeysToValuesSpec.spec

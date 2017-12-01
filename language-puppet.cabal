@@ -185,6 +185,7 @@ Test-Suite spec
                   Function.DeleteAtSpec
                   Function.AssertPrivateSpec
                   Function.JoinKeysToValuesSpec
+                  Function.LookupSpec
                   InterpreterSpec
                   Interpreter.CollectorSpec
                   Interpreter.IfSpec

@@ -1,33 +1,16 @@
 {-# LANGUAGE OverloadedLists #-}
 module Function.ShellquoteSpec (spec, main) where
 
-import           Test.Hspec
-
-import           Data.Text (Text)
-import qualified Data.Vector as V
-import           Control.Monad
-import           Data.Monoid
-
-import           Puppet.Interpreter.Resolve
-import           Puppet.Interpreter.Pure
-import           Puppet.Interpreter.Types
-import           Puppet.Parser.Types
-import           Puppet.PP
+import           Helpers
 
 main :: IO ()
 main = hspec spec
 
-evalArgs :: [Expression] -> Either PrettyError Text
-evalArgs = dummyEval . resolveValue . UFunctionCall "shellquote" . V.fromList
-        >=> \pv -> case pv of
-                      PString s -> return s
-                      _ -> Left ("Expected a string, not " <> PrettyError (pretty pv))
+check :: [Expression] -> Text -> Expectation
+check = checkExprsSuccess "shellquote"
 
 spec :: Spec
 spec = do
-    let check args res = case evalArgs args of
-                             Left rr -> expectationFailure (show rr)
-                             Right res' -> res' `shouldBe` res
     it "should handle no arguments" (check [] "")
     it "should handle array arguments" $
         check ["foo", ["bar@example.com", "localhost:/dev/null"], "xyzzy+-4711,23"]
