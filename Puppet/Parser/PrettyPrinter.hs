@@ -128,6 +128,7 @@ instance Pretty UnresolvedValue where
     pretty (UVariableReference v) = dullblue (char '$' <> text (Text.unpack v))
     pretty (UFunctionCall f args) = showFunc f args
     pretty (UHOLambdaCall c) = pretty c
+    pretty (UDataType dt) = pretty dt
 
 instance Pretty CompRegex where
     pretty (CompRegex r _) = char '/' <> text (Text.unpack r) <> char '/'

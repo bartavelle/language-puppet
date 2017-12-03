@@ -20,6 +20,7 @@ import           Puppet.Interpreter.Types as Exports
 import           Puppet.Parser.Types      as Exports
 import           Puppet.PP                as Exports
 import           Test.Hspec               as Exports
+import           Control.Monad.Except     as Exports
 
 import           Control.Lens
 import           Control.Monad.Except

@@ -174,6 +174,7 @@ data UnresolvedValue
     | UFunctionCall !Text !(V.Vector Expression)
     | UHOLambdaCall !HOLambdaCall
     | UNumber !Scientific
+    | UDataType DataType
     deriving (Show, Eq)
 
 instance Exts.IsList UnresolvedValue where

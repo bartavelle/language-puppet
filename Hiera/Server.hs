@@ -54,9 +54,10 @@ data HieraConfigFile = HieraConfigFile
     } deriving (Show)
 
 
-data Backend = YamlBackend FilePath
-             | JsonBackend FilePath
-             deriving Show
+data Backend
+  = YamlBackend FilePath
+  | JsonBackend FilePath
+  deriving Show
 
 newtype InterpolableHieraString
   = InterpolableHieraString

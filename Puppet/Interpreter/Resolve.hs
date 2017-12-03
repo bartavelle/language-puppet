@@ -345,6 +345,7 @@ resolveValue (UHash a) = fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
 resolveValue (UVariableReference v) = resolveVariable v
 resolveValue (UFunctionCall fname args) = resolveFunction fname args
 resolveValue (UHOLambdaCall hol) = evaluateHFCPure hol
+resolveValue (UDataType dt) = pure (PType dt)
 
 -- | Turns strings, numbers and booleans into 'Text', or throws an error.
 resolvePValueString :: PValue -> InterpreterMonad Text
