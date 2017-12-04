@@ -95,8 +95,8 @@ runHiera q t = do
     let getV scp = mapMaybe toStr $ HM.toList $ fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
         -- we can't use _PString, because of dependency cycles
         toStr (k,v) = case v of
-                          PString x -> Just (k,x)
-                          _         -> Nothing
+          PString x -> Just (k,x)
+          _         -> Nothing
         toplevels = map (_1 %~ ("::" <>)) $ getV "::"
         locals = getV ctx
         vars = HM.fromList (toplevels <> locals)
@@ -112,8 +112,8 @@ hieraCall qt q df dt _ = do
         Nothing -> pure p
         Just dt' -> if datatypeMatch dt' p then pure p else throwPosError "Datatype mismatched"
       Nothing -> case df of
-                   Just d -> pure d
-                   Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
+        Just d -> pure d
+        Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
 
 -- | Tries to convert a pair of 'PValue's into a 'NumberPair', as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
