@@ -5,6 +5,7 @@ language-puppet (1.3.13) UNRELEASED; urgency=medium
   * Recognize v5 hiera configuration format
   * Added debian stuff
   * Support for the hiera module layer
+  * Support new lookup puppet function
 
  -- Simon Marechal <bartavelle@gmail.com>  Tue, 21 Nov 2017 14:18:25 +0100
 
