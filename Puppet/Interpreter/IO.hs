@@ -10,17 +10,14 @@ module Puppet.Interpreter.IO (
   , interpretMonad
   ) where
 
-import           Control.Exception
-import           Control.Lens
+import           Puppet.Prelude
+
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
-import           Control.Monad.Trans.Except
 import qualified Data.Either.Strict               as S
-import           Data.Monoid
-import qualified Data.Text                        as T
-import qualified Data.Text.IO                     as T
+import qualified Data.Text                        as Text
+import qualified Data.Text.IO                     as Text
 import           Debug.Trace                      (traceEventIO)
-import           GHC.Stack
 
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
@@ -32,7 +29,7 @@ defaultImpureMethods = IoMethods (liftIO currentCallStack)
                                  (liftIO . traceEventIO)
     where
         file [] = return $ Left ""
-        file (x:xs) = (Right <$> T.readFile (T.unpack x)) `catch` (\SomeException{} -> file xs)
+        file (x:xs) = (Right <$> Text.readFile (Text.unpack x)) `catch` (\SomeException{} -> file xs)
 
 
 -- | The operational interpreter function
@@ -81,7 +78,7 @@ eval r s (a :>>= k) =
             GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
             ErrorThrow d                 -> return (Left d, s, mempty)
             GetNodeName                  -> runInstr (r ^. readerNodename)
-            HieraQuery scps q t          -> canFail ((r ^. readerHieraQuery) scps q t)
+            HieraQuery scps q t          -> canFail (queryHiera (r ^. readerHieraQuery) scps q t)
             PDBInformation               -> pdbInformation pdb >>= runInstr
             PDBReplaceCatalog w          -> canFailX (replaceCatalog pdb w)
             PDBReplaceFacts fcts         -> canFailX (replaceFacts pdb fcts)
@@ -102,3 +99,20 @@ eval r s (a :>>= k) =
                 case eres of
                     Left rr -> interpretMonad r s (ahandle rr >>= k)
                     Right x -> logStuff w (interpretMonad r s' (k x))
+
+
+-- | Query hiera layers
+queryHiera :: Monad m =>  HieraQueryLayers m -> Container Text -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
+queryHiera layers scps q t = do
+  val <- (layers^.globalLayer) scps q t
+  case val of
+    S.Right Nothing -> do
+      let
+        modname =
+          case Text.splitOn "::" (Text.dropWhile (==':') q) of
+            [] -> Nothing
+            [_] -> Nothing
+            (m:_)  -> Just m
+        layer = modname >>= (\n -> layers ^.moduleLayer.at n)
+      maybe (pure val) (\hq -> hq scps q t) layer
+    _ -> pure val

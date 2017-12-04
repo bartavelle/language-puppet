@@ -15,7 +15,7 @@ category:            System
 build-type:          Simple
 cabal-version:       >=1.8
 
-Tested-With:         GHC == 8.0.2, GHC == 8.2.1
+Tested-With:         GHC == 8.0.2, GHC == 8.2.2
 
 extra-source-files:
     CHANGELOG
@@ -60,7 +60,7 @@ library
                        , Puppet.Stats
                        , Puppet.Stdlib
                        , Puppet.OptionalTests
-                       , Puppet.Utils
+                       , Puppet.Prelude
   other-modules:         Erb.Compute
                        , Paths_language_puppet
                        , Puppet.Interpreter.RubyRandom
@@ -79,7 +79,7 @@ library
                        , Puppet.NativeTypes.ZoneRecord
                        , Puppet.Parser.Utils
                        , Puppet.Paths
-  extensions:          OverloadedStrings, BangPatterns
+  extensions:          OverloadedStrings, BangPatterns, NoImplicitPrelude
   ghc-options:         -Wall -funbox-strict-fields -j1
   -- ghc-prof-options:    -auto-all -caf-all
   build-depends:       aeson                >= 0.8
@@ -111,6 +111,7 @@ library
                      , parsec               == 3.1.*
                      , pcre-utils           >= 0.1.7   && < 0.2
                      , process              >= 1.2
+                     , protolude            >= 0.2
                      , random
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2 && < 0.4
@@ -172,7 +173,7 @@ Test-Suite erbparser
 Test-Suite spec
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
-  ghc-options:    -Wall -rtsopts -threaded
+  ghc-options:    -Wall -Wno-missing-signatures -rtsopts -threaded
   extensions:     OverloadedStrings
   build-depends:  language-puppet,base,strict-base-types,lens,text,hspec,unordered-containers,megaparsec,vector,scientific,mtl,hspec-megaparsec
   other-modules:  Function.ShellquoteSpec
@@ -183,6 +184,7 @@ Test-Suite spec
                   Function.DeleteAtSpec
                   Function.AssertPrivateSpec
                   Function.JoinKeysToValuesSpec
+                  Function.LookupSpec
                   InterpreterSpec
                   Interpreter.CollectorSpec
                   Interpreter.IfSpec
@@ -195,6 +197,7 @@ executable puppetresources
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -funbox-strict-fields -threaded -with-rtsopts "-A2M" -eventlog
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
+  other-modules:       Paths_language_puppet
   build-depends:       base
                      , Glob
                      , aeson
@@ -235,6 +238,7 @@ executable pdbquery
   extensions:          BangPatterns, OverloadedStrings
   ghc-options:         -Wall -rtsopts -threaded
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
+  other-modules:       Paths_language_puppet
   build-depends:       base
                      , aeson
                      , bytestring

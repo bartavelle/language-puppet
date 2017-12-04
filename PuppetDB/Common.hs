@@ -2,18 +2,20 @@
 -- | Common data types for PuppetDB.
 module PuppetDB.Common where
 
-import Puppet.Interpreter.Types
-import PuppetDB.Remote
-import PuppetDB.Dummy
-import PuppetDB.TestDB
+import           Puppet.Prelude           hiding (Read)
 
-import Data.Maybe
-import Data.List (stripPrefix)
-import Control.Lens
-import System.Environment
-import Data.Vector.Lens
-import Servant.Common.BaseUrl
-import Network.HTTP.Client
+import           Data.List                (stripPrefix)
+import           Data.Maybe
+import           Data.Vector.Lens
+import           GHC.Read                 (Read (..))
+import           Network.HTTP.Client
+import           Servant.Common.BaseUrl
+import           System.Environment
+
+import           Puppet.Interpreter.Types
+import           PuppetDB.Dummy
+import           PuppetDB.Remote
+import           PuppetDB.TestDB
 
 -- | The supported PuppetDB implementations.
 data PDBType = PDBRemote -- ^ Your standard PuppetDB, queried through the HTTP interface.

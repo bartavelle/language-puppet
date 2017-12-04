@@ -5,12 +5,18 @@
 --
 -- > > dummyEval (resolveExpression (Addition "1" "2"))
 -- > Right (PString "3")
-module Puppet.Interpreter.Pure where
+module Puppet.Interpreter.Pure (
+    dummyEval
+  , dummyFacts
+  , pureEval
+  , pureReader
+) where
 
-import           Control.Lens
+import           Puppet.Prelude
+
 import qualified Data.Either.Strict       as S
 import qualified Data.HashMap.Strict      as HM
-import qualified Data.Text                as T
+import qualified Data.Text                as Text
 
 import           Erb.Evaluate
 import           Erb.Parser
@@ -31,7 +37,7 @@ impurePure = IoMethods (return []) (const (return (Left "Can't read file"))) (\_
 
 -- | A pure 'InterpreterReader', that can only evaluate a subset of the
 -- templates, and that can include only the supplied top level statements.
-pureReader :: HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level statement map
+pureReader :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level statement map
            -> InterpreterReader Identity
 pureReader sttmap = InterpreterReader
                       baseNativeTypes
@@ -51,19 +57,21 @@ pureReader sttmap = InterpreterReader
         templatedummy (Right _) _ _ = return (S.Left "Can't interpret files")
         templatedummy (Left cnt) stt _ = return $ case extractFromState stt of
             Nothing -> S.Left "Context retrieval error (pureReader)"
-            Just (ctx, scope) -> case parseErbString (T.unpack cnt) of
+            Just (ctx, scope) -> case parseErbString (Text.unpack cnt) of
                                      Left rr -> S.Left (PrettyError (text (show rr)))
                                      Right stmts -> case rubyEvaluate scope ctx stmts of
                                                         Right x -> S.Right x
                                                         Left rr -> S.Left (PrettyError rr)
-        hieradummy _ _ _ = return (S.Right Nothing)
+        pure_hiera :: HieraQueryFunc Identity
+        pure_hiera _ _ _ = pure (S.Right (Just "pure"))
+        hieradummy = HieraQueryLayers pure_hiera mempty
         getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
                                                Just x -> S.Right x
                                                Nothing -> S.Left "Can't get statement"
 
 -- | Evaluates an interpreter expression in a pure context.
 pureEval :: Facts -- ^ A list of facts that will be used during evaluation
-         ->  HM.HashMap (TopLevelType, T.Text) Statement -- ^ A top-level map
+         ->  HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
          -> InterpreterMonad a -- ^ The action to evaluate
          -> (Either PrettyError a, InterpreterState, InterpreterWriter)
 pureEval facts sttmap action = runIdentity (interpretMonad (pureReader sttmap) startingState action)

@@ -1,17 +1,16 @@
 module Puppet.NativeTypes.ZoneRecord (nativeZoneRecord) where
 
-import Puppet.NativeTypes.Helpers
-import Puppet.Interpreter.Types
-import Control.Monad.Except
-import qualified Data.Text as T
-import Control.Lens
+import           Puppet.Prelude
+
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
 
 nativeZoneRecord :: (NativeTypeName, NativeTypeMethods)
 nativeZoneRecord = ("zone_record", nativetypemethods parameterfunctions validateMandatories)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them.
 -- If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("name"                , [nameval])
     ,("owner"               , [string])

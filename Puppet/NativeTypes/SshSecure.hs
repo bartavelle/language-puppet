@@ -1,16 +1,15 @@
 module Puppet.NativeTypes.SshSecure (nativeSshSecure) where
 
-import Puppet.NativeTypes.Helpers
-import Puppet.Interpreter.Types
-import Control.Monad.Except
-import qualified Data.Text as T
-import Control.Lens
+import           Puppet.Prelude
+
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
 
 nativeSshSecure :: (NativeTypeName, NativeTypeMethods)
 nativeSshSecure = ("ssh_authorized_key_secure", nativetypemethods parameterfunctions (userOrTarget >=> keyIfPresent))
 
 -- Autorequires: If Puppet is managing the user or user that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("type"    , [string, defaultvalue "ssh-rsa", values ["rsa","dsa","ssh-rsa","ssh-dss"]])
     ,("key"     , [string])

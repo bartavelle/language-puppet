@@ -2,41 +2,36 @@
 {-# LANGUAGE GADTs #-}
 module Puppet.Interpreter.PrettyPrinter(containerComma) where
 
+import           Puppet.Prelude               hiding (empty, (<$>))
+
+import           Data.Aeson                   (ToJSON, encode)
+import qualified Data.ByteString.Lazy.Char8   as BSL
+import qualified Data.HashMap.Strict          as HM
+import qualified Data.HashSet                 as HS
+import qualified Data.Text                    as Text
+import qualified Data.Vector                  as V
+import qualified GHC.Exts                     as Exts
+import           Text.PrettyPrint.ANSI.Leijen ((<$>))
+
 import           Puppet.Interpreter.Types
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 import           Puppet.PP
-import           Puppet.Utils
-
-import           Control.Arrow                (first, second)
-import           Control.Lens
-import qualified Data.ByteString.Lazy.Char8   as BSL
-import qualified Data.HashMap.Strict          as HM
-import qualified Data.HashSet                 as HS
-import           Data.List
-import           Data.Text                    (Text)
-import qualified Data.Text                    as T
-import qualified Data.Vector                  as V
-import           GHC.Exts
-
-import           Data.Aeson                   (ToJSON, encode)
-import           Prelude                      hiding ((<$>))
-import           Text.PrettyPrint.ANSI.Leijen ((<$>))
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins
     where
-        ins = mconcat $ intersperse (comma <$> empty) (map showC x)
+        ins = mconcat $ intersperse (comma <$> empty) (fmap showC x)
         showC (a,b) = a <+> text "=>" <+> pretty b
 
 containerComma' :: Pretty a => [(Doc, a)] -> Doc
 containerComma' = braces . containerComma''
 
 containerComma :: Pretty a => Container a -> Doc
-containerComma hm = containerComma' (map (\(a,b) -> (fill maxalign (pretty a), b)) hml)
+containerComma hm = containerComma' (fmap (\(a,b) -> (fill maxalign (pretty a), b)) hml)
     where
         hml = HM.toList hm
-        maxalign = maximum (map (T.length . fst) hml)
+        maxalign = maximum (fmap (Text.length . fst) hml)
 
 instance Pretty Text where
     pretty = ttext
@@ -47,15 +42,15 @@ instance Pretty PValue where
     pretty (PString s) = dullcyan (ttext (stringEscape s))
     pretty (PNumber n) = cyan (ttext (scientific2text n))
     pretty PUndef = dullmagenta (text "undef")
-    pretty (PResourceReference t n) = capitalize t <> brackets (text (T.unpack n))
+    pretty (PResourceReference t n) = capitalize t <> brackets (text (Text.unpack n))
     pretty (PArray v) = list (map pretty (V.toList v))
     pretty (PHash g) = containerComma g
     pretty (PType dt) = pretty dt
 
 instance Pretty TopLevelType where
-    pretty TopNode     = dullyellow (text "node")
-    pretty TopDefine   = dullyellow (text "define")
-    pretty TopClass    = dullyellow (text "class")
+    pretty TopNode   = dullyellow (text "node")
+    pretty TopDefine = dullyellow (text "define")
+    pretty TopClass  = dullyellow (text "class")
 
 instance Pretty RIdentifier where
     pretty (RIdentifier t n) = pretty (PResourceReference t n)
@@ -70,13 +65,13 @@ resourceBody :: Resource -> Doc
 resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r <$> containerComma'' insde <> ";"
         where
            virtuality = case r ^. rvirtuality of
-                            Normal -> empty
-                            Virtual -> dullred "@"
-                            Exported -> dullred "@@"
+                            Normal           -> empty
+                            Virtual          -> dullred "@"
+                            Exported         -> dullred "@@"
                             ExportedRealized -> dullred "<@@>"
            insde = alignlst dullblue attriblist1 ++ alignlst dullmagenta attriblist2
            alignlst col = map (first (fill maxalign . col . ttext))
-           attriblist1 = sortWith fst $ HM.toList (r ^. rattributes) ++ aliasdiff
+           attriblist1 = Exts.sortWith fst $ HM.toList (r ^. rattributes) ++ aliasdiff
            aliasWithoutTitle = r ^. ralias & contains (r ^. rid . iname) .~ False
            aliasPValue = aliasWithoutTitle & PArray . V.fromList . map PString . HS.toList
            aliasdiff | HS.null aliasWithoutTitle = []
@@ -85,7 +80,7 @@ resourceBody r = virtuality <> blue (ttext (r ^. rid . iname)) <> ":" <+> meta r
            totext (RIdentifier t n, lt) = (rel2text lt , PResourceReference t n)
            maxalign = max (maxalign' attriblist1) (maxalign' attriblist2)
            maxalign' [] = 0
-           maxalign' x = maximum . map (T.length . fst) $ x
+           maxalign' x  = maximum . map (Text.length . fst) $ x
 
 resourceRelations :: Resource -> [(RIdentifier, LinkType)]
 resourceRelations = concatMap expandSet . HM.toList . view rrelations
@@ -95,7 +90,7 @@ resourceRelations = concatMap expandSet . HM.toList . view rrelations
 instance Pretty Resource where
     prettyList lst =
        let grouped = HM.toList $ HM.fromListWith (++) [ (r ^. rid . itype, [r]) | r <- lst ] :: [ (Text, [Resource]) ]
-           sorted = sortWith fst (map (second (sortWith (view (rid.iname)))) grouped)
+           sorted = Exts.sortWith fst (map (second (Exts.sortWith (view (rid.iname)))) grouped)
            showGroup :: (Text, [Resource]) -> Doc
            showGroup (rt, res) = dullyellow (ttext rt) <+> lbrace <$> indent 2 (vcat (map resourceBody res)) <$> rbrace
        in  vcat (map showGroup sorted)
@@ -105,7 +100,7 @@ instance Pretty CurContainerDesc where
     pretty (ContImport  p x) = magenta "import" <> braces (ttext p) <> braces (pretty x)
     pretty (ContImported x) = magenta "imported" <> braces (pretty x)
     pretty ContRoot = dullyellow (text "::")
-    pretty (ContClass cname) = dullyellow (text "class") <+> dullgreen (text (T.unpack cname))
+    pretty (ContClass cname) = dullyellow (text "class") <+> dullgreen (text (Text.unpack cname))
     pretty (ContDefine dtype dname _) = pretty (PResourceReference dtype dname)
 
 instance Pretty ResDefaults where

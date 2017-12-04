@@ -1,5 +1,5 @@
-{-# LANGUAGE GADTs      #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE GADTs #-}
 module Puppet.Daemon (
     Daemon(..)
   , initDaemon
@@ -10,23 +10,23 @@ module Puppet.Daemon (
   , module Puppet.PP
 ) where
 
-import           Control.Exception
+import           Puppet.Prelude
+
 import           Control.Exception.Lens
-import           Control.Lens              hiding (Strict)
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
-import qualified Data.Text                 as T
-import qualified Data.Text.IO              as T
-import           Data.Tuple.Strict
+import qualified Data.HashMap.Strict       as HM
+import qualified Data.List                 as List
+import qualified Data.Text                 as Text
+import qualified Data.Text.IO              as Text
 import qualified Data.Vector               as V
 import           Debug.Trace               (traceEventIO)
 import           Foreign.Ruby.Safe
-import           System.Exit               (exitFailure)
-import           System.IO                 (stdout)
-import qualified System.Log.Formatter      as LOG (simpleLogFormatter)
-import           System.Log.Handler        (setFormatter)
-import qualified System.Log.Handler.Simple as LOG (streamHandler)
-import qualified System.Log.Logger         as LOG
+import qualified System.Directory          as Directory
+import qualified System.Log.Formatter      as Log (simpleLogFormatter)
+import qualified System.Log.Handler        as Log (setFormatter)
+import qualified System.Log.Handler.Simple as Log (streamHandler)
+import qualified System.Log.Logger         as Log
 import qualified Text.Megaparsec           as P
 
 import           Erb.Compute
@@ -42,7 +42,6 @@ import           Puppet.Parser.Types
 import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
-import           Puppet.Utils
 
 {-| API for the Daemon.
 The main method is `getCatalog`: given a node and a list of facts, it returns the result of the compilation.
@@ -83,9 +82,7 @@ initDaemon pref = do
     setupLogger (pref ^. prefLogLevel)
     logDebug "initDaemon"
     traceEventIO "initDaemon"
-    hquery <- case pref ^. prefHieraPath of
-                  Just p  -> startHiera p
-                  Nothing -> pure dummyHiera
+    hquery      <- hQueryApis pref
     fcache      <- newFileCache
     intr        <- startRubyInterpreter
     templStats  <- newStats
@@ -99,6 +96,26 @@ initDaemon pref = do
                 templStats
            )
 
+hQueryApis :: Preferences IO -> IO (HieraQueryLayers IO)
+hQueryApis pref = do
+  api0 <- case pref ^. prefHieraPath of
+            Just p  -> startHiera p
+            Nothing -> pure dummyHiera
+  modapis <- getModApis pref
+  pure (HieraQueryLayers api0 modapis)
+
+getModApis :: Preferences IO -> IO (Container (HieraQueryFunc IO))
+getModApis pref = do
+  let ignored_modules = pref^.prefIgnoredmodules
+      modpath = pref^.prefPuppetPaths.modulesPath
+  dirs <- Directory.listDirectory modpath
+  (HM.fromList . catMaybes) <$>
+    for dirs (\dir -> runMaybeT $ do
+      let modname = toS dir
+          path = modpath <> "/" <> dir <> "/hiera.yaml"
+      guard (modname `notElem` ignored_modules)
+      guard =<< liftIO (Directory.doesFileExist path)
+      liftIO $ (modname, ) <$> startHiera path)
 
 -- | In case of a Left value, print the error and exit immediately
 checkError :: Show e => Doc -> Either e a -> IO a
@@ -111,16 +128,16 @@ checkError desc = either exit return
 -- Internal functions
 
 getCatalog' :: Preferences IO
-         -> ( TopLevelType -> T.Text -> IO (S.Either PrettyError Statement) )
-         -> (Either T.Text T.Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError T.Text))
+         -> ( TopLevelType -> Text -> IO (S.Either PrettyError Statement) )
+         -> (Either Text Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text))
          -> MStats
-         -> HieraQueryFunc IO
+         -> HieraQueryLayers IO
          -> NodeName
          -> Facts
          -> IO (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
     logDebug ("Received query for node " <> node)
-    traceEventIO ("START getCatalog' " <> T.unpack node)
+    traceEventIO ("START getCatalog' " <> Text.unpack node)
     let catalogComputation = interpretCatalog (InterpreterReader
                                                   (pref ^. prefNatTypes)
                                                   parsingfunc
@@ -140,8 +157,8 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
                                               facts
                                               (pref ^. prefPuppetSettings)
     (stmts :!: warnings) <- measure stats node catalogComputation
-    mapM_ (\(p :!: m) -> LOG.logM daemonLoggerName p (displayS (renderCompact (ttext node <> ":" <+> m)) "")) warnings
-    traceEventIO ("STOP getCatalog' " <> T.unpack node)
+    mapM_ (\(p :!: m) -> Log.logM daemonLoggerName p (displayS (renderCompact (ttext node <> ":" <+> m)) "")) warnings
+    traceEventIO ("STOP getCatalog' " <> Text.unpack node)
     if pref ^. prefExtraTests
        then runOptionalTests stmts
        else pure stmts
@@ -155,20 +172,20 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
 -- | Return an HOF that would parse the file associated with a toplevel.
 -- The toplevel is defined by the tuple (type, name)
 -- The result of the parsing is a single Statement (which recursively contains others statements)
-parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> T.Text -> IO (S.Either PrettyError Statement)
+parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
 parseFunc ppath filecache stats = \toptype topname ->
-    let nameparts = T.splitOn "::" topname in
-    let topLevelFilePath :: TopLevelType -> T.Text -> Either PrettyError T.Text
-        topLevelFilePath TopNode _ = Right $ T.pack (ppath^.manifestPath <> "/site.pp")
+    let nameparts = Text.splitOn "::" topname in
+    let topLevelFilePath :: TopLevelType -> Text -> Either PrettyError Text
+        topLevelFilePath TopNode _ = Right $ Text.pack (ppath^.manifestPath <> "/site.pp")
         topLevelFilePath  _ name
-            | length nameparts == 1 = Right $ T.pack (ppath^.modulesPath) <> "/" <> name <> "/manifests/init.pp"
+            | length nameparts == 1 = Right $ Text.pack (ppath^.modulesPath) <> "/" <> name <> "/manifests/init.pp"
             | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ttext name))
-            | otherwise             = Right $ T.pack (ppath^.modulesPath) <> "/" <> head nameparts <> "/manifests/" <> T.intercalate "/" (tail nameparts) <> ".pp"
+            | otherwise             = Right $ Text.pack (ppath^.modulesPath) <> "/" <> List.head nameparts <> "/manifests/" <> Text.intercalate "/" (List.tail nameparts) <> ".pp"
     in
     case topLevelFilePath toptype topname of
         Left rr     -> return (S.Left rr)
         Right fname -> do
-            let sfname = T.unpack fname
+            let sfname = Text.unpack fname
                 handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
                 handleFailure e = return (S.Left (show e))
             x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname `catch` handleFailure))
@@ -180,7 +197,7 @@ parseFunc ppath filecache stats = \toptype topname ->
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
     traceEventIO ("START parsing " ++ fname)
-    cnt <- T.readFile fname
+    cnt <- Text.readFile fname
     o <- case runPParser fname cnt of
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
         Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ P.parseErrorPretty rr ++ ")") >> return (S.Left (P.parseErrorPretty rr))
@@ -190,16 +207,16 @@ parseFile fname = do
 daemonLoggerName :: String
 daemonLoggerName = "Puppet.Daemon"
 
-logDebug :: T.Text -> IO ()
-logDebug   = LOG.debugM   daemonLoggerName . T.unpack
+logDebug :: Text -> IO ()
+logDebug   = Log.debugM   daemonLoggerName . Text.unpack
 
-setupLogger :: LOG.Priority -> IO ()
+setupLogger :: Log.Priority -> IO ()
 setupLogger p = do
-    LOG.updateGlobalLogger daemonLoggerName (LOG.setLevel p)
-    LOG.updateGlobalLogger hieraLoggerName (LOG.setLevel p)
+    Log.updateGlobalLogger daemonLoggerName (Log.setLevel p)
+    Log.updateGlobalLogger hieraLoggerName (Log.setLevel p)
     hs <- consoleLogHandler
-    LOG.updateGlobalLogger LOG.rootLoggerName $ LOG.setHandlers [hs]
+    Log.updateGlobalLogger Log.rootLoggerName $ Log.setHandlers [hs]
     where
-      consoleLogHandler = setFormatter
-                         <$> LOG.streamHandler stdout LOG.DEBUG
-                         <*> pure (LOG.simpleLogFormatter "$prio: $msg")
+      consoleLogHandler = Log.setFormatter
+                         <$> Log.streamHandler stdout Log.DEBUG
+                         <*> pure (Log.simpleLogFormatter "$prio: $msg")

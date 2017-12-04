@@ -1,22 +1,24 @@
 {-# LANGUAGE LambdaCase #-}
 module Facter where
 
-import Data.Char
-import Text.Printf
-import qualified Data.HashSet as HS
-import qualified Data.HashMap.Strict as HM
-import Puppet.Interpreter.Types
-import qualified Data.Text as T
-import Control.Arrow
-import Control.Lens
-import System.Posix.User
-import System.Posix.Unistd (getSystemID, SystemID(..))
-import Data.List.Split (splitOn)
-import Data.List (intercalate,stripPrefix)
-import System.Environment
-import System.Directory (doesFileExist)
-import Data.Maybe (mapMaybe)
-import Control.Monad.Trans.Except
+import           Prelude
+
+import           Control.Arrow
+import           Control.Lens
+import           Control.Monad.Trans.Except
+import           Data.Char
+import qualified Data.HashMap.Strict        as HM
+import qualified Data.HashSet               as HS
+import           Data.List                  (intercalate, stripPrefix)
+import           Data.List.Split            (splitOn)
+import           Data.Maybe                 (mapMaybe)
+import qualified Data.Text                  as T
+import           Puppet.Interpreter.Types
+import           System.Directory           (doesFileExist)
+import           System.Environment
+import           System.Posix.Unistd        (SystemID (..), getSystemID)
+import           System.Posix.User
+import           Text.Printf
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -55,7 +57,7 @@ factRAM = do
         swaptotal = ginfo "SwapTotal:"
         ginfo st  = sdesc $ head $ filter ((== st) . head) meminfo
         sdesc [_, size, unit] = storagedesc (size, unit)
-        sdesc _ = storagedesc ("1","B")
+        sdesc _               = storagedesc ("1","B")
     return [("memorysize", memtotal), ("memoryfree", memfree), ("swapfree", swapfree), ("swapsize", swaptotal)]
 
 factNET :: IO [(String, String)]
@@ -68,7 +70,7 @@ factOS = do
     case (islsb, isdeb) of
         (True, _) -> factOSLSB
         (_, True) -> factOSDebian
-        _ -> return []
+        _         -> return []
 
 factOSDebian :: IO [(String, String)]
 factOSDebian = fmap (toV . head . lines) (readFile "/etc/debian_version")

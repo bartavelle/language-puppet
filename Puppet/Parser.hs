@@ -11,34 +11,30 @@ module Puppet.Parser (
   , datatype
 ) where
 
-import           Control.Applicative
-import           Control.Lens hiding (noneOf)
-import           Control.Monad
-import           Data.Char
-import qualified Data.Foldable as F
-import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Maybe.Strict as S
-import           Data.Maybe (fromMaybe)
-import           Data.Scientific
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import           Data.Tuple.Strict hiding (fst,zip)
-import qualified Data.Vector as V
-import           Data.Void (Void)
-import           Text.Megaparsec hiding (token)
+import           Puppet.Prelude                   hiding (option, try)
+
+import           Control.Monad                    (fail)
+import qualified Data.Char                        as Char
+import qualified Data.List                        as List
+import           Data.List.NonEmpty               (NonEmpty (..))
+import qualified Data.List.NonEmpty               as NE
+import qualified Data.Maybe.Strict                as S
+import qualified Data.Scientific                  as Scientific
+import qualified Data.Text                        as Text
+import qualified Data.Text.Encoding               as Text
+import qualified Data.Vector                      as V
+import           Text.Megaparsec                  hiding (token)
 import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.Megaparsec.Char.Lexer       as L
 import           Text.Megaparsec.Expr
 import           Text.Regex.PCRE.ByteString.Utils
 
 import           Puppet.Parser.Types
-import           Puppet.Utils
 
-type Parser = Parsec Void T.Text
+type Parser = Parsec Void Text
 
--- | Run a puppet parser against some 'T.Text' input.
-runPParser :: String -> T.Text -> Either (ParseError Char Void) (V.Vector Statement)
+-- | Run a puppet parser against some 'Text' input.
+runPParser :: String -> Text -> Either (ParseError Char Void) (V.Vector Statement)
 runPParser = parse puppetParser
 
 someSpace :: Parser ()
@@ -48,15 +44,15 @@ token :: Parser a -> Parser a
 token = L.lexeme someSpace
 
 integerOrDouble :: Parser (Either Integer Double)
-integerOrDouble = fmap Left hex <|> (either Right Left . floatingOrInteger <$> L.scientific)
+integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrInteger <$> L.scientific)
     where
         hex = string "0x" *> L.hexadecimal
 
-symbol :: T.Text -> Parser ()
+symbol :: Text -> Parser ()
 symbol = void . try . L.symbol someSpace
 
 symbolic :: Char -> Parser ()
-symbolic = symbol . T.singleton
+symbolic = symbol . Text.singleton
 
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
@@ -112,85 +108,85 @@ expression = condExpression
 variable :: Parser Expression
 variable = Terminal . UVariableReference <$> variableReference
 
-stringLiteral' :: Parser T.Text
+stringLiteral' :: Parser Text
 stringLiteral' = char '\'' *> interior <* symbolic '\''
     where
-        interior = T.pack . concat <$> many (some (noneOf ['\'', '\\']) <|> (char '\\' *> fmap escape anyChar))
+        interior = Text.pack . concat <$> many (some (noneOf ['\'', '\\']) <|> (char '\\' *> fmap escape anyChar))
         escape '\'' = "'"
-        escape x = ['\\',x]
+        escape x    = ['\\',x]
 
 identifier :: Parser String
 identifier = some (satisfy identifierPart)
 
 identifierPart :: Char -> Bool
-identifierPart x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_')
+identifierPart x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
 
-identl :: Parser Char -> Parser Char -> Parser T.Text
+identl :: Parser Char -> Parser Char -> Parser Text
 identl fstl nxtl = do
         f   <- fstl
         nxt <- token $ many nxtl
-        return $ T.pack $ f : nxt
+        return $ Text.pack $ f : nxt
 
-operator :: T.Text -> Parser ()
+operator :: Text -> Parser ()
 operator = void . try . symbol
 
-reserved :: T.Text -> Parser ()
+reserved :: Text -> Parser ()
 reserved s = try $ do
     void (string s)
     notFollowedBy (satisfy identifierPart)
     someSpace
 
-variableName :: Parser T.Text
+variableName :: Parser Text
 variableName = do
-    let acceptablePart = T.pack <$> many (satisfy identifierAcceptable)
-        identifierAcceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_')
+    let acceptablePart = Text.pack <$> many (satisfy identifierAcceptable)
+        identifierAcceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
     out <- qualif acceptablePart
-    when (out == "string") (fail "The special variable $string should never be used")
+    when (out == "string") (panic "The special variable $string should never be used")
     return out
 
-qualif :: Parser T.Text -> Parser T.Text
+qualif :: Parser Text -> Parser Text
 qualif p = token $ do
     header <- option "" (string "::")
-    ( header <> ) . T.intercalate "::" <$> p `sepBy1` string "::"
+    ( header <> ) . Text.intercalate "::" <$> p `sepBy1` string "::"
 
-qualif1 :: Parser T.Text -> Parser T.Text
+qualif1 :: Parser Text -> Parser Text
 qualif1 p = try $ do
     r <- qualif p
-    unless ("::" `T.isInfixOf` r) (fail "This parser is not qualified")
+    unless ("::" `Text.isInfixOf` r) (fail "This parser is not qualified")
     return r
 
-className :: Parser T.Text
+className :: Parser Text
 className = qualif moduleName
 
 -- yay with reserved words
-typeName :: Parser T.Text
+typeName :: Parser Text
 typeName = className
 
-moduleName :: Parser T.Text
+moduleName :: Parser Text
 moduleName = genericModuleName False
 
-resourceNameRef :: Parser T.Text
+resourceNameRef :: Parser Text
 resourceNameRef = qualif (genericModuleName True)
 
-genericModuleName :: Bool -> Parser T.Text
+genericModuleName :: Bool -> Parser Text
 genericModuleName isReference = do
-    let acceptable x = isAsciiLower x || isDigit x || (x == '_')
+    let acceptable x = Char.isAsciiLower x || Char.isDigit x || (x == '_')
         firstletter = if isReference
-                          then fmap toLower (satisfy isAsciiUpper)
-                          else satisfy isAsciiLower
+                          then fmap Char.toLower (satisfy Char.isAsciiUpper)
+                          else satisfy Char.isAsciiLower
     identl firstletter (satisfy acceptable)
 
-parameterName :: Parser T.Text
+parameterName :: Parser Text
 parameterName = moduleName
 
-variableReference :: Parser T.Text
+variableReference :: Parser Text
 variableReference = char '$' *> variableName
 
 interpolableString :: Parser (V.Vector Expression)
 interpolableString = V.fromList <$> between (char '"') (symbolic '"')
-     ( many (interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (Terminal . UString . T.singleton) (char '$')) )
+     ( many (interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (Terminal . UString . Text.singleton) (char '$')) )
     where
-        doubleQuotedStringContent = Terminal . UString . T.pack . concat <$>
+        doubleQuotedStringContent = Terminal . UString . Text.pack . concat <$>
             some ((char '\\' *> fmap stringEscape anyChar) <|> some (noneOf [ '"', '\\', '$' ]))
         stringEscape :: Char -> String
         stringEscape 'n'  = "\n"
@@ -201,9 +197,9 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
         stringEscape '$'  = "$"
         stringEscape x    = ['\\',x]
         -- this is specialized because we can't be "tokenized" here
-        variableAccept x = isAsciiLower x || isAsciiUpper x || isDigit x || x == '_'
+        variableAccept x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || x == '_'
         rvariableName = do
-            v <- T.concat <$> some (string "::" <|> fmap T.pack (some (satisfy variableAccept)))
+            v <- Text.concat <$> some (string "::" <|> fmap Text.pack (some (satisfy variableAccept)))
             when (v == "string") (fail "The special variable $string must not be used")
             return v
         rvariable = Terminal . UVariableReference <$> rvariableName
@@ -213,12 +209,12 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
             let fenced =    try (simpleIndexing <* char '}')
                         <|> try (rvariable <* char '}')
                         <|> (expression <* char '}')
-            (symbolic '{' *> fenced) <|> try rvariable <|> pure (Terminal (UString (T.singleton '$')))
+            (symbolic '{' *> fenced) <|> try rvariable <|> pure (Terminal (UString (Text.singleton '$')))
 
-regexp :: Parser T.Text
+regexp :: Parser Text
 regexp = do
     void (char '/')
-    T.pack . concat <$> many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
+    Text.pack . concat <$> many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
         <* symbolic '/'
 
 puppetArray :: Parser UnresolvedValue
@@ -235,7 +231,7 @@ puppetBool =  (reserved "true" >> return True)
           <|> (reserved "false" >> return False)
           <?> "Boolean"
 
-resourceReferenceRaw :: Parser (T.Text, [Expression])
+resourceReferenceRaw :: Parser (Text, [Expression])
 resourceReferenceRaw = do
     restype  <- resourceNameRef <?> "Resource reference type"
     resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
@@ -248,13 +244,13 @@ resourceReference = do
                  [x] -> x
                  _   -> Terminal $ UArray (V.fromList resnames)
 
-bareword :: Parser T.Text
-bareword = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Bare word"
+bareword :: Parser Text
+bareword = identl (satisfy Char.isAsciiLower) (satisfy acceptable) <?> "Bare word"
     where
-        acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
+        acceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_') || (x == '-')
 
 -- The first argument defines if non-parenthesized arguments are acceptable
-genFunctionCall :: Bool -> Parser (T.Text, V.Vector Expression)
+genFunctionCall :: Bool -> Parser (Text, V.Vector Expression)
 genFunctionCall nonparens = do
     fname <- moduleName <?> "Function name"
     -- this is a hack. Contrary to what the documentation says,
@@ -275,8 +271,8 @@ literalValue :: Parser UnresolvedValue
 literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
     where
         numericalvalue = integerOrDouble >>= \i -> case i of
-            Left x -> return (fromIntegral x)
-            Right y -> return (fromFloatDigits y)
+            Left x  -> return (fromIntegral x)
+            Right y -> return (Scientific.fromFloatDigits y)
 
 -- this is a hack for functions :(
 terminalG :: Parser Expression -> Parser Expression
@@ -288,14 +284,15 @@ terminalG g = parens expression
          <|> fmap Terminal puppetArray
          <|> fmap Terminal puppetHash
          <|> fmap (Terminal . UBoolean) puppetBool
+         <|> fmap (Terminal . UDataType) datatype
          <|> fmap Terminal resourceReference
          <|> g
          <|> fmap Terminal literalValue
 
-compileRegexp :: T.Text -> Parser CompRegex
-compileRegexp p = case compile' compBlank execBlank (T.encodeUtf8 p) of
+compileRegexp :: Text -> Parser CompRegex
+compileRegexp p = case compile' compBlank execBlank (Text.encodeUtf8 p) of
     Right r -> return $ CompRegex p r
-    Left ms -> fail ("Can't parse regexp /" ++ T.unpack p ++ "/ : " ++ show ms)
+    Left ms -> fail ("Can't parse regexp /" ++ Text.unpack p ++ "/ : " ++ show ms)
 
 termRegexp :: Parser CompRegex
 termRegexp = regexp >>= compileRegexp
@@ -340,7 +337,7 @@ expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/que
                   ]
 
 indexLookupChain :: Parser (Expression -> Expression)
-indexLookupChain = foldr1 (flip (.)) <$> some checkLookup
+indexLookupChain = List.foldr1 (flip (.)) <$> some checkLookup
     where
         checkLookup = flip Lookup <$> between (operator "[") (operator "]") expression
 
@@ -353,7 +350,7 @@ varAssign = do
     v <- variableReference
     void $ symbolic '='
     e <- expression
-    when (T.all isDigit v) (fail "Can't assign fully numeric variables")
+    when (Text.all Char.isDigit v) (fail "Can't assign fully numeric variables")
     pe <- getPosition
     return (VarAssignDecl v e (p :!: pe))
 
@@ -363,7 +360,7 @@ nodeDecl = do
     reserved "node"
     let toString (UString s) = s
         toString (UNumber n) = scientific2text n
-        toString _ = error "Can't happen at nodeDecl"
+        toString _           = panic "Can't happen at nodeDecl"
         nodename = (reserved "default" >> return NodeDefault) <|> fmap (NodeName . toString) literalValue
     ns <- (fmap NodeMatch termRegexp <|> nodename) `sepBy1` comma
     inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
@@ -382,12 +379,12 @@ defineDecl = do
     pe <- getPosition
     return (DefineDecl name params st (p :!: pe))
 
-puppetClassParameters :: Parser (V.Vector (Pair (Pair T.Text (S.Maybe DataType)) (S.Maybe Expression)))
+puppetClassParameters :: Parser (V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)))
 puppetClassParameters = V.fromList <$> parens (sepComma var)
     where
         toStrictMaybe (Just x) = S.Just x
         toStrictMaybe Nothing  = S.Nothing
-        var :: Parser (Pair (Pair T.Text (S.Maybe DataType)) (S.Maybe Expression))
+        var :: Parser (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))
         var = do
           tp <- toStrictMaybe <$> optional datatype
           n  <- variableReference
@@ -424,7 +421,7 @@ caseCondition = do
         defaultCase = Terminal (UBoolean True) <$ try (reserved "default")
         matchesToExpression e (x, stmts) = f x :!: stmts
             where f = case x of
-                          (Terminal (UBoolean _)) -> id
+                          (Terminal (UBoolean _)) -> identity
                           (Terminal (URegexp _))  -> RegexMatch e
                           _                       -> Equal e
         cases = do
@@ -442,13 +439,13 @@ caseCondition = do
 data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
                      | EndOfChain a
 
-instance F.Foldable OperatorChain where
-    foldMap f (EndOfChain x) = f x
-    foldMap f (OperatorChain a _ nx) = f a <> F.foldMap f nx
+instance Foldable OperatorChain where
+    foldMap f (EndOfChain x)         = f x
+    foldMap f (OperatorChain a _ nx) = f a <> foldMap f nx
 
 operatorChainStatement :: OperatorChain a -> a
 operatorChainStatement (OperatorChain a _ _) = a
-operatorChainStatement (EndOfChain x) = x
+operatorChainStatement (EndOfChain x)        = x
 
 zipChain :: OperatorChain a -> [ ( a, a, LinkType ) ]
 zipChain (OperatorChain a d nx) = (a, operatorChainStatement nx, d) : zipChain nx
@@ -463,8 +460,8 @@ depOperator =   (operator "->" *> pure RBefore)
 assignment :: Parser AttributeDecl
 assignment = AttributeDecl <$> key <*> arrowOp  <*> expression
     where
-        key = identl (satisfy isAsciiLower) (satisfy acceptable) <?> "Assignment key"
-        acceptable x = isAsciiLower x || isAsciiUpper x || isDigit x || (x == '_') || (x == '-')
+        key = identl (satisfy Char.isAsciiLower) (satisfy acceptable) <?> "Assignment key"
+        acceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_') || (x == '-')
         arrowOp =
               (symbol "=>" *> pure AssignArrow)
           <|> (symbol "+>" *> pure AppendArrow)
@@ -483,7 +480,7 @@ searchExpression = makeExprParser (token searchterm) searchTable
             term   <- stringExpression
             return (opr attrib term)
 
-resCollDecl :: Position -> T.Text -> Parser ResCollDecl
+resCollDecl :: Position -> Text -> Parser ResCollDecl
 resCollDecl p restype = do
     openchev <- some (char '<')
     when (length openchev > 2) (fail "Too many brackets")
@@ -582,7 +579,7 @@ chainableResources = do
             return (DepDecl (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
     return $ map DependencyDeclaration relations <> (chain ^.. folded . folded . to extractChainStatement . folded)
   where
-    extractResRef :: ChainableRes -> [(T.Text, Expression, PPosition)]
+    extractResRef :: ChainableRes -> [(Text, Expression, PPosition)]
     extractResRef (ChainResColl _) = []
     extractResRef (ChainResDecl (ResDecl rt rn _ _ pp)) = [(rt,rn,pp)]
     extractResRef (ChainResRefr rt rns pp) = [(rt,rn,pp) | rn <- rns]
@@ -590,7 +587,7 @@ chainableResources = do
     extractChainStatement :: ChainableRes -> [Statement]
     extractChainStatement (ChainResColl r) = [ResourceCollectionDeclaration r]
     extractChainStatement (ChainResDecl d) = [ResourceDeclaration d]
-    extractChainStatement ChainResRefr{} = []
+    extractChainStatement ChainResRefr{}   = []
 
     parseRelationships :: Parser a -> Parser (OperatorChain a)
     parseRelationships p = do
@@ -660,7 +657,7 @@ datatype = dtString
        <?> "DataType"
   where
     integer = integerOrDouble >>= either (return . fromIntegral) (\d -> fail ("Integer value expected, instead of " ++ show d))
-    float = either fromIntegral id <$> integerOrDouble
+    float = either fromIntegral identity <$> integerOrDouble
     dtArgs str def parseArgs = do
       void $ reserved str
       fromMaybe def <$> optional (brackets parseArgs)
@@ -669,7 +666,7 @@ datatype = dtString
       case lst of
         [minlen] -> return $ constructor (Just minlen) Nothing
         [minlen,maxlen] -> return $ constructor (Just minlen) (Just maxlen)
-        _ -> fail ("Too many arguments to datatype " ++ T.unpack s)
+        _ -> fail ("Too many arguments to datatype " ++ Text.unpack s)
     dtString = dtbounded "String" DTString integer
     dtInteger = dtbounded "Integer" DTInteger integer
     dtFloat = dtbounded "Float" DTFloat float
@@ -706,13 +703,13 @@ statementList = (V.fromList . concat) <$> many statement
 
 lambdaCall :: Parser HOLambdaCall
 lambdaCall = do
-    let toStrict (Just x) = S.Just x
-        toStrict Nothing  = S.Nothing
+    let tostrict (Just x) = S.Just x
+        tostrict Nothing  = S.Nothing
     HOLambdaCall <$> lambFunc
-                 <*> fmap (toStrict . join) (optional (parens (optional expression)))
+                 <*> fmap (tostrict . join) (optional (parens (optional expression)))
                  <*> lambParams
                  <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
-                 <*> fmap toStrict (optional expression) <* symbolic '}'
+                 <*> fmap tostrict (optional expression) <* symbolic '}'
     where
         lambFunc :: Parser LambdaFunc
         lambFunc = (reserved "each"   *> pure LambEach)
@@ -724,7 +721,7 @@ lambdaCall = do
         lambParams :: Parser LambdaParameters
         lambParams = between (symbolic '|') (symbolic '|') hp
             where
-                acceptablePart = T.pack <$> identifier
+                acceptablePart = Text.pack <$> identifier
                 lambdaParameter :: Parser LambdaParameter
                 lambdaParameter = LParam <$> optional datatype <*> (char '$' *> acceptablePart)
                 hp = do

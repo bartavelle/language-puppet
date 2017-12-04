@@ -1,9 +1,10 @@
 module Puppet.Interpreter.RubyRandom (rbGenrandInt32, randInit, limitedRand) where
 
+import Puppet.Prelude
+
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as VM
-import Data.Bits
-import Data.List (unfoldr,foldl')
+import qualified Data.List as List
 
 data RandState = RandState { _array :: V.Vector Int
                            , _left  :: Int
@@ -58,15 +59,15 @@ nextState (RandState array _ initf _) = RandState narray valN 1 0
 -- needs refactoring, too tedious for me
 initGenrandBigint :: Integer -> RandState
 initGenrandBigint seed =
-    let intarray = unfoldr reduce seed
-        reduce :: Integer -> Maybe (Integer, Integer)
-        reduce 0 = Nothing
-        reduce x = Just (x .&. 0xffffffff, x `shiftR` 32)
+    let intarray = unfoldr reduceint seed
+        reduceint :: Integer -> Maybe (Integer, Integer)
+        reduceint 0 = Nothing
+        reduceint x = Just (x .&. 0xffffffff, x `shiftR` 32)
         initstate = _array (initGenrand 19650218)
         keylist = concat (repeat intarray)
         jlist = concat (repeat [0..(length intarray - 1)])
         kmax = max (length intarray) valN
-        state1 = foldl' apply1 initstate (zip3 keylist jlist [1..kmax])
+        state1 = foldl' apply1 initstate (List.zip3 keylist jlist [1..kmax])
         apply1 :: V.Vector Int -> (Integer, Int, Int) -> V.Vector Int
         apply1 ra (initKey, j, ri) =
             let (a, i, sti, stim) = rollover ra ri
@@ -110,10 +111,10 @@ limitedRand :: RandState -> Int -> (Int, RandState)
 limitedRand s n | n <= 0 = (0, s)
                 | otherwise = limitedRand' s
     where
-        mask = foldl' (\x pow -> x .|. (x `shiftR` pow)) (n - 1) [1,2,4,8,16,32]
+        masked = foldl' (\x pow -> x .|. (x `shiftR` pow)) (n - 1) [1,2,4,8,16,32]
         limitedRand' s' =
             let (rval, ns) = rbGenrandInt32 s'
-                val = rval .&. mask
+                val = rval .&. masked
             in  if n <= val
                     then limitedRand' ns
                     else (val, ns)

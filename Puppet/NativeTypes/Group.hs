@@ -1,14 +1,15 @@
 module Puppet.NativeTypes.Group (nativeGroup) where
 
-import Puppet.NativeTypes.Helpers
-import Puppet.Interpreter.Types
-import qualified Data.Text as T
+import           Puppet.Prelude
+
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
 
 nativeGroup :: (NativeTypeName, NativeTypeMethods)
 nativeGroup = ("group", nativetypemethods parameterfunctions return)
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("allowdupe"               , [string, defaultvalue "false", values ["true","false"]])
     ,("attribute_membership"    , [string, defaultvalue "minimum", values ["inclusive","minimum"]])

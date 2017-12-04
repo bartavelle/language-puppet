@@ -6,18 +6,16 @@
 -- internal module and should not be used if expecting a stable API.
 module Puppet.Interpreter.Utils where
 
-import           Control.Lens               hiding (Strict)
+import           Puppet.Prelude
+
 import           Control.Monad.Operational
 import           Control.Monad.Writer.Class
-import qualified Data.ByteString            as BS
 import qualified Data.HashMap.Strict        as HM
-import           Data.Maybe                 (fromMaybe)
+import qualified Data.List                  as List
 import qualified Data.Maybe.Strict          as S
-import           Data.Text (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import           Data.Tuple.Strict
-import qualified System.Log.Logger          as LOG
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import qualified System.Log.Logger          as Log
 
 import           Puppet.Interpreter.Types
 import           Puppet.Parser.Types
@@ -44,8 +42,8 @@ initialState facts settings = InterpreterState baseVars initialclass mempty [Con
 
 getModulename :: RIdentifier -> Text
 getModulename (RIdentifier t n) =
-    let gm x = case T.splitOn "::" x of
-                   [] -> x
+    let gm x = case Text.splitOn "::" x of
+                   []    -> x
                    (y:_) -> y
     in case t of
         "class" -> gm n
@@ -59,7 +57,7 @@ extractPrism msg p a = case preview p a of
 
 -- Scope
 popScope :: InterpreterMonad ()
-popScope = curScope %= tail
+popScope = curScope %= List.tail
 
 pushScope :: CurContainerDesc -> InterpreterMonad ()
 pushScope s = curScope %= (s :)
@@ -69,25 +67,24 @@ getScopeName = scopeName <$> getScope
 
 scopeName :: CurContainerDesc -> Text
 scopeName (ContRoot        ) = "::"
-scopeName (ContImported x  ) = "::imported::" `T.append` scopeName x
+scopeName (ContImported x  ) = "::imported::" `Text.append` scopeName x
 scopeName (ContClass x     ) = x
-scopeName (ContDefine dt dn _) = "#define/" `T.append` dt `T.append` "/" `T.append` dn
-scopeName (ContImport _ x  ) = "::import::" `T.append` scopeName x
+scopeName (ContDefine dt dn _) = "#define/" `Text.append` dt `Text.append` "/" `Text.append` dn
+scopeName (ContImport _ x  ) = "::import::" `Text.append` scopeName x
 
 moduleName :: CurContainerDesc -> Text
-moduleName (ContRoot        ) = "::"
-moduleName (ContImported x  ) = moduleName x
-moduleName (ContClass x     ) = x
+moduleName (ContRoot        )  = "::"
+moduleName (ContImported x  )  = moduleName x
+moduleName (ContClass x     )  = x
 moduleName (ContDefine dt _ _) = dt
-moduleName (ContImport _ x  ) = moduleName x
-
+moduleName (ContImport _ x  )  = moduleName x
 
 getScope :: InterpreterMonad CurContainerDesc
 {-# INLINABLE getScope #-}
-getScope = use curScope >>= \s -> if null s
-                                      then throwPosError "Internal error: empty scope!"
-                                      else return (head s)
-
+getScope =
+  use curScope >>= \s -> if null s
+                         then throwPosError "Internal error: empty scope!"
+                         else pure (List.head s)
 
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINABLE getCurContainer #-}
@@ -95,7 +92,7 @@ getCurContainer = do
     scp <- getScopeName
     preuse (scopes . ix scp . scopeContainer) >>= \case
         Just x -> return x
-        Nothing -> throwPosError ("Internal error: can't find the current container for" <+> green (string (T.unpack scp)))
+        Nothing -> throwPosError ("Internal error: can't find the current container for" <+> green (string (Text.unpack scp)))
 
 rcurcontainer :: Resource -> CurContainerDesc
 rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
@@ -117,7 +114,7 @@ checkStrict :: Doc -- ^ The warning message.
             -> InterpreterMonad ()
 checkStrict wrn err = do
     extMod <- isExternalModule
-    let priority = if extMod then LOG.NOTICE else LOG.WARNING
+    let priority = if extMod then Log.NOTICE else Log.WARNING
     str <- singleton IsStrict
     if str && not extMod
         then throwPosError err
@@ -132,29 +129,29 @@ isExternalModule =
       ContDefine n _ _ -> isExternal n
       _                -> return False
     where
-      isExternal = singleton . IsExternalModule . head . T.splitOn "::"
+      isExternal = singleton . IsExternalModule . List.head . Text.splitOn "::"
 
 
 -- Logging --
 warn :: MonadWriter InterpreterWriter m => Doc -> m ()
-warn d = tell [LOG.WARNING :!: d]
+warn d = tell [Log.WARNING :!: d]
 
 debug :: MonadWriter InterpreterWriter m => Doc -> m ()
-debug d = tell [LOG.DEBUG :!: d]
+debug d = tell [Log.DEBUG :!: d]
 
-logWriter :: MonadWriter InterpreterWriter m => LOG.Priority -> Doc -> m ()
+logWriter :: MonadWriter InterpreterWriter m => Log.Priority -> Doc -> m ()
 logWriter prio d = tell [prio :!: d]
 
 -- General --
 isEmpty :: (Eq x, Monoid x) => x -> Bool
 isEmpty = (== mempty)
 
-safeDecodeUtf8 :: BS.ByteString -> InterpreterMonad Text
+safeDecodeUtf8 :: ByteString -> InterpreterMonad Text
 {-# INLINABLE safeDecodeUtf8 #-}
-safeDecodeUtf8 i = return (T.decodeUtf8 i)
+safeDecodeUtf8 i = return (Text.decodeUtf8 i)
 
-dropInitialColons :: Text -> T.Text
-dropInitialColons t = fromMaybe t (T.stripPrefix "::" t)
+dropInitialColons :: Text -> Text
+dropInitialColons t = fromMaybe t (Text.stripPrefix "::" t)
 
-normalizeRIdentifier :: Text -> T.Text -> RIdentifier
+normalizeRIdentifier :: Text -> Text -> RIdentifier
 normalizeRIdentifier = RIdentifier . dropInitialColons

@@ -1,34 +1,29 @@
-{-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RankNTypes    #-}
+{-# LANGUAGE TupleSections #-}
 module Puppet.Stdlib (stdlibFunctions) where
 
-import           Control.Applicative
-import           Control.Lens
-import           Control.Monad
+import           GHC.Show                         (Show (..))
+import           Puppet.Prelude                   hiding (show, sort)
+
 import           Data.Aeson.Lens
 import qualified Data.ByteString.Base16           as B16
-import           Data.Char
+import qualified Data.Char                        as Char
 import qualified Data.HashMap.Strict              as HM
-import qualified Data.List as List
-import           Data.List.Split                  (chunksOf)
-import           Data.Maybe                       (mapMaybe)
-import           Data.Monoid
+import qualified Data.List                        as List
+import qualified Data.List.Split                  as List (chunksOf)
 import qualified Data.Scientific                  as Scientific
-import qualified Data.Text                        as T
-import qualified Data.Text.Encoding               as T
-import           Data.Traversable                 (for)
+import qualified Data.Text                        as Text
 import qualified Data.Vector                      as V
 import           Data.Vector.Lens                 (toVectorOf)
 import qualified Text.PrettyPrint.ANSI.Leijen     as PP
-import           Text.Regex.PCRE.ByteString.Utils
+import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
 import           Puppet.Interpreter.Resolve
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
 import           Puppet.PP
-import           Puppet.Utils (text2Scientific)
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
@@ -40,10 +35,10 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "bool2num" bool2num
                               -- bool2str
                               -- camelcase
-                              , ("capitalize", stringArrayFunction (safeEmptyString (\t -> T.cons (toUpper (T.head t)) (T.tail t))))
+                              , ("capitalize", stringArrayFunction (safeEmptyString (\t -> Text.cons (Char.toUpper (Text.head t)) (Text.tail t))))
                               -- ceiling
-                              , ("chomp", stringArrayFunction (T.dropWhileEnd (\c -> c == '\n' || c == '\r')))
-                              , ("chop", stringArrayFunction (safeEmptyString T.init))
+                              , ("chomp", stringArrayFunction (Text.dropWhileEnd (\c -> c == '\n' || c == '\r')))
+                              , ("chop", stringArrayFunction (safeEmptyString Text.init))
                               -- clamp
                               , ("concat", puppetConcat)
                               -- convert_base
@@ -57,7 +52,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- difference
                               -- dirname
                               -- dos2unix
-                              , ("downcase", stringArrayFunction T.toLower)
+                              , ("downcase", stringArrayFunction Text.toLower)
                               , singleArgument "empty" _empty
                               -- ensure_packages (in main interpreter module)
                               -- ensure_resource (in main interpreter module)
@@ -92,7 +87,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "keys" keys
                               -- load_module_metadata
                               -- loadyaml
-                              , ("lstrip", stringArrayFunction T.stripStart)
+                              , ("lstrip", stringArrayFunction Text.stripStart)
                               -- max
                               , ("member", member)
                               , ("merge", merge)
@@ -108,7 +103,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- range
                               -- reject
                               -- reverse
-                              , ("rstrip", stringArrayFunction T.stripEnd)
+                              , ("rstrip", stringArrayFunction Text.stripEnd)
                               -- seeded_rand
                               -- shuffle
                               , singleArgument "size" size
@@ -117,7 +112,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "str2bool" str2Bool
                               -- strtosaltedshar512
                               -- strftime
-                              , ("strip", stringArrayFunction T.strip)
+                              , ("strip", stringArrayFunction Text.strip)
                               -- suffix
                               -- swapcase
                               -- time
@@ -128,7 +123,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- union
                               -- unique
                               -- unix2dos
-                              , ("upcase", stringArrayFunction T.toUpper)
+                              , ("upcase", stringArrayFunction Text.toUpper)
                               -- uriescape
                               , ("validate_absolute_path", validateAbsolutePath)
                               , ("validate_array", validateArray)
@@ -150,29 +145,29 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- zip
                               ]
 
-singleArgument :: T.Text -> (PValue -> InterpreterMonad PValue) -> (T.Text, [PValue] -> InterpreterMonad PValue )
+singleArgument :: Text -> (PValue -> InterpreterMonad PValue) -> (Text, [PValue] -> InterpreterMonad PValue )
 singleArgument fname ifunc = (fname, ofunc)
     where
         ofunc [x] = ifunc x
         ofunc _ = throwPosError (ttext fname <> "(): Expects a single argument.")
 
-safeEmptyString :: (T.Text -> T.Text) -> T.Text -> T.Text
+safeEmptyString :: (Text -> Text) -> Text -> Text
 safeEmptyString _ "" = ""
 safeEmptyString f x  = f x
 
-stringArrayFunction :: (T.Text -> T.Text) -> [PValue] -> InterpreterMonad PValue
+stringArrayFunction :: (Text -> Text) -> [PValue] -> InterpreterMonad PValue
 stringArrayFunction f [PString s] = return (PString (f s))
 stringArrayFunction f [PArray xs] = fmap PArray (V.mapM (fmap (PString . f) . resolvePValueString) xs)
 stringArrayFunction _ [a] = throwPosError ("function expects a string or an array of strings, not" <+> pretty a)
 stringArrayFunction _ _ = throwPosError "function expects a single argument"
 
-compileRE :: T.Text -> InterpreterMonad Regex
-compileRE r = case compile' compBlank execBlank (T.encodeUtf8 r) of
+compileRE :: Text -> InterpreterMonad Regex
+compileRE r = case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 r) of
                   Left rr -> throwPosError ("Could not compile" <+> ttext r <+> ":" <+> string (show rr))
                   Right x -> return x
 
-matchRE :: Regex -> T.Text -> InterpreterMonad Bool
-matchRE r t = case execute' r (T.encodeUtf8 t) of
+matchRE :: Regex -> Text -> InterpreterMonad Bool
+matchRE r t = case Regex.execute' r (encodeUtf8 t) of
                   Left rr -> throwPosError ("Could not match:" <+> string (show rr))
                   Right m -> return (has _Just m)
 
@@ -191,7 +186,7 @@ assertPrivate args = case args of
             scp <- use curScope
             case scp of
                 funScope : callerScope : _ ->
-                    let takeModule = T.takeWhile (/= ':') . moduleName
+                    let takeModule = Text.takeWhile (/= ':') . moduleName
                     in  if takeModule funScope == takeModule callerScope
                             then return PUndef
                             else throwPosError $ maybe ("assert_private: failed: " <> pretty funScope <> " is private") ttext msg
@@ -207,13 +202,13 @@ any2array x = return (PArray (V.fromList x))
 
 base64 :: [PValue] -> InterpreterMonad PValue
 base64 [pa,pb] = do
-    b <- fmap T.encodeUtf8 (resolvePValueString pb)
+    b <- encodeUtf8 <$> (resolvePValueString pb)
     r <- resolvePValueString pa >>= \case
-        "encode" -> return (B16.encode b)
-        "decode" -> case B16.decode b of
-                        (x, "") -> return x
-                        _       -> throwPosError ("base64(): could not decode" <+> pretty pb)
-        a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ttext a)
+          "encode" -> return (B16.encode b)
+          "decode" -> case B16.decode b of
+                          (x, "") -> return x
+                          _       -> throwPosError ("base64(): could not decode" <+> pretty pb)
+          a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ttext a)
     fmap PString (safeDecodeUtf8 r)
 base64 _ = throwPosError "base64(): Expects 2 arguments"
 
@@ -253,7 +248,7 @@ puppetCount [PArray x, y] = return (_Integer # V.foldl' cnt 0 x)
 puppetCount _ = throwPosError "count(): expects 1 or 2 arguments"
 
 delete :: [PValue] -> InterpreterMonad PValue
-delete [PString x, y] = fmap (PString . T.concat . (`T.splitOn` x)) (resolvePValueString y)
+delete [PString x, y] = fmap (PString . Text.concat . (`Text.splitOn` x)) (resolvePValueString y)
 delete [PArray r, z] = return $ PArray $ V.filter (/= z) r
 delete [PHash h, z] = do
    tz <- resolvePValueString z
@@ -307,7 +302,7 @@ _grep _ = throwPosError "grep(): Expected two arguments."
 
 hash :: [PValue] -> InterpreterMonad PValue
 hash [PArray elems] = do
-    let xs = mapMaybe assocPairs $ chunksOf 2 $ V.toList elems
+    let xs = mapMaybe assocPairs $ List.chunksOf 2 $ V.toList elems
         assocPairs [a,b] = Just (a,b)
         assocPairs _     = Nothing
     PHash . HM.fromList <$> mapM (\(k,v) -> (,v) <$> resolvePValueString k) xs
@@ -319,16 +314,16 @@ isArray = return . PBoolean . has _PArray
 isDomainName :: PValue -> InterpreterMonad PValue
 isDomainName s = do
     rs <- resolvePValueString s
-    let ndrs = if T.last rs == '.'
-                   then T.init rs
+    let ndrs = if Text.last rs == '.'
+                   then Text.init rs
                    else rs
-        prts = T.splitOn "." ndrs
-        checkPart x = not (T.null x)
-                        && (T.length x <= 63)
-                        && (T.head x /= '-')
-                        && (T.last x /= '-')
-                        && T.all (\y -> isAlphaNum y || y == '-') x
-    return $ PBoolean $ not (T.null rs) && T.length rs <= 255 && all checkPart prts
+        prts = Text.splitOn "." ndrs
+        checkPart x = not (Text.null x)
+                        && (Text.length x <= 63)
+                        && (Text.head x /= '-')
+                        && (Text.last x /= '-')
+                        && Text.all (\y -> Char.isAlphaNum y || y == '-') x
+    return $ PBoolean $ not (Text.null rs) && Text.length rs <= 255 && all checkPart prts
 
 isInteger :: PValue -> InterpreterMonad PValue
 isInteger = return . PBoolean . has _Integer
@@ -348,7 +343,7 @@ isBool = return . PBoolean . has _PBoolean
 puppetJoin :: [PValue] -> InterpreterMonad PValue
 puppetJoin [PArray rr, PString interc] = do
     rrt <- mapM resolvePValueString (V.toList rr)
-    return (PString (T.intercalate interc rrt))
+    return (PString (Text.intercalate interc rrt))
 puppetJoin [_,_] = throwPosError "join(): expected an array of strings, and a string"
 puppetJoin _ = throwPosError "join(): expected two arguments"
 
@@ -393,13 +388,13 @@ pick xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
 pickDefault :: [PValue] -> InterpreterMonad PValue
 pickDefault [] = throwPosError "pick_default(): must receive at least one non empty value"
 pickDefault xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
-                     []    -> return (last xs)
+                     []    -> return (List.last xs)
                      (x:_) -> return x
 
 size :: PValue -> InterpreterMonad PValue
 size (PHash h) = return (_Integer # fromIntegral (HM.size h))
 size (PArray v) = return (_Integer # fromIntegral (V.length v))
-size (PString s) = return (_Integer # fromIntegral (T.length s))
+size (PString s) = return (_Integer # fromIntegral (Text.length s))
 size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+> pretty x)
 
 sort :: PValue -> InterpreterMonad PValue
@@ -428,7 +423,7 @@ validateAbsolutePath :: [PValue] -> InterpreterMonad PValue
 validateAbsolutePath [] = throwPosError "validateAbsolutePath(): wrong number of arguments, must be > 0"
 validateAbsolutePath a = mapM_ (resolvePValueString >=> validate) a >> return PUndef
     where
-        validate x | T.head x == '/' = return ()
+        validate x | Text.head x == '/' = return ()
                    | otherwise = throwPosError (ttext x <+> "is not an absolute path")
 
 validateArray :: [PValue] -> InterpreterMonad PValue
@@ -492,7 +487,7 @@ validateInteger x = PUndef <$ mapM_ vb x
         check n = unless (Scientific.isInteger n) $ throwPosError (msg (show n))
         vb (PNumber n) = check n
         vb (PString s) | Just n <- text2Scientific s = check n
-        vb a = throwPosError (msg a)
+        vb a           = throwPosError (msg a)
 
 pvalues :: PValue -> InterpreterMonad PValue
 pvalues (PHash h) = return $ PArray (toVectorOf traverse h)

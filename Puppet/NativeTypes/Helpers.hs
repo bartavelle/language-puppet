@@ -32,24 +32,23 @@ module Puppet.NativeTypes.Helpers
     , validateSourceOrContent
     ) where
 
-import           Control.Lens
-import           Control.Monad
+import           Puppet.Prelude
+
+import qualified Text.Read
 import           Data.Aeson.Lens                  (_Integer, _Number)
 import           Data.Char                        (isDigit)
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
-import           Data.Maybe                       (fromMaybe)
-import qualified Data.Text                        as T
+import qualified Data.Text                        as Text
 import qualified Data.Vector                      as V
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
 import           Puppet.PP                        hiding (integer, string)
-import           Puppet.Utils
 import qualified Text.PrettyPrint.ANSI.Leijen     as P
 
-type NativeTypeName = T.Text
+type NativeTypeName = Text
 
-paramname :: T.Text -> Doc
+paramname :: Text -> Doc
 paramname = red . ttext
 
 -- | Useful helper for buiding error messages
@@ -57,7 +56,7 @@ perror :: Doc -> Either PrettyError Resource
 perror = Left . PrettyError
 
 -- | Smart constructor for 'NativeTypeMethods'.
-nativetypemethods :: [(T.Text, [T.Text -> NativeTypeValidate])] -> NativeTypeValidate -> NativeTypeMethods
+nativetypemethods :: [(Text, [Text -> NativeTypeValidate])] -> NativeTypeValidate -> NativeTypeMethods
 nativetypemethods def extraV =
   let params = fromKeys def
   in NativeTypeMethods (defaultValidate params >=> parameterFunctions def >=> extraV)  params
@@ -77,10 +76,10 @@ defaulttype tname = (tname, NativeTypeMethods (defaultValidate HS.empty) HS.empt
 
       * checks that no unknown parameters have been set (except metaparameters)
 -}
-defaultValidate :: HS.HashSet T.Text -> NativeTypeValidate
+defaultValidate :: HS.HashSet Text -> NativeTypeValidate
 defaultValidate validparameters = checkParameterList validparameters >=> addDefaults
 
-checkParameterList :: HS.HashSet T.Text -> NativeTypeValidate
+checkParameterList :: HS.HashSet Text -> NativeTypeValidate
 checkParameterList validparameters res | HS.null validparameters = Right res
                                        | otherwise = if HS.null setdiff
                                             then Right res
@@ -94,12 +93,12 @@ addDefaults :: NativeTypeValidate
 addDefaults res = Right (res & rattributes %~ newparams)
     where
         def PUndef = False
-        def _ = True
+        def _      = True
         newparams p = HM.filter def $ HM.union p defaults
         defaults    = HM.empty
 
 -- | Helper function that runs a validor on a 'PArray'
-runarray :: T.Text -> (T.Text -> PValue -> NativeTypeValidate) -> NativeTypeValidate
+runarray :: Text -> (Text -> PValue -> NativeTypeValidate) -> NativeTypeValidate
 runarray param func res = case res ^. rattributes . at param of
     Just (PArray x) -> V.foldM (flip (func param)) res x
     Just x          -> perror $ "Parameter" <+> paramname param <+> "should be an array, not" <+> pretty x
@@ -108,22 +107,22 @@ runarray param func res = case res ^. rattributes . at param of
 {-| This checks that a given parameter is a string. If it is a 'ResolvedInt' or
 'ResolvedBool' it will convert them to strings.
 -}
-string :: T.Text -> NativeTypeValidate
+string :: Text -> NativeTypeValidate
 string param res = case res ^. rattributes . at param of
     Just x  -> string' param x res
     Nothing -> Right res
 
-strings :: T.Text -> NativeTypeValidate
+strings :: Text -> NativeTypeValidate
 strings param = runarray param string'
 
 -- | Validates a string or an array of strings
-string_s :: T.Text -> NativeTypeValidate
+string_s :: Text -> NativeTypeValidate
 string_s param res = case res ^. rattributes . at param of
-                         Nothing -> Right res
+                         Nothing         -> Right res
                          Just (PArray _) -> strings param res
-                         Just _ -> string param res
+                         Just _          -> string param res
 
-string' :: T.Text -> PValue -> NativeTypeValidate
+string' :: Text -> PValue -> NativeTypeValidate
 string' param rev res = case rev of
     PString _      -> Right res
     PBoolean True  -> Right (res & rattributes . at param ?~ PString "true")
@@ -134,7 +133,7 @@ string' param rev res = case rev of
 
 
 -- | Makes sure that the parameter, if defined, has a value among this list.
-values :: [T.Text] -> T.Text -> NativeTypeValidate
+values :: [Text] -> Text -> NativeTypeValidate
 values valuelist param res = case res ^. rattributes . at param of
     Just (PString x) -> if x `elem` valuelist
         then Right res
@@ -143,29 +142,29 @@ values valuelist param res = case res ^. rattributes . at param of
     Nothing -> Right res
 
 -- | This fills the default values of unset parameters.
-defaultvalue :: T.Text -> T.Text -> NativeTypeValidate
+defaultvalue :: Text -> Text -> NativeTypeValidate
 defaultvalue value param = Right . over (rattributes . at param) (Just . fromMaybe (PString value))
 
 -- | Checks that a given parameter, if set, is a 'ResolvedInt'.
 -- If it is a 'PString' it will attempt to parse it.
-integer :: T.Text -> NativeTypeValidate
+integer :: Text -> NativeTypeValidate
 integer prm res = string prm res >>= integer' prm
     where
         integer' pr rs = case rs ^. rattributes . at pr of
             Just x  -> integer'' prm x res
             Nothing -> Right rs
 
-integers :: T.Text -> NativeTypeValidate
+integers :: Text -> NativeTypeValidate
 integers param = runarray param integer''
 
-integer'' :: T.Text -> PValue -> NativeTypeValidate
+integer'' :: Text -> PValue -> NativeTypeValidate
 integer'' param val res = case val ^? _Integer of
     Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
     _ -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
 
 -- | Copies the "name" value into the parameter if this is not set.
 -- It implies the `string` validator.
-nameval :: T.Text -> NativeTypeValidate
+nameval :: Text -> NativeTypeValidate
 nameval prm res = string prm res
                     >>= \r -> case r ^. rattributes . at prm of
                                   Just (PString al) -> Right (res & rid . iname .~ al)
@@ -173,7 +172,7 @@ nameval prm res = string prm res
                                   Nothing -> Right (r & rattributes . at prm ?~ PString (r ^. rid . iname))
 
 -- | Checks that a given parameter is set unless the resources "ensure" is set to absent
-mandatoryIfNotAbsent :: T.Text -> NativeTypeValidate
+mandatoryIfNotAbsent :: Text -> NativeTypeValidate
 mandatoryIfNotAbsent param res = case res ^. rattributes . at param of
     Just _  -> Right res
     Nothing -> case res ^. rattributes . at "ensure" of
@@ -181,51 +180,51 @@ mandatoryIfNotAbsent param res = case res ^. rattributes . at param of
                    _ -> perror $ "Parameter" <+> paramname param <+> "should be set."
 
 -- | Checks that a given parameter is set.
-mandatory :: T.Text -> NativeTypeValidate
+mandatory :: Text -> NativeTypeValidate
 mandatory param res = case res ^. rattributes . at param of
     Just _  -> Right res
     Nothing -> perror $ "Parameter" <+> paramname param <+> "should be set."
 
 -- | Helper that takes a list of stuff and will generate a validator.
-parameterFunctions :: [(T.Text, [T.Text -> NativeTypeValidate])] -> NativeTypeValidate
+parameterFunctions :: [(Text, [Text -> NativeTypeValidate])] -> NativeTypeValidate
 parameterFunctions argrules rs = foldM parameterFunctions' rs argrules
     where
-    parameterFunctions' :: Resource -> (T.Text, [T.Text -> NativeTypeValidate]) -> Either PrettyError Resource
+    parameterFunctions' :: Resource -> (Text, [Text -> NativeTypeValidate]) -> Either PrettyError Resource
     parameterFunctions' r (param, validationfunctions) = foldM (parameterFunctions'' param) r validationfunctions
-    parameterFunctions'' :: T.Text -> Resource -> (T.Text -> NativeTypeValidate) -> Either PrettyError Resource
+    parameterFunctions'' :: Text -> Resource -> (Text -> NativeTypeValidate) -> Either PrettyError Resource
     parameterFunctions'' param r validationfunction = validationfunction param r
 
 -- checks that a parameter is fully qualified
-fullyQualified :: T.Text -> NativeTypeValidate
+fullyQualified :: Text -> NativeTypeValidate
 fullyQualified param res = case res ^. rattributes . at param of
     Just path -> fullyQualified' param path res
-    Nothing -> Right res
+    Nothing   -> Right res
 
-noTrailingSlash :: T.Text -> NativeTypeValidate
+noTrailingSlash :: Text -> NativeTypeValidate
 noTrailingSlash param res = case res ^. rattributes . at param of
-     Just (PString x) -> if T.last x == '/'
+     Just (PString x) -> if Text.last x == '/'
                                     then perror ("Parameter" <+> paramname param <+> "should not have a trailing slash")
                                     else Right res
      _ -> Right res
 
-fullyQualifieds :: T.Text -> NativeTypeValidate
+fullyQualifieds :: Text -> NativeTypeValidate
 fullyQualifieds param = runarray param fullyQualified'
 
-fullyQualified' :: T.Text -> PValue -> NativeTypeValidate
+fullyQualified' :: Text -> PValue -> NativeTypeValidate
 fullyQualified' param path res = case path of
     PString ("")    -> perror $ "Empty path for parameter" <+> paramname param
-    PString p -> if T.head p == '/'
+    PString p -> if Text.head p == '/'
                             then Right res
                             else perror $ "Path must be absolute, not" <+> ttext p <+> "for parameter" <+> paramname param
     x                -> perror $ "SHOULD NOT HAPPEN: path is not a resolved string, but" <+> pretty x <+> "for parameter" <+> paramname param
 
-rarray :: T.Text -> NativeTypeValidate
+rarray :: Text -> NativeTypeValidate
 rarray param res = case res ^. rattributes . at param of
     Just (PArray _) -> Right res
     Just x          -> Right $ res & rattributes . at param ?~ PArray (V.singleton x)
     Nothing         -> Right res
 
-ipaddr :: T.Text -> NativeTypeValidate
+ipaddr :: Text -> NativeTypeValidate
 ipaddr param res = case res ^. rattributes . at param of
     Nothing                  -> Right res
     Just (PString ip) ->
@@ -234,18 +233,18 @@ ipaddr param res = case res ^. rattributes . at param of
             else perror $ "Invalid IP address for parameter" <+> paramname param
     Just x -> perror $ "Parameter" <+> paramname param <+> "should be an IP address string, not" <+> pretty x
 
-checkipv4 :: T.Text -> Int -> Bool
+checkipv4 :: Text -> Int -> Bool
 checkipv4 _  4 = False -- means that there are more than 4 groups
 checkipv4 "" _ = False -- should never get an empty string
 checkipv4 ip v =
-    let (cur, nxt) = T.break (=='.') ip
-        nextfunc = if T.null nxt
+    let (cur, nxt) = Text.break (=='.') ip
+        nextfunc = if Text.null nxt
             then v == 3
-            else checkipv4 (T.tail nxt) (v+1)
-        goodcur = not (T.null cur) && T.all isDigit cur && (let rcur = read (T.unpack cur) :: Int in (rcur >= 0) && (rcur <= 255))
+            else checkipv4 (Text.tail nxt) (v+1)
+        goodcur = not (Text.null cur) && Text.all isDigit cur && (let rcur = Text.Read.read (Text.unpack cur) :: Int in (rcur >= 0) && (rcur <= 255))
     in goodcur && nextfunc
 
-inrange :: Integer -> Integer -> T.Text -> NativeTypeValidate
+inrange :: Integer -> Integer -> Text -> NativeTypeValidate
 inrange mi ma param res =
     let va = res ^. rattributes . at param
         na = va ^? traverse . _Number

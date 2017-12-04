@@ -1,21 +1,21 @@
 {-# LANGUAGE LambdaCase #-}
 module Erb.Parser where
 
-import Text.Parsec.String
-import Text.Parsec.Prim hiding ((<|>),many)
-import Text.Parsec.Char
-import Text.Parsec.Error
-import Text.Parsec.Combinator hiding (optional)
-import Text.Parsec.Language (emptyDef)
-import Erb.Ruby
-import Text.Parsec.Expr
-import Text.Parsec.Pos
-import qualified Text.Parsec.Token as P
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import Control.Monad.Identity
-import Control.Exception (catch,SomeException)
-import Control.Applicative
+import           Puppet.Prelude         hiding (option, try)
+
+import           Control.Exception      (catch)
+import qualified Data.Text              as Text
+import           Text.Parsec.Char
+import           Text.Parsec.Combinator hiding (optional)
+import           Text.Parsec.Error
+import           Text.Parsec.Expr
+import           Text.Parsec.Language   (emptyDef)
+import           Text.Parsec.Pos
+import           Text.Parsec.Prim       hiding (many, (<|>))
+import           Text.Parsec.String
+import qualified Text.Parsec.Token      as P
+
+import           Erb.Ruby
 
 def :: P.GenLanguageDef String u Identity
 def = emptyDef
@@ -105,32 +105,32 @@ doubleQuoted :: Parser Value
 doubleQuoted = Interpolable <$> between (char '"') (char '"') quoteInternal
     where
         quoteInternal = many (basicContent <|> interpvar <|> escaped)
-        escaped = char '\\' >> (Value . Literal . T.singleton) `fmap` anyChar
-        basicContent = (Value . Literal . T.pack) `fmap` many1 (noneOf "\"\\#")
+        escaped = char '\\' >> (Value . Literal . Text.singleton) `fmap` anyChar
+        basicContent = (Value . Literal . Text.pack) `fmap` many1 (noneOf "\"\\#")
         interpvar = do
             void $ try (string "#{")
             o <- many1 (noneOf "}")
             void $ char '}'
-            return (Object (Value (Literal (T.pack o))))
+            return (Object (Value (Literal (Text.pack o))))
 
 singleQuoted :: Parser Value
-singleQuoted = Literal . T.pack <$> between (char '\'') (char '\'') (many $ noneOf "'")
+singleQuoted = Literal . Text.pack <$> between (char '\'') (char '\'') (many $ noneOf "'")
 
 objectterm :: Parser Expression
 objectterm = do
     void $ optional (char '@')
-    methodname' <- fmap T.pack identifier
+    methodname' <- fmap Text.pack identifier
     let methodname = Value (Literal methodname')
     lookAhead anyChar >>= \case
         '[' -> do
             hr <- many (symbol "[" *> rubyexpression <* symbol "]")
             return $! foldl LookupOperation (Object methodname) hr
-        '{' -> fmap (MethodCall methodname . BlockOperation . T.pack) (braces (many1 $ noneOf "}"))
+        '{' -> fmap (MethodCall methodname . BlockOperation . Text.pack) (braces (many1 $ noneOf "}"))
         '(' -> fmap (MethodCall methodname . Value . Array) (parens (rubyexpression `sepBy` symbol ","))
         _ -> return $ Object methodname
 
 variablereference :: Parser Expression
-variablereference = fmap (Object . Value . Literal . T.pack) identifier
+variablereference = fmap (Object . Value . Literal . Text.pack) identifier
 
 rubystatement :: Parser RubyStatement
 rubystatement = fmap Puts rubyexpression
@@ -141,7 +141,7 @@ textblockW c = do
     let ns = case c of
             Just x  -> x:s
             Nothing -> s
-        returned = Puts $ Value $ Literal $ T.pack ns
+        returned = Puts $ Value $ Literal $ Text.pack ns
     optionMaybe eof >>= \case
         Just _  -> return [returned]
         Nothing -> do
@@ -162,8 +162,8 @@ rubyblock = do
         Nothing -> spaces >> many1 rubystatement
     spaces
     let dn (x:xs) = DropNextSpace x : xs
-        dn x = x
-    ns <- option id (char '-' >> return dn)
+        dn x      = x
+    ns <- option identity (char '-' >> return dn)
     void $ string "%>"
     n <- textblock
     return (ps ++ parsed ++ ns n)
@@ -174,7 +174,7 @@ erbparser = textblock
 parseErbFile :: FilePath -> IO (Either ParseError [RubyStatement])
 parseErbFile fname = parseContent `catch` handler
     where
-        parseContent = (runParser erbparser () fname . T.unpack) `fmap` T.readFile fname
+        parseContent = (runParser erbparser () fname . Text.unpack) `fmap` readFile fname
         handler e = let msg = show (e :: SomeException)
                     in  return $ Left $ newErrorMessage (Message msg) (initialPos fname)
 

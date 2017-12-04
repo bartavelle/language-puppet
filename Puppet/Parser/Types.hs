@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies    #-}
 -- | All the types used for parsing, and helpers working on these types.
 module Puppet.Parser.Types
  ( -- * Position management
@@ -56,33 +56,27 @@ module Puppet.Parser.Types
    ResCollDecl(..)
    ) where
 
-import           Control.Lens
+import           Puppet.Prelude         hiding (show)
+
 import           Data.Aeson
 import           Data.Aeson.TH          (deriveToJSON)
-import           Data.Char              (toUpper)
-import           Data.Hashable
-import qualified Data.Maybe.Strict      as S
-import           Data.Scientific
-import           Data.String
-import           Data.Text             (Text)
-import qualified Data.Text              as T
-import           Data.Tuple.Strict
-import qualified Data.Vector            as V
+import qualified Data.Char              as Char
 import           Data.List.NonEmpty     (NonEmpty)
-
-import           GHC.Exts
-import           GHC.Generics
-
+import qualified Data.Maybe.Strict      as S
+import           Data.String
+import qualified Data.Text              as Text
+import qualified Data.Vector            as V
+import qualified GHC.Exts               as Exts
+import           GHC.Show               (Show (..))
 import           Text.Megaparsec.Pos
-import           Text.Regex.PCRE.String
 
 -- | Properly capitalizes resource types.
 capitalizeRT :: Text -> Text
-capitalizeRT = T.intercalate "::" . map capitalize' . T.splitOn "::"
+capitalizeRT = Text.intercalate "::" . map capitalize' . Text.splitOn "::"
     where
         capitalize' :: Text -> Text
-        capitalize' t | T.null t = T.empty
-                      | otherwise = T.cons (toUpper (T.head t)) (T.tail t)
+        capitalize' t | Text.null t = Text.empty
+                      | otherwise = Text.cons (Char.toUpper (Text.head t)) (Text.tail t)
 
 -- | A pair containing the start and end of a given token.
 type PPosition = Pair Position Position
@@ -102,13 +96,13 @@ lSourceColumn = lens sourceColumn (\s c -> s { sourceColumn = c })
 -- | Generates an initial position based on a filename.
 initialPPos :: Text -> PPosition
 initialPPos x =
-    let i = initialPos (T.unpack x)
+    let i = initialPos (toS x)
     in (i :!: i)
 
 -- | Generates a 'PPosition' based on a filename and line number.
 toPPos :: Text -> Int -> PPosition
 toPPos fl ln =
-    let p = (initialPos (T.unpack fl)) { sourceLine = mkPos $ fromIntegral (max 1 ln) }
+    let p = (initialPos (toS fl)) { sourceLine = mkPos $ fromIntegral (max 1 ln) }
     in  (p :!: p)
 
 -- | /High Order lambdas/.
@@ -162,7 +156,7 @@ instance Show CompRegex where
 instance Eq CompRegex where
     (CompRegex a _) == (CompRegex b _) = a == b
 instance FromJSON CompRegex where
-  parseJSON = fail "Can't deserialize a regular expression"
+  parseJSON = panic "Can't deserialize a regular expression"
 instance ToJSON CompRegex where
   toJSON (CompRegex t _) = toJSON t
 
@@ -180,17 +174,18 @@ data UnresolvedValue
     | UFunctionCall !Text !(V.Vector Expression)
     | UHOLambdaCall !HOLambdaCall
     | UNumber !Scientific
+    | UDataType DataType
     deriving (Show, Eq)
 
-instance IsList UnresolvedValue where
+instance Exts.IsList UnresolvedValue where
     type Item UnresolvedValue  = Expression
     fromList = UArray . V.fromList
     toList u = case u of
                    UArray lst -> V.toList lst
-                   _ -> [Terminal u]
+                   _          -> [Terminal u]
 
 instance IsString UnresolvedValue where
-    fromString = UString . T.pack
+    fromString = UString . Text.pack
 
 data SelectorCase
     = SelectorValue !UnresolvedValue
@@ -249,12 +244,12 @@ data DataType
     -- Struct TODO
     deriving (Eq, Show)
 
-instance IsList Expression where
+instance Exts.IsList Expression where
     type Item Expression = Expression
-    fromList = Terminal . fromList
+    fromList = Terminal . Exts.fromList
     toList u = case u of
-                   Terminal t -> toList t
-                   _ -> [u]
+                   Terminal t -> Exts.toList t
+                   _          -> [u]
 
 instance Num Expression where
     (+) = Addition
@@ -311,9 +306,9 @@ data LinkType
 instance Hashable LinkType
 
 rel2text :: LinkType -> Text
-rel2text RNotify = "notify"
-rel2text RRequire = "require"
-rel2text RBefore = "before"
+rel2text RNotify    = "notify"
+rel2text RRequire   = "require"
+rel2text RBefore    = "before"
 rel2text RSubscribe = "subscribe"
 
 instance FromJSON LinkType where
@@ -321,7 +316,7 @@ instance FromJSON LinkType where
     parseJSON (String "notify")    = return RNotify
     parseJSON (String "subscribe") = return RSubscribe
     parseJSON (String "before")    = return RBefore
-    parseJSON _ = fail "invalid linktype"
+    parseJSON _                    = panic "invalid linktype"
 
 instance ToJSON LinkType where
     toJSON = String . rel2text

@@ -1,18 +1,16 @@
 module Puppet.NativeTypes.File (nativeFile) where
 
-import           Puppet.Interpreter.Types
-import           Puppet.NativeTypes.Helpers
+import           Puppet.Prelude
 
-import           Control.Applicative
-import           Control.Lens
-import           Control.Monad.Except
 import           Control.Monad.Trans.Except
 import qualified Data.Attoparsec.Text       as AT
-import           Data.Char                  (isDigit)
+import qualified Data.Char                  as Char
 import qualified Data.Map.Strict            as M
-import           Data.Monoid
 import qualified Data.Set                   as S
-import qualified Data.Text                  as T
+import qualified Data.Text                  as Text
+
+import           Puppet.Interpreter.Types
+import           Puppet.NativeTypes.Helpers
 
 nativeFile :: (NativeTypeName, NativeTypeMethods)
 nativeFile = ("file", nativetypemethods parameterfunctions (validateSourceOrContent >=> validateMode))
@@ -20,7 +18,7 @@ nativeFile = ("file", nativetypemethods parameterfunctions (validateSourceOrCont
 
 -- Autorequires: If Puppet is managing the user or group that owns a file, the file resource will autorequire them. If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 
-parameterfunctions :: [(T.Text, [T.Text -> NativeTypeValidate])]
+parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
     [("backup"               , [string])
     ,("checksum"             , [values ["md5", "md5lite", "mtime", "ctime", "none"]])
@@ -51,7 +49,7 @@ parameterfunctions =
     ,("validate_replacement" , [string])
     ]
 
-noTrailingSlash' :: T.Text -> NativeTypeValidate
+noTrailingSlash' :: Text -> NativeTypeValidate
 noTrailingSlash' param res
   | res ^? rattributes . ix "ensure" == Just "directory" = Right res
   | otherwise = noTrailingSlash param res
@@ -64,16 +62,16 @@ validateMode res = do
                   Nothing -> throwError "Could not find mode!"
     (numeric modestr <|> except (ugo modestr)) & runExcept & _Right %~ ($ res)
 
-numeric :: T.Text -> Except PrettyError (Resource -> Resource)
+numeric :: Text -> Except PrettyError (Resource -> Resource)
 numeric modestr = do
-    when ((T.length modestr /= 3) && (T.length modestr /= 4)) (throwError "Invalid mode size")
-    unless (T.all isDigit modestr) (throwError "The mode should only be made of digits")
-    return $ if T.length modestr == 3
-                 then rattributes . at "mode" ?~ PString (T.cons '0' modestr)
-                 else id
+    when ((Text.length modestr /= 3) && (Text.length modestr /= 4)) (throwError "Invalid mode size")
+    unless (Text.all Char.isDigit modestr) (throwError "The mode should only be made of digits")
+    return $ if Text.length modestr == 3
+                 then rattributes . at "mode" ?~ PString (Text.cons '0' modestr)
+                 else identity
 
-checkSource :: T.Text -> PValue -> NativeTypeValidate
-checkSource _ (PString x) res | any (`T.isPrefixOf` x) ["puppet://", "file://", "/"] = Right res
+checkSource :: Text -> PValue -> NativeTypeValidate
+checkSource _ (PString x) res | any (`Text.isPrefixOf` x) ["puppet://", "file://", "/"] = Right res
                               | otherwise = throwError "A source should start with either puppet:// or file:// or an absolute path"
 checkSource _ x _ = throwError $ PrettyError ("Expected a string, not" <+> pretty x)
 
@@ -83,14 +81,14 @@ data PermParts = Special | User | Group | Other
 data PermSet = R | W | X
              deriving (Ord, Eq)
 
-ugo :: T.Text -> Either PrettyError (Resource -> Resource)
+ugo :: Text -> Either PrettyError (Resource -> Resource)
 ugo t = AT.parseOnly (modestring <* AT.endOfInput) t
             & _Left %~ (\rr -> PrettyError $ "Could not parse the mode string: " <> text rr)
             & _Right %~ (\s -> rattributes . at "mode" ?~ PString (mkmode Special s <> mkmode User s <> mkmode Group s <> mkmode Other s))
 
-mkmode :: PermParts -> M.Map PermParts (S.Set PermSet) -> T.Text
+mkmode :: PermParts -> M.Map PermParts (S.Set PermSet) -> Text
 mkmode p m = let s = m ^. at p . non mempty
-             in  T.pack $ show $ fromEnum (S.member R s) * 4
+             in  Text.pack $ show $ fromEnum (S.member R s) * 4
                                + fromEnum (S.member W s) * 2
                                + fromEnum (S.member X s)
 

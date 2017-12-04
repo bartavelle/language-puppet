@@ -1,10 +1,7 @@
-    {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLists #-}
 module Function.EachSpec (spec, main) where
 
-import           Test.Hspec
 import           Helpers
-
-import           Puppet.Interpreter.Types
 
 main :: IO ()
 main = hspec spec
@@ -51,5 +48,3 @@ spec = do
             pending
             c <- mgetCatalog "$a = [1, 3, 2]\n $b = $a.each |$x| { \"unwanted\" }\n $u = $b[1]\n file { \"/file_${u}\":\n ensure => present\n }"
             getResource (RIdentifier "file" "/file_3") c >>= getAttribute "ensure" >>= \a -> a `shouldBe` "present"
-
-

@@ -6,15 +6,16 @@ module Puppet.PP
     , module Text.PrettyPrint.ANSI.Leijen
     ) where
 
-import  Data.Text (Text)
-import qualified Data.Text                    as T
+import Puppet.Prelude
+
+import qualified Data.Text as Text
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
-ttext :: T.Text -> Doc
-ttext = text . T.unpack
+ttext :: Text -> Doc
+ttext = text . Text.unpack
 
 prettyToText :: Doc -> Text
-prettyToText = T.pack . prettyToShow
+prettyToText = Text.pack . prettyToShow
 
 prettyToShow :: Doc -> String
 prettyToShow d = displayS (renderCompact d) ""

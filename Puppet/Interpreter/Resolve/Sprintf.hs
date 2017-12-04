@@ -2,11 +2,10 @@ module Puppet.Interpreter.Resolve.Sprintf (
   sprintf
 ) where
 
-import           Control.Applicative
-import           Control.Monad.Except
+import           Puppet.Prelude
+
 import           Data.Attoparsec.Text
-import           Data.Scientific (Scientific)
-import qualified Data.Text                         as T
+import qualified Data.Text                         as Text
 import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Lazy.Builder            as TB
 import qualified Data.Text.Lazy.Builder.Int        as TB
@@ -15,7 +14,6 @@ import qualified Data.Text.Lazy.Builder.Scientific as TB
 
 import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils
-import           Puppet.Utils
 import           Puppet.PP (pretty)
 import           Puppet.Interpreter.PrettyPrinter()
 
@@ -35,19 +33,19 @@ data PrintfFormat = PrintfFormat { _pfFlags :: [Flag]
                                  , _pfType  :: FType
                                  } deriving (Show, Eq)
 
-data FormatStringPart = Raw T.Text
+data FormatStringPart = Raw Text
                       | Format PrintfFormat
                       deriving (Show, Eq)
 
-parseFormat :: T.Text -> [FormatStringPart]
-parseFormat t | T.null t = []
-              | T.null nxt = [Raw raw]
+parseFormat :: Text -> [FormatStringPart]
+parseFormat t | Text.null t = []
+              | Text.null nxt = [Raw raw]
               | otherwise = Raw raw : rformat
   where
-    (raw, nxt) = T.break (== '%') t
-    tryNext = case parseFormat (T.tail nxt) of
-                  (Raw nt : nxt') -> Raw (T.cons '%' nt) : nxt'
-                  nxt' -> Raw (T.singleton '%') : nxt'
+    (raw, nxt) = Text.break (== '%') t
+    tryNext = case parseFormat (Text.tail nxt) of
+                  (Raw nt : nxt') -> Raw (Text.cons '%' nt) : nxt'
+                  nxt' -> Raw (Text.singleton '%') : nxt'
     rformat = case parse format nxt of
                   Fail _ _ _ -> tryNext
                   Partial _ -> tryNext
@@ -102,7 +100,7 @@ format = do
     ft <- ftype
     return (PrintfFormat flags width prec len ft)
 
-sprintf :: T.Text -> [PValue] -> InterpreterMonad PValue
+sprintf :: Text -> [PValue] -> InterpreterMonad PValue
 sprintf str oargs = PString . TL.toStrict . TB.toLazyText . mconcat <$> go (parseFormat str) oargs
   where
     go (Raw x : xs) args = (TB.fromText x :) <$> go xs args
@@ -113,17 +111,17 @@ sprintf str oargs = PString . TL.toStrict . TB.toLazyText . mconcat <$> go (pars
                           PString s -> maybe (throwError "sprintf: Don't know how to convert this to a number") return (text2Scientific s)
                           _         -> throwError "sprintf: Don't know how to convert this to a number"
             flags = _pfFlags f
-            sh mkBuilder n | has Minus            = TL.justifyLeft padlen ' ' (sprefix <> content)
-                           | has Plus && has Zero = sprefix <> TL.justifyRight mpadlen '0' content
-                           | has Plus             = TL.justifyRight padlen ' ' (sprefix <> content)
-                           | has Zero             = TL.justifyRight padlen '0' content
+            sh mkBuilder n | has_ Minus            = TL.justifyLeft padlen ' ' (sprefix <> content)
+                           | has_ Plus && has_ Zero = sprefix <> TL.justifyRight mpadlen '0' content
+                           | has_ Plus             = TL.justifyRight padlen ' ' (sprefix <> content)
+                           | has_ Zero             = TL.justifyRight padlen '0' content
                            | otherwise            = TL.justifyRight padlen ' ' content
                  where
                    (mpadlen, sprefix) | Plus  `elem` flags && n >= 0 = (padlen - 1, "+")
                                       | Space `elem` flags && n >= 0 = (padlen - 1, " ")
                                       | otherwise = (padlen, mempty)
                    padlen = maybe 0 fromIntegral (_pfWidth f)
-                   has flg = flg `elem` flags
+                   has_ flg = flg `elem` flags
                    content = TB.toLazyText (mkBuilder n)
         baseString <- case _pfType f of
                           Td -> sh (TB.formatScientificBuilder TB.Fixed    (Just 0))      <$> numeric

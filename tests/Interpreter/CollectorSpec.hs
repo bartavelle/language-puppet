@@ -5,17 +5,14 @@ module Interpreter.CollectorSpec (spec) where
 import           Test.Hspec
 
 import           Control.Lens
-import           Control.Monad.Except
-import           Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import           Helpers
-import           Puppet.Interpreter.Types
 
 
 shouldNotify :: [Text] -> [PValue] -> Expectation
 shouldNotify content expectedMessages = do
-    cat <- case runExcept (getCatalog (T.unlines content)) of
+    cat <- case runExcept (getCatalog (Text.unlines content)) of
                Left rr -> fail rr
                Right x -> return x
     let messages = itoList cat ^.. folded . filtered (\rp -> rp ^. _1 . itype == "notify") . _2 . rattributes . ix "message"
@@ -23,7 +20,7 @@ shouldNotify content expectedMessages = do
 
 shouldFail :: [Text] -> Expectation
 shouldFail content = let cat :: Either String FinalCatalog
-                         cat = runExcept (getCatalog (T.unlines content))
+                         cat = runExcept (getCatalog (Text.unlines content))
                      in  cat `shouldSatisfy` has _Left
 
 spec :: Spec
