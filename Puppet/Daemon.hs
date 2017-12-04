@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GADTs #-}
 module Puppet.Daemon (
     Daemon(..)
@@ -112,7 +113,7 @@ getModApis pref = do
     modapi :: FoldM IO FilePath (Container (HieraQueryFunc IO))
     modapi =
       Foldl.premapM (\m -> (Text.pack m, "./modules/" <> m <> "/hiera.yaml"))
-      $ Foldl.prefilterM (\(m,p) -> pure (not (m `elem`ignored_modules)) &&^  Directory.doesFileExist p)
+      $ Foldl.prefilterM (\(m,p) -> pure (m `notElem` ignored_modules) &&^  Directory.doesFileExist p)
       $ FoldM (\ s (m,p) -> do h <- startHiera p; pure $ (m,h):s) (pure []) (\l -> pure $ HM.fromList l)
   Foldl.foldM modapi dirs
 

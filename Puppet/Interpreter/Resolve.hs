@@ -108,7 +108,9 @@ hieraCall _ _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not supp
 hieraCall qt q df dt _ = do
     qs <- resolvePValueString q
     runHiera qs qt >>= \case
-      Just p  -> pure p
+      Just p  -> case dt of
+        Nothing -> pure p
+        Just dt' -> if datatypeMatch dt' p then pure p else throwPosError "Datatype mismatched"
       Nothing -> case df of
                    Just d -> pure d
                    Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
@@ -538,8 +540,8 @@ resolveFunction' "hiera_hash"  [q]                 = hieraCall QHash  q Nothing 
 resolveFunction' "hiera_hash"  [q,d]               = hieraCall QHash  q (Just d) Nothing Nothing
 resolveFunction' "hiera_hash"  [q,d,o]             = hieraCall QHash  q (Just d) Nothing (Just o)
 resolveFunction' "lookup"      [q]                 = hieraCall QFirst   q Nothing  Nothing Nothing
-resolveFunction' "lookup"      [q, (PType dt)]     = hieraCall QFirst   q Nothing (Just dt) Nothing
-resolveFunction' "lookup"      [q, (PType dt),t,d] = hieraCall QFirst q (Just d) (Just dt) Nothing
+resolveFunction' "lookup"      [q, PType dt]     = hieraCall QFirst   q Nothing (Just dt) Nothing
+resolveFunction' "lookup"      [q, PType dt,t,d] = hieraCall QFirst q (Just d) (Just dt) Nothing
 resolveFunction' "lookup" _                        =  throwPosError "lookup(): Wrong set of arguments"
 
 -- user functions

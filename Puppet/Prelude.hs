@@ -29,6 +29,7 @@ import           Control.Foldl                     as Exports (FoldM (..))
 import           Control.Lens                      as Exports hiding (Strict,
                                                                noneOf, op, argument)
 import           Data.Scientific                   as Exports (Scientific)
+import           Control.Monad.Trans.Maybe         as Exports
 import           Data.Tuple.Strict                 as Exports (Pair(..))
 import           Control.Monad.Trans.Except        as Exports (throwE)
 import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
