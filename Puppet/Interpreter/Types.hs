@@ -183,7 +183,7 @@ data HieraQueryType
     , _mergeHashArray :: Bool
     } deriving (Show)
 
--- | The type of the Hiera API function associated to one hiera file.
+-- | The type of the Hiera API function associated to given hierarchy.
 type HieraQueryFunc m = Container Text -- ^ Scope: all variables that Hiera can interpolate (the top level ones are prefixed with ::)
                      -> Text -- ^ The query
                      -> HieraQueryType
