@@ -287,6 +287,7 @@ terminalG g = parens expression
          <|> fmap Terminal resourceReference
          <|> g
          <|> fmap Terminal literalValue
+         <|> fmap (Terminal . UDataType) datatype
 
 compileRegexp :: Text -> Parser CompRegex
 compileRegexp p = case compile' compBlank execBlank (Text.encodeUtf8 p) of

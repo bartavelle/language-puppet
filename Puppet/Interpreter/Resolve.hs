@@ -103,9 +103,9 @@ runHiera q t = do
     Operational.singleton (HieraQuery vars q t)
 
 -- | The implementation of all hiera_* functions
-hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe PValue -> InterpreterMonad PValue
-hieraCall _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not supported (and deprecated in puppet)"
-hieraCall qt q df _ = do
+hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe DataType -> Maybe PValue -> InterpreterMonad PValue
+hieraCall _ _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not supported (and deprecated in puppet)"
+hieraCall qt q df dt _ = do
     qs <- resolvePValueString q
     runHiera qs qt >>= \case
       Just p  -> pure p
@@ -525,20 +525,22 @@ resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two argum
 resolveFunction' "sprintf" (PString str:args) = sprintf str args
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
-resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
-resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
-resolveFunction' "pdbresourcequery" _     = throwPosError "pdbresourcequery(): Expects one or two arguments"
-resolveFunction' "hiera"       [q]     = hieraCall QFirst   q Nothing  Nothing
-resolveFunction' "hiera"       [q,d]   = hieraCall QFirst   q (Just d) Nothing
-resolveFunction' "hiera"       [q,d,o] = hieraCall QFirst   q (Just d) (Just o)
-resolveFunction' "hiera_array" [q]     = hieraCall QUnique q Nothing  Nothing
-resolveFunction' "hiera_array" [q,d]   = hieraCall QUnique q (Just d) Nothing
-resolveFunction' "hiera_array" [q,d,o] = hieraCall QUnique q (Just d) (Just o)
-resolveFunction' "hiera_hash"  [q]     = hieraCall QHash  q Nothing  Nothing
-resolveFunction' "hiera_hash"  [q,d]   = hieraCall QHash  q (Just d) Nothing
-resolveFunction' "hiera_hash"  [q,d,o] = hieraCall QHash  q (Just d) (Just o)
-resolveFunction' "hiera" _ = throwPosError "hiera(): Expects one, two or three arguments"
-resolveFunction' "lookup" args = resolveFunction' "hiera" args
+resolveFunction' "pdbresourcequery" [q]            = pdbresourcequery q Nothing
+resolveFunction' "pdbresourcequery" [q,k]          = fmap Just (resolvePValueString k) >>= pdbresourcequery q
+resolveFunction' "pdbresourcequery" _              = throwPosError "pdbresourcequery(): Expects one or two arguments"
+resolveFunction' "hiera"       [q]                 = hieraCall QFirst   q Nothing Nothing Nothing
+resolveFunction' "hiera"       [q,d]               = hieraCall QFirst   q (Just d) Nothing Nothing
+resolveFunction' "hiera"       [q,d,o]             = hieraCall QFirst   q (Just d) Nothing (Just o)
+resolveFunction' "hiera_array" [q]                 = hieraCall QUnique q Nothing  Nothing Nothing
+resolveFunction' "hiera_array" [q,d]               = hieraCall QUnique q (Just d) Nothing Nothing
+resolveFunction' "hiera_array" [q,d,o]             = hieraCall QUnique q (Just d) Nothing (Just o)
+resolveFunction' "hiera_hash"  [q]                 = hieraCall QHash  q Nothing  Nothing Nothing
+resolveFunction' "hiera_hash"  [q,d]               = hieraCall QHash  q (Just d) Nothing Nothing
+resolveFunction' "hiera_hash"  [q,d,o]             = hieraCall QHash  q (Just d) Nothing (Just o)
+resolveFunction' "lookup"      [q]                 = hieraCall QFirst   q Nothing  Nothing Nothing
+resolveFunction' "lookup"      [q, (PType dt)]     = hieraCall QFirst   q Nothing (Just dt) Nothing
+resolveFunction' "lookup"      [q, (PType dt),t,d] = hieraCall QFirst q (Just d) (Just dt) Nothing
+resolveFunction' "lookup" _                        =  throwPosError "lookup(): Wrong set of arguments"
 
 -- user functions
 resolveFunction' fname args = Operational.singleton (ExternalFunction fname args)
