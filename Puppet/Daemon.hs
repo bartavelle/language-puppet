@@ -102,7 +102,7 @@ hQueryApis pref = do
             Just p  -> startHiera p
             Nothing -> pure dummyHiera
   modapis <- getModApis pref
-  pure (api0, modapis)
+  pure (HieraQueryLayers api0 modapis)
 
 getModApis :: Preferences IO -> IO (Container (HieraQueryFunc IO))
 getModApis pref = do

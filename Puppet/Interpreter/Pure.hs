@@ -64,7 +64,7 @@ pureReader sttmap = InterpreterReader
                                                         Left rr -> S.Left (PrettyError rr)
         pure_hiera :: HieraQueryFunc Identity
         pure_hiera _ _ _ = pure (S.Right (Just "pure"))
-        hieradummy = (pure_hiera, mempty)
+        hieradummy = HieraQueryLayers pure_hiera mempty
         getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
                                                Just x -> S.Right x
                                                Nothing -> S.Left "Can't get statement"

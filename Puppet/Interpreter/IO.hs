@@ -104,7 +104,7 @@ eval r s (a :>>= k) =
 -- | Query hiera layers
 queryHiera :: Monad m =>  HieraQueryLayers m -> Container Text -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
 queryHiera layers scps q t = do
-  val <- (layers^._1) scps q t
+  val <- (layers^.globalLayer) scps q t
   case val of
     S.Right Nothing -> do
       let
@@ -113,6 +113,6 @@ queryHiera layers scps q t = do
             [] -> Nothing
             [_] -> Nothing
             (m:_)  -> Just m
-        layer = modname >>= (\n -> layers ^._2.at n)
+        layer = modname >>= (\n -> layers ^.moduleLayer.at n)
       maybe (pure val) (\hq -> hq scps q t) layer
     _ -> pure val

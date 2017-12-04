@@ -18,6 +18,8 @@ module Puppet.Interpreter.Types (
  , HasLinkInformation(..)
  , LinkInformation(LinkInformation)
  , HasRIdentifier(..)
+ , HieraQueryLayers(HieraQueryLayers)
+ , HasHieraQueryLayers(..)
  , RIdentifier(RIdentifier)
  , HasScopeInformation(..)
  , ScopeInformation(ScopeInformation)
@@ -80,7 +82,6 @@ module Puppet.Interpreter.Types (
  , NodeName
  , Container
  , HieraQueryFunc
- , HieraQueryLayers
  , Scope
  , Facts
  , EdgeMap
@@ -190,10 +191,13 @@ type HieraQueryFunc m = Container Text -- ^ Scope: all variables that Hiera can 
 
 -- | All available queries including the global and module layer
 -- The environment layer is not implemented
-type HieraQueryLayers m =
-  ( HieraQueryFunc m -- Global layer
-  , Container (HieraQueryFunc m) -- Module layers
-  )
+data HieraQueryLayers m
+  = HieraQueryLayers
+  {
+    _globalLayer :: HieraQueryFunc m
+  , _moduleLayer :: Container (HieraQueryFunc m)
+  }
+
 
 -- | The intepreter can run in two modes : a strict mode (recommended), and
 -- a permissive mode.
@@ -507,6 +511,7 @@ makeClassy ''CurContainer
 makeClassy ''NodeInfo
 makeClassy ''WireCatalog
 makeClassy ''FactInfo
+makeClassy '' HieraQueryLayers
 makePrisms ''PValue
 
 class Monad m => MonadThrowPos m where

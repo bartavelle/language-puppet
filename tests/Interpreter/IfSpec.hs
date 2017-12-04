@@ -5,12 +5,9 @@ module Interpreter.IfSpec (spec) where
 import           Test.Hspec
 
 import           Control.Lens
-import           Control.Monad.Except
-import           Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 import           Helpers
-import           Puppet.Interpreter.Types
 
 {-
 shouldReturn :: [Text] -> [PValue] -> Expectation
@@ -23,12 +20,12 @@ shouldReturn content expectedMessages = do
 
 shouldFail :: [Text] -> Expectation
 shouldFail content = let cat :: Either String FinalCatalog
-                         cat = runExcept (getCatalog (T.unlines content))
+                         cat = runExcept (getCatalog (Text.unlines content))
                      in  cat `shouldSatisfy` has _Left
 
 shouldNotFail :: [Text] -> Expectation
 shouldNotFail content = let cat :: Either String FinalCatalog
-                            cat = runExcept (getCatalog (T.unlines content))
+                            cat = runExcept (getCatalog (Text.unlines content))
                         in  cat `shouldSatisfy` has _Right
 
 spec :: Spec
