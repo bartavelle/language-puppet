@@ -13,7 +13,6 @@ module Puppet.Daemon (
 import           Puppet.Prelude
 
 import           Control.Exception.Lens
-import qualified Control.Foldl             as Foldl
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
 import qualified Data.HashMap.Strict       as HM
@@ -109,13 +108,12 @@ getModApis :: Preferences IO -> IO (Container (HieraQueryFunc IO))
 getModApis pref = do
   let ignored_modules = pref^.prefIgnoredmodules
   dirs <- Directory.listDirectory (pref^.prefPuppetPaths.modulesPath)
-  let
-    modapi :: FoldM IO FilePath (Container (HieraQueryFunc IO))
-    modapi =
-      Foldl.premapM (\m -> (Text.pack m, "./modules/" <> m <> "/hiera.yaml"))
-      $ Foldl.prefilterM (\(m,p) -> pure (m `notElem` ignored_modules) &&^  Directory.doesFileExist p)
-      $ FoldM (\ s (m,p) -> do h <- startHiera p; pure $ (m,h):s) (pure []) (\l -> pure $ HM.fromList l)
-  Foldl.foldM modapi dirs
+  (HM.fromList . catMaybes) <$> (for dirs $ \dir -> runMaybeT $ do
+    let modname = toS dir
+        path ="./modules/" <> dir <> "/hiera.yaml"
+    guard (modname `notElem` ignored_modules)
+    (liftIO $ Directory.doesFileExist path) >>= guard
+    liftIO $ (modname, ) <$> startHiera path)
 
 -- | In case of a Left value, print the error and exit immediately
 checkError :: Show e => Doc -> Either e a -> IO a

@@ -25,7 +25,6 @@ import           Protolude                         as Exports hiding (Down, Infi
                                                                       uncons, unsnoc,
                                                                       (%), (<&>), (<.>))
 
-import           Control.Foldl                     as Exports (FoldM (..))
 import           Control.Lens                      as Exports hiding (Strict,
                                                                noneOf, op, argument)
 import           Data.Scientific                   as Exports (Scientific)
