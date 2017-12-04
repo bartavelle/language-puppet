@@ -109,12 +109,13 @@ getModApis pref = do
   let ignored_modules = pref^.prefIgnoredmodules
       modpath = pref^.prefPuppetPaths.modulesPath
   dirs <- Directory.listDirectory modpath
-  (HM.fromList . catMaybes) <$> (for dirs $ \dir -> runMaybeT $ do
-    let modname = toS dir
-        path = modpath <> "/" <> dir <> "/hiera.yaml"
-    guard (modname `notElem` ignored_modules)
-    (liftIO $ Directory.doesFileExist path) >>= guard
-    liftIO $ (modname, ) <$> startHiera path)
+  (HM.fromList . catMaybes) <$>
+    for dirs (\dir -> runMaybeT $ do
+      let modname = toS dir
+          path = modpath <> "/" <> dir <> "/hiera.yaml"
+      guard (modname `notElem` ignored_modules)
+      guard =<< liftIO (Directory.doesFileExist path)
+      liftIO $ (modname, ) <$> startHiera path)
 
 -- | In case of a Left value, print the error and exit immediately
 checkError :: Show e => Doc -> Either e a -> IO a
