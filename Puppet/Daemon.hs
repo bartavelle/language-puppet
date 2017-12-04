@@ -107,10 +107,11 @@ hQueryApis pref = do
 getModApis :: Preferences IO -> IO (Container (HieraQueryFunc IO))
 getModApis pref = do
   let ignored_modules = pref^.prefIgnoredmodules
-  dirs <- Directory.listDirectory (pref^.prefPuppetPaths.modulesPath)
+      modpath = pref^.prefPuppetPaths.modulesPath
+  dirs <- Directory.listDirectory modpath
   (HM.fromList . catMaybes) <$> (for dirs $ \dir -> runMaybeT $ do
     let modname = toS dir
-        path ="./modules/" <> dir <> "/hiera.yaml"
+        path = modpath <> "/" <> dir <> "/hiera.yaml"
     guard (modname `notElem` ignored_modules)
     (liftIO $ Directory.doesFileExist path) >>= guard
     liftIO $ (modname, ) <$> startHiera path)
