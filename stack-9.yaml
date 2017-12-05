@@ -1,6 +1,5 @@
 flags: {}
-extra-deps:
-- foldl-1.3.4
+extra-deps: []
 packages:
 - '.'
 resolver: lts-9.5
