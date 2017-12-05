@@ -1,9 +1,9 @@
 flags: {}
 packages:
 - .
-resolver: lts-8.4
+resolver: lts-8.22
 extra-deps:
-- megaparsec-6.0.2
-- parser-combinators-0.2.0
-- hspec-megaparsec-1.0.0
+- megaparsec-6.2.0
 - protolude-0.2
+- parser-combinators-0.2.0
+
