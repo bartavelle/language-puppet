@@ -14,6 +14,7 @@ import           Text.PrettyPrint.ANSI.Leijen     (pretty)
 import           Hiera.Server
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
+import           Puppet.Interpreter.Utils (readQueryType)
 
 data Config
   = Config
@@ -22,14 +23,6 @@ data Config
   , _queryType :: HieraQueryType
   , _variables :: [(Text,Text)]
   }
-
-readQType :: String -> Maybe HieraQueryType
-readQType s
-  = case s of
-    "first"  -> Just QFirst
-    "unique" -> Just QUnique
-    "hash"   -> Just QHash
-    _        -> Nothing
 
 parseVariable :: String -> Either String (Text, Text)
 parseVariable s =
@@ -43,7 +36,7 @@ parseVariable s =
 configParser :: Parser Config
 configParser = Config <$> strOption (long "config" <> short 'c' <> metavar "CONFIG" <> value "hiera.yaml")
                       <*> strOption (long "query" <> short 'q' <> metavar "QUERY")
-                      <*> option (maybeReader readQType) (long "querytype" <> short 't' <> metavar "QUERYTYPE" <> value QFirst <> help "values: first (default), unique, hash")
+                      <*> option (maybeReader (readQueryType.toS)) (long "querytype" <> short 't' <> metavar "QUERYTYPE" <> value QFirst <> help "values: first (default), unique, hash")
                       <*> many (argument (eitherReader parseVariable) (metavar "VARIABLE" <> help "Variables, in the form key=value"))
 
 configInfo :: ParserInfo Config

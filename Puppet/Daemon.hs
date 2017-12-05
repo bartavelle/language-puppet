@@ -12,13 +12,11 @@ module Puppet.Daemon (
 
 import           Puppet.Prelude
 
-import           Control.Exception.Lens
 import qualified Data.Either.Strict        as S
 import           Data.FileCache            as FileCache
 import qualified Data.HashMap.Strict       as HM
 import qualified Data.List                 as List
 import qualified Data.Text                 as Text
-import qualified Data.Text.IO              as Text
 import qualified Data.Vector               as V
 import           Debug.Trace               (traceEventIO)
 import           Foreign.Ruby.Safe
@@ -27,7 +25,7 @@ import qualified System.Log.Formatter      as Log (simpleLogFormatter)
 import qualified System.Log.Handler        as Log (setFormatter)
 import qualified System.Log.Handler.Simple as Log (streamHandler)
 import qualified System.Log.Logger         as Log
-import qualified Text.Megaparsec           as P
+import qualified Text.Megaparsec           as Megaparsec
 
 import           Erb.Compute
 import           Hiera.Server
@@ -99,8 +97,8 @@ initDaemon pref = do
 hQueryApis :: Preferences IO -> IO (HieraQueryLayers IO)
 hQueryApis pref = do
   api0 <- case pref ^. prefHieraPath of
-            Just p  -> startHiera p
-            Nothing -> pure dummyHiera
+    Just p  -> startHiera p
+    Nothing -> pure dummyHiera
   modapis <- getModApis pref
   pure (HieraQueryLayers api0 modapis)
 
@@ -197,10 +195,10 @@ parseFunc ppath filecache stats = \toptype topname ->
 parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
 parseFile fname = do
     traceEventIO ("START parsing " ++ fname)
-    cnt <- Text.readFile fname
+    cnt <- readFile fname
     o <- case runPParser fname cnt of
         Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
-        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ P.parseErrorPretty rr ++ ")") >> return (S.Left (P.parseErrorPretty rr))
+        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")") >> return (S.Left (Megaparsec.parseErrorPretty rr))
     traceEventIO ("STOP parsing " ++ fname)
     return o
 

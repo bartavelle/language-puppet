@@ -155,3 +155,12 @@ dropInitialColons t = fromMaybe t (Text.stripPrefix "::" t)
 
 normalizeRIdentifier :: Text -> Text -> RIdentifier
 normalizeRIdentifier = RIdentifier . dropInitialColons
+
+
+readQueryType :: Text -> Maybe HieraQueryType
+readQueryType s
+  = case s of
+    "first"  -> Just QFirst
+    "unique" -> Just QUnique
+    "hash"   -> Just QHash
+    _        -> Nothing

@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE LambdaCase     #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RankNTypes     #-}
@@ -38,7 +39,6 @@ import           Puppet.Prelude
 
 import qualified Control.Monad.Operational          as Operational
 import           "cryptonite" Crypto.Hash
-import           Data.Aeson                         (fromJSON, toJSON)
 import qualified Data.Aeson                         as Aeson
 import           Data.Aeson.Lens                    (_Integer, _Number)
 import qualified Data.ByteArray                     as ByteArray
@@ -89,18 +89,15 @@ fixResourceName _       x = x
 -- messages to the main monad.
 runHiera :: Text -> HieraQueryType -> InterpreterMonad (Maybe PValue)
 runHiera q t = do
-    -- We need to merge the current scope with the top level scope
-    scps <- use scopes
-    ctx  <- getScopeName
-    let getV scp = mapMaybe toStr $ HM.toList $ fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
-        -- we can't use _PString, because of dependency cycles
-        toStr (k,v) = case v of
-          PString x -> Just (k,x)
-          _         -> Nothing
-        toplevels = map (_1 %~ ("::" <>)) $ getV "::"
-        locals = getV ctx
-        vars = HM.fromList (toplevels <> locals)
-    Operational.singleton (HieraQuery vars q t)
+  -- We need to merge the current scope with the top level scope
+  scps <- use scopes
+  ctx  <- getScopeName
+  let getV scp = mapMaybe toStr $ HM.toList $ fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
+      toStr (k,v) = fmap (k,) (preview _PString v)
+      toplevels = map (_1 %~ ("::" <>)) $ getV "::"
+      locals = getV ctx
+      vars = HM.fromList (toplevels <> locals)
+  Operational.singleton (HieraQuery vars q t)
 
 -- | The implementation of all hiera_* functions
 hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe DataType -> Maybe PValue -> InterpreterMonad PValue
@@ -109,8 +106,8 @@ hieraCall qt q df dt _ = do
     qs <- resolvePValueString q
     runHiera qs qt >>= \case
       Just p  -> case dt of
-        Nothing -> pure p
-        Just dt' -> if datatypeMatch dt' p then pure p else throwPosError "Datatype mismatched"
+        Just dt' | not (datatypeMatch dt' p) -> throwPosError "Datatype mismatched"
+        _ -> pure p
       Nothing -> case df of
         Just d -> pure d
         Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
@@ -119,9 +116,10 @@ hieraCall qt q df dt _ = do
 -- attoparsec. If the two values can be converted, it will convert them so
 -- that they are of the same type
 toNumbers :: PValue -> PValue -> S.Maybe NumberPair
-toNumbers (PString a) b = case text2Scientific a of
-                              Just na -> toNumbers (PNumber na) b
-                              Nothing -> S.Nothing
+toNumbers (PString a) b =
+  case text2Scientific a of
+    Just na -> toNumbers (PNumber na) b
+    Nothing -> S.Nothing
 toNumbers a (PString b) = toNumbers (PString b) a
 toNumbers (PNumber a) (PNumber b) = S.Just (a :!: b)
 toNumbers _ _ = S.Nothing
@@ -141,17 +139,17 @@ integerOperation a b opr = do
     ra <- resolveExpressionNumber a
     rb <- resolveExpressionNumber b
     case (preview _Integer ra, preview _Integer rb) of
-        (Just na, Just nb) -> return (PNumber $ fromIntegral (opr na nb))
-        _ -> throwPosError ("Expected integer values, not" <+> string (show ra) <+> "or" <+> string (show rb))
+      (Just na, Just nb) -> return (PNumber $ fromIntegral (opr na nb))
+      _ -> throwPosError ("Expected integer values, not" <+> string (show ra) <+> "or" <+> string (show rb))
 
 -- | Resolves a variable, or throws an error if it can't.
 resolveVariable :: Text -> InterpreterMonad PValue
 resolveVariable fullvar = do
-    scps <- use scopes
-    scp <- getScopeName
-    case getVariable scps scp fullvar of
-        Left rr -> throwPosError rr
-        Right x -> return x
+  scps <- use scopes
+  scp <- getScopeName
+  case getVariable scps scp fullvar of
+    Left rr -> throwPosError rr
+    Right x -> return x
 
 -- | A simple helper that checks if a given type is native or a define.
 isNativeType :: Text -> InterpreterMonad Bool
@@ -163,17 +161,17 @@ getVariable :: Container ScopeInformation -- ^ The whole scope data.
             -> Text -- ^ Full variable name.
             -> Either Doc PValue
 getVariable scps scp fullvar = do
-    (varscope, varname) <- case Text.splitOn "::" fullvar of
-                               [] -> Left "This doesn't make any sense in resolveVariable"
-                               [vn] -> return (scp, vn) -- Non qualified variables
-                               rst -> return (Text.intercalate "::" (filter (not . Text.null) (List.init rst)), List.last rst) -- qualified variables
-    let extractVariable (varval :!: _ :!: _) = return varval
-    case scps ^? ix varscope . scopeVariables . ix varname of
+  (varscope, varname) <- case Text.splitOn "::" fullvar of
+    [] -> Left "This doesn't make any sense in resolveVariable"
+    [vn] -> return (scp, vn) -- Non qualified variables
+    rst -> return (Text.intercalate "::" (filter (not . Text.null) (List.init rst)), List.last rst) -- qualified variables
+  let extractVariable (varval :!: _ :!: _) = return varval
+  case scps ^? ix varscope . scopeVariables . ix varname of
+    Just pp -> extractVariable pp
+    Nothing -> -- check top level scope
+      case scps ^? ix "::" . scopeVariables . ix varname of
         Just pp -> extractVariable pp
-        Nothing -> -- check top level scope
-            case scps ^? ix "::" . scopeVariables . ix varname of
-                Just pp -> extractVariable pp
-                Nothing -> Left ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ttext varscope <+> "or root")
+        Nothing -> Left ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ttext varscope <+> "or root")
 
 -- | A helper for numerical comparison functions.
 numberCompare :: Expression -> Expression -> (Scientific -> Scientific -> Bool) -> InterpreterMonad PValue
@@ -541,7 +539,7 @@ resolveFunction' "hiera_hash"  [q,d]               = hieraCall QHash  q (Just d)
 resolveFunction' "hiera_hash"  [q,d,o]             = hieraCall QHash  q (Just d) Nothing (Just o)
 resolveFunction' "lookup"      [q]                 = hieraCall QFirst   q Nothing  Nothing Nothing
 resolveFunction' "lookup"      [q, PType dt]     = hieraCall QFirst   q Nothing (Just dt) Nothing
-resolveFunction' "lookup"      [q, PType dt,t,d] = hieraCall QFirst q (Just d) (Just dt) Nothing
+resolveFunction' "lookup"      [q, PType dt, PString (t),d] = hieraCall (fromMaybe QFirst (readQueryType t)) q (Just d) (Just dt) Nothing
 resolveFunction' "lookup" _                        =  throwPosError "lookup(): Wrong set of arguments"
 
 -- user functions
