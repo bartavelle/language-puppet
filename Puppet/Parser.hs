@@ -654,6 +654,7 @@ datatype = dtString
        <|> (reserved "Variant" *> (DTVariant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
        <|> (reserved "Pattern" *> (DTPattern . NE.fromList <$> brackets (termRegexp `sepBy1` symbolic ',')))
        <|> (reserved "Enum" *> (DTEnum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
+       <|> dtStdlib
        <?> "DataType"
   where
     integer = integerOrDouble >>= either (return . fromIntegral) (\d -> fail ("Integer value expected, instead of " ++ show d))
@@ -697,6 +698,10 @@ datatype = dtString
         Just (tk, tv, Just [mi]) -> return (DTHash tk tv mi Nothing)
         Just (tk, tv, Just [mi, mx]) -> return (DTHash tk tv mi (Just mx))
         Just (_, _, Just _) -> fail "Too many arguments to datatype Hash"
+    dtStdlib =
+          reserved "Stdlib::HTTPUrl" $> DTData
+      <|> reserved "Stdlib::Absolutepath" $> DTData
+
 
 statementList :: Parser (V.Vector Statement)
 statementList = (V.fromList . concat) <$> many statement
