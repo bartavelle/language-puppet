@@ -1,20 +1,12 @@
 {-# LANGUAGE OverloadedLists #-}
 module Function.AssertPrivateSpec where
 
-import           Test.Hspec
-
-import           Control.Lens
-import           Control.Monad
-import           Data.Text (Text)
+import           Helpers
 
 import           Puppet.Interpreter.Resolve
-import           Puppet.Interpreter.Pure
-import           Puppet.Interpreter.Types
 import           Puppet.Interpreter.Utils (initialState)
 import           Puppet.Interpreter.IO (interpretMonad)
-import           Puppet.Parser.Types
 
-import           Helpers
 
 main :: IO ()
 main = hspec spec

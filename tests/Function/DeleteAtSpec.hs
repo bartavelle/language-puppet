@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Function.DeleteAtSpec (spec, main) where
 
 import           Helpers

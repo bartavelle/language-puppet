@@ -1,18 +1,12 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
 module Function.MergeSpec (spec, main) where
 
-import           Test.Hspec
-
-import           Control.Monad
-import qualified Data.HashMap.Strict as HM
-import           Data.Monoid
-import           Data.Text (Text)
-
-import           Puppet.Interpreter.Pure
-import           Puppet.Interpreter.Types
-import           Puppet.PP
 
 import           Helpers
+
+import qualified Data.HashMap.Strict as HM
+
 
 main :: IO ()
 main = hspec spec

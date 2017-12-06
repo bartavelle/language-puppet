@@ -1,15 +1,6 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
 module Function.SizeSpec (spec, main) where
-
-import           Test.Hspec
-
-import           Control.Monad
-import           Data.Monoid
-import           Data.Scientific
-
-import           Puppet.Interpreter.Pure
-import           Puppet.Interpreter.Types
-import           Puppet.PP
 
 import           Helpers
 
@@ -50,4 +41,3 @@ spec = withStdlibFunction "size" $ \sizeFunc -> do
         check ["a"] 1
         check ["ab"] 2
         check ["abcd"] 4
-

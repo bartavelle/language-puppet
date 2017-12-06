@@ -1,5 +1,7 @@
 import Test.Hspec
 
+import Helpers
+
 import qualified InterpreterSpec
 import qualified Interpreter.CollectorSpec
 import qualified Function.ShellquoteSpec

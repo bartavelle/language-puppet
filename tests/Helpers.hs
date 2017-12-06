@@ -12,24 +12,37 @@ module Helpers ( module Exports
                , withStdlibFunction
                ) where
 
-import           Control.Monad            as Exports
-import           Data.Monoid              as Exports
-import           Data.Text                as Exports (Text)
-import           Puppet.Interpreter.Pure  as Exports
-import           Puppet.Interpreter.Types as Exports
-import           Puppet.Parser.Types      as Exports
-import           Puppet.PP                as Exports
-import           Test.Hspec               as Exports
-import           Control.Monad.Except     as Exports
 
-import           Control.Lens
-import           Control.Monad.Except
-import qualified Data.HashMap.Strict      as HM
-import qualified Data.Maybe.Strict        as S
-import           Data.Text                as Text
-import qualified Data.Vector              as Vector
+import           Protolude                  as Exports hiding (Down, Infix,
+                                                        Prefix, Selector, State,
+                                                        StateT, Strict, break,
+                                                        check, pass, evalState,
+                                                        evalStateT, execState,
+                                                        execStateT, from, group,
+                                                        hash, list, moduleName,
+                                                        runState, runStateT,
+                                                        sourceColumn,
+                                                        sourceLine, to, uncons,
+                                                        unsnoc, withState, (%),
+                                                        (<&>), (<.>))
 
-import           Puppet.Interpreter       (computeCatalog)
+import           Control.Lens               as Exports hiding (Strict, argument,
+                                                        noneOf, op, failing)
+import           Control.Monad.Except       as Exports
+import           Data.Scientific            as Exports (Scientific)
+import           Data.String                as Exports (String)
+import           Puppet.Interpreter.Pure    as Exports
+import           Puppet.Interpreter.Types   as Exports
+import           Puppet.Parser.Types        as Exports
+import           Puppet.PP                  as Exports hiding (bool, empty, cat)
+import           Test.Hspec                 as Exports
+
+import qualified Data.HashMap.Strict        as HM
+import qualified Data.Maybe.Strict          as S
+import           Data.Text                  as Text
+import qualified Data.Vector                as Vector
+
+import           Puppet.Interpreter         (computeCatalog)
 import           Puppet.Interpreter.Resolve
 import           Puppet.Parser
 import           Puppet.Stdlib

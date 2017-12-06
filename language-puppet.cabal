@@ -174,8 +174,8 @@ Test-Suite spec
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -Wno-missing-signatures -rtsopts -threaded
-  extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,strict-base-types,lens,text,hspec,unordered-containers,megaparsec,vector,scientific,mtl,hspec-megaparsec
+  extensions:     OverloadedStrings, NoImplicitPrelude
+  build-depends:  language-puppet,base,strict-base-types,lens,text,hspec,unordered-containers,megaparsec,vector,scientific,mtl,hspec-megaparsec, protolude >= 0.2
   other-modules:  Function.ShellquoteSpec
                   Function.SprintfSpec
                   Function.SizeSpec

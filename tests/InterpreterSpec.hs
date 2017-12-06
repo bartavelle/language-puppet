@@ -1,28 +1,21 @@
 module InterpreterSpec (collectorSpec, classIncludeSpec, main) where
 
-import           Control.Lens
+import           Helpers
+
 import           Data.HashMap.Strict      (HashMap)
 import qualified Data.HashMap.Strict      as HM
-import           Data.Monoid
-import           Data.Text                (Text)
-import qualified Data.Text                as T
+import qualified Data.Text                as Text
 import qualified Data.Vector              as V
-import           Test.Hspec
 import           Text.Megaparsec          (eof, parse)
 
 import           Puppet.Interpreter
-import           Puppet.Interpreter.Pure
-import           Puppet.Interpreter.Types
--- import           Puppet.Lens
 import           Puppet.Parser
-import           Puppet.Parser.Types
-import           Puppet.PP
 
 appendArrowNode :: Text
 appendArrowNode = "appendArrow"
 
 arrowOperationInput :: ArrowOp -> Text
-arrowOperationInput arr = T.unlines [ "node " <> appendArrowNode <> " {"
+arrowOperationInput arr = Text.unlines [ "node " <> appendArrowNode <> " {"
                   , "user { 'jenkins':"
                   , "  groups => 'ci'"
                   , "}"
@@ -61,9 +54,9 @@ classIncludeSpec :: Spec
 classIncludeSpec = do
     let compute i = pureCompute "dummy" i ^. _1
     describe "Multiple loading" $ do
-        it "should work when using several include statements" $ compute (T.unlines [ "node 'dummy' {",  "include foo",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
-        it "should work when using class before include" $ compute (T.unlines [ "node 'dummy' {",  "class { 'foo': }",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
-        it "should fail when using include before class" $ compute (T.unlines [ "node 'dummy' {",  "include foo", "class { 'foo': }", "}" ]) `shouldSatisfy` (has _Left)
+        it "should work when using several include statements" $ compute (Text.unlines [ "node 'dummy' {",  "include foo",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
+        it "should work when using class before include" $ compute (Text.unlines [ "node 'dummy' {",  "class { 'foo': }",  "include foo", "}" ]) `shouldSatisfy` (has _Right)
+        it "should fail when using include before class" $ compute (Text.unlines [ "node 'dummy' {",  "include foo", "class { 'foo': }", "}" ]) `shouldSatisfy` (has _Left)
 
 main :: IO ()
 main = hspec $ do
@@ -77,8 +70,8 @@ pureCompute :: NodeName
                 InterpreterState,
                 InterpreterWriter)
 pureCompute node input =
-  let hush :: Show a => Either a b -> b
-      hush = either (error . show) id
+  let hush' :: Show a => Either a b -> b
+      hush' = either (panic . show) identity
 
       getStatement :: NodeName -> Text -> HashMap (TopLevelType, NodeName) Statement
       getStatement n i = HM.fromList [ ((TopNode, n), nodeStatement i)
@@ -86,6 +79,6 @@ pureCompute node input =
                                      ]
 
       nodeStatement :: Text -> Statement
-      nodeStatement i = V.head $ hush $ parse (puppetParser <* eof) "test" i
+      nodeStatement i = V.head $ hush' $ parse (puppetParser <* eof) "test" i
 
   in pureEval dummyFacts (getStatement node input) (computeCatalog node)

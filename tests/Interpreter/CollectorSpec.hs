@@ -12,16 +12,16 @@ import           Helpers
 
 shouldNotify :: [Text] -> [PValue] -> Expectation
 shouldNotify content expectedMessages = do
-    cat <- case runExcept (getCatalog (Text.unlines content)) of
-               Left rr -> fail rr
-               Right x -> return x
-    let messages = itoList cat ^.. folded . filtered (\rp -> rp ^. _1 . itype == "notify") . _2 . rattributes . ix "message"
+    catalog <- case runExcept (getCatalog (Text.unlines content)) of
+      Left rr -> fail rr
+      Right x -> return x
+    let messages = itoList catalog ^.. folded . filtered (\rp -> rp ^. _1 . itype == "notify") . _2 . rattributes . ix "message"
     messages `shouldMatchList` expectedMessages
 
 shouldFail :: [Text] -> Expectation
-shouldFail content = let cat :: Either String FinalCatalog
-                         cat = runExcept (getCatalog (Text.unlines content))
-                     in  cat `shouldSatisfy` has _Left
+shouldFail content = let catalog :: Either String FinalCatalog
+                         catalog = runExcept (getCatalog (Text.unlines content))
+                     in  catalog `shouldSatisfy` has _Left
 
 spec :: Spec
 spec = do
