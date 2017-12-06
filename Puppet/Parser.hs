@@ -652,11 +652,19 @@ datatype = dtString
        <|> (reserved "Optional" *> (DTOptional <$> brackets datatype))
        <|> (NotUndef <$ reserved "NotUndef")
        <|> (reserved "Variant" *> (DTVariant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
-       <|> (reserved "Pattern" *> (DTPattern . NE.fromList <$> brackets (termRegexp `sepBy1` symbolic ',')))
+       -- while all the other cases are straightforward, it seems that the
+       -- following syntax is a valid regexp for puppet:
+       --   '^dqsqsdqs$'
+       -- instead of:
+       --   /^dqsqsdqs$/
+       --
+       -- That is the reason there is a "quotedRegexp" case
+       <|> (reserved "Pattern" *> (DTPattern . NE.fromList <$> brackets ( (termRegexp <|> quotedRegexp) `sepBy1` symbolic ',')))
        <|> (reserved "Enum" *> (DTEnum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
        <|> dtStdlib
        <?> "DataType"
   where
+    quotedRegexp = stringLiteral' >>= compileRegexp
     integer = integerOrDouble >>= either (return . fromIntegral) (\d -> fail ("Integer value expected, instead of " ++ show d))
     float = either fromIntegral identity <$> integerOrDouble
     dtArgs str def parseArgs = do
