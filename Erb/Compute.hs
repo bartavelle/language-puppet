@@ -71,7 +71,7 @@ initTemplateDaemon intr prefs mvstats = do
                                                 controlchan
                                                 mvstats
                                                 templatecache
-        pure $! (templateQuery controlchan)
+        pure $! templateQuery controlchan
     either returnError return x
 
 templateQuery :: Chan TemplateQuery -> Either Text Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text)
