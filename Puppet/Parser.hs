@@ -661,7 +661,7 @@ datatype = dtString
        -- That is the reason there is a "quotedRegexp" case
        <|> (reserved "Pattern" *> (DTPattern . NE.fromList <$> brackets ( (termRegexp <|> quotedRegexp) `sepBy1` symbolic ',')))
        <|> (reserved "Enum" *> (DTEnum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
-       <|> dtStdlib
+       <|> dtExternal
        <?> "DataType"
   where
     quotedRegexp = stringLiteral' >>= compileRegexp
@@ -706,9 +706,11 @@ datatype = dtString
         Just (tk, tv, Just [mi]) -> return (DTHash tk tv mi Nothing)
         Just (tk, tv, Just [mi, mx]) -> return (DTHash tk tv mi (Just mx))
         Just (_, _, Just _) -> fail "Too many arguments to datatype Hash"
-    dtStdlib =
+    dtExternal =
           reserved "Stdlib::HTTPUrl" $> DTData
       <|> reserved "Stdlib::Absolutepath" $> DTData
+      <|> reserved "Stdlib::Unixpath" $> DTData
+      <|> reserved "Nginx::ErrorLogSeverity" $> DTData
 
 
 statementList :: Parser (V.Vector Statement)
