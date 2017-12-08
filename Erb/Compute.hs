@@ -3,6 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Erb.Compute (
     computeTemplate
+  , erbLoggerName
   , initTemplateDaemon
 ) where
 
@@ -39,6 +40,9 @@ import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
 
+erbLoggerName :: String
+erbLoggerName = "Erb.Compute"
+
 instance IsString TemplateParseError where
   fromString s = TemplateParseError $ newErrorMessage (Message s) (initialPos "dummy")
 
@@ -67,7 +71,7 @@ initTemplateDaemon intr prefs mvstats = do
                                                 controlchan
                                                 mvstats
                                                 templatecache
-        return (templateQuery controlchan)
+        pure $! (templateQuery controlchan)
     either returnError return x
 
 templateQuery :: Chan TemplateQuery -> Either Text Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text)
@@ -118,14 +122,14 @@ computeTemplate intr fileinfo stt rdr mstats filecache = do
         Left err -> do
             let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show (tgetError err)
             traceEventIO msg
-            Log.debugM "Erb.Compute" msg
+            Log.debugM erbLoggerName msg
             measure mstats ("ruby - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
         Right ast -> case rubyEvaluate variables curcontext ast of
                 Right ev -> return (S.Right ev)
                 Left err -> do
                     let !msg = "template " ++ ufilename ++ " evaluation failed " ++ show err
                     traceEventIO msg
-                    Log.debugM "Erb.Compute" msg
+                    Log.debugM erbLoggerName msg
                     measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
     traceEventIO ("STOP template " ++ Text.unpack filename)
     return o
@@ -173,17 +177,19 @@ hrcallfunction _ rfname rargs rstt rrdr = do
     let err :: String -> IO RValue
         err rr = fmap (either snd identity) (FR.toRuby (Text.pack rr) >>= FR.safeMethodCall "MyError" "new" . (:[]))
     case (,) <$> efname <*> eargs of
-        Right (fname, varray) | fname `elem` ["template", "inline_template"] -> err "Can't call template from a Ruby function, as this will stall (yes it sucks ...)"
+        Right (fname, varray) | fname `elem` ["template", "inline_template"] -> do
+          Log.errorM erbLoggerName $ "Can't parse a call to the external ruby function '" <> toS fname <> "'  n an erb file.\n\tIt is not possible to call it from a Ruby function. It would stall (yes it sucks ...).\n\tChoosing to output \"undef\" !"
+          getSymbol "undef"
                               | otherwise -> do
-            let args = case varray of
-                           [PArray vargs] -> V.toList vargs
-                           _              -> varray
-            (x,_,_) <- interpretMonad rdr stt (resolveFunction' fname args)
-            case x of
-                Right o -> case o ^? _Number of
-                              Just n  -> FR.toRuby n
-                              Nothing -> FR.toRuby o
-                Left rr -> err (show rr)
+          let args = case varray of
+                         [PArray vargs] -> V.toList vargs
+                         _              -> varray
+          (x,_,_) <- interpretMonad rdr stt (resolveFunction' fname args)
+          case x of
+              Right o -> case o ^? _Number of
+                            Just n  -> FR.toRuby n
+                            Nothing -> FR.toRuby o
+              Left rr -> err (show rr)
         Left rr -> err rr
 
 computeTemplateWRuby :: Either Text Text -> Text -> Container ScopeInformation -> InterpreterState -> InterpreterReader IO -> IO TemplateAnswer

@@ -212,6 +212,7 @@ setupLogger :: Log.Priority -> IO ()
 setupLogger p = do
     Log.updateGlobalLogger daemonLoggerName (Log.setLevel p)
     Log.updateGlobalLogger hieraLoggerName (Log.setLevel p)
+    Log.updateGlobalLogger erbLoggerName (Log.setLevel p)
     hs <- consoleLogHandler
     Log.updateGlobalLogger Log.rootLoggerName $ Log.setHandlers [hs]
     where
