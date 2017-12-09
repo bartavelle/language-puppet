@@ -880,6 +880,11 @@ mainFunctionCall "dumpinfos" _ = do
     vars <- use (scopes . ix scp . scopeVariables)
     forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ttext idx <> " -> " <> pretty pv
     return []
+mainFunctionCall "assert_type" [PType dt, v] =
+  if datatypeMatch dt v
+    then pure []
+    else throwPosError $ "assert_type(): the value " <> pretty v <> " doesn't mach type " <> pretty dt
+mainFunctionCall "assert_type" _ = throwPosError "assert_type(): assert_type(): Expects two arguments"
 mainFunctionCall fname args = do
     p <- use curPos
     let representation = MainFunctionDeclaration (MainFuncDecl fname mempty p)
