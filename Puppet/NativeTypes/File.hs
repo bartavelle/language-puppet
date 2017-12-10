@@ -6,7 +6,7 @@ import           Control.Monad.Trans.Except
 import qualified Data.Attoparsec.Text       as AT
 import qualified Data.Char                  as Char
 import qualified Data.Map.Strict            as M
-import qualified Data.Set                   as S
+import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
 
 import           Puppet.Interpreter.Types
@@ -86,17 +86,17 @@ ugo t = AT.parseOnly (modestring <* AT.endOfInput) t
             & _Left %~ (\rr -> PrettyError $ "Could not parse the mode string: " <> text rr)
             & _Right %~ (\s -> rattributes . at "mode" ?~ PString (mkmode Special s <> mkmode User s <> mkmode Group s <> mkmode Other s))
 
-mkmode :: PermParts -> M.Map PermParts (S.Set PermSet) -> Text
+mkmode :: PermParts -> M.Map PermParts (Set PermSet) -> Text
 mkmode p m = let s = m ^. at p . non mempty
-             in  Text.pack $ show $ fromEnum (S.member R s) * 4
-                               + fromEnum (S.member W s) * 2
-                               + fromEnum (S.member X s)
+             in  Text.pack $ show $ fromEnum (Set.member R s) * 4
+                               + fromEnum (Set.member W s) * 2
+                               + fromEnum (Set.member X s)
 
-modestring :: AT.Parser (M.Map PermParts (S.Set PermSet))
+modestring :: AT.Parser (M.Map PermParts (Set.Set PermSet))
 modestring = M.fromList . mconcat <$> (modepart `AT.sepBy` AT.char ',')
 
 -- TODO suid, sticky and other funky things are not yet supported
-modepart :: AT.Parser [(PermParts, S.Set PermSet)]
+modepart :: AT.Parser [(PermParts, Set PermSet)]
 modepart = do
     let permpart =   (AT.char 'u' *> pure [User])
                  <|> (AT.char 'g' *> pure [Group])
@@ -107,5 +107,5 @@ modepart = do
                    <|> (AT.char 'x' *> pure X)
     pp <- mconcat <$> some permpart
     void $ AT.char '='
-    pr <- S.fromList <$> some permission
+    pr <- Set.fromList <$> some permission
     return (map (\p -> (p, pr)) pp)

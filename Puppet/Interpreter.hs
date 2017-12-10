@@ -54,175 +54,176 @@ interpretCatalog r node facts settings = do
     pure (output :!: warnings)
 
 isParent :: Text -> CurContainerDesc -> InterpreterMonad Bool
-isParent cur (ContClass possibleparent) = preuse (scopes . ix cur . scopeParent) >>= \case
-        Nothing         -> throwPosError ("Internal error: could not find scope" <+> ttext cur <+> "possible parent" <+> ttext possibleparent)
-        Just S.Nothing  -> return False
-        Just (S.Just p) -> if p == possibleparent
-                               then return True
-                               else isParent p (ContClass possibleparent)
+isParent cur (ContClass possibleparent) =
+  preuse (scopes . ix cur . scopeParent) >>= \case
+    Nothing         -> throwPosError ("Internal error: could not find scope" <+> ttext cur <+> "possible parent" <+> ttext possibleparent)
+    Just S.Nothing  -> return False
+    Just (S.Just p) -> if p == possibleparent
+                           then return True
+                           else isParent p (ContClass possibleparent)
 isParent _ _ = return False
 
 -- | Apply resource defaults, references overrides and expand defines
 finalize :: [Resource] -> InterpreterMonad [Resource]
 finalize rx = do
-    scp  <- getScopeName
-    resdefaults <- use (scopes . ix scp . scopeResDefaults)
-    let getOver = use (scopes . ix scp . scopeOverrides) -- retrieves current overrides
-        addResDefaults r = ifoldlM (addAttribute CantReplace) r resdefval
-            where resdefval = resdefaults ^. ix (r ^. rid . itype) . resDefValues
-        addOverrides r = getOver >>= foldlM addOverrides' r . view (at (r ^. rid))
-        addOverrides' r (ResRefOverride _ prms p) = do
-            -- we used this override, so we discard it
-            scopes . ix scp . scopeOverrides . at (r ^. rid) .= Nothing
-            let forb msg  = throwPosError ("Override of parameters ("
-                                          <> list (map (ttext . fst) $ itoList prms)
-                                          <> ") of the following resource is forbidden in the current context:"
-                                          </> pretty r
-                                          <+>  showPPos p
-                                          </> ":"
-                                          <+> msg)
-            s <- getScope
-            overrideType <- case r ^. rscope of
-                                [] -> forb "Could not find the current resource context" -- we could not get the current resource context
-                                (x:_) -> if x == s
-                                             then return CantOverride -- we are in the same context : can't replace, but add stuff
-                                             else isParent (scopeName s) x >>= \i ->
-                                                if i || (r ^. rid . itype == "class")
-                                                    then return Replace -- we can override what's defined in a parent
-                                                    else forb "Can't override something that was not defined in the parent."
-            ifoldlM (addAttribute overrideType) r prms
-    -- step 1, apply resDefaults and resRefOverride
-    withDefaults <- mapM (addOverrides >=> addResDefaults) rx
-    -- There might be some overrides that could not be applied. The only
-    -- valid reason is that they override something in exported resources.
-    --
-    -- it probably do something unexpected on defines, but let's keep it that way for now.
-    let keepforlater (ResRefOverride resid resprms ropos) = resMod %= (appended : )
-            where
-               appended = ResourceModifier (resid ^. itype) ModifierMustMatch DontRealize (REqualitySearch "title" (PString (resid ^. iname))) overrider ropos
-               overrider r = do
-                   -- we must define if we can override the value
-                   let canOverride = CantOverride -- TODO check inheritance
-                   ifoldlM (addAttribute canOverride) r resprms
-    void $ getOver >>= mapM keepforlater
-    let expandableDefine r = do
-            n <- isNativeType (r ^. rid . itype)
-            -- if we have a native type, or a virtual/exported resource it
-            -- should not be expanded !
-            if n || r ^. rvirtuality /= Normal
-                then return [r]
-                else expandDefine r
-    -- Now that all defaults / override have been applied, the defines can
-    -- finally be expanded.
-    -- The reason it has to be there is that parameters of the define could
-    -- be affected.
-    concat <$> mapM expandableDefine withDefaults
-    where
-        expandDefine :: Resource -> InterpreterMonad [Resource]
-        expandDefine r =
-            let modulename = getModulename (r ^. rid)
-            in  isIgnoredModule modulename >>= \i ->
-                  if i
-                  then return mempty
-                  else do
-                    let deftype = dropInitialColons (r ^. rid . itype)
-                        defname = r ^. rid . iname
-                        curContType = ContDefine deftype defname (r ^. rpos)
-                    p <- use curPos
-                    -- we add the relations of this define to the global list of relations
-                    -- before dropping it, so that they are stored for the final
-                    -- relationship resolving
-                    let extr = do
-                            (dstid, linkset) <- itoList (r ^. rrelations)
-                            linktype <- toList linkset
-                            return (LinkInformation (r ^. rid) dstid linktype p)
-                    extraRelations <>= extr
-                    void $ enterScope SENormal curContType modulename p
-                    (spurious, stmt) <- interpretTopLevel TopDefine deftype
-                    DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
-                    let isImported (ContImported _) = True
-                        isImported _                = False
-                    isImportedDefine <- isImported <$> getScope
-                    curPos .= r ^. rpos
-                    curscp <- getScope
-                    when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
-                    pushScope curContType
-                    loadVariable "title" (PString defname)
-                    loadVariable "name" (PString defname)
-                    -- not done through loadvariable because of override errors
-                    loadParameters (r ^. rattributes) defineParams cp S.Nothing
-                    curPos .= cp
-                    res <- evaluateStatementsFoldable stmts
-                    out <- finalize (spurious ++ res)
-                    when isImportedDefine popScope
-                    popScope
-                    return out
+  scp  <- getScopeName
+  resdefaults <- use (scopes . ix scp . scopeResDefaults)
+  let getOver = use (scopes . ix scp . scopeOverrides) -- retrieves current overrides
+      addResDefaults r = ifoldlM (addAttribute CantReplace) r resdefval
+          where resdefval = resdefaults ^. ix (r ^. rid . itype) . resDefValues
+      addOverrides r = getOver >>= foldlM addOverrides' r . view (at (r ^. rid))
+      addOverrides' r (ResRefOverride _ prms p) = do
+          -- we used this override, so we discard it
+          scopes . ix scp . scopeOverrides . at (r ^. rid) .= Nothing
+          let forb msg  = throwPosError ("Override of parameters ("
+                                        <> list (map (ttext . fst) $ itoList prms)
+                                        <> ") of the following resource is forbidden in the current context:"
+                                        </> pretty r
+                                        <+>  showPPos p
+                                        </> ":"
+                                        <+> msg)
+          s <- getScope
+          overrideType <- case r ^. rscope of
+            [] -> forb "Could not find the current resource context" -- we could not get the current resource context
+            (x:_) -> if x == s
+                         then return CantOverride -- we are in the same context : can't replace, but add stuff
+                         else isParent (scopeName s) x >>= \i ->
+                            if i || (r ^. rid . itype == "class")
+                                then return Replace -- we can override what's defined in a parent
+                                else forb "Can't override something that was not defined in the parent."
+          ifoldlM (addAttribute overrideType) r prms
+  -- step 1, apply resDefaults and resRefOverride
+  withDefaults <- mapM (addOverrides >=> addResDefaults) rx
+  -- There might be some overrides that could not be applied. The only
+  -- valid reason is that they override something in exported resources.
+  --
+  -- it probably do something unexpected on defines, but let's keep it that way for now.
+  let keepforlater (ResRefOverride resid resprms ropos) = resMod %= (appended : )
+          where
+             appended = ResourceModifier (resid ^. itype) ModifierMustMatch DontRealize (REqualitySearch "title" (PString (resid ^. iname))) overrider ropos
+             overrider r = do
+                 -- we must define if we can override the value
+                 let canOverride = CantOverride -- TODO check inheritance
+                 ifoldlM (addAttribute canOverride) r resprms
+  void $ getOver >>= mapM keepforlater
+  let expandableDefine r = do
+          n <- isNativeType (r ^. rid . itype)
+          -- if we have a native type, or a virtual/exported resource it
+          -- should not be expanded !
+          if n || r ^. rvirtuality /= Normal
+              then return [r]
+              else expandDefine r
+  -- Now that all defaults / override have been applied, the defines can
+  -- finally be expanded.
+  -- The reason it has to be there is that parameters of the define could
+  -- be affected.
+  concat <$> mapM expandableDefine withDefaults
+  where
+    expandDefine :: Resource -> InterpreterMonad [Resource]
+    expandDefine r =
+      let modulename = getModulename (r ^. rid)
+      in  isIgnoredModule modulename >>= \i ->
+            if i
+            then return mempty
+            else do
+              let deftype = dropInitialColons (r ^. rid . itype)
+                  defname = r ^. rid . iname
+                  curContType = ContDefine deftype defname (r ^. rpos)
+              p <- use curPos
+              -- we add the relations of this define to the global list of relations
+              -- before dropping it, so that they are stored for the final
+              -- relationship resolving
+              let extr = do
+                      (dstid, linkset) <- itoList (r ^. rrelations)
+                      linktype <- toList linkset
+                      return (LinkInformation (r ^. rid) dstid linktype p)
+              extraRelations <>= extr
+              void $ enterScope SENormal curContType modulename p
+              (spurious, stmt) <- interpretTopLevel TopDefine deftype
+              DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
+              let isImported (ContImported _) = True
+                  isImported _                = False
+              isImportedDefine <- isImported <$> getScope
+              curPos .= r ^. rpos
+              curscp <- getScope
+              when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
+              pushScope curContType
+              loadVariable "title" (PString defname)
+              loadVariable "name" (PString defname)
+              -- not done through loadvariable because of override errors
+              loadParameters (r ^. rattributes) defineParams cp S.Nothing
+              curPos .= cp
+              res <- evaluateStatementsFoldable stmts
+              out <- finalize (spurious ++ res)
+              when isImportedDefine popScope
+              popScope
+              return out
 
 -- | Given a toplevel (type, name),
 -- return the associated parsed statement together with its evaluated resources
 interpretTopLevel :: TopLevelType -> Text -> InterpreterMonad ([Resource], Statement)
 interpretTopLevel toptype topname =
-    -- check if this is a known toplevel
-    use (nestedDeclarations . at (toptype, topname)) >>= \case
-        Just x -> return ([], x) -- it is known !
-        Nothing -> singleton (GetStatement toptype topname) >>= evalTopLevel
-    where
-        evalTopLevel :: Statement -> InterpreterMonad ([Resource], Statement)
-        evalTopLevel (TopContainer tops s) = do
-            pushScope ContRoot
-            r <- mapM evaluateStatement tops >>= finalize . concat
-            -- popScope
-            (nr, ns) <- evalTopLevel s
-            popScope
-            return (r <> nr, ns)
-        evalTopLevel x = return ([], x)
+  -- check if this is a known toplevel
+  use (nestedDeclarations . at (toptype, topname)) >>= \case
+    Just x -> return ([], x) -- it is known !
+    Nothing -> singleton (GetStatement toptype topname) >>= evalTopLevel
+  where
+    evalTopLevel :: Statement -> InterpreterMonad ([Resource], Statement)
+    evalTopLevel (TopContainer tops s) = do
+        pushScope ContRoot
+        r <- mapM evaluateStatement tops >>= finalize . concat
+        -- popScope
+        (nr, ns) <- evalTopLevel s
+        popScope
+        return (r <> nr, ns)
+    evalTopLevel x = return ([], x)
 
 -- | Main internal entry point, this function completes the interpretation
 -- TODO: add some doc here
 computeCatalog :: NodeName -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog, [Resource])
 computeCatalog nodename = do
-    (topres, stmt) <- interpretTopLevel TopNode nodename
-    nd <- extractPrism "computeCatalog" _NodeDecl stmt
-    let finalStep [] = return []
-        finalStep allres = do
-            -- collect stuff and apply thingies
-            (realized :!: modified) <- realize allres
-            -- we need to run it again against collected stuff, especially
-            -- for custom types (defines) that have been realized
-            refinalized <- finalize (toList modified) >>= finalStep
-            -- replace the modified stuff
-            let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
-            return (toList res)
+  (topres, stmt) <- interpretTopLevel TopNode nodename
+  nd <- extractPrism "computeCatalog" _NodeDecl stmt
+  let finalStep [] = return []
+      finalStep allres = do
+          -- collect stuff and apply thingies
+          (realized :!: modified) <- realize allres
+          -- we need to run it again against collected stuff, especially
+          -- for custom types (defines) that have been realized
+          refinalized <- finalize (toList modified) >>= finalStep
+          -- replace the modified stuff
+          let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
+          return (toList res)
 
-        mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummyppos nodename
+      mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummyppos nodename
 
-        evaluateNode :: NodeDecl -> InterpreterMonad [Resource]
-        evaluateNode (NodeDecl _ sx inheritnode p) = do
-            curPos .= p
-            pushScope ContRoot
-            unless (S.isNothing inheritnode) $ throwPosError "Node inheritance is not handled. It is deprecated since puppet v4"
-            mapM evaluateStatement sx >>= finalize . concat
+      evaluateNode :: NodeDecl -> InterpreterMonad [Resource]
+      evaluateNode (NodeDecl _ sx inheritnode p) = do
+          curPos .= p
+          pushScope ContRoot
+          unless (S.isNothing inheritnode) $ throwPosError "Node inheritance is not handled. It is deprecated since puppet v4"
+          mapM evaluateStatement sx >>= finalize . concat
 
-    noderes <- evaluateNode nd >>= finalStep . (++ (mainstage : topres))
-    let (real :!: exported) = foldl' classify (mempty :!: mempty) noderes
-        -- Classify sorts resources between exported and normal ones. It
-        -- drops virtual resources, and puts in both categories resources
-        -- that are at the same time exported and realized.
-        classify :: Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
-                 -> Resource
-                 -> Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
-        classify (curr :!: cure) r =
-            let i curm = curm & at (r ^. rid) ?~ r
-            in  case r ^. rvirtuality of
-                    Normal           -> i curr :!: cure
-                    Exported         -> curr :!: i cure
-                    ExportedRealized -> i curr :!: i cure
-                    _                -> curr :!: cure
-    verified <- HM.fromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (HM.elems real)
-    withResourceDependentRelations <- traverse getResourceDependentRelations verified
-    edgemap <- makeEdgeMap withResourceDependentRelations
-    definedRes <- use definedResources
-    return (withResourceDependentRelations, edgemap, exported, HM.elems definedRes)
+  noderes <- evaluateNode nd >>= finalStep . (++ (mainstage : topres))
+  let (real :!: exported) = foldl' classify (mempty :!: mempty) noderes
+      -- Classify sorts resources between exported and normal ones. It
+      -- drops virtual resources, and puts in both categories resources
+      -- that are at the same time exported and realized.
+      classify :: Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
+               -> Resource
+               -> Pair (HM.HashMap RIdentifier Resource) (HM.HashMap RIdentifier Resource)
+      classify (curr :!: cure) r =
+          let i curm = curm & at (r ^. rid) ?~ r
+          in  case r ^. rvirtuality of
+                  Normal           -> i curr :!: cure
+                  Exported         -> curr :!: i cure
+                  ExportedRealized -> i curr :!: i cure
+                  _                -> curr :!: cure
+  verified <- HM.fromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (HM.elems real)
+  withResourceDependentRelations <- traverse getResourceDependentRelations verified
+  edgemap <- makeEdgeMap withResourceDependentRelations
+  definedRes <- use definedResources
+  return (withResourceDependentRelations, edgemap, exported, HM.elems definedRes)
 
 -- | This extracts additional relationships between resources, that are
 -- dependent on whether some resources are defined. A canonical example is
@@ -337,134 +338,136 @@ makeEdgeMap ct = do
 -- (custom types).
 realize :: [Resource] -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
 realize rs = do
-    let -- rma is the initial map of resources, indexed by resource identifier
-        rma = ifromList (map (\r -> (r ^. rid, r)) rs)
-        -- mutate runs all the resource modifiers (ie. realize, overrides
-        -- and other collectors). It stores the modified resources on the
-        -- "right" of the resulting pair.
-        mutate :: Pair FinalCatalog FinalCatalog -> ResourceModifier -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
-        mutate (curmap :!: modified) rmod = do
-            let filtrd = curmap ^.. folded . filtered fmod -- all the resources that match the selector/realize criteria
-                vcheck f r = f (r ^. rvirtuality)
-                (isGoodvirtuality, alterVirtuality) = case rmod ^. rmType of
-                    RealizeVirtual   -> (vcheck (/= Exported), \r -> return (r & rvirtuality .~ Normal))
-                    RealizeCollected -> (vcheck (`elem` [Exported, ExportedRealized]), \r -> return (r & rvirtuality .~ ExportedRealized))
-                    DontRealize      -> (vcheck (`elem` [Normal, ExportedRealized]), return)
-                fmod r = (r ^. rid . itype == rmod ^. rmResType) && checkSearchExpression (rmod ^. rmSearch) r && isGoodvirtuality r
-                mutation = alterVirtuality >=> rmod ^. rmMutation
-                applyModification :: Pair FinalCatalog FinalCatalog -> Resource -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
-                applyModification (cma :!: cmo) r = do
-                    nr <- mutation r
-                    let i m = m & at (nr ^. rid) ?~ nr
-                    return $ if nr /= r
-                                 then i cma :!: i cmo
-                                 else cma :!: cmo
-            result <- foldM applyModification (curmap :!: modified) filtrd -- apply the modifiation to all the matching resources
-            when (rmod ^. rmModifierType == ModifierMustMatch && null filtrd) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod <> ",no matching resource was found.")))
-            return result
-        equalModifier (ResourceModifier a1 b1 c1 d1 _ e1) (ResourceModifier a2 b2 c2 d2 _ e2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
-    result <- use resMod >>= foldM mutate (rma :!: mempty) . reverse . List.nubBy equalModifier
-    resMod .= []
-    return result
+  let -- rma is the initial map of resources, indexed by resource identifier
+      rma = ifromList (map (\r -> (r ^. rid, r)) rs)
+      -- mutate runs all the resource modifiers (ie. realize, overrides
+      -- and other collectors). It stores the modified resources on the
+      -- "right" of the resulting pair.
+      mutate :: Pair FinalCatalog FinalCatalog -> ResourceModifier -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
+      mutate (curmap :!: modified) rmod = do
+        let filtrd = curmap ^.. folded . filtered fmod -- all the resources that match the selector/realize criteria
+            vcheck f r = f (r ^. rvirtuality)
+            (isGoodvirtuality, alterVirtuality) = case rmod ^. rmType of
+                RealizeVirtual   -> (vcheck (/= Exported), \r -> return (r & rvirtuality .~ Normal))
+                RealizeCollected -> (vcheck (`elem` [Exported, ExportedRealized]), \r -> return (r & rvirtuality .~ ExportedRealized))
+                DontRealize      -> (vcheck (`elem` [Normal, ExportedRealized]), return)
+            fmod r = (r ^. rid . itype == rmod ^. rmResType) && checkSearchExpression (rmod ^. rmSearch) r && isGoodvirtuality r
+            mutation = alterVirtuality >=> rmod ^. rmMutation
+            applyModification :: Pair FinalCatalog FinalCatalog -> Resource -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
+            applyModification (cma :!: cmo) r = do
+                nr <- mutation r
+                let i m = m & at (nr ^. rid) ?~ nr
+                return $ if nr /= r
+                             then i cma :!: i cmo
+                             else cma :!: cmo
+        result <- foldM applyModification (curmap :!: modified) filtrd -- apply the modifiation to all the matching resources
+        when (rmod ^. rmModifierType == ModifierMustMatch && null filtrd) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod <> ",no matching resource was found.")))
+        return result
+      equalModifier (ResourceModifier a1 b1 c1 d1 _ e1) (ResourceModifier a2 b2 c2 d2 _ e2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
+  result <- use resMod >>= foldM mutate (rma :!: mempty) . reverse . List.nubBy equalModifier
+  resMod .= []
+  pure result
 
 -- | Fold all attribute declarations
 -- checking for duplicates key locally inside a same resource.
 fromAttributeDecls :: V.Vector AttributeDecl -> InterpreterMonad (Container PValue)
-fromAttributeDecls = foldM resolve mempty
-    where
-        resolve acc (AttributeDecl k _ v) =
-            case acc ^. at k of
-                Just _ -> throwPosError ("Parameter" <+> dullyellow (ttext k) <+> "already defined!")
-                Nothing -> do
-                  pv <- resolveExpression v
-                  return (acc & at k ?~ pv)
+fromAttributeDecls =
+  foldM resolve mempty
+  where
+    resolve acc (AttributeDecl k _ v) =
+      case acc ^. at k of
+        Just _ -> throwPosError ("Parameter" <+> dullyellow (ttext k) <+> "already defined!")
+        Nothing -> do
+          pv <- resolveExpression v
+          return (acc & at k ?~ pv)
 
 saveCaptureVariables :: InterpreterMonad (HM.HashMap Text (Pair (Pair PValue PPosition) CurContainerDesc))
 saveCaptureVariables = do
-    scp <- getScopeName
-    vars <- use (scopes . ix scp . scopeVariables)
-    return $ HM.filterWithKey (\k _ -> Text.all Char.isDigit k) vars
+  scp <- getScopeName
+  vars <- use (scopes . ix scp . scopeVariables)
+  return $ HM.filterWithKey (\k _ -> Text.all Char.isDigit k) vars
 
 restoreCaptureVariables :: HM.HashMap Text (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
 restoreCaptureVariables vars = do
-    scp <- getScopeName
-    scopes . ix scp . scopeVariables %= HM.union vars . HM.filterWithKey (\k _ -> not (Text.all Char.isDigit k))
+  scp <- getScopeName
+  scopes . ix scp . scopeVariables %= HM.union vars . HM.filterWithKey (\k _ -> not (Text.all Char.isDigit k))
 
 evaluateStatement :: Statement -> InterpreterMonad [Resource]
 evaluateStatement r@(ClassDeclaration (ClassDecl cname _ _ _ _)) =
-    if "::" `Text.isInfixOf` cname
-       then nestedDeclarations . at (TopClass, cname) ?= r >> return []
-       else do
-           scp <- getScopeName
-           let rcname = if scp == "::"
-                            then cname
-                            else scp <> "::" <> cname
-           nestedDeclarations . at (TopClass, rcname) ?= r
-           return []
+  if "::" `Text.isInfixOf` cname
+   then nestedDeclarations . at (TopClass, cname) ?= r >> return []
+   else do
+     scp <- getScopeName
+     let rcname = if scp == "::"
+                    then cname
+                    else scp <> "::" <> cname
+     nestedDeclarations . at (TopClass, rcname) ?= r
+     return []
 evaluateStatement r@(DefineDeclaration (DefineDecl dname _ _ _)) =
-    if "::" `Text.isInfixOf` dname
-       then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
-       else do
-           scp <- getScopeName
-           if scp == "::"
-               then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
-               else nestedDeclarations . at (TopDefine, scp <> "::" <> dname) ?= r >> return []
+  if "::" `Text.isInfixOf` dname
+    then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
+    else do
+      scp <- getScopeName
+      if scp == "::"
+        then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
+        else nestedDeclarations . at (TopDefine, scp <> "::" <> dname) ?= r >> return []
 evaluateStatement r@(ResourceCollectionDeclaration (ResCollDecl ct rtype searchexp mods p)) = do
-    curPos .= p
-    unless (isEmpty mods || ct == Collector) (throwPosError ("It doesn't seem possible to amend attributes with an exported resource collector:" </> pretty r))
-    when (rtype == "class") (throwPosError "Classes cannot be collected")
-    rsearch <- resolveSearchExpression searchexp
-    let et = case ct of
-                 Collector         -> RealizeVirtual
-                 ExportedCollector -> RealizeCollected
-    resMod %= (ResourceModifier rtype ModifierCollector et rsearch (\r' -> foldM modifyCollectedAttribute r' mods) p : )
-    -- Now collected from the PuppetDB !
-    if et == RealizeCollected
-        then do
-            let q = searchExpressionToPuppetDB rtype rsearch
-            fqdn <- getNodeName
-            -- we must filter the resources that originated from this host
-            -- here ! They are also turned into "normal" resources
-            res <- toListOf (folded
-                            . filtered ( hasn't (rnode . only fqdn) )
-                            . to (rvirtuality .~ Normal)
-                            ) <$> singleton (PDBGetResources q)
-            scpdesc <- ContImported <$> getScope
-            void $ enterScope SENormal scpdesc "importing" p
-            pushScope scpdesc
-            o <- finalize res
-            popScope
-            return o
-        else return []
+  curPos .= p
+  unless (isEmpty mods || ct == Collector)
+    (throwPosError ("It doesn't seem possible to amend attributes with an exported resource collector:" </> pretty r))
+  when (rtype == "class") (throwPosError "Classes cannot be collected")
+  rsearch <- resolveSearchExpression searchexp
+  let et = case ct of
+        Collector         -> RealizeVirtual
+        ExportedCollector -> RealizeCollected
+  resMod %= (ResourceModifier rtype ModifierCollector et rsearch (\r' -> foldM modifyCollectedAttribute r' mods) p : )
+  -- Now collected from the PuppetDB !
+  if et == RealizeCollected
+    then do
+      let q = searchExpressionToPuppetDB rtype rsearch
+      fqdn <- getNodeName
+      -- we must filter the resources that originated from this host
+      -- here ! They are also turned into "normal" resources
+      res <- toListOf (folded
+                      . filtered ( hasn't (rnode . only fqdn) )
+                      . to (rvirtuality .~ Normal)
+                      ) <$> singleton (PDBGetResources q)
+      scpdesc <- ContImported <$> getScope
+      void $ enterScope SENormal scpdesc "importing" p
+      pushScope scpdesc
+      o <- finalize res
+      popScope
+      return o
+    else return []
 evaluateStatement (DependencyDeclaration (DepDecl (t1 :!: n1) (t2 :!: n2) lt p)) = do
-    curPos .= p
-    rn1 <- map (fixResourceName t1) <$> resolveExpressionStrings n1
-    rn2 <- map (fixResourceName t2) <$> resolveExpressionStrings n2
-    extraRelations <>= [ LinkInformation (normalizeRIdentifier t1 an1) (normalizeRIdentifier t2 an2) lt p | an1 <- rn1, an2 <- rn2 ]
-    return []
+  curPos .= p
+  rn1 <- map (fixResourceName t1) <$> resolveExpressionStrings n1
+  rn2 <- map (fixResourceName t2) <$> resolveExpressionStrings n2
+  extraRelations <>= [ LinkInformation (normalizeRIdentifier t1 an1) (normalizeRIdentifier t2 an2) lt p | an1 <- rn1, an2 <- rn2 ]
+  return []
 evaluateStatement (ResourceDeclaration (ResDecl t ern eargs virt p)) = do
-    curPos .= p
-    resnames <- resolveExpressionStrings ern
-    args <- fromAttributeDecls eargs
-    concat <$> mapM (\n -> registerResource t n args virt p) resnames
+  curPos .= p
+  resnames <- resolveExpressionStrings ern
+  args <- fromAttributeDecls eargs
+  concat <$> mapM (\n -> registerResource t n args virt p) resnames
 evaluateStatement (MainFunctionDeclaration (MainFuncDecl funcname funcargs p)) = do
-    curPos .= p
-    mapM resolveExpression (toList funcargs) >>= mainFunctionCall funcname
+  curPos .= p
+  mapM resolveExpression (toList funcargs) >>= mainFunctionCall funcname
 evaluateStatement (VarAssignmentDeclaration (VarAssignDecl varname varexpr p)) = do
-    curPos .= p
-    varval <- resolveExpression varexpr
-    loadVariable varname varval
-    return []
+  curPos .= p
+  varval <- resolveExpression varexpr
+  loadVariable varname varval
+  return []
 evaluateStatement (ConditionalDeclaration (ConditionalDecl conds p)) = do
-    curPos .= p
-    let checkCond [] = return []
-        checkCond ((e :!: stmts) : xs) = do
-            sv <- saveCaptureVariables
-            result <- pValue2Bool <$> resolveExpression e
-            if result
-                then evaluateStatementsFoldable stmts <* restoreCaptureVariables sv
-                else restoreCaptureVariables sv *> checkCond xs
-    checkCond (toList conds)
+  curPos .= p
+  let checkCond [] = return []
+      checkCond ((e :!: stmts) : xs) = do
+        sv <- saveCaptureVariables
+        result <- pValue2Bool <$> resolveExpression e
+        if result
+          then evaluateStatementsFoldable stmts <* restoreCaptureVariables sv
+          else restoreCaptureVariables sv *> checkCond xs
+  checkCond (toList conds)
 evaluateStatement (ResourceDefaultDeclaration (ResDefaultDecl rtype decls p)) = do
     curPos .= p
     rdecls <- fromAttributeDecls decls
@@ -479,38 +482,40 @@ evaluateStatement (ResourceDefaultDeclaration (ResDefaultDecl rtype decls p)) = 
     preuse (scopes . ix scp . scopeResDefaults . ix rtype) >>= \case
         Nothing -> addDefaults newDefaults
         Just d -> if d ^. resDefSrcScope == scp
-                       then throwPosError ("Defaults for resource" <+> ttext rtype <+> "already declared at" <+> showPPos (d ^. resDefPos))
-                       else addDefaults (mergedDefaults d)
+                    then throwPosError ("Defaults for resource" <+> ttext rtype <+> "already declared at" <+> showPPos (d ^. resDefPos))
+                    else addDefaults (mergedDefaults d)
     return []
 evaluateStatement (ResourceOverrideDeclaration (ResOverrideDecl t urn eargs p)) = do
-    curPos .= p
-    raassignements <- fromAttributeDecls eargs
-    rn <- resolveExpressionString urn
-    scp <- getScopeName
-    curoverrides <- use (scopes . ix scp . scopeOverrides)
-    let rident = normalizeRIdentifier t rn
-    -- check that we didn't already override those values
-    withAssignements <- case curoverrides ^. at rident of
-                            Just (ResRefOverride _ prevass prevpos) -> do
-                                let cm = prevass `HM.intersection` raassignements
-                                unless (isEmpty cm) (throwPosError ("The following parameters were already overriden at" <+> showPPos prevpos <+> ":" <+> containerComma cm))
-                                return (prevass <> raassignements)
-                            Nothing -> return raassignements
-    scopes . ix scp . scopeOverrides . at rident ?= ResRefOverride rident withAssignements p
-    return []
-evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) = curPos .= p >> evaluateHFC c
-    where
-         evaluateHFC :: HOLambdaCall -> InterpreterMonad [Resource]
-         evaluateHFC hf = do
-             varassocs <- hfGenerateAssociations hf
-             let runblock :: [(Text, PValue)] -> InterpreterMonad [Resource]
-                 runblock assocs = do
-                     saved <- hfSetvars assocs
-                     res <- evaluateStatementsFoldable (hf ^. hoLambdaStatements)
-                     hfRestorevars  saved
-                     return res
-             results <- mapM runblock varassocs
-             return (concat results)
+  curPos .= p
+  raassignements <- fromAttributeDecls eargs
+  rn <- resolveExpressionString urn
+  scp <- getScopeName
+  curoverrides <- use (scopes . ix scp . scopeOverrides)
+  let rident = normalizeRIdentifier t rn
+  -- check that we didn't already override those values
+  withAssignements <- case curoverrides ^. at rident of
+    Just (ResRefOverride _ prevass prevpos) -> do
+      let cm = prevass `HM.intersection` raassignements
+      unless (isEmpty cm)
+        (throwPosError ("The following parameters were already overriden at" <+> showPPos prevpos <+> ":" <+> containerComma cm))
+      return (prevass <> raassignements)
+    Nothing -> return raassignements
+  scopes . ix scp . scopeOverrides . at rident ?= ResRefOverride rident withAssignements p
+  return []
+evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
+  curPos .= p >> evaluateHFC c
+  where
+    evaluateHFC :: HOLambdaCall -> InterpreterMonad [Resource]
+    evaluateHFC hf = do
+        varassocs <- hfGenerateAssociations hf
+        let runblock :: [(Text, PValue)] -> InterpreterMonad [Resource]
+            runblock assocs = do
+              saved <- hfSetvars assocs
+              res <- evaluateStatementsFoldable (hf ^. hoLambdaStatements)
+              hfRestorevars  saved
+              return res
+        results <- mapM runblock varassocs
+        return (concat results)
 evaluateStatement r = throwError (PrettyError ("Do not know how to evaluate this statement:" </> pretty r))
 
 -----------------------------------------------------------

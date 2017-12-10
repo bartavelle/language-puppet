@@ -34,6 +34,7 @@ import           Control.Monad.Trans.Maybe         as Exports (runMaybeT)
 import           Data.Tuple.Strict                 as Exports (Pair(..))
 import           Control.Monad.Trans.Except        as Exports (throwE)
 import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
+import           Data.Set                          as Exports (Set)
 
 import           Data.Attoparsec.Text              (parseOnly, rational)
 import qualified Data.ByteString                   as BS
@@ -48,14 +49,16 @@ import qualified Data.Text.Encoding                as Text
 import           System.Posix.Directory.ByteString
 
 text2Scientific :: Text -> Maybe Scientific
-text2Scientific t = case parseOnly rational t of
-            Left _  -> Nothing
-            Right s -> Just s
+text2Scientific t =
+  case parseOnly rational t of
+    Left _  -> Nothing
+    Right s -> Just s
 
 scientific2text :: Scientific -> Text
-scientific2text n = Text.pack $ case Scientific.floatingOrInteger n of
-                                 Left r  -> show (r :: Double)
-                                 Right i -> show (i :: Integer)
+scientific2text n =
+  Text.pack $ case Scientific.floatingOrInteger n of
+    Left r  -> show (r :: Double)
+    Right i -> show (i :: Integer)
 
 strictifyEither :: Either a b -> S.Either a b
 strictifyEither (Left x)  = S.Left x
@@ -68,20 +71,20 @@ textElem c = Text.any (==c)
 -- | See System.FilePath.Posix
 takeBaseName :: Text -> Text
 takeBaseName fullname =
-    let afterLastSlash = List.last $ Text.splitOn "/" fullname
-        splitExtension = List.init $ Text.splitOn "." afterLastSlash
-    in Text.intercalate "." splitExtension
+  let afterLastSlash = List.last $ Text.splitOn "/" fullname
+      splitExtension = List.init $ Text.splitOn "." afterLastSlash
+  in Text.intercalate "." splitExtension
 
 -- | See System.FilePath.Posix
 takeDirectory :: Text -> Text
 takeDirectory "" = "."
 takeDirectory "/" = "/"
 takeDirectory x =
-    let res  = Text.dropWhileEnd (== '/') file
-        file = dropFileName x
-    in  if Text.null res && not (Text.null file)
-            then file
-            else res
+  let res  = Text.dropWhileEnd (== '/') file
+      file = dropFileName x
+  in  if Text.null res && not (Text.null file)
+          then file
+          else res
 
 -- | Drop the filename.
 --
@@ -103,12 +106,13 @@ dropFileName = fst . splitFileName
 --
 -- (See System.FilePath.Posix)
 splitFileName :: Text -> (Text, Text)
-splitFileName x = (if Text.null dir then "./" else dir, name)
-    where
-        (dir, name) = splitFileName_ x
-        splitFileName_ y = (Text.reverse b, Text.reverse a)
-            where
-                (a,b) = Text.break (=='/') $ Text.reverse y
+splitFileName x =
+  (if Text.null dir then "./" else dir, name)
+  where
+    (dir, name) = splitFileName_ x
+    splitFileName_ y =
+      let (a,b) = Text.break (=='/') $ Text.reverse y
+      in (Text.reverse b, Text.reverse a)
 
 -- | helper for hashmap, in case we want another kind of map ..
 ifromList :: (Monoid m, At m, Foldable f) => f (Index m, IxValue m) -> m
@@ -129,37 +133,39 @@ ifromListWith f = foldl' (\curmap (k,v) -> iinsertWith f k v curmap) mempty
 
 iinsertWith :: At m => (IxValue m -> IxValue m -> IxValue m) -> Index m -> IxValue m -> m -> m
 {-# INLINABLE iinsertWith #-}
-iinsertWith f k v m = m & at k %~ mightreplace
-    where
-        mightreplace Nothing  = Just v
-        mightreplace (Just x) = Just (f v x)
+iinsertWith f k v m =
+  m & at k %~ mightreplace
+  where
+    mightreplace Nothing  = Just v
+    mightreplace (Just x) = Just (f v x)
 
 iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
 {-# INLINABLE iunionWith #-}
 iunionWith = HM.unionWith
 
 getFiles :: Text -> Text -> Text -> IO [Text]
-getFiles moduledir subdir extension = fmap concat $
-    getDirContents moduledir
-        >>= mapM ( checkForSubFiles extension . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
+getFiles moduledir subdir extension =
+  fmap concat
+  $ getDirContents moduledir
+    >>= mapM ( checkForSubFiles extension . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
 
 checkForSubFiles :: Text -> Text -> IO [Text]
 checkForSubFiles extension dir =
-    catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException)) >>= \case
-        Right o -> return ((map (\x -> dir <> "/" <> x) . filter (Text.isSuffixOf extension)) o )
-        Left _ -> return []
+  catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException)) >>= \case
+    Right o -> return ((map (\x -> dir <> "/" <> x) . filter (Text.isSuffixOf extension)) o )
+    Left _ -> return []
 
 getDirContents :: Text -> IO [Text]
 getDirContents x = fmap (filter (not . Text.all (=='.'))) (getDirectoryContents x)
 
 getDirectoryContents :: Text -> IO [Text]
 getDirectoryContents fpath = do
-    h <- openDirStream (Text.encodeUtf8 fpath)
-    let readHandle = do
+  h <- openDirStream (Text.encodeUtf8 fpath)
+  let readHandle = do
         fp <- readDirStream h
         if BS.null fp
-            then return []
-            else fmap (Text.decodeUtf8 fp :) readHandle
-    out <- readHandle
-    closeDirStream h
-    pure out
+          then return []
+          else fmap (Text.decodeUtf8 fp :) readHandle
+  out <- readHandle
+  closeDirStream h
+  pure out
