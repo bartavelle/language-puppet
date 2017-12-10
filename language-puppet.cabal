@@ -30,6 +30,7 @@ source-repository head
   location: git://github.com/bartavelle/language-puppet.git
 
 library
+  hs-source-dirs: src
   exposed-modules:       Erb.Evaluate
                        , Erb.Parser
                        , Erb.Ruby
