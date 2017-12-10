@@ -820,77 +820,77 @@ mainFunctionCall "err"     a = logWithModifier Log.ERROR        dullred     a
 mainFunctionCall "info"    a = logWithModifier Log.INFO         green       a
 mainFunctionCall "notice"  a = logWithModifier Log.NOTICE       white       a
 mainFunctionCall "warning" a = logWithModifier Log.WARNING      dullyellow  a
-mainFunctionCall "contain" includes = concat <$> mapM doContain includes
-    where doContain e = do
-            classname <- resolvePValueString e
-            use (loadedClasses . at classname) >>= \case
-                Nothing -> loadClass classname S.Nothing mempty ClassIncludeLike
-                Just _ -> return [] -- TODO check that this happened after class declaration
-mainFunctionCall "include" includes = concat <$> mapM doInclude includes
-    where doInclude e = do
-            classname <- resolvePValueString e
-            loadClass classname S.Nothing mempty ClassIncludeLike
+mainFunctionCall "contain" includes =
+  concat <$> mapM doContain includes
+  where
+    doContain e = do
+      classname <- resolvePValueString e
+      use (loadedClasses . at classname) >>= \case
+        Nothing -> loadClass classname S.Nothing mempty ClassIncludeLike
+        Just _ -> return [] -- TODO check that this happened after class declaration
+mainFunctionCall "include" includes =
+  concat <$> mapM doInclude includes
+  where
+    doInclude e = do
+      classname <- resolvePValueString e
+      loadClass classname S.Nothing mempty ClassIncludeLike
 mainFunctionCall "create_resources" [t, hs] = mainFunctionCall "create_resources" [t, hs, PHash mempty]
 mainFunctionCall "create_resources" [PString t, PHash hs, PHash defparams] = do
-    let (ats, t') = Text.span (== '@') t
-    virtuality <- case Text.length ats of
-                      0 -> return Normal
-                      1 -> return Virtual
-                      2 -> return Exported
-                      _ -> throwPosError "Too many @'s"
-    p <- use curPos
-    let genRes rname (PHash rargs) = registerResource t' rname (rargs <> defparams) virtuality p
-        genRes rname x = throwPosError ("create_resource(): the value corresponding to key" <+> ttext rname <+> "should be a hash, not" <+> pretty x)
-    concat . HM.elems <$> itraverse genRes hs
+  let (ats, t') = Text.span (== '@') t
+  virtuality <- case Text.length ats of
+    0 -> return Normal
+    1 -> return Virtual
+    2 -> return Exported
+    _ -> throwPosError "Too many @'s"
+  p <- use curPos
+  let genRes rname (PHash rargs) = registerResource t' rname (rargs <> defparams) virtuality p
+      genRes rname x = throwPosError ("create_resource(): the value corresponding to key" <+> ttext rname <+> "should be a hash, not" <+> pretty x)
+  concat . HM.elems <$> itraverse genRes hs
 mainFunctionCall "create_resources" args = throwPosError ("create_resource(): expects between two and three arguments, of type [string,hash,hash], and not:" <+> pretty args)
 mainFunctionCall "ensure_packages" args = ensurePackages args
 mainFunctionCall "ensure_resource" args = ensureResource args
 mainFunctionCall "realize" args = do
-    pos <- use curPos
-    let updateMod (PResourceReference t rn) = resMod %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return pos : )
-        updateMod x = throwPosError ("realize(): all arguments must be resource references, not" <+> pretty x)
-    mapM_ updateMod args
-    return []
+  pos <- use curPos
+  let updateMod (PResourceReference t rn) =
+        resMod %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return pos : )
+      updateMod x = throwPosError ("realize(): all arguments must be resource references, not" <+> pretty x)
+  mapM_ updateMod args
+  return []
 mainFunctionCall "tag" args = do
-    scp <- getScopeName
-    let addTag x = scopes . ix scp . scopeExtraTags . contains x .= True
-    mapM_ (resolvePValueString >=> addTag) args
-    return []
+  scp <- getScopeName
+  let addTag x = scopes . ix scp . scopeExtraTags . contains x .= True
+  mapM_ (resolvePValueString >=> addTag) args
+  return []
 mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ttext <$> resolvePValueString x >>= throwPosError
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
 -- hiera_include does a unique merge lookup for the requested key, then calls the include function on the resulting array.
 mainFunctionCall "hiera_include" [x] = do
-    ndname <- resolvePValueString x
-    classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname QUnique
-    p <- use curPos
-    curPos . _1 . lSourceName <>= " [hiera_include call]"
-    o <- mainFunctionCall "include" classes
-    curPos .= p
-    return o
+  ndname <- resolvePValueString x
+  classes <- toListOf (traverse . _PArray . traverse) <$> runHiera ndname QUnique
+  p <- use curPos
+  curPos . _1 . lSourceName <>= " [hiera_include call]"
+  o <- mainFunctionCall "include" classes
+  curPos .= p
+  return o
 mainFunctionCall "hiera_include" _ = throwPosError "hiera_include(): This function takes a single argument"
 -- dumpinfos is a debugging function specific to language-puppet
 mainFunctionCall "dumpinfos" _ = do
-    let prntline = logWriter Log.ALERT
-        indentln = (<>) "  "
-    prntline "Scope stack :"
-    scps <- use curScope
-    mapM_ (prntline . indentln . pretty) scps
-    prntline "Variables in local scope :"
-    scp <- getScopeName
-    vars <- use (scopes . ix scp . scopeVariables)
-    forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ttext idx <> " -> " <> pretty pv
-    return []
-mainFunctionCall "assert_type" [PType dt, v] =
-  if datatypeMatch dt v
-    then pure []
-    else throwPosError $ "assert_type(): the value " <> pretty v <> " doesn't mach type " <> pretty dt
-mainFunctionCall "assert_type" _ = throwPosError "assert_type(): assert_type(): Expects two arguments"
+  let prntline = logWriter Log.ALERT
+      indentln = (<>) "  "
+  prntline "Scope stack :"
+  scps <- use curScope
+  mapM_ (prntline . indentln . pretty) scps
+  prntline "Variables in local scope :"
+  scp <- getScopeName
+  vars <- use (scopes . ix scp . scopeVariables)
+  forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ttext idx <> " -> " <> pretty pv
+  pure []
 mainFunctionCall fname args = do
-    p <- use curPos
-    let representation = MainFunctionDeclaration (MainFuncDecl fname mempty p)
-    rs <- singleton (ExternalFunction fname args)
-    unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs </> pretty representation)
-    return []
+  p <- use curPos
+  let representation = MainFunctionDeclaration (MainFuncDecl fname mempty p)
+  rs <- singleton (ExternalFunction fname args)
+  unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs </> pretty representation)
+  pure []
 
 ensurePackages :: [PValue] -> InterpreterMonad [Resource]
 ensurePackages [packages] = ensurePackages [packages, PHash mempty]

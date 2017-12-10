@@ -532,22 +532,22 @@ resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two argum
 resolveFunction' "sprintf" (PString str:args) = sprintf str args
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
-resolveFunction' "pdbresourcequery" [q]            = pdbresourcequery q Nothing
-resolveFunction' "pdbresourcequery" [q,k]          = fmap Just (resolvePValueString k) >>= pdbresourcequery q
-resolveFunction' "pdbresourcequery" _              = throwPosError "pdbresourcequery(): Expects one or two arguments"
-resolveFunction' "hiera"       [q]                 = hieraCall QFirst   q Nothing Nothing Nothing
-resolveFunction' "hiera"       [q,d]               = hieraCall QFirst   q (Just d) Nothing Nothing
-resolveFunction' "hiera"       [q,d,o]             = hieraCall QFirst   q (Just d) Nothing (Just o)
-resolveFunction' "hiera_array" [q]                 = hieraCall QUnique q Nothing  Nothing Nothing
-resolveFunction' "hiera_array" [q,d]               = hieraCall QUnique q (Just d) Nothing Nothing
-resolveFunction' "hiera_array" [q,d,o]             = hieraCall QUnique q (Just d) Nothing (Just o)
-resolveFunction' "hiera_hash"  [q]                 = hieraCall QHash  q Nothing  Nothing Nothing
-resolveFunction' "hiera_hash"  [q,d]               = hieraCall QHash  q (Just d) Nothing Nothing
-resolveFunction' "hiera_hash"  [q,d,o]             = hieraCall QHash  q (Just d) Nothing (Just o)
-resolveFunction' "lookup"      [q]                 = hieraCall QFirst   q Nothing  Nothing Nothing
-resolveFunction' "lookup"      [q, PType dt]     = hieraCall QFirst   q Nothing (Just dt) Nothing
+resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
+resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
+resolveFunction' "pdbresourcequery" _     = throwPosError "pdbresourcequery(): Expects one or two arguments"
+resolveFunction' "hiera"       [q]     = hieraCall QFirst   q Nothing Nothing Nothing
+resolveFunction' "hiera"       [q,d]   = hieraCall QFirst   q (Just d) Nothing Nothing
+resolveFunction' "hiera"       [q,d,o] = hieraCall QFirst   q (Just d) Nothing (Just o)
+resolveFunction' "hiera_array" [q]     = hieraCall QUnique q Nothing  Nothing Nothing
+resolveFunction' "hiera_array" [q,d]   = hieraCall QUnique q (Just d) Nothing Nothing
+resolveFunction' "hiera_array" [q,d,o] = hieraCall QUnique q (Just d) Nothing (Just o)
+resolveFunction' "hiera_hash"  [q]     = hieraCall QHash  q Nothing  Nothing Nothing
+resolveFunction' "hiera_hash"  [q,d]   = hieraCall QHash  q (Just d) Nothing Nothing
+resolveFunction' "hiera_hash"  [q,d,o] = hieraCall QHash  q (Just d) Nothing (Just o)
+resolveFunction' "lookup"      [q]                        = hieraCall QFirst   q Nothing  Nothing Nothing
+resolveFunction' "lookup"      [q, PType dt]              = hieraCall QFirst   q Nothing (Just dt) Nothing
 resolveFunction' "lookup"      [q, PType dt, PString t,d] = hieraCall (fromMaybe QFirst (readQueryType t)) q (Just d) (Just dt) Nothing
-resolveFunction' "lookup" _                        =  throwPosError "lookup(): Wrong set of arguments"
+resolveFunction' "lookup" _                               =  throwPosError "lookup(): Wrong set of arguments"
 
 -- user functions
 resolveFunction' fname args = Operational.singleton (ExternalFunction fname args)
