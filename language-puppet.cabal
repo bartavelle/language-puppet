@@ -154,8 +154,9 @@ Test-Suite test-hiera
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -rtsopts -threaded
-  extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,hspec,temporary,strict-base-types,HUnit,lens,vector,unordered-containers,text,hslogger,neat-interpolation
+  extensions:     OverloadedStrings, NoImplicitPrelude
+  Other-Modules:  Helpers
+  build-depends:  language-puppet,base,hspec,temporary,strict-base-types,HUnit,lens,vector,unordered-containers,text,hslogger,neat-interpolation,protolude >=0.2,scientific,mtl
   main-is:        hiera.hs
 Test-Suite test-puppetdb
   hs-source-dirs: tests

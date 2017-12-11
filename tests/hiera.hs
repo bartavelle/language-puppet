@@ -1,24 +1,20 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Main where
 
-import qualified Data.Either.Strict       as S
-import qualified Data.HashMap.Strict      as HM
-import           Data.Monoid
-import qualified Data.Text                as T
-import qualified Data.Text.IO             as T
-import qualified Data.Vector              as V
+import           Helpers
+
+import qualified Data.Either.Strict  as S
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Vector         as Vector
 import           Hiera.Server
 import           NeatInterpolation
-import           System.IO.Temp
-import qualified System.Log.Logger        as LOG
-import           Test.Hspec
+import qualified System.IO.Temp      as IO
+import qualified System.Log.Logger   as Log
 import           Test.HUnit
 
-import           Puppet.Interpreter.Types
-
 main :: IO ()
-main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
-    LOG.updateGlobalLogger hieraLoggerName (LOG.setLevel LOG.ERROR)
+main = IO.withSystemTempDirectory "hieratest" $ \tmpfp -> do
+    Log.updateGlobalLogger loggerName (Log.setLevel Log.ERROR)
     let ndname = "node.site.com"
         vars = HM.fromList [ ("::environment", "production")
                            , ("::fqdn"       , ndname)
@@ -50,11 +46,11 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
             :json:
               :datadir: $fp
           |]
-    T.writeFile (tmpfp ++ "/hiera3.yaml") (hiera3_config (T.pack tmpfp))
-    T.writeFile (tmpfp ++ "/hiera5.yaml") (hiera5_config (T.pack tmpfp))
-    writeFile (tmpfp ++ "/global.yaml") "---\nhttp_port: 8080\nntp_servers: ['0.ntp.puppetlabs.com', '1.ntp.puppetlabs.com']\nusers:\n  pete:\n    uid: 2000\n  tom:\n    uid: 2001\nglobal: \"glob\""
-    writeFile (tmpfp ++ "/production.yaml") "---\nhttp_port: 9090\nntp_servers: ['2.ntp.puppetlabs.com', '3.ntp.puppetlabs.com']\ninterp1: '**%{::fqdn}**'\nusers:\n  bob:\n    uid: 100\n  tom:\n    uid: 12\n"
-    writeFile (tmpfp ++ "/" ++ T.unpack ndname ++ ".json") "{\"testnode\":{\"1\":\"**%{::fqdn}**\",\"2\":\"nothing special\"},\"testjson\":\"ok\",\"arraytest\":[\"a\",\"%{::fqdn}\",\"c\"]}\n"
+    writeFile (tmpfp <> "/hiera3.yaml") (hiera3_config (toS tmpfp))
+    writeFile (tmpfp <> "/hiera5.yaml") (hiera5_config (toS tmpfp))
+    writeFile (tmpfp <> "/global.yaml") "---\nhttp_port: 8080\nntp_servers: ['0.ntp.puppetlabs.com', '1.ntp.puppetlabs.com']\nusers:\n  pete:\n    uid: 2000\n  tom:\n    uid: 2001\nglobal: \"glob\""
+    writeFile (tmpfp <> "/production.yaml") "---\nhttp_port: 9090\nntp_servers: ['2.ntp.puppetlabs.com', '3.ntp.puppetlabs.com']\ninterp1: '**%{::fqdn}**'\nusers:\n  bob:\n    uid: 100\n  tom:\n    uid: 12\n"
+    writeFile (tmpfp <> "/" <> toS ndname <> ".json") "{\"testnode\":{\"1\":\"**%{::fqdn}**\",\"2\":\"nothing special\"},\"testjson\":\"ok\",\"arraytest\":[\"a\",\"%{::fqdn}\",\"c\"]}\n"
     let users = HM.fromList [ ("pete", PHash (HM.singleton "uid" (PNumber 2000)))
                             , ("tom" , PHash (HM.singleton "uid" (PNumber 2001)))
                             ]
@@ -74,7 +70,7 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
             it "returns an error when called with a non existent key [QHash]" $ q3 mempty "foo" QHash >>= checkOutput Nothing
         describe "lookup data with no options" $ do
             it "can get string data" $ q3 mempty "http_port" QFirst >>= checkOutput (Just (PNumber 8080))
-            it "can get arrays" $ q3 mempty "ntp_servers" QFirst >>= checkOutput (Just (PArray (V.fromList ["0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
+            it "can get arrays" $ q3 mempty "ntp_servers" QFirst >>= checkOutput (Just (PArray (Vector.fromList ["0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
             it "can get hashes" $ q3 mempty "users" QFirst >>= checkOutput (Just (PHash users))
         describe "lookup data with a scope" $ do
             it "overrides some values" $ q3 vars "http_port" QFirst >>= checkOutput (Just (PNumber 9090))
@@ -84,10 +80,10 @@ main = withSystemTempDirectory "hieratest" $ \tmpfp -> do
         describe "deep interpolation" $ do
             it "resolves in strings" $ q3 vars "interp1" QFirst >>= checkOutput (Just (PString ("**" <> ndname <> "**")))
             it "resolves in objects" $ q3 vars "testnode" QFirst >>= checkOutput (Just (PHash (HM.fromList [("1",PString ("**" <> ndname <> "**")),("2",PString "nothing special")])))
-            it "resolves in arrays" $ q3 vars "arraytest" QFirst >>= checkOutput (Just (PArray (V.fromList [PString "a", PString ndname, PString "c"])))
+            it "resolves in arrays" $ q3 vars "arraytest" QFirst >>= checkOutput (Just (PArray (Vector.fromList [PString "a", PString ndname, PString "c"])))
         describe "other merge modes" $ do
-            it "catenates arrays" $ q3 vars "ntp_servers" QUnique >>= checkOutput (Just (PArray (V.fromList ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
-            it "puts single values in arrays" $ q3 vars "http_port" QUnique >>= checkOutput (Just (PArray (V.fromList [PNumber 9090, PNumber 8080])))
+            it "catenates arrays" $ q3 vars "ntp_servers" QUnique >>= checkOutput (Just (PArray (Vector.fromList ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))
+            it "puts single values in arrays" $ q3 vars "http_port" QUnique >>= checkOutput (Just (PArray (Vector.fromList [PNumber 9090, PNumber 8080])))
             it "merges hashes" $ q3 vars "users" QHash >>= checkOutput (Just (PHash (pusers <> users)))
 
         -- V5 format

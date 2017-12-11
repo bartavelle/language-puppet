@@ -13,28 +13,16 @@ module Helpers ( module Exports
                ) where
 
 
-import           Protolude                  as Exports hiding (Down, Infix,
-                                                        Prefix, Selector, State,
-                                                        StateT, Strict, break,
-                                                        check, pass, evalState,
-                                                        evalStateT, execState,
-                                                        execStateT, from, group,
-                                                        hash, list, moduleName,
-                                                        runState, runStateT,
-                                                        sourceColumn,
-                                                        sourceLine, to, uncons,
-                                                        unsnoc, withState, (%),
-                                                        (<&>), (<.>))
+-- import           Control.Lens               as Exports hiding (Strict, argument,
+--                                                         failing, noneOf, op)
+import           Control.Monad              as Exports(fail)
 
-import           Control.Lens               as Exports hiding (Strict, argument,
-                                                        noneOf, op, failing)
-import           Control.Monad.Except       as Exports
-import           Data.Scientific            as Exports (Scientific)
-import           Data.String                as Exports (String)
 import           Puppet.Interpreter.Pure    as Exports
 import           Puppet.Interpreter.Types   as Exports
 import           Puppet.Parser.Types        as Exports
-import           Puppet.PP                  as Exports hiding (bool, empty, cat)
+import           Puppet.PP                  as Exports hiding (bool, cat, empty,
+                                                        text, group)
+import           Puppet.Prelude             as Exports
 import           Test.Hspec                 as Exports
 
 import qualified Data.HashMap.Strict        as HM
@@ -62,19 +50,20 @@ getCatalog = fmap (view _1) . compileCatalog
 spretty :: Pretty a => a -> String
 spretty = flip displayS "" . renderCompact . pretty
 
-getResource :: Monad m => RIdentifier -> FinalCatalog -> m Resource
+getResource :: (Monad m) => RIdentifier -> FinalCatalog -> m Resource
 getResource resid catalog = maybe (fail ("Unknown resource " ++ spretty resid)) return (HM.lookup resid catalog)
 
 getAttribute :: Monad m => Text -> Resource -> m PValue
-getAttribute att res = case res ^? rattributes . ix att of
-                           Nothing -> fail ("Unknown attribute: " ++ Text.unpack att)
-                           Just x -> return x
+getAttribute att res =
+  case res ^? rattributes . ix att of
+    Nothing -> fail ("Unknown attribute: " ++ Text.unpack att)
+    Just x -> return x
 
 withStdlibFunction :: Text -> ( ([PValue] -> InterpreterMonad PValue) -> Spec ) -> Spec
 withStdlibFunction fname testsuite =
     case stdlibFunctions ^? ix fname of
         Just f  -> testsuite f
-        Nothing -> fail ("Don't know this function: " ++ show fname)
+        Nothing -> panic ("Don't know this function: " <> fname)
 
 checkExprsSuccess :: Text ->  [Expression] -> Text -> Expectation
 checkExprsSuccess fname args res =

@@ -28,9 +28,10 @@ module Puppet.Prelude (
 
 import           Protolude                         as Exports hiding (Down,
                                                                Infix, Prefix,
-                                                               State, StateT,
-                                                               Strict, break,
-                                                               check, evalState,
+                                                               Selector, State,
+                                                               StateT, Strict,
+                                                               break, check,
+                                                               evalState,
                                                                evalStateT,
                                                                execState,
                                                                execStateT, from,
