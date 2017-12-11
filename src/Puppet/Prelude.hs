@@ -1,10 +1,13 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE RankNTypes       #-}
 -- | General specific prelude for language-puppet
 -- | Customization of the Protolude with extra specific utilities
 module Puppet.Prelude (
       module Exports
     , String
+    , isEmpty
+    , dropInitialColons
     , textElem
     , getDirectoryContents
     , takeBaseName
@@ -13,28 +16,45 @@ module Puppet.Prelude (
     , scientific2text
     , text2Scientific
     , getFiles
+    , loggerName
+    , logDebug
+    , logInfo
+    , logInfoStr
+    , logWarning
+    , logError
+    , logDebugStr
     , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
 ) where
 
-import           Protolude                         as Exports hiding (Down, Infix, Prefix,
-                                                                      State, StateT, Strict, break,
-                                                                      check, evalState,
-                                                                      runState, runStateT, evalStateT, execState, execStateT, withState,
-                                                                      from, hash, list, to,
-                                                                      moduleName, sourceColumn, sourceLine,
-                                                                      uncons, unsnoc,
-                                                                      (%), (<&>), (<.>))
+import           Protolude                         as Exports hiding (Down,
+                                                               Infix, Prefix,
+                                                               State, StateT,
+                                                               Strict, break,
+                                                               check, evalState,
+                                                               evalStateT,
+                                                               execState,
+                                                               execStateT, from,
+                                                               hash, list,
+                                                               moduleName,
+                                                               runState,
+                                                               runStateT,
+                                                               sourceColumn,
+                                                               sourceLine, to,
+                                                               uncons, unsnoc,
+                                                               withState, (%),
+                                                               (<&>), (<.>))
 
-import           Control.Lens                      as Exports hiding (Strict,
-                                                               noneOf, op, argument)
 import           Control.Exception.Lens            as Exports (catching)
+import           Control.Lens                      as Exports hiding (Strict,
+                                                               argument, noneOf,
+                                                               op)
+import           Control.Monad.Trans.Except        as Exports (throwE)
+import           Control.Monad.Trans.Maybe         as Exports (runMaybeT)
 import           Data.Aeson                        as Exports (fromJSON, toJSON)
 import           Data.Scientific                   as Exports (Scientific)
-import           Control.Monad.Trans.Maybe         as Exports (runMaybeT)
-import           Data.Tuple.Strict                 as Exports (Pair(..))
-import           Control.Monad.Trans.Except        as Exports (throwE)
-import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
 import           Data.Set                          as Exports (Set)
+import           Data.Tuple.Strict                 as Exports (Pair (..))
+import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
 
 import           Data.Attoparsec.Text              (parseOnly, rational)
 import qualified Data.ByteString                   as BS
@@ -46,6 +66,7 @@ import qualified Data.Scientific                   as Scientific
 import           Data.String                       (String)
 import qualified Data.Text                         as Text
 import qualified Data.Text.Encoding                as Text
+import qualified System.Log.Logger                 as Log
 import           System.Posix.Directory.ByteString
 
 text2Scientific :: Text -> Maybe Scientific
@@ -169,3 +190,31 @@ getDirectoryContents fpath = do
   out <- readHandle
   closeDirStream h
   pure out
+
+isEmpty :: (Eq x, Monoid x) => x -> Bool
+isEmpty = (== mempty)
+
+-- | remove the '::' token from a text if any
+dropInitialColons :: Text -> Text
+dropInitialColons t = fromMaybe t (Text.stripPrefix "::" t)
+
+loggerName :: String
+loggerName = "language-puppet"
+
+logDebug :: Text -> IO ()
+logDebug = Log.debugM "language-puppet" . toS
+
+logInfo :: Text -> IO ()
+logInfo = Log.infoM "language-puppet" . toS
+
+logInfoStr :: String -> IO ()
+logInfoStr = Log.infoM "language-puppet"
+
+logWarning :: Text -> IO ()
+logWarning = Log.warningM "language-puppet" . toS
+
+logError :: Text -> IO ()
+logError = Log.errorM "language-puppet" . toS
+
+logDebugStr :: String -> IO ()
+logDebugStr = Log.debugM "language-puppet"

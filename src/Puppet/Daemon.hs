@@ -1,5 +1,5 @@
+{-# LANGUAGE GADTs         #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE GADTs #-}
 module Puppet.Daemon (
     Daemon(..)
   , initDaemon
@@ -41,6 +41,7 @@ import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
 
+
 {-| API for the Daemon.
 The main method is `getCatalog`: given a node and a list of facts, it returns the result of the compilation.
 This will be either an error, or a tuple containing:
@@ -75,10 +76,11 @@ The recommended way to set it to http://localhost:8080 and set a SSH tunnel :
 
 > ssh -L 8080:localhost:8080 puppet.host
 -}
-initDaemon :: Preferences IO -> IO Daemon
+initDaemon :: Preferences IO
+           -> IO Daemon
 initDaemon pref = do
     setupLogger (pref ^. prefLogLevel)
-    logDebug "initDaemon"
+    logDebug "Initialize daemon"
     traceEventIO "initDaemon"
     hquery      <- hQueryApis pref
     fcache      <- newFileCache
@@ -155,7 +157,7 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
                                               facts
                                               (pref ^. prefPuppetSettings)
     (stmts :!: warnings) <- measure stats node catalogComputation
-    mapM_ (\(p :!: m) -> Log.logM daemonLoggerName p (displayS (renderCompact (ttext node <> ":" <+> m)) "")) warnings
+    mapM_ (\(p :!: m) -> Log.logM loggerName p (displayS (renderCompact (ttext node <> ":" <+> m)) "")) warnings
     traceEventIO ("STOP getCatalog' " <> Text.unpack node)
     if pref ^. prefExtraTests
        then runOptionalTests stmts
@@ -202,17 +204,10 @@ parseFile fname = do
     traceEventIO ("STOP parsing " ++ fname)
     return o
 
-daemonLoggerName :: String
-daemonLoggerName = "Puppet.Daemon"
-
-logDebug :: Text -> IO ()
-logDebug   = Log.debugM   daemonLoggerName . Text.unpack
 
 setupLogger :: Log.Priority -> IO ()
 setupLogger p = do
-    Log.updateGlobalLogger daemonLoggerName (Log.setLevel p)
-    Log.updateGlobalLogger hieraLoggerName (Log.setLevel p)
-    Log.updateGlobalLogger erbLoggerName (Log.setLevel p)
+    Log.updateGlobalLogger loggerName (Log.setLevel p)
     hs <- consoleLogHandler
     Log.updateGlobalLogger Log.rootLoggerName $ Log.setHandlers [hs]
     where

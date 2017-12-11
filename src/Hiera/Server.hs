@@ -15,7 +15,6 @@ A minor bug is that interpolation will not work for inputs containing the % char
 module Hiera.Server (
     startHiera
   , dummyHiera
-  , hieraLoggerName
     -- * Query API
   , HieraQueryFunc
 ) where
@@ -25,27 +24,23 @@ import           Puppet.Prelude
 import           Control.Monad.Except
 import           Data.Aeson               (FromJSON, Value (..), (.!=), (.:),
                                            (.:?))
-import qualified Data.Aeson               as A
+import qualified Data.Aeson               as Aeson
 import           Data.Aeson.Lens
 import qualified Data.Attoparsec.Text     as AT
 import qualified Data.ByteString.Lazy     as BS
 import qualified Data.Either.Strict       as S
 import qualified Data.FileCache           as Cache
-import qualified Data.List                as L
+import qualified Data.List                as List
 import           Data.String              (fromString)
 import qualified Data.Text                as Text
-import qualified Data.Vector              as V
+import qualified Data.Vector              as Vector
 import qualified Data.Yaml                as Yaml
 import qualified System.FilePath          as FilePath
 import           System.FilePath.Lens     (directory)
-import qualified System.Log.Logger        as Log
 
 import           Puppet.Interpreter.Types
 import           Puppet.PP
 
-
-hieraLoggerName :: String
-hieraLoggerName = "Hiera.Server"
 
 data HieraConfigFile = HieraConfigFile
     { _version   :: Int
@@ -92,8 +87,8 @@ instance FromJSON HieraConfigFile where
         [hierarchy_value] <- v .: "hierarchy"
         datadir <- case Object v ^? key "defaults" . key "datadir" of
           Just (String dir) -> pure dir
-          Just _ -> fail ("datadir should be a string")
-          Nothing -> hierarchy_value .: "datadir" .!= "hieradata"
+          Just _            -> fail ("datadir should be a string")
+          Nothing           -> hierarchy_value .: "datadir" .!= "hieradata"
         HieraConfigFile
             <$> pure 5
             <*> pure [ YamlBackend (toS datadir) ] -- TODO: support other backends if needed
@@ -117,7 +112,7 @@ instance FromJSON HieraConfigFile where
            pure (backendConstructor (Text.unpack datadir))
 
     in
-    A.withObject "v3 or v5" $ \o -> do
+    Aeson.withObject "v3 or v5" $ \o -> do
       o .:? "version" >>= \case
         Just (5::Int) -> mkHiera5 o
         Just _ -> fail "Hiera configuration version different than 5 is not supported."
@@ -146,11 +141,11 @@ startHiera :: FilePath -> IO (HieraQueryFunc IO)
 startHiera fp =
   Yaml.decodeFileEither fp >>= \case
     Left (Yaml.AesonException "Error in $: Hiera configuration version different than 5 is not supported.") -> do
-      Log.infoM hieraLoggerName ("Detect a hiera configuration format in " <> fp <> " at version 4. This format is not recognized. Using a dummy hiera.")
+      logInfoStr ("Detect a hiera configuration format in " <> fp <> " at version 4. This format is not recognized. Using a dummy hiera.")
       pure dummyHiera
     Left ex   -> panic (show ex)
     Right cfg -> do
-      Log.infoM hieraLoggerName ("Detect a hiera configuration format in " <> fp <> " at version " <> show(cfg^.version))
+      logInfoStr ("Detect a hiera configuration format in " <> fp <> " at version " <> show(cfg^.version))
       cache <- Cache.newFileCache
       pure (query cfg fp cache)
 
@@ -174,7 +169,7 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
             let decodeInfo :: (FilePath -> IO (S.Either String Value), String, String)
                 decodeInfo = do
                   case backend of
-                        JsonBackend dir -> (fmap (strictifyEither . A.eitherDecode') . BS.readFile       , dir, ".json")
+                        JsonBackend dir -> (fmap (strictifyEither . Aeson.eitherDecode') . BS.readFile       , dir, ".json")
                         YamlBackend dir -> (fmap (strictifyEither . (_Left %~ show)) . Yaml.decodeFileEither, dir, ".yaml")
             return (decodeInfo, Text.unpack h)
     -- step 2, read all the files, returning a raw data structure
@@ -190,9 +185,9 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
         case efilecontent of
             S.Left r -> do
                 let errs = "Hiera: error when reading file " <> string filename <+> string r
-                if "Yaml file not found: " `L.isInfixOf` r
-                    then Log.debugM hieraLoggerName (show errs)
-                    else Log.warningM hieraLoggerName (show errs)
+                if "Yaml file not found: " `List.isInfixOf` r
+                    then logDebug (show errs)
+                    else logWarning (show errs)
                 return Nothing
             S.Right val -> return (Just val)
     let vals = catMaybes mvals
@@ -215,10 +210,10 @@ recursiveQuery curquery prevqueries = do
     (x:xs) -> do
         qt <- view qtype
         let evalue = foldM (mergeWith qt) x xs
-        case A.fromJSON <$> evalue of
+        case Aeson.fromJSON <$> evalue of
             Left _ ->  return Nothing
-            Right (A.Success o) -> return o
-            Right (A.Error rr) -> throwError ("Something horrible happened in recursiveQuery: " <> fromString (show rr))
+            Right (Aeson.Success o) -> return o
+            Right (Aeson.Error rr) -> throwError ("Something horrible happened in recursiveQuery: " <> fromString (show rr))
 
 resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =
@@ -253,13 +248,13 @@ mergeWith qt cur new
     QFirst -> return cur
     QUnique ->
         let getArray x = case x of
-                Array array -> V.toList array
+                Array array -> Vector.toList array
                 _           -> [x]
             curarray = getArray cur
             newarray = getArray new
         in  case new of
                 Object _ -> throwError "Tried to merge a hash"
-                _ -> return (Array (V.fromList (L.nub (curarray ++ newarray))))
+                _ -> return (Array (Vector.fromList (List.nub (curarray ++ newarray))))
     QHash -> case (cur, new) of
         (Object curh, Object newh) -> return (Object (curh <> newh))
         _ -> throwError (PrettyError ("Tried to merge things that are not hashes: " <> text (show cur) <+> text (show new)))

@@ -2,9 +2,7 @@
 {-# LANGUAGE LambdaCase     #-}
 {-# LANGUAGE NamedFieldPuns #-}
 module Erb.Compute (
-    computeTemplate
-  , erbLoggerName
-  , initTemplateDaemon
+  initTemplateDaemon
 ) where
 
 import           Puppet.Prelude
@@ -24,7 +22,6 @@ import qualified Foreign.Ruby.Helpers       as FR
 import           GHC.Conc                   (labelThread)
 import           Paths_language_puppet      (getDataFileName)
 import           System.Environment         (getExecutablePath)
-import qualified System.Log.Logger          as Log
 import           System.Posix.Files
 import           Text.Parsec                hiding (string)
 import           Text.Parsec.Error
@@ -39,9 +36,6 @@ import           Puppet.Interpreter.Types
 import           Puppet.PP
 import           Puppet.Preferences
 import           Puppet.Stats
-
-erbLoggerName :: String
-erbLoggerName = "Erb.Compute"
 
 instance IsString TemplateParseError where
   fromString s = TemplateParseError $ newErrorMessage (Message s) (initialPos "dummy")
@@ -120,16 +114,14 @@ computeTemplate intr fileinfo stt rdr mstats filecache = do
                   Left content -> measure mstats ("parsing - " <> filename) $ return $ encapsulateError (runParser erbparser () "inline" (Text.unpack content))
     o <- case parsed of
         Left err -> do
-            let !msg = "template " ++ ufilename ++ " could not be parsed " ++ show (tgetError err)
-            traceEventIO msg
-            Log.debugM erbLoggerName msg
+            let msg = "Template '" <> toS ufilename <> "' could not be parsed " <> show (tgetError err)
+            logDebug msg
             measure mstats ("ruby - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
         Right ast -> case rubyEvaluate variables curcontext ast of
                 Right ev -> return (S.Right ev)
                 Left err -> do
-                    let !msg = "template " ++ ufilename ++ " evaluation failed " ++ show err
-                    traceEventIO msg
-                    Log.debugM erbLoggerName msg
+                    let !msg = "Template '" <> toS ufilename <> "' evaluation failed with: " <> show err
+                    logDebug msg
                     measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
     traceEventIO ("STOP template " ++ Text.unpack filename)
     return o
@@ -178,7 +170,7 @@ hrcallfunction _ rfname rargs rstt rrdr = do
         err rr = fmap (either snd identity) (FR.toRuby (Text.pack rr) >>= FR.safeMethodCall "MyError" "new" . (:[]))
     case (,) <$> efname <*> eargs of
         Right (fname, varray) | fname `elem` ["template", "inline_template"] -> do
-          Log.errorM erbLoggerName $ "Can't parse a call to the external ruby function '" <> toS fname <> "'  n an erb file.\n\tIt is not possible to call it from a Ruby function. It would stall (yes it sucks ...).\n\tChoosing to output \"undef\" !"
+          logError $ "Can't parse a call to the external ruby function '" <> fname <> "'  n an erb file.\n\tIt is not possible to call it from a Ruby function. It would stall (yes it sucks ...).\n\tChoosing to output \"undef\" !"
           getSymbol "undef"
                               | otherwise -> do
           let args = case varray of

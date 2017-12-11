@@ -49,12 +49,14 @@ spaceNotCR c = Char.isSpace c && c /= '\n' && c /= '\r'
 evalruby :: Container ScopeInformation -> Text -> Either Doc Text -> RubyStatement -> Either Doc Text
 evalruby _  _   (Left err)     _        = Left err
 evalruby _ _  (Right _) (DropPrevSpace') = Left "Could not evaluate a non optimize DropPrevSpace'"
-evalruby mp ctx (Right curstr) (DropNextSpace x) = case evalruby mp ctx (Right curstr) x of
-                                                       Left err -> Left err
-                                                       Right y -> Right (Text.dropWhile spaceNotCR y)
-evalruby mp ctx (Right curstr) (DropPrevSpace x) = case evalruby mp ctx (Right curstr) x of
-                                                       Left err -> Left err
-                                                       Right y -> Right (Text.dropWhileEnd spaceNotCR y)
+evalruby mp ctx (Right curstr) (DropNextSpace x) =
+  case evalruby mp ctx (Right curstr) x of
+    Left err -> Left err
+    Right y -> Right (Text.dropWhile spaceNotCR y)
+evalruby mp ctx (Right curstr) (DropPrevSpace x) =
+  case evalruby mp ctx (Right curstr) x of
+    Left err -> Left err
+    Right y -> Right (Text.dropWhileEnd spaceNotCR y)
 evalruby mp ctx (Right curstr) (Puts e) = case evalExpression mp ctx e of
     Left err -> Left err
     Right ex -> Right (curstr <> ex)

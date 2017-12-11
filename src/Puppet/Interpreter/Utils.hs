@@ -26,29 +26,29 @@ import           Puppet.PP
 initialState :: Facts
              -> Container Text -- ^ Server settings
              -> InterpreterState
-initialState facts settings = InterpreterState baseVars initialclass mempty [ContRoot] dummyppos mempty [] []
-    where
-        callervars = HM.fromList [("caller_module_name", PString "::" :!: dummyppos :!: ContRoot), ("module_name", PString "::" :!: dummyppos :!: ContRoot)]
-        factvars =
-          -- add the `facts` key: https://docs.puppet.com/puppet/4.10/lang_facts_and_builtin_vars.html#accessing-facts-from-puppet-code
-          let facts' = HM.insert "facts" (PHash facts) facts
-          in fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts'
-        settingvars = fmap (\x -> PString x :!: initialPPos "settings" :!: ContClass "settings") settings
-        baseVars = HM.fromList [ ("::", ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
-                               , ("settings", ScopeInformation settingvars mempty mempty (CurContainer (ContClass "settings") mempty) mempty S.Nothing)
-                               ]
-        initialclass = mempty & at "::" ?~ (ClassIncludeLike :!: dummyppos)
-
+initialState facts settings =
+  InterpreterState baseVars initialclass mempty [ContRoot] dummyppos mempty [] []
+  where
+    callervars = HM.fromList [("caller_module_name", PString "::" :!: dummyppos :!: ContRoot), ("module_name", PString "::" :!: dummyppos :!: ContRoot)]
+    factvars =
+      -- add the `facts` key: https://docs.puppet.com/puppet/4.10/lang_facts_and_builtin_vars.html#accessing-facts-from-puppet-code
+      let facts' = HM.insert "facts" (PHash facts) facts
+      in fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts'
+    settingvars = fmap (\x -> PString x :!: initialPPos "settings" :!: ContClass "settings") settings
+    baseVars = HM.fromList [ ("::", ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
+                           , ("settings", ScopeInformation settingvars mempty mempty (CurContainer (ContClass "settings") mempty) mempty S.Nothing)
+                           ]
+    initialclass = mempty & at "::" ?~ (ClassIncludeLike :!: dummyppos)
 
 getModulename :: RIdentifier -> Text
 getModulename (RIdentifier t n) =
-    let gm x = case Text.splitOn "::" x of
-                   []    -> x
-                   (y:_) -> y
-    in case t of
-        "class" -> gm n
-        _       -> gm t
-
+  let gm x =
+        case Text.splitOn "::" x of
+          []    -> x
+          (y:_) -> y
+  in case t of
+    "class" -> gm n
+    _       -> gm t
 
 extractPrism :: Doc -> Prism' a b -> a -> InterpreterMonad b
 extractPrism msg p a = case preview p a of
@@ -83,8 +83,8 @@ getScope :: InterpreterMonad CurContainerDesc
 {-# INLINABLE getScope #-}
 getScope =
   use curScope >>= \s -> if null s
-                         then throwPosError "Internal error: empty scope!"
-                         else pure (List.head s)
+                           then throwPosError "Internal error: empty scope!"
+                           else pure (List.head s)
 
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINABLE getCurContainer #-}
@@ -142,20 +142,12 @@ debug d = tell [Log.DEBUG :!: d]
 logWriter :: MonadWriter InterpreterWriter m => Log.Priority -> Doc -> m ()
 logWriter prio d = tell [prio :!: d]
 
--- General --
-isEmpty :: (Eq x, Monoid x) => x -> Bool
-isEmpty = (== mempty)
-
 safeDecodeUtf8 :: ByteString -> InterpreterMonad Text
 {-# INLINABLE safeDecodeUtf8 #-}
 safeDecodeUtf8 i = return (Text.decodeUtf8 i)
 
-dropInitialColons :: Text -> Text
-dropInitialColons t = fromMaybe t (Text.stripPrefix "::" t)
-
 normalizeRIdentifier :: Text -> Text -> RIdentifier
 normalizeRIdentifier = RIdentifier . dropInitialColons
-
 
 readQueryType :: Text -> Maybe HieraQueryType
 readQueryType s
