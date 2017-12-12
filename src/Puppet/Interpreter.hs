@@ -742,10 +742,9 @@ setAttribute attributename res value =
       i <- isParent curscope (rcurcontainer res)
       if i -- TODO check why this is set
         then return (res & rattributes . at attributename ?~ value)
-        -- We will not bark if the same attribute
-        -- is defined multiple times with identical
-        -- values.
         else do
+          -- We will not bark if the same attribute is
+          -- defined multiple times with identical values.
           let errmsg = "Attribute" <+> dullmagenta (ttext attributename) <+> "defined multiple times for" <+> pretty res
           if curval == value
             then checkStrict errmsg errmsg
