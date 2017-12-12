@@ -533,7 +533,7 @@ makeClassy ''CurContainer
 makeClassy ''NodeInfo
 makeClassy ''WireCatalog
 makeClassy ''FactInfo
-makeClassy '' HieraQueryLayers
+makeClassy ''HieraQueryLayers
 makePrisms ''PValue
 
 $(deriveJSON defaultOptions ''DataType)
