@@ -18,6 +18,7 @@ module Puppet.Interpreter.Resolve
       resolveExpressionString,
       resolveExpressionStrings,
       resolveFunction',
+      resolveDataType,
       runHiera,
       isNativeType,
       -- * Search expression management
@@ -284,7 +285,8 @@ resolveExpression stmt@(ConditionalValue e conds) = do
             Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> string rr)
             Right Nothing  -> checkCond xs
             Right (Just _) -> resolveExpression ce
-      checkCond ((SelectorType dt :!: ce) : xs) =
+      checkCond ((SelectorType udt :!: ce) : xs) = do
+        dt <- resolveDataType udt
         if datatypeMatch dt rese
           then resolveExpression ce
           else checkCond xs
@@ -348,7 +350,7 @@ resolveValue (UHash a) =
 resolveValue (UVariableReference v) = resolveVariable v
 resolveValue (UFunctionCall fname args) = resolveFunction fname args
 resolveValue (UHOLambdaCall hol) = evaluateHFCPure hol
-resolveValue (UDataType dt) = pure (PType dt)
+resolveValue (UDataType dt) = PType <$> resolveDataType dt
 
 -- | Turns strings, numbers and booleans into 'Text', or throws an error.
 resolvePValueString :: PValue -> InterpreterMonad Text
@@ -637,6 +639,27 @@ checkSearchExpression (RNonEqualitySearch attributename v) r
         Just (PArray x) -> not (all (`puppetEquality` v) x)
         Just x          -> not (puppetEquality x v)
 
+resolveDataType :: UDataType -> InterpreterMonad DataType
+resolveDataType ud
+  = case ud of
+      UDTType             -> pure DTType
+      UDTString a b       -> pure (DTString a b)
+      UDTInteger a b      -> pure (DTInteger a b)
+      UDTFloat a b        -> pure (DTFloat a b)
+      UDTBoolean          -> pure DTBoolean
+      UDTArray dt a b     -> DTArray <$> resolveDataType dt <*> pure a <*> pure b
+      UDTHash dt1 dt2 a b -> DTHash <$> resolveDataType dt1 <*> resolveDataType dt2 <*> pure a <*> pure b
+      UDTUndef            -> pure DTUndef
+      UDTScalar           -> pure DTScalar
+      UDTData             -> pure DTData
+      UDTOptional dt      -> DTOptional <$> resolveDataType dt
+      UNotUndef           -> pure NotUndef
+      UDTVariant vrs      -> DTVariant <$> traverse resolveDataType vrs
+      UDTPattern a        -> pure (DTPattern a)
+      UDTEnum ens         -> DTEnum <$> traverse resolveExpressionString ens
+      UDTAny              -> pure DTAny
+      UDTCollection       -> pure DTCollection
+
 -- | Generates variable associations for evaluation of blocks. Each item
 -- corresponds to an iteration in the calling block.
 hfGenerateAssociations :: HOLambdaCall -> InterpreterMonad [[(Text, PValue)]]
@@ -645,8 +668,10 @@ hfGenerateAssociations hol = do
     S.Just x -> pure x
     S.Nothing -> throwPosError ("No expression to run the function on" <+> pretty hol)
   sourcevalue <- resolveExpression sourceexpression
-  let check Nothing = const (pure ())
-      check (Just dtype) = mapM_ (\v -> unless (datatypeMatch dtype v) (throwPosError (pretty v <+> "isn't of type" <+> pretty dtype)))
+  let check Nothing _ = pure ()
+      check (Just udtype) tocheck = do
+        dtype <- resolveDataType udtype
+        mapM_ (\v -> unless (datatypeMatch dtype v) (throwPosError (pretty v <+> "isn't of type" <+> pretty dtype))) tocheck
   case (sourcevalue, hol ^. hoLambdaParams) of
      (PArray pr, BPSingle (LParam mvtype varname)) -> do
        check mvtype pr

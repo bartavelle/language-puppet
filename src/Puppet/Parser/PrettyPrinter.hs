@@ -34,25 +34,25 @@ stringEscape = Text.concatMap escapeChar
         escapeChar x    = Text.singleton x
 {-# INLINE stringEscape #-}
 
-instance Pretty DataType where
+instance Pretty UDataType where
   pretty t = case t of
-               DTType              -> "Type"
-               DTString ma mb      -> bounded "String" ma mb
-               DTInteger ma mb     -> bounded "Integer" ma mb
-               DTFloat ma mb       -> bounded "Float" ma mb
-               DTBoolean           -> "Boolean"
-               DTArray dt mi mmx   -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
-               DTHash kt dt mi mmx -> "Hash" <> list (pretty kt : pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
-               DTUndef             -> "Undef"
-               DTScalar            -> "Scalar"
-               DTData              -> "Data"
-               DTOptional o        -> "Optional" <> brackets (pretty o)
-               NotUndef            -> "NotUndef"
-               DTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
-               DTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)
-               DTEnum tx           -> "Enum" <> list (foldMap (pure . text . Text.unpack) tx)
-               DTAny               -> "Any"
-               DTCollection        -> "Collection"
+               UDTType              -> "Type"
+               UDTString ma mb      -> bounded "String" ma mb
+               UDTInteger ma mb     -> bounded "Integer" ma mb
+               UDTFloat ma mb       -> bounded "Float" ma mb
+               UDTBoolean           -> "Boolean"
+               UDTArray dt mi mmx   -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               UDTHash kt dt mi mmx -> "Hash" <> list (pretty kt : pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               UDTUndef             -> "Undef"
+               UDTScalar            -> "Scalar"
+               UDTData              -> "Data"
+               UDTOptional o        -> "Optional" <> brackets (pretty o)
+               UNotUndef            -> "NotUndef"
+               UDTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
+               UDTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)
+               UDTEnum tx           -> "Enum" <> list (foldMap (pure . pretty) tx)
+               UDTAny               -> "Any"
+               UDTCollection        -> "Collection"
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
       bounded s ma mb = s <> case (ma, mb) of
@@ -171,7 +171,7 @@ showAss vx = folddoc (\a b -> a <> char ',' <$> b) prettyDecl (V.toList vx)
         maxlen = maximum (fmap (\(AttributeDecl k _ _) -> Text.length k) vx)
         prettyDecl (AttributeDecl k op v) = dullblue (fill maxlen (ttext k)) <+> pretty op <+> pretty v
 
-showArgs :: V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)) -> Doc
+showArgs :: V.Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)) -> Doc
 showArgs vec = tupled (map ra lst)
     where
         lst = V.toList vec

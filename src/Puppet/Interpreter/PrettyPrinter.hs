@@ -160,3 +160,29 @@ instance Pretty (InterpreterInstr a) where
 
 instance Pretty LinkInformation where
     pretty (LinkInformation lsrc ldst ltype lpos) = pretty lsrc <+> pretty ltype <+> pretty ldst <+> showPPos lpos
+
+instance Pretty DataType where
+  pretty t = case t of
+               DTType              -> "Type"
+               DTString ma mb      -> bounded "String" ma mb
+               DTInteger ma mb     -> bounded "Integer" ma mb
+               DTFloat ma mb       -> bounded "Float" ma mb
+               DTBoolean           -> "Boolean"
+               DTArray dt mi mmx   -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               DTHash kt dt mi mmx -> "Hash" <> list (pretty kt : pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+               DTUndef             -> "Undef"
+               DTScalar            -> "Scalar"
+               DTData              -> "Data"
+               DTOptional o        -> "Optional" <> brackets (pretty o)
+               NotUndef            -> "NotUndef"
+               DTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
+               DTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)
+               DTEnum tx           -> "Enum" <> list (foldMap (pure . pretty) tx)
+               DTAny               -> "Any"
+               DTCollection        -> "Collection"
+    where
+      bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
+      bounded s ma mb = s <> case (ma, mb) of
+                               (Just a, Nothing) -> list [pretty a]
+                               (Just a, Just b)  -> list [pretty a, pretty b]
+                               _                 -> mempty

@@ -55,6 +55,7 @@ module Puppet.Interpreter.Types (
  , _PNumber
  , _PUndef
   -- ** Misc
+ , DataType(..)
  , CurContainerDesc(..)
  , ResourceCollectorType(..)
  , RSearchExpression(..)
@@ -99,6 +100,7 @@ import           Control.Monad.Operational
 import           Control.Monad.State.Strict
 import           Control.Monad.Writer.Class
 import           Data.Aeson                  as A
+import           Data.Aeson.TH
 import           Data.Aeson.Lens
 import qualified Data.Either.Strict          as S
 import qualified Data.HashMap.Strict         as HM
@@ -496,6 +498,26 @@ data ResourceField = RTag
                    | RFile
                    | RLine
 
+data DataType
+    = DTType
+    | DTString (Maybe Int) (Maybe Int)
+    | DTInteger (Maybe Int) (Maybe Int)
+    | DTFloat (Maybe Double) (Maybe Double)
+    | DTBoolean
+    | DTArray DataType Int (Maybe Int)
+    | DTHash DataType DataType Int (Maybe Int)
+    | DTUndef
+    | DTScalar
+    | DTData
+    | DTOptional DataType
+    | NotUndef
+    | DTVariant (NonEmpty DataType)
+    | DTPattern (NonEmpty CompRegex)
+    | DTEnum (NonEmpty Text)
+    | DTAny
+    | DTCollection
+    deriving (Show, Eq)
+
 makeClassy ''RIdentifier
 makeClassy ''ResRefOverride
 makeClassy ''LinkInformation
@@ -513,6 +535,8 @@ makeClassy ''WireCatalog
 makeClassy ''FactInfo
 makeClassy '' HieraQueryLayers
 makePrisms ''PValue
+
+$(deriveJSON defaultOptions ''DataType)
 
 class Monad m => MonadThrowPos m where
     throwPosError :: Doc -> m a

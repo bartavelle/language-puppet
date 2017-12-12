@@ -379,12 +379,12 @@ defineDecl = do
     pe <- getPosition
     return (DefineDecl name params st (p :!: pe))
 
-puppetClassParameters :: Parser (V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)))
+puppetClassParameters :: Parser (V.Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)))
 puppetClassParameters = V.fromList <$> parens (sepComma var)
     where
         toStrictMaybe (Just x) = S.Just x
         toStrictMaybe Nothing  = S.Nothing
-        var :: Parser (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))
+        var :: Parser (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))
         var = do
           tp <- toStrictMaybe <$> optional datatype
           n  <- variableReference
@@ -636,22 +636,22 @@ statement =
     <|> (pure . MainFunctionDeclaration <$> mainFuncDecl)
     <?> "Statement"
 
-datatype :: Parser DataType
+datatype :: Parser UDataType
 datatype = dtString
        <|> dtInteger
        <|> dtFloat
        <|> dtNumeric
-       <|> (DTBoolean <$ reserved "Boolean")
-       <|> (DTScalar <$ reserved "Scalar")
-       <|> (DTData <$ reserved "Data")
-       <|> (DTAny <$ reserved "Any")
-       <|> (DTCollection <$ reserved "Collection")
+       <|> (UDTBoolean <$ reserved "Boolean")
+       <|> (UDTScalar <$ reserved "Scalar")
+       <|> (UDTData <$ reserved "Data")
+       <|> (UDTAny <$ reserved "Any")
+       <|> (UDTCollection <$ reserved "Collection")
        <|> dtArray
        <|> dtHash
-       <|> (DTUndef <$ reserved "Undef")
-       <|> (reserved "Optional" *> (DTOptional <$> brackets datatype))
-       <|> (NotUndef <$ reserved "NotUndef")
-       <|> (reserved "Variant" *> (DTVariant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
+       <|> (UDTUndef <$ reserved "Undef")
+       <|> (reserved "Optional" *> (UDTOptional <$> brackets datatype))
+       <|> (UNotUndef <$ reserved "NotUndef")
+       <|> (reserved "Variant" *> (UDTVariant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
        -- while all the other cases are straightforward, it seems that the
        -- following syntax is a valid regexp for puppet:
        --   '^dqsqsdqs$'
@@ -659,10 +659,10 @@ datatype = dtString
        --   /^dqsqsdqs$/
        --
        -- That is the reason there is a "quotedRegexp" case
-       <|> (reserved "Pattern" *> (DTPattern . NE.fromList <$> brackets ( (termRegexp <|> quotedRegexp) `sepBy1` symbolic ',')))
-       <|> (reserved "Enum" *> (DTEnum . NE.fromList <$> brackets ((stringLiteral' <|> bareword) `sepBy1` symbolic ',')))
+       <|> (reserved "Pattern" *> (UDTPattern . NE.fromList <$> brackets ( (termRegexp <|> quotedRegexp) `sepBy1` symbolic ',')))
+       <|> (reserved "Enum" *> (UDTEnum . NE.fromList <$> brackets (expression `sepBy1` symbolic ',')))
        <|> dtExternal
-       <?> "DataType"
+       <?> "UDataType"
   where
     quotedRegexp = stringLiteral' >>= compileRegexp
     integer = integerOrDouble >>= either (return . fromIntegral) (\d -> fail ("Integer value expected, instead of " ++ show d))
@@ -676,10 +676,10 @@ datatype = dtString
         [minlen] -> return $ constructor (Just minlen) Nothing
         [minlen,maxlen] -> return $ constructor (Just minlen) (Just maxlen)
         _ -> fail ("Too many arguments to datatype " ++ Text.unpack s)
-    dtString = dtbounded "String" DTString integer
-    dtInteger = dtbounded "Integer" DTInteger integer
-    dtFloat = dtbounded "Float" DTFloat float
-    dtNumeric = dtbounded "Numeric" (\ma mb -> DTVariant (DTFloat ma mb :| [DTInteger (truncate <$> ma) (truncate <$> mb)])) float
+    dtString = dtbounded "String" UDTString integer
+    dtInteger = dtbounded "Integer" UDTInteger integer
+    dtFloat = dtbounded "Float" UDTFloat float
+    dtNumeric = dtbounded "Numeric" (\ma mb -> UDTVariant (UDTFloat ma mb :| [UDTInteger (truncate <$> ma) (truncate <$> mb)])) float
     dtArray = do
       reserved "Array"
       ml <- optional $ brackets $ do
@@ -687,10 +687,10 @@ datatype = dtString
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tp, rst)
       case ml of
-        Nothing -> return (DTArray DTData 0 Nothing)
-        Just (t, Nothing) -> return (DTArray t 0 Nothing)
-        Just (t, Just [mi]) -> return (DTArray t mi Nothing)
-        Just (t, Just [mi, mx]) -> return (DTArray t mi (Just mx))
+        Nothing -> return (UDTArray UDTData 0 Nothing)
+        Just (t, Nothing) -> return (UDTArray t 0 Nothing)
+        Just (t, Just [mi]) -> return (UDTArray t mi Nothing)
+        Just (t, Just [mi, mx]) -> return (UDTArray t mi (Just mx))
         Just (_, Just _) -> fail "Too many arguments to datatype Array"
     dtHash = do
       reserved "Hash"
@@ -701,16 +701,16 @@ datatype = dtString
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tk, tv, rst)
       case ml of
-        Nothing -> return (DTHash DTScalar DTData 0 Nothing)
-        Just (tk, tv, Nothing) -> return (DTHash tk tv 0 Nothing)
-        Just (tk, tv, Just [mi]) -> return (DTHash tk tv mi Nothing)
-        Just (tk, tv, Just [mi, mx]) -> return (DTHash tk tv mi (Just mx))
+        Nothing -> return (UDTHash UDTScalar UDTData 0 Nothing)
+        Just (tk, tv, Nothing) -> return (UDTHash tk tv 0 Nothing)
+        Just (tk, tv, Just [mi]) -> return (UDTHash tk tv mi Nothing)
+        Just (tk, tv, Just [mi, mx]) -> return (UDTHash tk tv mi (Just mx))
         Just (_, _, Just _) -> fail "Too many arguments to datatype Hash"
     dtExternal =
-          reserved "Stdlib::HTTPUrl" $> DTData
-      <|> reserved "Stdlib::Absolutepath" $> DTData
-      <|> reserved "Stdlib::Unixpath" $> DTData
-      <|> reserved "Nginx::ErrorLogSeverity" $> DTData
+          reserved "Stdlib::HTTPUrl" $> UDTData
+      <|> reserved "Stdlib::Absolutepath" $> UDTData
+      <|> reserved "Stdlib::Unixpath" $> UDTData
+      <|> reserved "Nginx::ErrorLogSeverity" $> UDTData
 
 
 statementList :: Parser (V.Vector Statement)

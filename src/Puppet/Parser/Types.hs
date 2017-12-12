@@ -32,7 +32,7 @@ module Puppet.Parser.Types
    NodeDesc(..),
    LinkType(..),
    -- ** Datatypes
-   DataType(..),
+   UDataType(..),
    -- ** Search Expressions
    SearchExpression(..),
    -- ** Statements
@@ -59,7 +59,6 @@ module Puppet.Parser.Types
 import           Puppet.Prelude         hiding (show)
 
 import           Data.Aeson
-import           Data.Aeson.TH          (deriveToJSON)
 import qualified Data.Char              as Char
 import           Data.List.NonEmpty     (NonEmpty)
 import qualified Data.Maybe.Strict      as S
@@ -125,7 +124,7 @@ data LambdaParameters
     deriving (Eq, Show)
 
 data LambdaParameter
-    = LParam !(Maybe DataType) !Text
+    = LParam !(Maybe UDataType) !Text
     deriving (Eq, Show)
 
 -- The description of the /higher level lambda/ call.
@@ -174,7 +173,7 @@ data UnresolvedValue
     | UFunctionCall !Text !(V.Vector Expression)
     | UHOLambdaCall !HOLambdaCall
     | UNumber !Scientific
-    | UDataType DataType
+    | UDataType UDataType
     deriving (Show, Eq)
 
 instance Exts.IsList UnresolvedValue where
@@ -189,7 +188,7 @@ instance IsString UnresolvedValue where
 
 data SelectorCase
     = SelectorValue !UnresolvedValue
-    | SelectorType !DataType
+    | SelectorType !UDataType
     | SelectorDefault
     deriving (Eq, Show)
 
@@ -221,24 +220,24 @@ data Expression
     | Terminal !UnresolvedValue -- ^ Terminal object contains no expression
     deriving (Eq, Show)
 
-data DataType
-    = DTType
-    | DTString (Maybe Int) (Maybe Int)
-    | DTInteger (Maybe Int) (Maybe Int)
-    | DTFloat (Maybe Double) (Maybe Double)
-    | DTBoolean
-    | DTArray DataType Int (Maybe Int)
-    | DTHash DataType DataType Int (Maybe Int)
-    | DTUndef
-    | DTScalar
-    | DTData
-    | DTOptional DataType
-    | NotUndef
-    | DTVariant (NonEmpty DataType)
-    | DTPattern (NonEmpty CompRegex)
-    | DTEnum (NonEmpty Text)
-    | DTAny
-    | DTCollection
+data UDataType
+    = UDTType
+    | UDTString (Maybe Int) (Maybe Int)
+    | UDTInteger (Maybe Int) (Maybe Int)
+    | UDTFloat (Maybe Double) (Maybe Double)
+    | UDTBoolean
+    | UDTArray UDataType Int (Maybe Int)
+    | UDTHash UDataType UDataType Int (Maybe Int)
+    | UDTUndef
+    | UDTScalar
+    | UDTData
+    | UDTOptional UDataType
+    | UNotUndef
+    | UDTVariant (NonEmpty UDataType)
+    | UDTPattern (NonEmpty CompRegex)
+    | UDTEnum (NonEmpty Expression)
+    | UDTAny
+    | UDTCollection
     -- Tuple (NonEmpty DataType) Integer Integer
     -- DTDefault
     -- Struct TODO
@@ -346,8 +345,8 @@ data ResOverrideDecl = ResOverrideDecl !Text !Expression !(V.Vector AttributeDec
 -- Interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ..."
 data ConditionalDecl = ConditionalDecl !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
 
-data ClassDecl  = ClassDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
-data DefineDecl = DefineDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data ClassDecl  = ClassDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))) !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+data DefineDecl = DefineDecl !Text !(V.Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))) !(V.Vector Statement) !PPosition deriving (Eq, Show)
 
 -- | A node is a collection of statements + maybe an inherit node.
 data NodeDecl = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
@@ -393,4 +392,3 @@ data Statement
 
 makeClassy ''HOLambdaCall
 makeLenses ''VarAssignDecl
-$(deriveToJSON defaultOptions ''DataType)

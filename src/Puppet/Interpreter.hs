@@ -556,7 +556,7 @@ loadVariable varname varval = do
 --
 -- It is able to fill unset parameters with values from Hiera (for classes
 -- only) or default values.
-loadParameters :: Foldable f => Container PValue -> f (Pair (Pair Text (S.Maybe DataType)) (S.Maybe Expression)) -> PPosition -> S.Maybe Text -> InterpreterMonad ()
+loadParameters :: Foldable f => Container PValue -> f (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)) -> PPosition -> S.Maybe Text -> InterpreterMonad ()
 loadParameters params classParams defaultPos wHiera = do
   p <- use curPos
   curPos .= defaultPos
@@ -591,7 +591,9 @@ loadParameters params classParams defaultPos wHiera = do
       ev <- runExceptT (checkDef k <|> checkHiera k <|> checkDefault defValue)
       case ev of
           Right v          -> do
-            forM_ mtype $ \dt -> unless (datatypeMatch dt v) (throwPosError ("Expected type" <+> pretty dt <+> "for parameter" <+> pretty k <+> "but its value was:" <+> pretty v))
+            forM_ mtype $ \udt -> do
+              dt <- resolveDataType udt
+              unless (datatypeMatch dt v) (throwPosError ("Expected type" <+> pretty dt <+> "for parameter" <+> pretty k <+> "but its value was:" <+> pretty v))
             loadVariable k v >> return []
           Left (Max True)  -> loadVariable k PUndef >> return []
           Left (Max False) -> return [k]
