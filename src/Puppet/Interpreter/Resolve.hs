@@ -656,7 +656,7 @@ resolveDataType ud
       UNotUndef           -> pure NotUndef
       UDTVariant vrs      -> DTVariant <$> traverse resolveDataType vrs
       UDTPattern a        -> pure (DTPattern a)
-      UDTEnum ens         -> DTEnum <$> traverse resolveExpressionString ens
+      UDTEnum ens         -> DTEnum . concat <$> traverse resolveExpressionStrings ens
       UDTAny              -> pure DTAny
       UDTCollection       -> pure DTCollection
 
