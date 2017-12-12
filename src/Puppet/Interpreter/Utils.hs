@@ -23,6 +23,7 @@ import           Puppet.Parser.Utils
 import           Puppet.Paths
 import           Puppet.PP
 
+
 initialState :: Facts
              -> Container Text -- ^ Server settings
              -> InterpreterState
@@ -51,7 +52,8 @@ getModulename (RIdentifier t n) =
     _       -> gm t
 
 extractPrism :: Doc -> Prism' a b -> a -> InterpreterMonad b
-extractPrism msg p a = case preview p a of
+extractPrism msg p a =
+  case preview p a of
     Just b  -> return b
     Nothing -> throwPosError ("Could not extract prism in" <+> msg)
 
@@ -82,17 +84,18 @@ moduleName (ContImport _ x  )  = moduleName x
 getScope :: InterpreterMonad CurContainerDesc
 {-# INLINABLE getScope #-}
 getScope =
-  use curScope >>= \s -> if null s
-                           then throwPosError "Internal error: empty scope!"
-                           else pure (List.head s)
+  use curScope >>= \s ->
+    if null s
+      then throwPosError "Internal error: empty scope!"
+      else pure (List.head s)
 
 getCurContainer :: InterpreterMonad CurContainer
 {-# INLINABLE getCurContainer #-}
 getCurContainer = do
-    scp <- getScopeName
-    preuse (scopes . ix scp . scopeContainer) >>= \case
-        Just x -> return x
-        Nothing -> throwPosError ("Internal error: can't find the current container for" <+> green (string (Text.unpack scp)))
+  scp <- getScopeName
+  preuse (scopes . ix scp . scopeContainer) >>= \case
+    Just x -> return x
+    Nothing -> throwPosError ("Internal error: can't find the current container for" <+> green (string (Text.unpack scp)))
 
 rcurcontainer :: Resource -> CurContainerDesc
 rcurcontainer r = fromMaybe ContRoot (r ^? rscope . _head)
@@ -113,24 +116,26 @@ checkStrict :: Doc -- ^ The warning message.
             -> Doc -- ^ The error message.
             -> InterpreterMonad ()
 checkStrict wrn err = do
-    extMod <- isExternalModule
-    let priority = if extMod then Log.NOTICE else Log.WARNING
-    str <- singleton IsStrict
-    if str && not extMod
-        then throwPosError err
-        else do
-          srcname <- use (curPos._1.lSourceName)
-          logWriter priority (wrn <+> "at" <+> string srcname)
+  extMod <- isExternalModule
+  let priority =
+        if extMod
+          then Log.NOTICE
+          else Log.WARNING
+  str <- singleton IsStrict
+  if str && not extMod
+    then throwPosError err
+    else do
+      srcname <- use (curPos . _1 . lSourceName)
+      logWriter priority (wrn <+> "at" <+> string srcname)
 
 isExternalModule :: InterpreterMonad Bool
 isExternalModule =
-    getScope >>= \case
-      ContClass n      -> isExternal n
-      ContDefine n _ _ -> isExternal n
-      _                -> return False
-    where
-      isExternal = singleton . IsExternalModule . List.head . Text.splitOn "::"
-
+  getScope >>= \case
+    ContClass n -> isExternal n
+    ContDefine n _ _ -> isExternal n
+    _ -> return False
+  where
+    isExternal = singleton . IsExternalModule . List.head . Text.splitOn "::"
 
 -- Logging --
 warn :: MonadWriter InterpreterWriter m => Doc -> m ()
@@ -150,8 +155,8 @@ normalizeRIdentifier :: Text -> Text -> RIdentifier
 normalizeRIdentifier = RIdentifier . dropInitialColons
 
 readQueryType :: Text -> Maybe HieraQueryType
-readQueryType s
-  = case s of
+readQueryType s =
+  case s of
     "first"  -> Just QFirst
     "unique" -> Just QUnique
     "hash"   -> Just QHash

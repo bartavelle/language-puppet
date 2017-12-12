@@ -318,7 +318,7 @@ resolveExpression (LeftShift a b) = do
   rb <- resolveExpression b
   case (ra, rb) of
       (PArray ha, v) -> pure (PArray (V.snoc ha v))
-      _ -> integerOperation a b (\x -> shiftL x . fromIntegral)
+      _              -> integerOperation a b (\x -> shiftL x . fromIntegral)
 resolveExpression a@(FunctionApplication e (Terminal (UHOLambdaCall hol))) = do
   unless (S.isNothing (hol ^. hoLambdaExpr))
     (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
@@ -482,7 +482,7 @@ resolveFunction' "shellquote" args = do
   sargs <- for args $ \arg ->
     case arg of
       PArray vals -> mapM resolvePValueString vals
-      _ -> V.singleton <$> resolvePValueString arg
+      _           -> V.singleton <$> resolvePValueString arg
   let escape str | Text.all isSafe str            = str
                  | not (Text.any isDangerous str) = between "\"" str
                  | Text.any (== '\'') str          = between "\"" (Text.concatMap escapeDangerous str)
@@ -578,11 +578,10 @@ calcTemplate templatetype templatename = do
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
 resolveExpressionSE e =
-  resolveExpression e >>=
-    \case
-      PArray _ -> throwPosError "The use of an array in a search expression is undefined"
-      PHash _  -> throwPosError "The use of an array in a search expression is undefined"
-      resolved -> pure resolved
+  resolveExpression e >>= \case
+    PArray _ -> throwPosError "The use of an array in a search expression is undefined"
+    PHash _ -> throwPosError "The use of an array in a search expression is undefined"
+    resolved -> pure resolved
 
 -- | Turns an unresolved 'SearchExpression' from the parser into a fully
 -- resolved 'RSearchExpression'.
@@ -728,7 +727,7 @@ evaluateHFCPure hol' = do
     LambFilter -> do
       res <- mapM (fmap pValue2Bool . runblock) varassocs
       sourcevalue <- case hol ^. hoLambdaExpr of
-        S.Just x -> resolveExpression x
+        S.Just x  -> resolveExpression x
         S.Nothing -> throwPosError "Internal error evaluateHFCPure 1"
       case sourcevalue of
         PArray ar -> pure $ PArray $ V.map fst $ V.filter snd $ V.zip ar (V.fromList res)
@@ -760,8 +759,8 @@ datatypeMatch dt v =
   where
     checkPattern str (CompRegex _ ptrn) =
       case Regex.execute' ptrn str of
-          Right (Just _) -> True
-          _              -> False
+        Right (Just _) -> True
+        _              -> False
     container :: Fold PValue [a] -> (a -> Bool) -> Int -> Maybe Int -> Bool
     container f c mi mmx =
       let lst = v ^. f

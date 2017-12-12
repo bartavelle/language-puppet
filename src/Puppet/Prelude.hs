@@ -55,6 +55,7 @@ import           Data.Aeson                        as Exports (fromJSON, toJSON)
 import           Data.Scientific                   as Exports (Scientific)
 import           Data.Set                          as Exports (Set)
 import           Data.Tuple.Strict                 as Exports (Pair (..))
+import           Data.Vector                       as Exports (Vector)
 import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
 
 import           Data.Attoparsec.Text              (parseOnly, rational)
@@ -102,11 +103,11 @@ takeDirectory :: Text -> Text
 takeDirectory "" = "."
 takeDirectory "/" = "/"
 takeDirectory x =
-  let res  = Text.dropWhileEnd (== '/') file
+  let res = Text.dropWhileEnd (== '/') file
       file = dropFileName x
-  in  if Text.null res && not (Text.null file)
-          then file
-          else res
+  in if Text.null res && not (Text.null file)
+       then file
+       else res
 
 -- | Drop the filename.
 --
