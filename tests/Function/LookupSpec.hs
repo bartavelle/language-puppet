@@ -16,8 +16,8 @@ checkError :: [Expression] -> String -> Expectation
 checkError = checkExprsError fname
 
 
-boolDatatype = Terminal (UDataType DTBoolean)
-stringDatatype = Terminal (UDataType (DTString Nothing Nothing))
+boolDatatype = Terminal (UDataType UDTBoolean)
+stringDatatype = Terminal (UDataType (UDTString Nothing Nothing))
 
 spec :: Spec
 spec = do

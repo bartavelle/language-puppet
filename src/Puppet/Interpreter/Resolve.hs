@@ -50,6 +50,7 @@ import qualified Data.Char                          as Char
 import qualified Data.HashMap.Strict                as HM
 import qualified Data.HashSet                       as HS
 import qualified Data.List                          as List
+import qualified Data.List.NonEmpty                 as NE
 import qualified Data.Maybe.Strict                  as S
 import qualified Data.Scientific                    as Scientific
 import qualified Data.Text                          as Text
@@ -656,7 +657,8 @@ resolveDataType ud
       UNotUndef           -> pure NotUndef
       UDTVariant vrs      -> DTVariant <$> traverse resolveDataType vrs
       UDTPattern a        -> pure (DTPattern a)
-      UDTEnum ens         -> DTEnum . concat <$> traverse resolveExpressionStrings ens
+      -- will not crash as ens is nonempty
+      UDTEnum ens         -> DTEnum . NE.fromList . sconcat <$> traverse resolveExpressionStrings ens
       UDTAny              -> pure DTAny
       UDTCollection       -> pure DTCollection
 
