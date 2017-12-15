@@ -29,7 +29,7 @@ import           Data.Aeson.Lens
 import qualified Data.Attoparsec.Text     as AT
 import qualified Data.ByteString.Lazy     as BS
 import qualified Data.Either.Strict       as S
-import qualified Data.FileCache           as Cache
+import qualified Cache.File               as Cache
 import qualified Data.List                as List
 import           Data.String              (fromString)
 import qualified Data.Text                as Text
@@ -68,7 +68,7 @@ instance Pretty HieraStringPart where
     pretty (HPVariable v) = dullred (string "%{" <> ttext v <> string "}")
     prettyList = mconcat . map pretty
 
-type Cache = Cache.FileCacheR String Value
+type Cache = Cache.FileCache String Value
 
 data QRead
     = QRead
@@ -87,7 +87,7 @@ instance FromJSON HieraConfigFile where
         [hierarchy_value] <- v .: "hierarchy"
         datadir <- case Object v ^? key "defaults" . key "datadir" of
           Just (String dir) -> pure dir
-          Just _            -> fail ("datadir should be a string")
+          Just _            -> fail "datadir should be a string"
           Nothing           -> hierarchy_value .: "datadir" .!= "hieradata"
         HieraConfigFile
             <$> pure 5
@@ -112,7 +112,7 @@ instance FromJSON HieraConfigFile where
            pure (backendConstructor (Text.unpack datadir))
 
     in
-    Aeson.withObject "v3 or v5" $ \o -> do
+    Aeson.withObject "v3 or v5" $ \o ->
       o .:? "version" >>= \case
         Just (5::Int) -> mkHiera5 o
         Just _ -> fail "Hiera configuration version different than 5 is not supported."
@@ -161,38 +161,38 @@ resolveString vars = fmap Text.concat . mapM resolve . getInterpolableHieraStrin
 
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
 query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt = do
-    -- step 1, resolve hierarchies
-    let searchin = do
-            mhierarchy <- resolveString vars <$> _hierarchy
-            Just h  <- [mhierarchy]
-            backend    <- _backends
-            let decodeInfo :: (FilePath -> IO (S.Either String Value), String, String)
-                decodeInfo = do
-                  case backend of
-                        JsonBackend dir -> (fmap (strictifyEither . Aeson.eitherDecode') . BS.readFile       , dir, ".json")
-                        YamlBackend dir -> (fmap (strictifyEither . (_Left %~ show)) . Yaml.decodeFileEither, dir, ".yaml")
-            return (decodeInfo, Text.unpack h)
-    -- step 2, read all the files, returning a raw data structure
-    mvals <- forM searchin $ \((decodefunction, datadir, extension), h) -> do
-        let extension' = if snd (FilePath.splitExtension h) == ".yaml"
-                         then ""
-                         else extension
-            filename = basedir <> datadir <> "/" <> h <> extension'
-            basedir = case datadir of
-                '/' : _ -> mempty
-                _       -> fp ^. directory <> "/"
-        efilecontent <- Cache.query cache filename (decodefunction filename)
-        case efilecontent of
-            S.Left r -> do
-                let errs = "Hiera: error when reading file " <> string filename <+> string r
-                if "Yaml file not found: " `List.isInfixOf` r
-                    then logDebug (show errs)
-                    else logWarning (show errs)
-                return Nothing
-            S.Right val -> return (Just val)
-    let vals = catMaybes mvals
-    -- step 3, query through all the results
-    return (strictifyEither $ runReader (runExceptT (recursiveQuery hquery [])) (QRead vars qt vals))
+  -- step 1, resolve hierarchies
+  let searchin = do
+          mhierarchy <- resolveString vars <$> _hierarchy
+          Just h  <- [mhierarchy]
+          backend    <- _backends
+          let decodeInfo :: (FilePath -> IO (Either String Value), String, String)
+              decodeInfo =
+                case backend of
+                  JsonBackend dir -> (fmap Aeson.eitherDecode' . BS.readFile       , dir, ".json")
+                  YamlBackend dir -> (fmap (_Left %~ show) . Yaml.decodeFileEither   , dir, ".yaml")
+          pure (decodeInfo, Text.unpack h)
+  -- step 2, read all the files, returning a raw data structure
+  mvals <- forM searchin $ \((decodefunction, datadir, extension), h) -> do
+      let extension' = if snd (FilePath.splitExtension h) == ".yaml"
+                       then ""
+                       else extension
+          filename = basedir <> datadir <> "/" <> h <> extension'
+          basedir = case datadir of
+              '/' : _ -> mempty
+              _       -> fp ^. directory <> "/"
+      efilecontent <- Cache.query cache filename (decodefunction filename)
+      case efilecontent of
+          Left r -> do
+              let errs = "Hiera: error when reading file " <> string filename <+> string r
+              if "Yaml file not found: " `List.isInfixOf` r
+                  then logDebug (show errs)
+                  else logWarning (show errs)
+              return Nothing
+          Right val -> return (Just val)
+  let vals = catMaybes mvals
+  -- step 3, query through all the results
+  return (strictifyEither $ runReader (runExceptT (recursiveQuery hquery [])) (QRead vars qt vals))
 
 type QM a = ExceptT PrettyError (Reader QRead) a
 

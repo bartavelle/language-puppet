@@ -9,7 +9,7 @@ import           Puppet.Prelude
 
 import           Data.Aeson.Lens            (_Number)
 import qualified Data.Either.Strict         as S
-import qualified Data.FileCache             as Cache
+import qualified Cache.File                 as Cache
 import qualified Data.List                  as List
 import           Data.String
 import qualified Data.Text                  as Text
@@ -74,7 +74,7 @@ templateQuery qchan filename stt rdr = do
     writeChan qchan (rchan, filename, stt, rdr)
     readChan rchan
 
-templateDaemon :: RubyInterpreter -> Text -> Text -> Chan TemplateQuery -> MStats -> Cache.FileCacheR TemplateParseError [RubyStatement] -> IO ()
+templateDaemon :: RubyInterpreter -> Text -> Text -> Chan TemplateQuery -> MStats -> Cache.FileCache TemplateParseError [RubyStatement] -> IO ()
 templateDaemon intr modpath templatepath qchan mvstats filecache = do
     let nameThread :: String -> IO ()
         nameThread n = myThreadId >>= flip labelThread n
@@ -93,7 +93,7 @@ templateDaemon intr modpath templatepath qchan mvstats filecache = do
         Left _ -> measure mvstats "inline" (computeTemplate intr fileinfo stt rdr mvstats filecache) >>= writeChan respchan
     templateDaemon intr modpath templatepath qchan mvstats filecache
 
-computeTemplate :: RubyInterpreter -> Either Text Text -> InterpreterState -> InterpreterReader IO -> MStats -> Cache.FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
+computeTemplate :: RubyInterpreter -> Either Text Text -> InterpreterState -> InterpreterReader IO -> MStats -> Cache.FileCache TemplateParseError [RubyStatement] -> IO TemplateAnswer
 computeTemplate intr fileinfo stt rdr mstats filecache = do
     let (curcontext, fvariables) = case extractFromState stt of
                                        Nothing    -> (mempty, mempty)
@@ -110,8 +110,12 @@ computeTemplate intr fileinfo stt rdr mstats filecache = do
         toStr x           = x
     traceEventIO ("START template " ++ Text.unpack filename)
     parsed <- case fileinfo of
-                  Right _      -> measure mstats ("parsing - " <> filename) $ Cache.lazyQuery filecache ufilename $ fmap encapsulateError (parseErbFile ufilename)
-                  Left content -> measure mstats ("parsing - " <> filename) $ return $ encapsulateError (runParser erbparser () "inline" (Text.unpack content))
+                  Right _      ->
+                    measure mstats ("parsing - " <> filename)
+                    $ Cache.query filecache ufilename $ fmap encapsulateError (parseErbFile ufilename)
+                  Left content ->
+                    measure mstats ("parsing - " <> filename)
+                    $ pure $ encapsulateError (runParser erbparser () "inline" (Text.unpack content))
     o <- case parsed of
         Left err -> do
             let msg = "Template '" <> toS ufilename <> "' could not be parsed " <> show (tgetError err)

@@ -13,7 +13,7 @@ module Puppet.Daemon (
 import           Puppet.Prelude
 
 import qualified Data.Either.Strict        as S
-import           Data.FileCache            as FileCache
+import           Cache.File                as Cache
 import qualified Data.HashMap.Strict       as HM
 import qualified Data.List                 as List
 import qualified Data.Text                 as Text
@@ -172,7 +172,7 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
 -- | Return an HOF that would parse the file associated with a toplevel.
 -- The toplevel is defined by the tuple (type, name)
 -- The result of the parsing is a single Statement (which recursively contains others statements)
-parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
+parseFunc :: PuppetDirPaths -> FileCache String (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
 parseFunc ppath filecache stats = \toptype topname ->
     let nameparts = Text.splitOn "::" topname in
     let topLevelFilePath :: TopLevelType -> Text -> Either PrettyError Text
@@ -186,23 +186,25 @@ parseFunc ppath filecache stats = \toptype topname ->
         Left rr     -> return (S.Left rr)
         Right fname -> do
             let sfname = Text.unpack fname
-                handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
-                handleFailure e = return (S.Left (show e))
-            x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname `catch` handleFailure))
+                handleFailure :: SomeException -> IO (Either String (V.Vector Statement))
+                handleFailure e = pure (Left (show e))
+            x <- measure stats fname (Cache.query filecache sfname (parseFile sfname `catch` handleFailure))
             case x of
-                S.Right stmts -> filterStatements toptype topname stmts
-                S.Left rr -> return (S.Left (PrettyError (red (text rr))))
+                Right stmts -> filterStatements toptype topname stmts
+                Left rr -> return (S.Left (PrettyError (red (text rr))))
 
 
-parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
+parseFile :: FilePath -> IO (Either String (V.Vector Statement))
 parseFile fname = do
-    traceEventIO ("START parsing " ++ fname)
-    cnt <- readFile fname
-    o <- case runPParser fname cnt of
-        Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
-        Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")") >> return (S.Left (Megaparsec.parseErrorPretty rr))
-    traceEventIO ("STOP parsing " ++ fname)
-    return o
+  traceEventIO ("START parsing " ++ fname)
+  cnt <- readFile fname
+  o <- case runPParser fname cnt of
+    Right r -> traceEventIO ("Stopped parsing " ++ fname) >> pure (Right r)
+    Left rr -> do
+      traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")")
+      pure (Left (Megaparsec.parseErrorPretty rr))
+  traceEventIO ("STOP parsing " ++ fname)
+  pure o
 
 
 setupLogger :: Log.Priority -> IO ()
