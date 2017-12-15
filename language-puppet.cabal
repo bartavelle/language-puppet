@@ -36,6 +36,7 @@ library
                        , Erb.Ruby
                        , Facter
                        , Hiera.Server
+                       , Cache.File
                        , Puppet.Daemon
                        , PuppetDB.Common
                        , PuppetDB.Dummy
@@ -94,7 +95,6 @@ library
                      , cryptonite           >= 0.6
                      , directory            >= 1.2     && < 1.4
                      , exceptions           >= 0.8     && < 0.9
-                     , filecache            >= 0.2.9   && < 0.3
                      , filepath             >= 1.4
                      , formatting
                      , hashable             == 1.2.*
