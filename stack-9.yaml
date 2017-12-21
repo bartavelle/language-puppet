@@ -2,5 +2,8 @@ flags: {}
 extra-deps: []
 packages:
 - '.'
-resolver: lts-9.5
-extra-deps: []
+resolver: lts-9.20
+extra-deps:
+  - megaparsec-6.3.0
+  - protolude-0.2
+  - ansi-wl-pprint-0.6.8.1

@@ -1,17 +1,17 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
-import Control.Monad
-import System.FilePath.Glob
-import Puppet.Parser
-import System.Environment
-import Puppet.Parser.PrettyPrinter
-import Text.PrettyPrint.ANSI.Leijen
-import Text.Megaparsec (parse, eof, parseErrorPretty)
-import System.Posix.Terminal
-import System.Posix.Types
-import System.IO
-import qualified Data.Text.IO as T
+import           Control.Monad
+import qualified Data.Text.IO                 as T
+import           System.Environment
+import           System.FilePath.Glob
+import           System.IO
+import           System.Posix.Terminal
+import           System.Posix.Types
+import           Text.Megaparsec              (eof, parse, parseErrorPretty)
+import           Text.PrettyPrint.ANSI.Leijen
+
+import           Puppet.Parser
 
 allchecks :: IO ()
 allchecks = do

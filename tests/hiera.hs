@@ -6,11 +6,12 @@ import           Helpers
 import qualified Data.Either.Strict  as S
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector         as Vector
-import           Hiera.Server
 import           NeatInterpolation
 import qualified System.IO.Temp      as IO
 import qualified System.Log.Logger   as Log
 import           Test.HUnit
+
+import           Hiera
 
 main :: IO ()
 main = IO.withSystemTempDirectory "hieratest" $ \tmpfp -> do

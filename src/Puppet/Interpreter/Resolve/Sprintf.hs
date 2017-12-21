@@ -2,7 +2,8 @@ module Puppet.Interpreter.Resolve.Sprintf (
   sprintf
 ) where
 
-import           Puppet.Prelude
+
+import           XPrelude
 
 import           Data.Attoparsec.Text
 import qualified Data.Text                         as Text
@@ -11,11 +12,9 @@ import qualified Data.Text.Lazy.Builder            as TB
 import qualified Data.Text.Lazy.Builder.Int        as TB
 import qualified Data.Text.Lazy.Builder.Scientific as TB
 
-
+import           Puppet.Interpreter.Helpers
+import           Puppet.Interpreter.PrettyPrinter  ()
 import           Puppet.Interpreter.Types
-import           Puppet.Interpreter.Utils
-import           Puppet.PP (pretty)
-import           Puppet.Interpreter.PrettyPrinter()
 
 data Flag = Minus | Plus | Space | Zero | Hash
           deriving (Show, Eq)
@@ -26,16 +25,18 @@ data FLen = Lhh | Lh | Ll | Lll | LL | Lz | Lj | Lt
 data FType = TPct | Td | Tu | Tf | TF | Te | TE | Tg | TG | Tx | TX | To | Ts | Tc | Tp | Ta | TA
            deriving (Show, Eq)
 
-data PrintfFormat = PrintfFormat { _pfFlags :: [Flag]
-                                 , _pfWidth :: Maybe Int
-                                 , _pfPrec  :: Maybe Int
-                                 , _pfLen   :: Maybe FLen
-                                 , _pfType  :: FType
-                                 } deriving (Show, Eq)
+data PrintfFormat = PrintfFormat
+  { _pfFlags :: [Flag]
+  , _pfWidth :: Maybe Int
+  , _pfPrec  :: Maybe Int
+  , _pfLen   :: Maybe FLen
+  , _pfType  :: FType
+  } deriving (Show, Eq)
 
-data FormatStringPart = Raw Text
-                      | Format PrintfFormat
-                      deriving (Show, Eq)
+data FormatStringPart
+  = Raw Text
+  | Format PrintfFormat
+  deriving (Show, Eq)
 
 parseFormat :: Text -> [FormatStringPart]
 parseFormat t | Text.null t = []
@@ -45,10 +46,10 @@ parseFormat t | Text.null t = []
     (raw, nxt) = Text.break (== '%') t
     tryNext = case parseFormat (Text.tail nxt) of
                   (Raw nt : nxt') -> Raw (Text.cons '%' nt) : nxt'
-                  nxt' -> Raw (Text.singleton '%') : nxt'
+                  nxt'            -> Raw (Text.singleton '%') : nxt'
     rformat = case parse format nxt of
-                  Fail _ _ _ -> tryNext
-                  Partial _ -> tryNext
+                  Fail _ _ _       -> tryNext
+                  Partial _        -> tryNext
                   Done remaining f -> Format f : parseFormat remaining
 
 flag :: Parser Flag

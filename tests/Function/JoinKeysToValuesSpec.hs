@@ -6,8 +6,7 @@ import           Test.Hspec
 import qualified Data.Foldable as F
 import           Data.Monoid
 
-import           Puppet.Interpreter.Pure
-import           Puppet.Interpreter.Types
+import           Puppet.Interpreter
 
 import           Helpers
 

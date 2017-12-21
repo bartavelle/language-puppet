@@ -1,9 +1,7 @@
 -- | Base types for the internal ruby parser ("Erb.Parser").
 module Erb.Ruby where
 
-import           Puppet.Prelude hiding ((<>))
-
-import           Text.PrettyPrint.ANSI.Leijen
+import           XPrelude
 
 data Value
     = Literal !Text
@@ -44,11 +42,11 @@ data Expression
 
 instance Pretty Expression where
     pretty (LookupOperation a b) = pretty a <> brackets (pretty b)
-    pretty (PlusOperation a b) = parens (pretty a <+> text "+" <+> pretty b)
-    pretty (MinusOperation a b) = parens (pretty a <+> text "-" <+> pretty b)
-    pretty (DivOperation a b) = parens (pretty a <+> text "/" <+> pretty b)
-    pretty (MultiplyOperation a b) = parens (pretty a <+> text "*" <+> pretty b)
-    pretty op = text (show op)
+    pretty (PlusOperation a b) = parens (pretty a <+> ppline "+" <+> pretty b)
+    pretty (MinusOperation a b) = parens (pretty a <+> ppline "-" <+> pretty b)
+    pretty (DivOperation a b) = parens (pretty a <+> ppline "/" <+> pretty b)
+    pretty (MultiplyOperation a b) = parens (pretty a <+> ppline "*" <+> pretty b)
+    pretty op = ppline (show op)
 
 data RubyStatement
     = Puts !Expression

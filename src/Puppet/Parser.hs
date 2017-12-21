@@ -9,32 +9,39 @@ module Puppet.Parser (
   , puppetParser
   , expression
   , datatype
+  -- * Utils
+  , dummypos
+  , dummyppos
+ -- * PP
+  , ppStatements
+  , module Puppet.Parser.Lens
+  , module Puppet.Parser.Types
 ) where
 
-import           Puppet.Prelude                   hiding (option, try)
+import           XPrelude.Extra                   hiding (option, try)
 
-import           Control.Monad                    (fail)
 import qualified Data.Char                        as Char
 import qualified Data.List                        as List
-import           Data.List.NonEmpty               (NonEmpty (..))
 import qualified Data.List.NonEmpty               as NE
 import qualified Data.Maybe.Strict                as S
 import qualified Data.Scientific                  as Scientific
 import qualified Data.Text                        as Text
-import qualified Data.Text.Encoding               as Text
 import qualified Data.Vector                      as V
 import           Text.Megaparsec                  hiding (token)
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer       as L
 import           Text.Megaparsec.Expr
-import           Text.Regex.PCRE.ByteString.Utils
+import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
+import           Puppet.Language
+import           Puppet.Parser.Lens
+import           Puppet.Parser.PrettyPrinter      (ppStatements)
 import           Puppet.Parser.Types
 
 type Parser = Parsec Void Text
 
 -- | Run a puppet parser against some 'Text' input.
-runPParser :: String -> Text -> Either (ParseError Char Void) (V.Vector Statement)
+runPParser :: String -> Text -> Either (ParseError Char Void) (Vector Statement)
 runPParser = parse puppetParser
 
 someSpace :: Parser ()
@@ -73,37 +80,38 @@ sepComma1 :: Parser a -> Parser [a]
 sepComma1 p = p `sepEndBy1` comma
 
 -- | Parse a collection of puppet 'Statement'.
-puppetParser :: Parser (V.Vector Statement)
+puppetParser :: Parser (Vector Statement)
 puppetParser = optional someSpace >> statementList
 
 -- | Parse a puppet 'Expression'.
 expression :: Parser Expression
-expression = condExpression
-             <|> makeExprParser (token terminal) expressionTable
-             <?> "expression"
-    where
-        condExpression = do
-            selectedExpression <- try $ do
-                trm <- token terminal
-                lookups <- optional indexLookupChain
-                symbolic '?'
-                return $ maybe trm ($ trm) lookups
-            let cas = do
-                  c <- (SelectorDefault <$ symbol "default") -- default case
-                          <|> fmap SelectorType (try datatype)
-                          <|> fmap SelectorValue
-                                (   fmap UVariableReference variableReference
-                                <|> fmap UBoolean puppetBool
-                                <|> (UUndef <$ symbol "undef")
-                                <|> literalValue
-                                <|> fmap UInterpolable interpolableString
-                                <|> (URegexp <$> termRegexp)
-                                )
-                  void $ symbol "=>"
-                  e <- expression
-                  return (c :!: e)
-            cases <- braces (sepComma1 cas)
-            return (ConditionalValue selectedExpression (V.fromList cases))
+expression =
+  condExpression
+  <|> makeExprParser (token terminal) expressionTable
+  <?> "expression"
+  where
+    condExpression = do
+      selectedExpression <- try $ do
+          trm <- token terminal
+          lookups <- optional indexLookupChain
+          symbolic '?'
+          return $ maybe trm ($ trm) lookups
+      let cas = do
+            c <- (SelectorDefault <$ symbol "default") -- default case
+                    <|> fmap SelectorType (try datatype)
+                    <|> fmap SelectorValue
+                          (   fmap UVariableReference variableReference
+                          <|> fmap UBoolean puppetBool
+                          <|> (UUndef <$ symbol "undef")
+                          <|> literalValue
+                          <|> fmap UInterpolable interpolableString
+                          <|> (URegexp <$> termRegexp)
+                          )
+            void $ symbol "=>"
+            e <- expression
+            return (c :!: e)
+      cases <- braces (sepComma1 cas)
+      return (ConditionalValue selectedExpression (V.fromList cases))
 
 variable :: Parser Expression
 variable = Terminal . UVariableReference <$> variableReference
@@ -123,15 +131,16 @@ identifierPart x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x 
 
 identl :: Parser Char -> Parser Char -> Parser Text
 identl fstl nxtl = do
-        f   <- fstl
-        nxt <- token $ many nxtl
-        return $ Text.pack $ f : nxt
+  f <- fstl
+  nxt <- token $ many nxtl
+  return $ Text.pack $ f : nxt
 
 operator :: Text -> Parser ()
 operator = void . try . symbol
 
 reserved :: Text -> Parser ()
-reserved s = try $ do
+reserved s =
+  try $ do
     void (string s)
     notFollowedBy (satisfy identifierPart)
     someSpace
@@ -182,20 +191,20 @@ parameterName = moduleName
 variableReference :: Parser Text
 variableReference = char '$' *> variableName
 
-interpolableString :: Parser (V.Vector Expression)
+interpolableString :: Parser (Vector Expression)
 interpolableString = V.fromList <$> between (char '"') (symbolic '"')
      ( many (interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (Terminal . UString . Text.singleton) (char '$')) )
     where
         doubleQuotedStringContent = Terminal . UString . Text.pack . concat <$>
-            some ((char '\\' *> fmap stringEscape anyChar) <|> some (noneOf [ '"', '\\', '$' ]))
-        stringEscape :: Char -> String
-        stringEscape 'n'  = "\n"
-        stringEscape 't'  = "\t"
-        stringEscape 'r'  = "\r"
-        stringEscape '"'  = "\""
-        stringEscape '\\' = "\\"
-        stringEscape '$'  = "$"
-        stringEscape x    = ['\\',x]
+            some ((char '\\' *> fmap escaper anyChar) <|> some (noneOf [ '"', '\\', '$' ]))
+        escaper :: Char -> String
+        escaper 'n'  = "\n"
+        escaper 't'  = "\t"
+        escaper 'r'  = "\r"
+        escaper '"'  = "\""
+        escaper '\\' = "\\"
+        escaper '$'  = "$"
+        escaper x    = ['\\',x]
         -- this is specialized because we can't be "tokenized" here
         variableAccept x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || x == '_'
         rvariableName = do
@@ -250,7 +259,7 @@ bareword = identl (satisfy Char.isAsciiLower) (satisfy acceptable) <?> "Bare wor
         acceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_') || (x == '-')
 
 -- The first argument defines if non-parenthesized arguments are acceptable
-genFunctionCall :: Bool -> Parser (Text, V.Vector Expression)
+genFunctionCall :: Bool -> Parser (Text, Vector Expression)
 genFunctionCall nonparens = do
     fname <- moduleName <?> "Function name"
     -- this is a hack. Contrary to what the documentation says,
@@ -290,7 +299,7 @@ terminalG g = parens expression
          <|> fmap Terminal literalValue
 
 compileRegexp :: Text -> Parser CompRegex
-compileRegexp p = case compile' compBlank execBlank (Text.encodeUtf8 p) of
+compileRegexp p = case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 p) of
     Right r -> return $ CompRegex p r
     Left ms -> fail ("Can't parse regexp /" ++ Text.unpack p ++ "/ : " ++ show ms)
 
@@ -379,7 +388,7 @@ defineDecl = do
     pe <- getPosition
     return (DefineDecl name params st (p :!: pe))
 
-puppetClassParameters :: Parser (V.Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)))
+puppetClassParameters :: Parser (Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)))
 puppetClassParameters = V.fromList <$> parens (sepComma var)
     where
         toStrictMaybe (Just x) = S.Just x
@@ -391,7 +400,7 @@ puppetClassParameters = V.fromList <$> parens (sepComma var)
           df <- toStrictMaybe <$> optional (symbolic '=' *> expression)
           return (n :!: tp :!: df)
 
-puppetIfStyleCondition :: Parser (Pair Expression (V.Vector Statement))
+puppetIfStyleCondition :: Parser (Pair Expression (Vector Statement))
 puppetIfStyleCondition = (:!:) <$> expression <*> braces statementList
 
 unlessCondition :: Parser ConditionalDecl
@@ -713,7 +722,7 @@ datatype = dtString
       <|> reserved "Nginx::ErrorLogSeverity" $> UDTData
 
 
-statementList :: Parser (V.Vector Statement)
+statementList :: Parser (Vector Statement)
 statementList = (V.fromList . concat) <$> many statement
 
 lambdaCall :: Parser HOLambdaCall
@@ -745,3 +754,9 @@ lambdaCall = do
                         [a]   -> return (BPSingle a)
                         [a,b] -> return (BPPair a b)
                         _     -> fail "Invalid number of variables between the pipes"
+
+dummyppos :: PPosition
+dummyppos = initialPPos "dummy"
+
+dummypos :: Position
+dummypos = initialPos "dummy"

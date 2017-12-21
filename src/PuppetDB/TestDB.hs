@@ -10,55 +10,56 @@ module PuppetDB.TestDB
        , initTestDB
 ) where
 
-import           Puppet.Prelude
+import           XPrelude
 
 import           Control.Concurrent.STM
-import           Data.Aeson.Lens          (_Integer)
-import qualified Data.CaseInsensitive     as CaseInsensitive
-import qualified Data.HashMap.Strict      as HM
-import qualified Data.HashSet             as HS
-import qualified Data.Maybe.Strict        as S
-import qualified Data.Text                as Text
-import qualified Data.Vector              as V
+import           Data.Aeson
+import           Data.Aeson.Lens        (_Integer)
+import qualified Data.CaseInsensitive   as CaseInsensitive
+import qualified Data.HashMap.Strict    as HM
+import qualified Data.HashSet           as HS
+import qualified Data.Maybe.Strict      as S
+import qualified Data.Text              as Text
+import qualified Data.Vector            as V
 import           Data.Yaml
 import           Text.Megaparsec.Pos
 
-import           Puppet.Interpreter.Types
-import           Puppet.Parser.Types
-import           Puppet.PP
+import           Facter
+import           Puppet.Language
+import           PuppetDB.Core
 
 data DBContent = DBContent
-    { _dbcontentResources   :: Container WireCatalog
-    , _dbcontentFacts       :: Container Facts
-    , _dbcontentBackingFile :: Maybe FilePath
-    }
+  { _dbcontentResources   :: Container WireCatalog
+  , _dbcontentFacts       :: Container Facts
+  , _dbcontentBackingFile :: Maybe FilePath
+  }
 
 makeLensesWith abbreviatedFields ''DBContent
 
 type DB = TVar DBContent
 
 instance FromJSON DBContent where
-    parseJSON (Object v) = DBContent <$> v .: "resources" <*> v .: "facts" <*> pure Nothing
-    parseJSON _ = mempty
+  parseJSON (Object v) = DBContent <$> v .: "resources" <*> v .: "facts" <*> pure Nothing
+  parseJSON _ = mempty
 
 instance ToJSON DBContent where
-    toJSON (DBContent r f _) = object [("resources", toJSON r), ("facts", toJSON f)]
+  toJSON (DBContent r f _) = object [("resources", toJSON r), ("facts", toJSON f)]
 
 -- | Initializes the test DB using a file to back its content
 loadTestDB :: FilePath -> IO (Either PrettyError (PuppetDBAPI IO))
 loadTestDB fp =
-    decodeFileEither fp >>= \case
-        Left (OtherParseException rr) -> return (Left (PrettyError (string (show rr))))
-        Left (InvalidYaml Nothing) -> baseError "Unknown error"
-        Left (InvalidYaml (Just (YamlException s))) -> if take 21 s == "Yaml file not found: "
-                                                          then newFile
-                                                          else baseError (string s)
-        Left (InvalidYaml (Just (YamlParseException pb ctx (YamlMark _ l c)))) -> baseError $ red (string pb <+> string ctx) <+> "at line" <+> int l <> ", column" <+> int c
-        Left _ -> newFile
-        Right x -> fmap Right (genDBAPI (x & backingFile ?~ fp ))
-    where
-        baseError r = return $ Left $ PrettyError $ "Could not parse" <+> string fp <> ":" <+> r
-        newFile = Right <$> genDBAPI (newDB & backingFile ?~ fp )
+  decodeFileEither fp >>= \case
+    Left (OtherParseException rr) -> return (Left (PrettyError (pplines (show rr))))
+    Left (InvalidYaml Nothing) -> baseError "Unknown error"
+    Left (InvalidYaml (Just (YamlException s))) -> if take 21 s == "Yaml file not found: "
+                                                      then newFile
+                                                      else baseError (ppstring s)
+    Left (InvalidYaml (Just (YamlParseException pb ctx (YamlMark _ l c)))) -> baseError $ red (ppstring pb <+> ppstring ctx) <+> "at line" <+> pretty l <> ", column" <+> pretty c
+    Left _ -> newFile
+    Right x -> fmap Right (genDBAPI (x & backingFile ?~ fp ))
+  where
+    baseError r = return $ Left $ PrettyError $ "Could not parse" <+> pptext fp <> ":" <+> r
+    newFile = Right <$> genDBAPI (newDB & backingFile ?~ fp )
 
 -- | Starts a new PuppetDB, without any backing file.
 initTestDB :: IO (PuppetDBAPI IO)
@@ -69,8 +70,8 @@ newDB = DBContent mempty mempty Nothing
 
 genDBAPI :: DBContent -> IO (PuppetDBAPI IO)
 genDBAPI db = do
-    d <- newTVarIO db
-    return (PuppetDBAPI (dbapiInfo d)
+  d <- newTVarIO db
+  return $! PuppetDBAPI (dbapiInfo d)
                         (replCat d)
                         (replFacts d)
                         (deactivate d)
@@ -79,18 +80,20 @@ genDBAPI db = do
                         (getNds d)
                         (commit d)
                         (getResNode d)
-                        )
 
-data Extracted = EText Text
-               | ESet (HS.HashSet Text)
-               | ENil
+
+data Extracted
+  = EText Text
+  | ESet (HS.HashSet Text)
+  | ENil
 
 resolveQuery :: (a -> b -> Extracted) -> Query a -> b -> Bool
 resolveQuery _ QEmpty = const True
-resolveQuery f (QEqual a t) = \v -> case f a v of
-                                        EText tt -> CaseInsensitive.mk tt == CaseInsensitive.mk t
-                                        ESet ss  -> ss ^. contains t
-                                        _        -> False
+resolveQuery f (QEqual a t) =
+  \v -> case f a v of
+    EText tt -> CaseInsensitive.mk tt == CaseInsensitive.mk t
+    ESet ss  -> ss ^. contains t
+    _        -> False
 resolveQuery f (QNot q)  = not . resolveQuery f q
 resolveQuery f (QG a i)  = ncompare (>) f a i
 resolveQuery f (QL a i)  = ncompare (<) f a i
@@ -102,17 +105,18 @@ resolveQuery f (QOr qs)  = \v -> any (\q -> resolveQuery f q v) qs
 
 dbapiInfo :: DB -> IO Doc
 dbapiInfo db = do
-    c <- readTVarIO db
-    case c ^. backingFile of
-        Nothing -> return "TestDB"
-        Just v  -> return ("TestDB" <+> string v)
+  c <- readTVarIO db
+  case c ^. backingFile of
+    Nothing -> return "TestDB"
+    Just v  -> return ("TestDB" <+> ppstring v)
 
 ncompare :: (Integer -> Integer -> Bool) ->  (a -> b -> Extracted) -> a -> Integer -> b -> Bool
-ncompare operation f a i v = case f a v of
-                                 EText tt -> case PString tt ^? _Integer of
-                                                 Just ii -> operation i ii
-                                                 _       -> False
-                                 _ -> False
+ncompare operation f a i v =
+  case f a v of
+    EText tt -> case PString tt ^? _Integer of
+                    Just ii -> operation i ii
+                    _       -> False
+    _ -> False
 
 replCat :: DB -> WireCatalog -> ExceptT PrettyError IO ()
 replCat db wc = liftIO $ atomically $ modifyTVar db (resources . at (wc ^. wireCatalogNodename) ?~ wc)

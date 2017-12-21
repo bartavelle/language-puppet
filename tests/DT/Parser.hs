@@ -2,7 +2,6 @@ module DT.Parser (spec) where
 
 import           Helpers
 
-import           Puppet.Parser
 import           Test.Hspec.Megaparsec
 import           Text.Megaparsec (parse)
 
