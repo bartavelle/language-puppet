@@ -12,6 +12,7 @@ import           Puppet.Language.Core
 import           Puppet.Language.Resource
 
 -- | Used to represent a relationship between two resources within the wired format (json).
+--
 -- See <http://docs.puppetlabs.com/puppetdb/2.3/api/wire_format/catalog_format_v5.html#data-type-edge>
 data PuppetEdge = PuppetEdge RIdentifier RIdentifier LinkType deriving Show
 
@@ -22,7 +23,7 @@ instance FromJSON PuppetEdge where
 instance ToJSON PuppetEdge where
     toJSON (PuppetEdge s t r) = object [("source", toJSON s), ("target", toJSON t), ("relationship", toJSON r)]
 
--- See <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html puppet reference>.
+-- | See <http://docs.puppetlabs.com/puppetdb/1.5/api/wire_format/catalog_format.html puppet reference>.
 data WireCatalog = WireCatalog
     { _wireCatalogNodename        :: !NodeName
     , _wireCatalogVersion         :: !Text

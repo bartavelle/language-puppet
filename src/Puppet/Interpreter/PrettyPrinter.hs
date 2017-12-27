@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs             #-}
-module Puppet.Interpreter.PrettyPrinter() where
+module Puppet.Interpreter.PrettyPrinter () where
 
 import           XPrelude
 
@@ -16,13 +16,11 @@ instance Pretty TopLevelType where
     pretty TopDefine = dullyellow "define"
     pretty TopClass  = dullyellow "class"
 
-
 instance Pretty ResDefaults where
     pretty (ResDefaults t _ v p) = capitalizeR t <+> showPPos p <> line <> containerComma v
 
 instance Pretty ResourceModifier where
     pretty (ResourceModifier rt ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString x)) _ p) = "realize" <> parens (pretty (PResourceReference rt x)) <+> showPPos p
-    -- pretty (ResourceModifier rt ModifierCollector ct (REqualitySearch _ (PString x))  _ p) =  "collect" <> parens (pretty (PResourceReference rt x)) <+> showPPos p
     pretty _ = "TODO pretty ResourceModifier"
 
 instance Pretty RSearchExpression where

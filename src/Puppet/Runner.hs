@@ -6,14 +6,17 @@
 -- * the stdlib functions
 -- * a bunch of pure runners
 --
--- Naturally nothing from "Runner" should be used in lower abstraction layers.
+-- Naturally nothing from "Puppet.Runner" should be used in lower abstraction layers.
 module Puppet.Runner(
-    module Puppet.Runner.Daemon
-  , module Puppet.Runner.Preferences
+  -- * Preferences
+    module Puppet.Runner.Preferences
+  -- * Pure
   , module Puppet.Runner.Pure
+  -- * Stats
   , module Puppet.Runner.Stats
   , module Puppet.Runner.Stdlib
-  , module Puppet.Language
+  , module Puppet.Runner.Daemon
+  , module Puppet.Interpreter
   )
   where
 
@@ -22,4 +25,4 @@ import Puppet.Runner.Preferences
 import Puppet.Runner.Stats
 import Puppet.Runner.Stdlib
 import Puppet.Runner.Pure
-import Puppet.Language
+import Puppet.Interpreter

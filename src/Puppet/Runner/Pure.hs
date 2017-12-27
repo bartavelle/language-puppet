@@ -1,10 +1,9 @@
 -- | Publicly exposed pure helpers to evaluate the 'InterpreterMonad'
 -- functions that can be found in "Puppet.Interpreter" and
--- "Puppet.Interpreter.Resolve". They are used to power some prisms from
--- "Puppet.Lens".
+-- "Puppet.Interpreter.Resolve".
 --
--- > > dummyEval (resolveExpression (Addition "1" "2"))
--- > Right (PString "3")
+-- >>> dummyEval (resolveExpression (Addition "1" "2"))
+-- Right (PString "3")
 module Puppet.Runner.Pure (
     dummyEval
   , dummyFacts
@@ -20,7 +19,7 @@ import qualified Data.HashMap.Strict   as HM
 
 import           Erb
 import           Facter
-import           Hiera
+import           Hiera.Server
 import           Puppet.Interpreter
 import           Puppet.Parser
 import           Puppet.Runner.Erb
@@ -40,36 +39,34 @@ dummyTemplate (Left cnt) s _ =
             Right x -> S.Right x
             Left e  -> S.Left (PrettyError e)
 
--- | Worst name ever, this is a set of pure stub for the 'ImpureMethods'
--- type.
-impurePure :: IoMethods Identity
-impurePure = IoMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ())
-
 -- | A pure 'InterpreterReader', that can only evaluate a subset of the
 -- templates, and that can include only the supplied top level statements.
 pureReader :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level statement map
            -> InterpreterReader Identity
-pureReader sttmap = InterpreterReader
-                      baseNativeTypes
-                      getstatementdummy
-                      dummyTemplate
-                      dummyPuppetDB
-                      mempty
-                      "dummy"
-                      hieradummy
-                      impurePure
-                      mempty
-                      mempty
-                      True
-                      (puppetPaths "/etc/puppet")
-                      Nothing
-    where
-        pure_hiera :: HieraQueryFunc Identity
-        pure_hiera _ _ _ = pure (S.Right (Just "pure"))
-        hieradummy = HieraQueryLayers pure_hiera mempty
-        getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
-          Just x  -> S.Right x
-          Nothing -> S.Left "Can't get statement"
+pureReader sttmap =
+  InterpreterReader
+    baseNativeTypes
+    getstatementdummy
+    dummyTemplate
+    dummyPuppetDB
+    mempty
+    "dummy"
+    hieradummy
+    iomethods_purestubs
+    mempty
+    mempty
+    True
+    (puppetPaths "/etc/puppet")
+    Nothing
+  where
+    pure_hiera :: HieraQueryFunc Identity
+    pure_hiera _ _ _ = pure (S.Right (Just "pure"))
+    hieradummy = HieraQueryLayers pure_hiera mempty
+    getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
+      Just x  -> S.Right x
+      Nothing -> S.Left "Can't get statement"
+    iomethods_purestubs :: IoMethods Identity
+    iomethods_purestubs = IoMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ())
 
 -- | Evaluates an interpreter expression in a pure context.
 pureEval :: Facts -- ^ A list of facts that will be used during evaluation

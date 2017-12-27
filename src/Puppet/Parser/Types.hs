@@ -3,13 +3,7 @@
 {-# LANGUAGE TypeFamilies    #-}
 -- | All the types used for parsing, and helpers working on these types.
 module Puppet.Parser.Types
- ( -- * Position management
-   initialPPos,
-   toPPos,
-   -- * Helpers
-   rel2text,
-   -- * Types
-   -- ** Expressions
+ ( -- ** Expressions
    Expression(..),
    SelectorCase(..),
    UnresolvedValue(..),
@@ -41,9 +35,6 @@ module Puppet.Parser.Types
    DefineDecl(..),
    NodeDecl(..),
    VarAssignDecl(..),
-   vadname,
-   vadpos,
-   vadvalue,
    MainFuncDecl(..),
    HigherOrderLambdaDecl(..),
    ResCollDecl(..)
@@ -57,16 +48,9 @@ import qualified Data.Text           as Text
 import qualified Data.Vector         as V
 import qualified GHC.Exts            as Exts
 import           GHC.Show            (Show (..))
-import           Text.Megaparsec.Pos
 
 import           Puppet.Language
 
-
--- | Generates an initial position based on a filename.
-initialPPos :: Text -> PPosition
-initialPPos x =
-    let i = initialPos (toS x)
-    in (i :!: i)
 
 
 -- | /High Order lambdas/.
@@ -315,4 +299,3 @@ data Statement
     deriving (Eq, Show)
 
 makeClassy ''HOLambdaCall
-makeLenses ''VarAssignDecl

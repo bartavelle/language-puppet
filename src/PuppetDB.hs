@@ -35,13 +35,13 @@ getDefaultDB PDBRemote = do
   url <- parseBaseUrl "http://localhost:8080"
   mgr <- newManager defaultManagerSettings
   pdbConnect mgr url
-getDefaultDB PDBTest   = lookupEnv "HOME" >>= \case
-                                Just h -> loadTestDB (h <> "/.testdb")
-                                Nothing -> fmap Right initTestDB
+getDefaultDB PDBTest =
+  lookupEnv "HOME" >>= \case
+    Just h -> loadTestDB (h <> "/.testdb")
+    Nothing -> fmap Right initTestDB
 
 
--- | A dummy implementation of 'PuppetDBAPI', that will return empty
--- responses.
+-- | A dummy implementation of 'PuppetDBAPI', that will return empty responses.
 dummyPuppetDB :: Monad m => PuppetDBAPI m
 dummyPuppetDB =
   PuppetDBAPI
@@ -59,9 +59,9 @@ dummyPuppetDB =
 -- serialized and fed to @puppet apply@.
 generateWireCatalog :: NodeName -> FinalCatalog -> EdgeMap -> WireCatalog
 generateWireCatalog node cat edgemap = WireCatalog node "version" edges resources "uiid"
-    where
-        edges     = toVectorOf (folded . to (\li -> PuppetEdge (li ^. linksrc) (li ^. linkdst) (li ^. linkType))) (concatOf folded edgemap)
-        resources = toVectorOf folded cat
+  where
+    edges     = toVectorOf (folded . to (\li -> PuppetEdge (li ^. linksrc) (li ^. linkdst) (li ^. linkType))) (concatOf folded edgemap)
+    resources = toVectorOf folded cat
 
 puppetDBFacts :: NodeName -> PuppetDBAPI IO -> IO (HashMap Text PValue)
 puppetDBFacts node pdbapi =

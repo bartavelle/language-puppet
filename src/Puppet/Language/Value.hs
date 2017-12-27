@@ -4,7 +4,7 @@ module Puppet.Language.Value
 
 where
 
-import           XPrelude hiding (show)
+import           XPrelude
 
 import           Data.Aeson
 import           Data.Aeson.Lens
@@ -61,64 +61,66 @@ instance Pretty DataType where
 
 $(deriveJSON defaultOptions ''DataType)
 
-data PValue = PBoolean !Bool
-            | PUndef
-            | PString !Text
-            | PResourceReference !Text !Text
-            | PArray !(Vector PValue)
-            | PHash !(Container PValue)
-            | PNumber !Scientific
-            | PType DataType
-            deriving (Eq, Show)
+-- | A puppet value.
+data PValue
+  = PBoolean !Bool
+  | PUndef
+  | PString !Text
+  | PResourceReference !Text !Text
+  | PArray !(Vector PValue)
+  | PHash !(Container PValue)
+  | PNumber !Scientific
+  | PType DataType
+  deriving (Eq, Show)
 
 makePrisms ''PValue
 
 instance Pretty PValue where
-    pretty (PBoolean True)          = dullmagenta $ ppline "true"
-    pretty (PBoolean False)         = dullmagenta $ ppline "false"
-    pretty (PString s)              = dullcyan (ppline (stringEscape s))
-    pretty (PNumber n)              = cyan (ppline (scientific2text n))
-    pretty PUndef                   = dullmagenta (ppline "undef")
-    pretty (PResourceReference t n) = capitalizeR t <> brackets (ppline n)
-    pretty (PArray v)               = list (map pretty (toList v))
-    pretty (PHash g)                = containerComma g
-    pretty (PType dt)               = pretty dt
+  pretty (PBoolean True) = dullmagenta $ ppline "true"
+  pretty (PBoolean False) = dullmagenta $ ppline "false"
+  pretty (PString s) = dullcyan (ppline (stringEscape s))
+  pretty (PNumber n) = cyan (ppline (scientific2text n))
+  pretty PUndef = dullmagenta (ppline "undef")
+  pretty (PResourceReference t n) = capitalizeR t <> brackets (ppline n)
+  pretty (PArray v) = list (map pretty (toList v))
+  pretty (PHash g) = containerComma g
+  pretty (PType dt) = pretty dt
 
 instance IsString PValue where
-    fromString = PString . toS
+  fromString = PString . toS
 
 instance Pretty (HashMap Text PValue) where
   pretty = containerComma
 
 instance AsNumber PValue where
-    _Number = prism num2PValue toNumber
-        where
-            num2PValue :: Scientific -> PValue
-            num2PValue = PNumber
-            toNumber :: PValue -> Either PValue Scientific
-            toNumber (PNumber n) = Right n
-            toNumber p@(PString x) = case text2Scientific x of
-                                         Just o -> Right o
-                                         _      -> Left p
-            toNumber p = Left p
+  _Number = prism num2PValue toNumber
+    where
+      num2PValue :: Scientific -> PValue
+      num2PValue = PNumber
+      toNumber :: PValue -> Either PValue Scientific
+      toNumber (PNumber n) = Right n
+      toNumber p@(PString x) = case text2Scientific x of
+        Just o -> Right o
+        _ -> Left p
+      toNumber p = Left p
 
 instance FromJSON PValue where
-    parseJSON Null       = return PUndef
-    parseJSON (Number n) = return $ PNumber n
-    parseJSON (String s) = return (PString s)
-    parseJSON (Bool b)   = return (PBoolean b)
-    parseJSON (Array v)  = fmap PArray (mapM parseJSON v)
-    parseJSON (Object o) = fmap PHash (mapM parseJSON o)
+  parseJSON Null = return PUndef
+  parseJSON (Number n) = return $ PNumber n
+  parseJSON (String s) = return (PString s)
+  parseJSON (Bool b) = return (PBoolean b)
+  parseJSON (Array v) = fmap PArray (mapM parseJSON v)
+  parseJSON (Object o) = fmap PHash (mapM parseJSON o)
 
 instance ToJSON PValue where
-    toJSON (PType t)                = toJSON t
-    toJSON (PBoolean b)             = Bool b
-    toJSON PUndef                   = Null
-    toJSON (PString s)              = String s
-    toJSON (PResourceReference _ _) = Null -- TODO
-    toJSON (PArray r)               = Array (fmap toJSON r)
-    toJSON (PHash x)                = Object (fmap toJSON x)
-    toJSON (PNumber n)              = Number n
+  toJSON (PType t) = toJSON t
+  toJSON (PBoolean b) = Bool b
+  toJSON PUndef = Null
+  toJSON (PString s) = String s
+  toJSON (PResourceReference _ _) = Null -- TODO
+  toJSON (PArray r) = Array (fmap toJSON r)
+  toJSON (PHash x) = Object (fmap toJSON x)
+  toJSON (PNumber n) = Number n
 
 instance ToRuby PValue where
     toRuby = toRuby . toJSON

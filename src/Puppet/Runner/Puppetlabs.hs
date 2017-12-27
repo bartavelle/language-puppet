@@ -1,4 +1,4 @@
--- | Contains an Haskell implementation (or mock implementation) of some ruby functions found in puppetlabs modules
+-- | Contains an Haskell implementation (or mock implementation) of some ruby functions found in puppetlabs modules.
 module Puppet.Runner.Puppetlabs (extFunctions) where
 
 import           XPrelude
@@ -32,8 +32,9 @@ extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
           , ("/extlib", "cache_data", mockCacheData)
           ]
 
--- | Build the map of available ext functions
--- If the ruby file is not found on the local filesystem the record is ignored. This is to avoid potential namespace conflict
+-- | Build the map of available external functions.
+--
+-- If the ruby file is not found on the local filesystem the record is ignored. This is to avoid potential namespace conflict.
 extFunctions :: FilePath -> IO (Container ( [PValue] -> InterpreterMonad PValue))
 extFunctions modpath = foldlM f HM.empty extFun
   where
@@ -55,7 +56,7 @@ pgPassword [PString username, PString pwd] =
     return $ PString $ "md5" <> md5 (pwd <> username)
 pgPassword _ = throwPosError "expects 2 string arguments"
 
--- | The function is pure and always return the same "random" password
+-- | The function is pure and always return the same "random" password.
 randomPassword :: MonadThrowPos m => [PValue] -> m PValue
 randomPassword [PNumber s] =
   PString . Text.pack . randomChars <$> scientificToInt s
@@ -65,12 +66,12 @@ randomPassword [PNumber s] =
 randomPassword _ = throwPosError "expect one single string arguments"
 
 
--- | To be implemented if needed
+-- To be implemented if needed.
 mockJenkinsPrefix :: MonadThrowPos m => [PValue] -> m PValue
 mockJenkinsPrefix [] = return $ PString ""
 mockJenkinsPrefix arg@_ = throwPosError $ "expect no argument" <+> pretty arg
 
--- | To be implemented if needed
+-- To be implemented if needed.
 mockJenkinsPort :: MonadThrowPos m => [PValue] -> m PValue
 mockJenkinsPort [] = return $ PString "8080"
 mockJenkinsPort arg@_ = throwPosError $ "expect no argument" <+> pretty arg

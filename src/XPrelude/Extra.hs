@@ -1,8 +1,9 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE RankNTypes       #-}
 -- | General specific prelude for language-puppet
--- | Customization of the Protolude with extra specific utilities
+-- | Customization of the Protolude with extra specific utilities.
 module XPrelude.Extra (
       module Exports
     , String
@@ -100,14 +101,14 @@ textElem :: Char -> Text -> Bool
 textElem c = Text.any (==c)
 
 
--- | See System.FilePath.Posix
+-- | See "System.FilePath.Posix"
 takeBaseName :: Text -> Text
 takeBaseName fullname =
   let afterLastSlash = List.last $ Text.splitOn "/" fullname
       splitExtension = List.init $ Text.splitOn "." afterLastSlash
   in Text.intercalate "." splitExtension
 
--- | helper for hashmap, in case we want another kind of map ..
+-- | Helper for hashmap, in case we want another kind of map.
 ifromList :: (Monoid m, At m, Foldable f) => f (Index m, IxValue m) -> m
 {-# INLINABLE ifromList #-}
 ifromList = foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
@@ -166,7 +167,7 @@ getDirectoryContents fpath = do
 isEmpty :: (Eq x, Monoid x) => x -> Bool
 isEmpty = (== mempty)
 
--- | remove the '::' token from a text if any
+-- | Remove the '::' token from a text if any.
 dropInitialColons :: Text -> Text
 dropInitialColons t = fromMaybe t (Text.stripPrefix "::" t)
 
@@ -191,7 +192,7 @@ logError = Log.errorM "language-puppet" . toS
 logDebugStr :: String -> IO ()
 logDebugStr = Log.debugM "language-puppet"
 
--- | In case of a Left value, print the error and exit immediately
+-- | In case of a Left value, print the error and exit immediately.
 checkError :: Show e => Doc -> Either e a -> IO a
 checkError desc = either exit return
     where

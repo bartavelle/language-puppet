@@ -11,7 +11,7 @@ import qualified System.IO.Temp      as IO
 import qualified System.Log.Logger   as Log
 import           Test.HUnit
 
-import           Hiera
+import           Hiera.Server
 
 main :: IO ()
 main = IO.withSystemTempDirectory "hieratest" $ \tmpfp -> do

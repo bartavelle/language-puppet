@@ -34,17 +34,20 @@ library
   hs-source-dirs: src
   exposed-modules:       Erb
                        , Facter
-                       , Hiera
+                       , Hiera.Server
                        , XPrelude
                        , PuppetDB
                        , Puppet.Language
                        , Puppet.Parser
                        , Puppet.Interpreter
                        , Puppet.Runner
-  other-modules:         Erb.Parser
+  other-modules:         XPrelude.Extra
+                       , XPrelude.PP
                        , Erb.Ruby
-                       , Hiera.Server
-                       , Hiera.Core
+                       , Erb.Parser
+                       , PuppetDB.Remote
+                       , PuppetDB.Core
+                       , PuppetDB.TestDB
                        , Puppet.Language.Core
                        , Puppet.Language.NativeTypes
                        , Puppet.Language.NativeTypes.Helpers
@@ -64,32 +67,27 @@ library
                        , Puppet.Language.Resource
                        , Puppet.Language.Value
                        , Puppet.Language.WireCatalog
-                       , Puppet.Interpreter.Helpers
-                       , Puppet.Interpreter.IO
-                       , Puppet.Interpreter.PrettyPrinter
-                       , Puppet.Interpreter.Resolve.Sprintf
-                       , Puppet.Interpreter.Resolve
-                       , Puppet.Interpreter.RubyRandom
-                       , Puppet.Interpreter.Types
                        , Puppet.Parser.PrettyPrinter
                        , Puppet.Parser.Types
                        , Puppet.Parser.Lens
-                       , Puppet.Runner.Daemon
+                       , Paths_language_puppet
+                       , Puppet.Interpreter.Types
+                       , Puppet.Interpreter.PrettyPrinter
+                       , Puppet.Interpreter.Helpers
+                       , Puppet.Interpreter.RubyRandom
+                       , Puppet.Interpreter.Resolve.Sprintf
+                       , Puppet.Interpreter.Resolve
+                       , Puppet.Interpreter.IO
+                       , Puppet.Runner.Stdlib
+                       , Puppet.Runner.Stats
+                       , Puppet.Runner.Puppetlabs
+                       , Puppet.Runner.Preferences
+                       , Puppet.Runner.Erb.Evaluate
+                       , Puppet.Runner.Erb
+                       , Puppet.Runner.Pure
                        , Puppet.Runner.Daemon.Manifests
                        , Puppet.Runner.Daemon.OptionalTests
-                       , Puppet.Runner.Erb
-                       , Puppet.Runner.Erb.Evaluate
-                       , Puppet.Runner.Preferences
-                       , Puppet.Runner.Puppetlabs
-                       , Puppet.Runner.Pure
-                       , Puppet.Runner.Stats
-                       , Puppet.Runner.Stdlib
-                       , PuppetDB.Remote
-                       , PuppetDB.Core
-                       , PuppetDB.TestDB
-                       , Paths_language_puppet
-                       , XPrelude.Extra
-                       , XPrelude.PP
+                       , Puppet.Runner.Daemon
   extensions:          OverloadedStrings, BangPatterns, NoImplicitPrelude
   ghc-options:         -Wall -funbox-strict-fields -j1
   -- ghc-prof-options:    -auto-all -caf-all
@@ -266,4 +264,4 @@ executable pdbquery
                      , unordered-containers
                      , vector
                      , yaml
-  main-is:             pdbQuery.hs
+  main-is: pdbQuery.hs

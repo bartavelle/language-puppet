@@ -45,33 +45,34 @@ instance ToJSON CompRegex where
 instance Pretty CompRegex where
   pretty (CompRegex r _) = pretty '/' <> ppline r <> pretty '/'
 
--- | Extremely hacky escaping system for text values
+-- | Extremely hacky escaping system for text values.
 stringEscape :: Text -> Text
 stringEscape = Text.concatMap escapeChar
-    where
-        escapeChar '"'  = "\\\""
-        escapeChar '\n' = "\\n"
-        escapeChar '\t' = "\\t"
-        escapeChar '\r' = "\\r"
-        escapeChar x    = Text.singleton x
+  where
+    escapeChar '"' = "\\\""
+    escapeChar '\n' = "\\n"
+    escapeChar '\t' = "\\t"
+    escapeChar '\r' = "\\r"
+    escapeChar x = Text.singleton x
 {-# INLINE stringEscape #-}
 
+-- | Capitalize resource type and convert into a 'Doc'.
 capitalizeR :: Text -> Doc
 capitalizeR = dullyellow . ppline . capitalizeRT
 
 -- | Properly capitalizes resource types.
 capitalizeRT :: Text -> Text
 capitalizeRT = Text.intercalate "::" . map capitalize' . Text.splitOn "::"
-    where
-        capitalize' :: Text -> Text
-        capitalize' t | Text.null t = Text.empty
-                      | otherwise = Text.cons (Char.toUpper (Text.head t)) (Text.tail t)
+  where
+    capitalize' :: Text -> Text
+    capitalize' t | Text.null t = Text.empty
+                  | otherwise = Text.cons (Char.toUpper (Text.head t)) (Text.tail t)
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins
   where
-      ins = mconcat $ intersperse (comma <> line <> mempty) (fmap showC x)
-      showC (a,b) = a <+> ppline "=>" <+> pretty b
+    ins = mconcat $ intersperse (comma <> line <> mempty) (fmap showC x)
+    showC (a,b) = a <+> ppline "=>" <+> pretty b
 
 containerComma' :: Pretty a => [(Doc, a)] -> Doc
 containerComma' = braces . containerComma''

@@ -10,7 +10,7 @@ import qualified Data.HashMap.Strict as Map
 import qualified Data.List           as List
 import           Options.Applicative
 
-import           Hiera
+import           Hiera.Server
 
 data Config
   = Config

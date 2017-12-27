@@ -3,9 +3,12 @@
 {-# LANGUAGE RankNTypes     #-}
 {-# LANGUAGE TupleSections  #-}
 
--- | This exposed module is all about converting and resolving foreign data into
--- the fully exploitable corresponding data type. The main use case is the
--- conversion of 'Expression' to 'PValue'.
+{-# LANGUAGE FlexibleContexts#-}
+
+-- | This module is all about converting and resolving foreign data into
+-- the fully exploitable corresponding data type.
+--
+-- The main use case is the conversion of 'Expression' to 'PValue'.
 module Puppet.Interpreter.Resolve
     ( -- * Pure resolution functions
       getVariable,
@@ -63,7 +66,7 @@ import           Data.Version                       (Version (..), parseVersion)
 import           Text.ParserCombinators.ReadP       (readP_to_S)
 import qualified Text.Regex.PCRE.ByteString.Utils   as Regex
 
-import           Hiera
+import           Hiera.Server
 import           Puppet.Interpreter.Helpers
 import           Puppet.Interpreter.PrettyPrinter   ()
 import           Puppet.Interpreter.Resolve.Sprintf (sprintf)

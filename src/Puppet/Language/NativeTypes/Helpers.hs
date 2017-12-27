@@ -116,17 +116,17 @@ addDefaults res = Right (res & rattributes %~ newparams)
 -- | Helper function that runs a validor on a 'PArray'
 runarray :: Text -> (Text -> PValue -> NativeTypeValidate) -> NativeTypeValidate
 runarray param func res = case res ^. rattributes . at param of
-    Just (PArray x) -> V.foldM (flip (func param)) res x
-    Just x          -> perror $ "Parameter" <+> paramname param <+> "should be an array, not" <+> pretty x
-    Nothing         -> Right res
+  Just (PArray x) -> V.foldM (flip (func param)) res x
+  Just x          -> perror $ "Parameter" <+> paramname param <+> "should be an array, not" <+> pretty x
+  Nothing         -> Right res
 
-{-| This checks that a given parameter is a string. If it is a 'ResolvedInt' or
-'ResolvedBool' it will convert them to strings.
+{-| This checks that a given parameter is a string. If it is a 'PBoolean' or
+'PNumber' it will convert them to a string.
 -}
 string :: Text -> NativeTypeValidate
 string param res = case res ^. rattributes . at param of
-    Just x  -> string' param x res
-    Nothing -> Right res
+  Just x  -> string' param x res
+  Nothing -> Right res
 
 strings :: Text -> NativeTypeValidate
 strings param = runarray param string'
@@ -134,17 +134,17 @@ strings param = runarray param string'
 -- | Validates a string or an array of strings
 string_s :: Text -> NativeTypeValidate
 string_s param res = case res ^. rattributes . at param of
-                         Nothing         -> Right res
-                         Just (PArray _) -> strings param res
-                         Just _          -> string param res
+  Nothing         -> Right res
+  Just (PArray _) -> strings param res
+  Just _          -> string param res
 
 string' :: Text -> PValue -> NativeTypeValidate
 string' param rev res = case rev of
-    PString _      -> Right res
-    PBoolean True  -> Right (res & rattributes . at param ?~ PString "true")
-    PBoolean False -> Right (res & rattributes . at param ?~ PString "false")
-    PNumber n      -> Right (res & rattributes . at param ?~ PString (scientific2text n))
-    x              -> perror $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
+  PString _      -> Right res
+  PBoolean True  -> Right (res & rattributes . at param ?~ PString "true")
+  PBoolean False -> Right (res & rattributes . at param ?~ PString "false")
+  PNumber n      -> Right (res & rattributes . at param ?~ PString (scientific2text n))
+  x              -> perror $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
 
 
 
@@ -161,22 +161,22 @@ values valuelist param res = case res ^. rattributes . at param of
 defaultvalue :: Text -> Text -> NativeTypeValidate
 defaultvalue value param = Right . over (rattributes . at param) (Just . fromMaybe (PString value))
 
--- | Checks that a given parameter, if set, is a 'ResolvedInt'.
+-- | Checks that a given parameter, if set, is a 'PNumber'.
 -- If it is a 'PString' it will attempt to parse it.
 integer :: Text -> NativeTypeValidate
 integer prm res = string prm res >>= integer' prm
-    where
-        integer' pr rs = case rs ^. rattributes . at pr of
-            Just x  -> integer'' prm x res
-            Nothing -> Right rs
+  where
+    integer' pr rs = case rs ^. rattributes . at pr of
+      Just x -> integer'' prm x res
+      Nothing -> Right rs
 
 integers :: Text -> NativeTypeValidate
 integers param = runarray param integer''
 
 integer'' :: Text -> PValue -> NativeTypeValidate
 integer'' param val res = case val ^? _Integer of
-    Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
-    _ -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
+  Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
+  _ -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
 
 -- | Copies the "name" value into the parameter if this is not set.
 -- It implies the `string` validator.

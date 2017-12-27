@@ -5,10 +5,24 @@
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE TemplateHaskell        #-}
 module Puppet.Runner.Preferences (
-    dfPreferences
-  , Strictness(..)
-  , HasPreferences(..)
-  , Preferences(Preferences)
+   Preferences(Preferences)
+  , prefPuppetPaths
+  , prefPDB
+  , prefNatTypes
+  , prefExtFuncs
+  , prefHieraPath
+  , prefIgnoredmodules
+  , prefStrictness
+  , prefExtraTests
+  , prefKnownusers
+  , prefKnowngroups
+  , prefExternalmodules
+  , prefPuppetSettings
+  , prefFactsOverride
+  , prefFactsDefault
+  , prefLogLevel
+  , prefRebaseFile
+  , dfPreferences
   , PuppetDirPaths
   , HasPuppetDirPaths(..)
 ) where
@@ -61,7 +75,7 @@ data Defaults = Defaults
   } deriving (Show)
 
 
-makeClassy ''Preferences
+makeLenses ''Preferences
 
 instance FromJSON Defaults where
   parseJSON (Object v) = Defaults
@@ -77,7 +91,7 @@ instance FromJSON Defaults where
                          <*> v .:? "rebasefile"
   parseJSON _ = mzero
 
--- | generate default preferences
+-- | Generate default preferences.
 dfPreferences :: FilePath
                -> IO (Preferences IO)
 dfPreferences basedir = do

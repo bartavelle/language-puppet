@@ -2,8 +2,18 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Puppet.Language.Resource
-
-where
+  ( Resource(..)
+  , HasResource(..)
+  , RIdentifier(..)
+  , HasRIdentifier(..)
+  , LinkInformation(..)
+  , HasLinkInformation(..)
+  , LinkType(..)
+  , Virtuality(..)
+  , CurContainerDesc(..)
+  , FinalCatalog
+  , EdgeMap
+  ) where
 
 import           XPrelude
 
@@ -25,17 +35,16 @@ rel2text RRequire   = "require"
 rel2text RBefore    = "before"
 rel2text RSubscribe = "subscribe"
 
--- | Resource declaration:
 data Virtuality
-    = Normal -- ^ Normal resource, that will be included in the catalog.
-    | Virtual -- ^ Type for virtual resources.
-    | Exported -- ^ Type for exported resources.
-    | ExportedRealized -- ^ These are resources that are exported AND included in the catalogderiving (Generic, Eq, Show).
-    deriving (Eq, Show)
+  = Normal -- ^ Normal resource, that will be included in the catalog.
+  | Virtual -- ^ Type for virtual resources.
+  | Exported -- ^ Type for exported resources.
+  | ExportedRealized -- ^ These are resources that are exported AND realized in the catalog.
+  deriving (Eq, Show)
 
 data CurContainerDesc
-  = ContRoot -- ^ Contained at node or root level
-  | ContClass !Text -- ^ Contained in a class
+  = ContRoot -- ^ Contained at node or root level.
+  | ContClass !Text -- ^ Contained in a class.
   | ContDefine !Text
                !Text
                !PPosition -- ^ Contained in a define, along with the position where this define was ... defined
@@ -51,12 +60,12 @@ instance Pretty CurContainerDesc where
   pretty (ContClass cname) = dullyellow (ppline "class") <+> dullgreen (ppline cname)
   pretty (ContDefine dtype dname _) = pretty (PResourceReference dtype dname)
 
--- | Relationship link type.
+-- | Relationship/ordering between resources.
 data LinkType
-  = RNotify
-  | RRequire
-  | RBefore
-  | RSubscribe
+  = RRequire -- ^ Applies a resource after the target resource.
+  | RBefore -- ^ Applies a resource before the target resource.
+  | RNotify -- ^ Applies a resource before the target resource. The target resource refreshes if the notifying resource changes.
+  | RSubscribe -- ^ Applies a resource after the target resource. The subscribing resource refreshes if the target resource changes.
   deriving (Show, Eq, Generic)
 
 instance Hashable LinkType
@@ -77,6 +86,7 @@ instance Pretty LinkType where
   pretty RBefore    = "->"
   pretty RSubscribe = "<~"
 
+-- | In Puppet, a resource is identified by a name and a type.
 data RIdentifier = RIdentifier
   { _itype :: !Text
   , _iname :: !Text
@@ -101,8 +111,8 @@ data Resource = Resource
   , _rattributes :: !(Container PValue) -- ^ Resource parameters.
   , _rrelations :: !(HashMap RIdentifier (HashSet LinkType)) -- ^ Resource relations.
   , _rscope :: ![CurContainerDesc] -- ^ Resource scope when it was defined, the real container will be the first item
-  , _rvirtuality :: !Virtuality
-  , _rtags :: !(HashSet Text)
+  , _rvirtuality :: !Virtuality -- ^ Virtuality.
+  , _rtags :: !(HashSet Text) -- ^ Tags.
   , _rpos :: !PPosition -- ^ Source code position of the resource definition.
   , _rnode :: !NodeName -- ^ The node were this resource was created, if remote
   } deriving (Eq, Show)
@@ -217,6 +227,7 @@ instance FromJSON Resource where
 
 type FinalCatalog = HashMap RIdentifier Resource
 
+-- | Relationship/ordering information between two resources (used in the 'EdgeMap').
 data LinkInformation = LinkInformation
   { _linksrc :: !RIdentifier
   , _linkdst :: !RIdentifier

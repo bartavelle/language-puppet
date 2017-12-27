@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE RecordWildCards        #-}
 
 {- | This module runs a Hiera server that caches Hiera data. There is
 a huge caveat : only the data files are watched for changes, not the main configuration file.
@@ -15,15 +16,20 @@ A minor bug is that interpolation will not work for inputs containing the % char
 module Hiera.Server (
     startHiera
   , dummyHiera
-    -- * Query API
+  , HieraQueryType (..)
+  , globalLayer
+  , moduleLayer
+  , readQueryType
   , HieraQueryFunc
+  , HieraQueryLayers(..)
 ) where
 
 import           XPrelude
 
-import           Data.Aeson           (Value (..))
+import           Data.Aeson
 import qualified Data.Aeson           as Aeson
 import           Data.Aeson.Lens
+import qualified Data.Attoparsec.Text as AT
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Either.Strict   as S
 import qualified Data.FileCache       as Cache
@@ -36,8 +42,134 @@ import qualified System.FilePath      as FilePath
 import           System.FilePath.Lens (directory)
 
 import           Puppet.Language
-import           Hiera.Core
 
+
+-- | The different kind of hiera queries.
+data HieraQueryType
+    = QFirst   -- ^ The first match in the hierarchy is returned.
+    | QUnique -- ^ Combines array and scalar values to return a merged, flattened array with all duplicate removed.
+    | QHash  -- ^ Combines the keys and values of any number of hashes to return a merged hash.
+    -- | Use of an Hash to specify the merge behavior
+    | QDeep { _knockoutPrefix :: Maybe Text
+            , _sortMerged     :: Bool
+            , _mergeHashArray :: Bool
+            } deriving (Show)
+
+readQueryType :: Text -> Maybe HieraQueryType
+readQueryType s =
+  case s of
+    "first"  -> Just QFirst
+    "unique" -> Just QUnique
+    "hash"   -> Just QHash
+    _        -> Nothing
+
+-- | The type of the Hiera API function associated to given hierarchy.
+type HieraQueryFunc m = Container Text -- ^ Scope: all variables that Hiera can interpolate (the top level ones are prefixed with '::')
+                     -> Text -- ^ The query
+                     -> HieraQueryType
+                     -> m (S.Either PrettyError (Maybe PValue))
+
+-- | All available queries including the global and module layer
+-- The environment layer is not implemented.
+data HieraQueryLayers m = HieraQueryLayers
+  { _globalLayer :: HieraQueryFunc m
+  , _moduleLayer :: Container (HieraQueryFunc m)
+  }
+
+makeLenses ''HieraQueryLayers
+
+data Backend
+  = YamlBackend FilePath
+  | JsonBackend FilePath
+  deriving (Show)
+
+data HieraStringPart
+  = HPString Text
+  | HPVariable Text
+  deriving (Show)
+
+instance Pretty HieraStringPart where
+  pretty (HPString t)   = ppline t
+  pretty (HPVariable v) = dullred (ppline ("%{" <> v <> "}"))
+  prettyList = mconcat . map pretty
+
+newtype InterpolableHieraString = InterpolableHieraString
+  { getInterpolableHieraString :: [HieraStringPart]
+  } deriving (Show)
+
+resolveString :: Container Text -> InterpolableHieraString -> Maybe Text
+resolveString vars = fmap Text.concat . mapM resolve . getInterpolableHieraString
+  where
+    resolve (HPString x)   = Just x
+    resolve (HPVariable v) = vars ^? ix v
+
+instance FromJSON InterpolableHieraString where
+  parseJSON (String s) = case parseInterpolableString s of
+    Right x -> return (InterpolableHieraString x)
+    Left rr -> fail rr
+  parseJSON _ = fail "Invalid value type"
+
+-- | An attoparsec parser that turns text into parts that are ready for interpolation.
+interpolableString :: AT.Parser [HieraStringPart]
+interpolableString = AT.many1 (fmap HPString rawPart <|> fmap HPVariable interpPart)
+  where
+    rawPart = AT.takeWhile1 (/= '%')
+    interpPart = AT.string "%{" *> AT.takeWhile1 (/= '}') <* AT.char '}'
+
+parseInterpolableString :: Text -> Either String [HieraStringPart]
+parseInterpolableString = AT.parseOnly interpolableString
+
+data HieraConfigFile = HieraConfigFile
+  { _version   :: Int
+  , _backends  :: [Backend]
+  , _hierarchy :: [InterpolableHieraString]
+  } deriving (Show)
+
+data QRead = QRead
+  { _qvars :: Container Text
+  , _qtype :: HieraQueryType
+  , _qhier :: [Value]
+  }
+
+makeLenses ''QRead
+
+instance FromJSON HieraConfigFile where
+  parseJSON =
+    let
+      mkHiera5 v = do
+        [hierarchy_value] <- v .: "hierarchy"
+        datadir <- case Object v ^? key "defaults" . key "datadir" of
+          Just (String dir) -> pure dir
+          Just _            -> fail "datadir should be a string"
+          Nothing           -> hierarchy_value .: "datadir" .!= "hieradata"
+        HieraConfigFile
+            <$> pure 5
+            <*> pure [ YamlBackend (toS datadir) ] -- TODO: support other backends if needed
+            <*> (hierarchy_value .:? "paths" .!= [InterpolableHieraString [HPString "common.yaml"]])
+      mkHiera3 v =
+        HieraConfigFile
+            <$> pure 3
+            <*> (v .:? ":backends" .!= ["yaml"] >>= mapM mkBackend3)
+            <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HPString "common"]])
+       where
+         mkBackend3 :: Text -> Yaml.Parser Backend
+         mkBackend3 name = do
+           (backendConstructor, skey) <- case name of
+                                             "yaml" -> return (YamlBackend, ":yaml")
+                                             "json" -> return (JsonBackend, ":json")
+                                             _      -> fail ("Unknown backend " <> toS name)
+           datadir <- case Object v ^? key skey . key ":datadir" of
+                             Just (String dir)   -> return dir
+                             Just _              -> fail ":datadir should be a string"
+                             Nothing             -> return "/etc/puppet/hieradata"
+           pure (backendConstructor (toS datadir))
+
+    in
+    Aeson.withObject "v3 or v5" $ \o ->
+      o .:? "version" >>= \case
+        Just (5::Int) -> mkHiera5 o
+        Just _ -> fail "Hiera configuration version different than 5 is not supported."
+        Nothing -> mkHiera3 o
 
 type Cache = Cache.FileCacheR String Value
 
@@ -50,20 +182,15 @@ startHiera fp =
       logInfoStr ("Detect a hiera configuration format in " <> fp <> " at version 4. This format is not recognized. Using a dummy hiera.")
       pure dummyHiera
     Left ex   -> panic (show ex)
-    Right cfg -> do
-      logInfoStr ("Detect a hiera configuration format in " <> fp <> " at version " <> show(cfg^.version))
+    Right cfg@HieraConfigFile{..} -> do
+      logInfoStr ("Detect a hiera configuration format in " <> fp <> " at version " <> show _version)
       cache <- Cache.newFileCache
       pure (query cfg fp cache)
 
--- | A dummy hiera function that will be used when hiera is not detected
+-- | A dummy hiera function that will be used when hiera is not detected.
 dummyHiera :: Monad m => HieraQueryFunc m
 dummyHiera _ _ _ = return $ S.Right Nothing
 
-resolveString :: Container Text -> InterpolableHieraString -> Maybe Text
-resolveString vars = fmap Text.concat . mapM resolve . getInterpolableHieraString
-  where
-    resolve (HPString x)   = Just x
-    resolve (HPVariable v) = vars ^? ix v
 
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
 query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt = do

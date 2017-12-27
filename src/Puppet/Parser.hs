@@ -9,13 +9,14 @@ module Puppet.Parser (
   , puppetParser
   , expression
   , datatype
-  -- * Utils
+  -- * Position
+  , initialPPos
   , dummypos
   , dummyppos
- -- * PP
+ -- * Pretty Printer
   , ppStatements
-  , module Puppet.Parser.Lens
   , module Puppet.Parser.Types
+  , module Puppet.Parser.Lens
 ) where
 
 import           XPrelude.Extra                   hiding (option, try)
@@ -565,10 +566,10 @@ resOverrideDecl = do
     return [ ResOverrideDecl restype n assignments (p :!: pe) | n <- names ]
 
 -- | Heterogeneous chain (interleaving resource declarations with
--- resource references)needs to be supported:
+-- resource references) needs to be supported:
 --
---   class { 'docker::service': } ->
---   Class['docker']
+--    class { 'docker::service': } ->
+--    Class['docker']
 chainableResources :: Parser [Statement]
 chainableResources = do
     let withresname = do
@@ -754,6 +755,12 @@ lambdaCall = do
                         [a]   -> return (BPSingle a)
                         [a,b] -> return (BPPair a b)
                         _     -> fail "Invalid number of variables between the pipes"
+
+-- | Generates an initial position based on a filename.
+initialPPos :: Text -> PPosition
+initialPPos x =
+    let i = initialPos (toS x)
+    in (i :!: i)
 
 dummyppos :: PPosition
 dummyppos = initialPPos "dummy"

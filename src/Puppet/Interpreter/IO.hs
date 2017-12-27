@@ -16,7 +16,7 @@ import           Control.Monad.State.Strict
 import qualified Data.Either.Strict               as S
 import qualified Data.Text                        as Text
 
-import           Hiera
+import           Hiera.Server
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
 import           PuppetDB

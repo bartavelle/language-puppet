@@ -10,41 +10,76 @@
 {-# LANGUAGE TemplateHaskell        #-}
 
 module Puppet.Interpreter.Types (
-  -- * Record & lenses
-   HasResDefaults(..)
- , ResDefaults(ResDefaults)
- , HasLinkInformation(..)
- , LinkInformation(LinkInformation)
- , HasScopeInformation(..)
- , ScopeInformation(ScopeInformation)
- , ScopeEnteringContext(..)
- , HasResourceModifier(..)
- , ResourceModifier(ResourceModifier)
- , HasIoMethods(..)
- , IoMethods(IoMethods)
- , HasCurContainer(..)
- , CurContainer(CurContainer)
-  -- ** Operational instructions
- , InterpreterInstr(..)
- , HasInterpreterReader(..)
+  -- * Operational state
+   InterpreterState(InterpreterState)
+ , scopes
+ , definedResources
+ , nestedDeclarations
+ , resModifiers
+ , extraRelations
+ , curScope
+ , curPos
+ , loadedClasses
+ -- * Operational reader
  , InterpreterReader(InterpreterReader)
- , HasInterpreterState(..)
- , InterpreterState(InterpreterState)
-  -- ** Misc
- , ResourceCollectorType(..)
- , RSearchExpression(..)
- , ModifierType(..)
- , Strictness(..)
- , TopLevelType(..)
- , ResRefOverride(..)
- , OverrideType(..)
- , ClassIncludeType(..)
-  -- * newtype & synonym
+ , readerNativeTypes
+ , readerGetStatement
+ , readerGetTemplate
+ , readerPdbApi
+ , readerExternalFunc
+ , readerNodename
+ , readerHieraQuery
+ , readerIoMethods
+ , readerIgnoredModules
+ , readerExternalModules
+ , readerIsStrict
+ , readerPuppetPaths
+ , readerRebaseFile
+ -- * Interpreter monad
  , InterpreterMonad
  , InterpreterWriter
-  -- * Classes
+ , InterpreterInstr(..)
+ , Strictness(..)
+ -- * Io methods
+ , IoMethods(IoMethods)
+ , ioGetCurrentCallStack
+ , ioReadFile
+ , ioTraceEvent
  , MonadThrowPos(..)
-  -- * Definitions
+ -- * Resource modifier
+ , ResourceModifier(ResourceModifier)
+ , rmResType
+ , rmDeclaration
+ , rmSearch
+ , rmType
+ , rmMutation
+ , rmModifierType
+ , ModifierType(..)
+ , OverrideType(..)
+ , ResourceCollectorType(..)
+ , ClassIncludeType(..)
+ , RSearchExpression(..)
+ -- * Scope information
+ , ScopeInformation(ScopeInformation)
+ , scopeResDefaults
+ , scopeVariables
+ , scopeParent
+ , scopeOverrides
+ , scopeContainer
+ , scopeExtraTags
+ , CurContainer(CurContainer)
+ , cctype
+ , cctags
+ -- * Resource default
+ , ResDefaults(ResDefaults)
+ , resDefValues
+ , resDefSrcScope
+ , resDefPos
+ , resDefType
+ , ResRefOverride(..)
+ , ScopeEnteringContext(..)
+ , TopLevelType(..)
+ -- * Re-export
  , module Puppet.Language
 ) where
 
@@ -65,7 +100,7 @@ import qualified System.Log.Logger           as Log
 
 import           Puppet.Language
 import           Puppet.Parser.Types
-import           Hiera
+import           Hiera.Server
 import           Facter
 import           PuppetDB
 
@@ -91,25 +126,22 @@ data RSearchExpression
   deriving (Show, Eq)
 
 -- | Puppet has two main ways to declare classes: include-like and resource-like
--- See <https://docs.puppetlabs.com/puppet/latest/reference/lang_classes.html#include-like-vs-resource-like puppet reference>
+-- See <https://docs.puppetlabs.com/puppet/latest/reference/lang_classes.html#include-like-vs-resource-like> puppet reference>
 data ClassIncludeType
   = ClassIncludeLike -- ^ using the include or contain function
   | ClassResourceLike -- ^ resource like declaration
   deriving (Eq)
 
--- | This type is used to differenciate the distinct top level types that are exposed by the DSL.
+-- | This type is used to differentiate the distinct top level types that are exposed by the DSL.
 data TopLevelType
-    -- |This is for node entries.
-    = TopNode
-    -- |This is for defines.
-    | TopDefine
-    -- |This is for classes.
-    | TopClass
-    deriving (Generic,Eq)
+  = TopNode -- ^ for node entries
+  | TopDefine -- ^ for defines
+  | TopClass -- ^ for classes
+  deriving (Generic, Eq)
 
 instance Hashable TopLevelType
 
--- | From the evaluation of Resource Default Declaration
+-- | From the evaluation of Resource Default Declaration.
 data ResDefaults = ResDefaults
   { _resDefType :: !Text
   , _resDefSrcScope :: !Text
@@ -117,7 +149,7 @@ data ResDefaults = ResDefaults
   , _resDefPos :: !PPosition
   }
 
--- | From the evaluation of Resource Override Declaration
+-- | From the evaluation of Resource Override Declaration.
 data ResRefOverride = ResRefOverride
   { _rrid :: !RIdentifier
   , _rrparams :: !(Container PValue)
@@ -129,7 +161,7 @@ data ScopeEnteringContext
   | SEChild !Text -- ^ We enter the scope as the child of another class
   | SEParent !Text -- ^ We enter the scope as the parent of another class
 
--- TODO related to Scope: explain ...
+-- | The type of the container together with its tags.
 data CurContainer = CurContainer
   { _cctype :: !CurContainerDesc
   , _cctags :: !(HashSet Text)
@@ -152,7 +184,13 @@ data InterpreterState = InterpreterState
   , _curPos :: !PPosition
   , _nestedDeclarations :: !(HashMap (TopLevelType, Text) Statement)
   , _extraRelations :: ![LinkInformation]
-  , _resMod :: ![ResourceModifier]
+  , _resModifiers :: ![ResourceModifier]
+  }
+
+data IoMethods m = IoMethods
+  { _ioGetCurrentCallStack :: m [String]
+  , _ioReadFile :: [Text] -> m (Either String Text)
+  , _ioTraceEvent :: String -> m ()
   }
 
 data InterpreterReader m = InterpreterReader
@@ -160,7 +198,7 @@ data InterpreterReader m = InterpreterReader
   , _readerGetStatement :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
   , _readerGetTemplate :: Either Text Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
   , _readerPdbApi :: PuppetDBAPI m
-  , _readerExternalFunc :: Container ([PValue] -> InterpreterMonad PValue) -- ^ external func such as stdlib or puppetlabs
+  , _readerExternalFunc :: Container ([PValue] -> InterpreterMonad PValue) -- ^ External func such as stdlib or puppetlabs
   , _readerNodename :: Text
   , _readerHieraQuery :: HieraQueryLayers m
   , _readerIoMethods :: IoMethods m
@@ -171,14 +209,8 @@ data InterpreterReader m = InterpreterReader
   , _readerRebaseFile :: Maybe FilePath
   }
 
-data IoMethods m = IoMethods
-  { _ioGetCurrentCallStack :: m [String]
-  , _ioReadFile :: [Text] -> m (Either String Text)
-  , _ioTraceEvent :: String -> m ()
-  }
-
 data InterpreterInstr a where
-  -- Utility for using what's in "InterpreterReader"
+  -- Utility for using what's in 'InterpreterReader'
   GetNativeTypes      :: InterpreterInstr (Container NativeTypeMethods)
   GetStatement        :: TopLevelType -> Text -> InterpreterInstr Statement
   ComputeTemplate     :: Either Text Text -> InterpreterState -> InterpreterInstr Text
@@ -259,14 +291,13 @@ data ResourceCollectorType
   deriving (Show, Eq)
 
 
-makeClassy ''ResRefOverride
-makeClassy ''ResDefaults
-makeClassy ''ResourceModifier
-makeClassy ''ScopeInformation
-makeClassy ''InterpreterState
-makeClassy ''InterpreterReader
-makeClassy ''IoMethods
-makeClassy ''CurContainer
+makeLenses ''ResDefaults
+makeLenses ''ResourceModifier
+makeLenses ''InterpreterReader
+makeLenses ''IoMethods
+makeLenses ''CurContainer
+makeLenses ''ScopeInformation
+makeLenses ''InterpreterState
 
 
 class Monad m => MonadThrowPos m where

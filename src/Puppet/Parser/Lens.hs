@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell  #-}
 module Puppet.Parser.Lens
  (
- -- * Lenses and prims for 'Statement's
+ -- * Prism for 'Statement's
    _Statements
  , _ResDecl
  , _ResDefaultDecl
@@ -16,7 +16,7 @@ module Puppet.Parser.Lens
  , _MainFuncDecl
  , _HigherOrderLambdaDecl
  , _DepDecl
- -- * Prim for 'Expression's
+ -- * Prism for 'Expression's
  , _Equal
  , _Different
  , _Not
