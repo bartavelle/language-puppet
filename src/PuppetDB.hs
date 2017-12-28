@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 -- | Common data types for PuppetDB.
 module PuppetDB
   ( dummyPuppetDB

@@ -29,8 +29,8 @@ import qualified Text.Regex.PCRE.String        as Reg
 
 import           Puppet.Parser                 hiding (Parser)
 import           Puppet.Runner
-import           PuppetDB                      (PuppetDBAPI, dummyPuppetDB,
-                                                pdbConnect, puppetDBFacts)
+import           PuppetDB                      (PuppetDBAPI, dummyPuppetDB, pdbConnect,
+                                                puppetDBFacts)
 import qualified PuppetDB
 
 type ParseError' = Megaparsec.ParseError Char Void
@@ -254,7 +254,7 @@ findDeadCode puppetdir catalogs allfiles = do
         allResources = parseSucceeded ^.. folded . folded . to getSubStatements . folded
         deadResources = filter isDead allResources
         isDead (ResourceDeclaration (ResDecl _ _ _ _ pp)) = not $ Set.member pp allpositions
-        isDead _ = True
+        isDead _                                          = True
     unless (null deadResources) $ do
         putDoc ("The following" <+> pretty (length deadResources) <+> "resource declarations are not used:" <> softline <> indent 4 (vcat (map pretty deadResources)) <> line )
 
@@ -391,7 +391,7 @@ run cmd@Options {_optNodename = Nothing, _optMultnodes = Just nodes, _optPuppetd
         Left err -> panic (show err)
         Right x -> return x
       let getNodeName (NodeDeclaration (NodeDecl (NodeName n) _ _ _)) = Just n
-          getNodeName _ = Nothing
+          getNodeName _                                               = Nothing
       return $ mapMaybe getNodeName (V.toList allstmts)
     retrieveNodes (MultNodes xs) = pure xs
 

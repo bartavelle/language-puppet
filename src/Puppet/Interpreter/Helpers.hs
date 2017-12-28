@@ -1,6 +1,5 @@
 {-# OPTIONS_HADDOCK hide, prune, ignore-exports #-}
 {-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE RankNTypes            #-}
 
 -- | Internal helpers module.

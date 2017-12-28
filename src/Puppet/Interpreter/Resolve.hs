@@ -1,9 +1,8 @@
-{-# LANGUAGE LambdaCase     #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE RankNTypes     #-}
-{-# LANGUAGE TupleSections  #-}
+{-# LANGUAGE PackageImports   #-}
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE TupleSections    #-}
 
-{-# LANGUAGE FlexibleContexts#-}
+{-# LANGUAGE FlexibleContexts #-}
 
 -- | This module is all about converting and resolving foreign data into
 -- the fully exploitable corresponding data type.
@@ -33,11 +32,8 @@ module Puppet.Interpreter.Resolve
       hfGenerateAssociations,
       hfSetvars,
       hfRestorevars,
-      toNumbers,
       fixResourceName,
       datatypeMatch,
-      -- * Synonym
-      NumberPair
     ) where
 
 import           XPrelude.Extra
@@ -113,7 +109,7 @@ hieraCall qt q df dt _ = do
   runHiera qs qt >>= \case
     Just p  -> case dt of
       Just dt' | not (datatypeMatch dt' p) -> throwPosError "Datatype mismatched"
-      _ -> pure p
+      _        -> pure p
     Nothing -> case df of
       Just d  -> pure d
       Nothing -> throwPosError ("Lookup for " <> ppline qs <> " failed")
@@ -374,7 +370,7 @@ resolvePValueString x = throwPosError ("Don't know how to convert this to a stri
 resolvePValueNumber :: PValue -> InterpreterMonad Scientific
 resolvePValueNumber x =
   case x ^? _Number of
-    Just n -> pure n
+    Just n  -> pure n
     Nothing -> throwPosError ("Don't know how to convert this to a number:" <> line <> pretty x)
 
 -- | > resolveExpressionString = resolveExpression >=> resolvePValueString
@@ -392,8 +388,7 @@ resolveExpressionStrings x =
     PArray a -> mapM resolvePValueString (V.toList a)
     y -> fmap pure (resolvePValueString y)
 
--- | Turns a 'PValue' into a 'Bool', as explained in the reference
--- documentation.
+-- | Turns a 'PValue' into a 'Bool' as explained in the reference documentation.
 pValue2Bool :: PValue -> Bool
 pValue2Bool PUndef       = False
 pValue2Bool (PString "") = False
@@ -605,17 +600,17 @@ searchExpressionToPuppetDB :: Text -> RSearchExpression -> Query ResourceField
 searchExpressionToPuppetDB rtype res =
   QAnd ( QEqual RType (capitalizeRT rtype) : mkSE res )
   where
-    mkSE (RAndSearch a b) = [QAnd (mkSE a ++ mkSE b)]
-    mkSE (ROrSearch a b) = [QOr (mkSE a ++ mkSE b)]
-    mkSE (RNonEqualitySearch a b) = fmap QNot (mkSE (REqualitySearch a b))
+    mkSE (RAndSearch a b)                = [QAnd (mkSE a ++ mkSE b)]
+    mkSE (ROrSearch a b)                 = [QOr (mkSE a ++ mkSE b)]
+    mkSE (RNonEqualitySearch a b)        = fmap QNot (mkSE (REqualitySearch a b))
     mkSE (REqualitySearch a (PString b)) = [QEqual (mkFld a) b]
-    mkSE _ = []
+    mkSE _                               = []
     mkFld "tag"   = RTag
     mkFld "title" = RTitle
     mkFld z       = RParameter z
 
--- | Checks whether a given 'Resource' matches a 'RSearchExpression'. Note
--- that the expression doesn't check for type, so you must filter the
+-- | Checks whether a given 'Resource' matches a 'RSearchExpression'.
+-- Note that the expression doesn't check for type, so you must filter the
 -- resources by type beforehand, if needs be.
 checkSearchExpression :: RSearchExpression -> Resource -> Bool
 checkSearchExpression RAlwaysTrue _ = True
@@ -666,12 +661,12 @@ resolveDataType ud
       UDTAny              -> pure DTAny
       UDTCollection       -> pure DTCollection
 
--- | Generates variable associations for evaluation of blocks. Each item
--- corresponds to an iteration in the calling block.
+-- | Generates variable associations for evaluation of blocks.
+-- Each item corresponds to an iteration in the calling block.
 hfGenerateAssociations :: HOLambdaCall -> InterpreterMonad [[(Text, PValue)]]
 hfGenerateAssociations hol = do
   sourceexpression <- case hol ^. hoLambdaExpr of
-    S.Just x -> pure x
+    S.Just x  -> pure x
     S.Nothing -> throwPosError ("No expression to run the function on" <+> pretty hol)
   sourcevalue <- resolveExpression sourceexpression
   let check Nothing _ = pure ()
@@ -763,7 +758,7 @@ evaluateHFCPure hol' = do
       case sourcevalue of
         PArray ar -> pure $ PArray $ V.map fst $ V.filter snd $ V.zip ar (V.fromList res)
         PHash  hh -> pure $ PHash  $ HM.fromList $ map fst $ filter snd $ zip (HM.toList hh) res
-        x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
+        x         -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
     x -> throwPosError ("This type of function is not supported yet by language-puppet!" <+> pretty x)
 
 -- | Checks that a value matches a puppet datatype

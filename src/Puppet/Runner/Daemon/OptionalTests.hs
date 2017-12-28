@@ -1,14 +1,13 @@
-{-# LANGUAGE LambdaCase #-}
 -- | The module works in IO and throws a 'PrettyError' exception at each failure.
 -- These exceptions can be caught (see the exceptions package).
 module Puppet.Runner.Daemon.OptionalTests (testCatalog) where
 
 import           XPrelude
 
-import           Control.Monad.Catch (throwM)
-import qualified Data.HashSet        as Set
-import qualified Data.Text           as Text
-import           System.Posix.Files  (fileExist)
+import           Control.Monad.Catch       (throwM)
+import qualified Data.HashSet              as Set
+import qualified Data.Text                 as Text
+import           System.Posix.Files        (fileExist)
 
 import           Puppet.Language
 import           Puppet.Runner.Preferences
@@ -23,33 +22,33 @@ testCatalog prefs c =
 -- | Tests that all users and groups are defined
 testUsersGroups :: [Text] -> [Text] -> FinalCatalog -> IO ()
 testUsersGroups kusers kgroups c = do
-    let users = Set.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "user") ++ kusers
-        groups = Set.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "group") ++ kgroups
-        checkResource lu lg = mapM_ (checkResource' lu lg)
-        checkResource' lu lg res = do
-            let msg att name = align (vsep [ "Resource" <+> ppline (res^.rid.itype)
-                                             <+> ppline (res^.rid.iname) <+> showPos (res^.rpos._1)
-                                           , "references the unknown" <+> att <+> squotes (ppline name)])
-                               <> line
-            case lu of
-                Just lu' -> do
-                    let u = res ^. rattributes . lu' . _PString
-                    unless (Set.member u users) $ throwM $ PrettyError (msg "user" u)
-                Nothing -> pure ()
-            case lg of
-                Just lg' -> do
-                    let g = res ^. rattributes . lg' . _PString
-                    unless (Set.member g groups) $ throwM $ PrettyError (msg "group" g)
-                Nothing -> pure ()
-    do
-        checkResource (Just $ ix "owner") (Just $ ix "group") (getResourceFrom "file")
-        checkResource (Just $ ix "user")  (Just $ ix "group") (getResourceFrom "exec")
-        checkResource (Just $ ix "user")  Nothing             (getResourceFrom "cron")
-        checkResource (Just $ ix "user")  Nothing             (getResourceFrom "ssh_authorized_key")
-        checkResource (Just $ ix "user")  Nothing             (getResourceFrom "ssh_authorized_key_secure")
-        checkResource Nothing             (Just $ ix "gid")   (getResourceFrom "users")
-    where
-      getResourceFrom t = c ^.. traverse . filtered (\r -> r ^. rid . itype == t && r ^. rattributes . at "ensure" /= Just "absent")
+  let users = Set.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "user") ++ kusers
+      groups = Set.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "group") ++ kgroups
+      checkResource lu lg = mapM_ (checkResource' lu lg)
+      checkResource' lu lg res = do
+          let msg att name = align (vsep [ "Resource" <+> ppline (res^.rid.itype)
+                                           <+> ppline (res^.rid.iname) <+> showPos (res^.rpos._1)
+                                         , "references the unknown" <+> att <+> squotes (ppline name)])
+                             <> line
+          case lu of
+              Just lu' -> do
+                  let u = res ^. rattributes . lu' . _PString
+                  unless (Set.member u users) $ throwM $ PrettyError (msg "user" u)
+              Nothing -> pure ()
+          case lg of
+              Just lg' -> do
+                  let g = res ^. rattributes . lg' . _PString
+                  unless (Set.member g groups) $ throwM $ PrettyError (msg "group" g)
+              Nothing -> pure ()
+  do
+      checkResource (Just $ ix "owner") (Just $ ix "group") (getResourceFrom "file")
+      checkResource (Just $ ix "user")  (Just $ ix "group") (getResourceFrom "exec")
+      checkResource (Just $ ix "user")  Nothing             (getResourceFrom "cron")
+      checkResource (Just $ ix "user")  Nothing             (getResourceFrom "ssh_authorized_key")
+      checkResource (Just $ ix "user")  Nothing             (getResourceFrom "ssh_authorized_key_secure")
+      checkResource Nothing             (Just $ ix "gid")   (getResourceFrom "users")
+  where
+    getResourceFrom t = c ^.. traverse . filtered (\r -> r ^. rid . itype == t && r ^. rattributes . at "ensure" /= Just "absent")
 
 -- | Test source for every file resources in the catalog.
 testFileSources :: FilePath -> FinalCatalog -> IO ()

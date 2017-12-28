@@ -14,8 +14,11 @@ module Puppet.Runner(
   , module Puppet.Runner.Pure
   -- * Stats
   , module Puppet.Runner.Stats
+  -- * Sdlib
   , module Puppet.Runner.Stdlib
+  -- * Daemon
   , module Puppet.Runner.Daemon
+  -- * Re-export
   , module Puppet.Interpreter
   )
   where

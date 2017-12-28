@@ -1,8 +1,6 @@
-{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
 
 -- | This is an internal module.
 module Puppet.Interpreter.IO (

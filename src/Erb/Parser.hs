@@ -1,7 +1,6 @@
-{-# LANGUAGE LambdaCase #-}
 module Erb.Parser where
 
-import           XPrelude.Extra hiding (option, try)
+import           XPrelude.Extra         hiding (option, try)
 
 import           Control.Exception      (catch)
 import qualified Data.Text              as Text

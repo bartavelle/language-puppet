@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
-{-# LANGUAGE LambdaCase       #-}
 module Puppet.Runner.Daemon.Manifests (filterStatements) where
 
 import           XPrelude
@@ -29,17 +28,17 @@ filterStatements TopNode ndename stmts =
       checkRegexp [] = return Nothing
       checkRegexp ((regexp  :!: s):xs) =
         case Regex.execute' regexp bsnodename of
-          Left rr -> throwError (PrettyError ("Regexp match error:" <+> ppline (show rr)))
-          Right Nothing -> checkRegexp xs
+          Left rr        -> throwError (PrettyError ("Regexp match error:" <+> ppline (show rr)))
+          Right Nothing  -> checkRegexp xs
           Right (Just _) -> return (Just s)
-      strictEither (Left x) = S.Left x
+      strictEither (Left x)  = S.Left x
       strictEither (Right x) = S.Right x
   in case directnodes ^. at ndename of -- check if there is a node specifically called after my name
        Just r  -> return (S.Right (TopContainer spurious r))
        Nothing -> fmap strictEither $ runExceptT $ do
          regexpMatchM <- checkRegexp (V.toList regexpmatches) -- match regexps
          case regexpMatchM <|> defaultnode of -- check for regexp matches or use the default node
-           Just r -> return (TopContainer spurious r)
+           Just r  -> return (TopContainer spurious r)
            Nothing -> throwError (PrettyError ("Couldn't find node" <+> ppline ndename))
 filterStatements x ndename stmts =
   let (!spurious, !defines, !classes) = V.foldl' triage (V.empty, Map.empty, Map.empty) stmts
@@ -52,8 +51,8 @@ filterStatements x ndename stmts =
   in  case x of
         TopNode -> return (S.Left "Case already covered, shoudln't happen in Puppet.Manifests")
         TopDefine -> case defines ^. at ndename of
-          Just n -> return (S.Right (tc n))
+          Just n  -> return (S.Right (tc n))
           Nothing -> return (S.Left (PrettyError ("Couldn't find define " <+> ppline ndename)))
         TopClass -> case classes ^. at ndename of
-          Just n -> return (S.Right (tc n))
+          Just n  -> return (S.Right (tc n))
           Nothing -> return (S.Left (PrettyError ("Couldn't find class " <+> ppline ndename)))

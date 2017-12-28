@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Facter where
 
@@ -31,11 +30,11 @@ data FactInfo = FactInfo
 makeClassy ''FactInfo
 
 instance ToJSON FactInfo where
-    toJSON (FactInfo n f v) = object [("certname", String n), ("name", String f), ("value", toJSON v)]
+  toJSON (FactInfo n f v) = object [("certname", String n), ("name", String f), ("value", toJSON v)]
 
 instance FromJSON FactInfo where
-    parseJSON (Object v) = FactInfo <$> v .: "certname" <*> v .: "name" <*> v .: "value"
-    parseJSON _ = fail "invalid fact info"
+  parseJSON (Object v) = FactInfo <$> v .: "certname" <*> v .: "name" <*> v .: "value"
+  parseJSON _          = fail "invalid fact info"
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -43,14 +42,14 @@ storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
 getPrefix :: Int -> String
 getPrefix n | null fltr = error $ "Could not get unit prefix for order " ++ show n
             | otherwise = fst $ head fltr
-    where fltr = filter (\(_, x) -> x == n) storageunits
+  where fltr = filter (\(_, x) -> x == n) storageunits
 
 getOrder :: String -> Int
 getOrder n | null fltr = error $ "Could not get order for unit prefix " ++ show n
            | otherwise = snd $ head fltr
-    where
-        nu = map toUpper n
-        fltr = filter (\(x, _) -> x == nu) storageunits
+  where
+    nu = map toUpper n
+    fltr = filter (\(x, _) -> x == nu) storageunits
 
 normalizeUnit :: (Double, Int) -> Double -> (Double, Int)
 normalizeUnit (unit, order) base | unit > base = normalizeUnit (unit/base, order + 1) base
@@ -58,12 +57,12 @@ normalizeUnit (unit, order) base | unit > base = normalizeUnit (unit/base, order
 
 storagedesc :: (String, String) -> String
 storagedesc (ssize, unit) = let
-    size = read ssize :: Double
-    uprefix | unit == "B" = ""
-            | otherwise = [head unit]
-    uorder = getOrder uprefix
-    (osize, oorder) = normalizeUnit (size, uorder) 1024
-    in printf "%.2f %sB" osize (getPrefix oorder)
+  size = read ssize :: Double
+  uprefix | unit == "B" = ""
+          | otherwise = [head unit]
+  uorder = getOrder uprefix
+  (osize, oorder) = normalizeUnit (size, uorder) 1024
+  in printf "%.2f %sB" osize (getPrefix oorder)
 
 factRAM :: IO [(String, String)]
 factRAM = do

@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Puppet.Language.WireCatalog
 

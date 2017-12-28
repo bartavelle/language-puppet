@@ -88,7 +88,7 @@ library
                        , Puppet.Runner.Daemon.Manifests
                        , Puppet.Runner.Daemon.OptionalTests
                        , Puppet.Runner.Daemon
-  extensions:          OverloadedStrings, BangPatterns, NoImplicitPrelude
+  extensions:          OverloadedStrings, BangPatterns, LambdaCase, NoImplicitPrelude
   ghc-options:         -Wall -funbox-strict-fields -j1
   -- ghc-prof-options:    -auto-all -caf-all
   build-depends:       aeson                >= 0.8

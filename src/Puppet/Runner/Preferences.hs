@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE TemplateHaskell        #-}
 module Puppet.Runner.Preferences (
    Preferences(Preferences)
@@ -43,35 +41,35 @@ import           Puppet.Runner.Stdlib
 import           PuppetDB
 
 data Preferences m = Preferences
-  { _prefPuppetPaths :: PuppetDirPaths
-  , _prefPDB :: PuppetDBAPI m
-  , _prefNatTypes :: Container NativeTypeMethods -- ^ The list of native types.
-  , _prefExtFuncs :: Container ([PValue] -> InterpreterMonad PValue)
-  , _prefHieraPath :: Maybe FilePath
-  , _prefIgnoredmodules :: HS.HashSet Text
-  , _prefStrictness :: Strictness
-  , _prefExtraTests :: Bool
-  , _prefKnownusers :: [Text]
-  , _prefKnowngroups :: [Text]
+  { _prefPuppetPaths     :: PuppetDirPaths
+  , _prefPDB             :: PuppetDBAPI m
+  , _prefNatTypes        :: Container NativeTypeMethods -- ^ The list of native types.
+  , _prefExtFuncs        :: Container ([PValue] -> InterpreterMonad PValue)
+  , _prefHieraPath       :: Maybe FilePath
+  , _prefIgnoredmodules  :: HS.HashSet Text
+  , _prefStrictness      :: Strictness
+  , _prefExtraTests      :: Bool
+  , _prefKnownusers      :: [Text]
+  , _prefKnowngroups     :: [Text]
   , _prefExternalmodules :: HS.HashSet Text
-  , _prefPuppetSettings :: Container Text
-  , _prefFactsOverride :: Container PValue
-  , _prefFactsDefault :: Container PValue
-  , _prefLogLevel :: LOG.Priority
-  , _prefRebaseFile :: Maybe FilePath -- ^ Make all calls to file() with absolute pathes relative to the given path.
+  , _prefPuppetSettings  :: Container Text
+  , _prefFactsOverride   :: Container PValue
+  , _prefFactsDefault    :: Container PValue
+  , _prefLogLevel        :: LOG.Priority
+  , _prefRebaseFile      :: Maybe FilePath -- ^ Make all calls to file() with absolute pathes relative to the given path.
   }
 
 data Defaults = Defaults
-  { _dfKnownusers :: Maybe [Text]
-  , _dfKnowngroups :: Maybe [Text]
-  , _dfIgnoredmodules :: Maybe [Text]
-  , _dfStrictness :: Maybe Strictness
-  , _dfExtratests :: Maybe Bool
+  { _dfKnownusers      :: Maybe [Text]
+  , _dfKnowngroups     :: Maybe [Text]
+  , _dfIgnoredmodules  :: Maybe [Text]
+  , _dfStrictness      :: Maybe Strictness
+  , _dfExtratests      :: Maybe Bool
   , _dfExternalmodules :: Maybe [Text]
-  , _dfPuppetSettings :: Maybe (Container Text)
-  , _dfFactsDefault :: Maybe (Container PValue)
-  , _dfFactsOverride :: Maybe (Container PValue)
-  , _dfRebaseFile :: Maybe FilePath
+  , _dfPuppetSettings  :: Maybe (Container Text)
+  , _dfFactsDefault    :: Maybe (Container PValue)
+  , _dfFactsOverride   :: Maybe (Container PValue)
+  , _dfRebaseFile      :: Maybe FilePath
   } deriving (Show)
 
 

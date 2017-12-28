@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase    #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes    #-}
 {-# LANGUAGE TupleSections #-}
@@ -142,9 +141,9 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
 
 singleArgument :: Text -> (PValue -> InterpreterMonad PValue) -> (Text, [PValue] -> InterpreterMonad PValue )
 singleArgument fname ifunc = (fname, ofunc)
-    where
-        ofunc [x] = ifunc x
-        ofunc _ = throwPosError (ppline fname <> "(): Expects a single argument.")
+  where
+    ofunc [x] = ifunc x
+    ofunc _   = throwPosError (ppline fname <> "(): Expects a single argument.")
 
 safeEmptyString :: (Text -> Text) -> Text -> Text
 safeEmptyString _ "" = ""
@@ -157,9 +156,10 @@ stringArrayFunction _ [a] = throwPosError ("function expects a string or an arra
 stringArrayFunction _ _ = throwPosError "function expects a single argument"
 
 compileRE :: Text -> InterpreterMonad Regex
-compileRE r = case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 r) of
-                  Left rr -> throwPosError ("Could not compile" <+> ppline r <+> ":" <+> ppline (show rr))
-                  Right x -> return x
+compileRE r =
+  case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 r) of
+    Left rr -> throwPosError ("Could not compile" <+> ppline r <+> ":" <+> ppline (show rr))
+    Right x -> return x
 
 matchRE :: Regex -> Text -> InterpreterMonad Bool
 matchRE r t =
@@ -169,15 +169,15 @@ matchRE r t =
 
 puppetAbs :: PValue -> InterpreterMonad PValue
 puppetAbs y = case y ^? _Number of
-                  Just x -> return $ _Number # abs x
+                  Just x  -> return $ _Number # abs x
                   Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
 
 assertPrivate :: [PValue] -> InterpreterMonad PValue
 assertPrivate args =
   case args of
-    [] -> go Nothing
+    []   -> go Nothing
     [pv] -> resolvePValueString pv >>= go . Just
-    _ -> throwPosError "assert_private: expects no or a single string argument"
+    _    -> throwPosError "assert_private: expects no or a single string argument"
   where
     go :: Maybe Text -> InterpreterMonad PValue
     go msg = do
@@ -193,21 +193,22 @@ assertPrivate args =
 any2array :: [PValue] -> InterpreterMonad PValue
 any2array [PArray v] = return (PArray v)
 any2array [PHash h] = return (PArray lst)
-    where lst = V.fromList $ concatMap arraypair $ HM.toList h
-          arraypair (a,b) = [PString a, b]
+  where
+    lst = V.fromList $ concatMap arraypair $ HM.toList h
+    arraypair (a,b) = [PString a, b]
 any2array [x] = return (PArray (V.singleton x))
 any2array x = return (PArray (V.fromList x))
 
 base64 :: [PValue] -> InterpreterMonad PValue
 base64 [pa,pb] = do
-    b <- encodeUtf8 <$> (resolvePValueString pb)
-    r <- resolvePValueString pa >>= \case
-          "encode" -> return (B16.encode b)
-          "decode" -> case B16.decode b of
-                          (x, "") -> return x
-                          _       -> throwPosError ("base64(): could not decode" <+> pretty pb)
-          a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ppline a)
-    pure $ PString (decodeUtf8 r)
+  b <- encodeUtf8 <$> (resolvePValueString pb)
+  r <- resolvePValueString pa >>= \case
+        "encode" -> return (B16.encode b)
+        "decode" -> case B16.decode b of
+                      (x, "") -> return x
+                      _       -> throwPosError ("base64(): could not decode" <+> pretty pb)
+        a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ppline a)
+  pure $ PString (decodeUtf8 r)
 base64 _ = throwPosError "base64(): Expects 2 arguments"
 
 bool2num :: PValue -> InterpreterMonad PValue
@@ -229,42 +230,42 @@ bool2num x = throwPosError ("bool2num(): Can't convert" <+> pretty x <+> "to boo
 
 puppetConcat :: [PValue] -> InterpreterMonad PValue
 puppetConcat = return . PArray . V.concat . map toArr
-    where
-        toArr (PArray x) = x
-        toArr x          = V.singleton x
+  where
+    toArr (PArray x) = x
+    toArr x          = V.singleton x
 
 puppetCount :: [PValue] -> InterpreterMonad PValue
 puppetCount [PArray x] = return (_Integer # V.foldl' cnt 0 x)
-    where
-        cnt cur (PString "") = cur
-        cnt cur PUndef       = cur
-        cnt cur _            = cur + 1
+  where
+    cnt cur (PString "") = cur
+    cnt cur PUndef       = cur
+    cnt cur _            = cur + 1
 puppetCount [PArray x, y] = return (_Integer # V.foldl' cnt 0 x)
-    where
-        cnt cur z | y == z = cur + 1
-                  | otherwise = cur
+  where
+    cnt cur z | y == z = cur + 1
+              | otherwise = cur
 puppetCount _ = throwPosError "count(): expects 1 or 2 arguments"
 
 delete :: [PValue] -> InterpreterMonad PValue
 delete [PString x, y] = fmap (PString . Text.concat . (`Text.splitOn` x)) (resolvePValueString y)
 delete [PArray r, z] = return $ PArray $ V.filter (/= z) r
 delete [PHash h, z] = do
-   tz <- resolvePValueString z
-   return $ PHash (h & at tz .~ Nothing)
+  tz <- resolvePValueString z
+  return $ PHash (h & at tz .~ Nothing)
 delete [a,_] = throwPosError ("delete(): First argument must be an Array, String, or Hash. Given:" <+> pretty a)
 delete _ = throwPosError "delete(): expects 2 arguments"
 
 deleteAt :: [PValue] -> InterpreterMonad PValue
 deleteAt [PArray r, z] = case z ^? _Integer of
-                              Just gn ->
-                                let n = fromInteger gn
-                                    lr = V.length r
-                                    s1 = V.slice 0 n r
-                                    s2 = V.slice (n+1) (lr - n - 1) r
-                                in  if V.length r <= n
-                                       then throwPosError ("delete_at(): Out of bounds access detected, tried to remove index" <+> pretty z <+> "wheras the array only has" <+> pplines (show lr) <+> "elements")
-                                       else return (PArray (s1 <> s2))
-                              _ -> throwPosError ("delete_at(): The second argument must be an integer, not" <+> pretty z)
+  Just gn ->
+    let n = fromInteger gn
+        lr = V.length r
+        s1 = V.slice 0 n r
+        s2 = V.slice (n+1) (lr - n - 1) r
+    in  if V.length r <= n
+          then throwPosError ("delete_at(): Out of bounds access detected, tried to remove index" <+> pretty z <+> "wheras the array only has" <+> pplines (show lr) <+> "elements")
+          else return (PArray (s1 <> s2))
+  _ -> throwPosError ("delete_at(): The second argument must be an integer, not" <+> pretty z)
 deleteAt [x,_] = throwPosError ("delete_at(): expects its first argument to be an array, not" <+> pretty x)
 deleteAt _ = throwPosError "delete_at(): expects 2 arguments"
 
@@ -278,10 +279,10 @@ _empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PAr
 
 flatten :: PValue -> InterpreterMonad PValue
 flatten r@(PArray _) = return $ PArray (flatten' r)
-    where
-        flatten' :: PValue -> V.Vector PValue
-        flatten' (PArray x) = V.concatMap flatten' x
-        flatten' x          = V.singleton x
+  where
+    flatten' :: PValue -> V.Vector PValue
+    flatten' (PArray x) = V.concatMap flatten' x
+    flatten' x          = V.singleton x
 flatten x = throwPosError ("flatten(): Expects an Array, not" <+> pretty x)
 
 getvar :: PValue -> InterpreterMonad PValue
@@ -289,21 +290,21 @@ getvar = resolvePValueString >=> resolveVariable
 
 _grep :: [PValue] -> InterpreterMonad PValue
 _grep [PArray vls, rawre] = do
-    regexp <- resolvePValueString rawre >>= compileRE
-    rvls <- for vls $ \v -> do
-       r <- resolvePValueString v
-       ismatched <- matchRE regexp r
-       return (r, ismatched)
-    return $ PArray $ V.map (PString . fst) (V.filter snd rvls)
+  regexp <- resolvePValueString rawre >>= compileRE
+  rvls <- for vls $ \v -> do
+     r <- resolvePValueString v
+     ismatched <- matchRE regexp r
+     return (r, ismatched)
+  return $ PArray $ V.map (PString . fst) (V.filter snd rvls)
 _grep [x,_] = throwPosError ("grep(): The first argument must be an Array, not" <+> pretty x)
 _grep _ = throwPosError "grep(): Expected two arguments."
 
 hash :: [PValue] -> InterpreterMonad PValue
 hash [PArray elems] = do
-    let xs = mapMaybe assocPairs $ List.chunksOf 2 $ V.toList elems
-        assocPairs [a,b] = Just (a,b)
-        assocPairs _     = Nothing
-    PHash . HM.fromList <$> mapM (\(k,v) -> (,v) <$> resolvePValueString k) xs
+  let xs = mapMaybe assocPairs $ List.chunksOf 2 $ V.toList elems
+      assocPairs [a,b] = Just (a,b)
+      assocPairs _     = Nothing
+  PHash . HM.fromList <$> mapM (\(k,v) -> (,v) <$> resolvePValueString k) xs
 hash _ = throwPosError "hash(): Expected and array."
 
 isArray :: PValue -> InterpreterMonad PValue
@@ -311,17 +312,17 @@ isArray = return . PBoolean . has _PArray
 
 isDomainName :: PValue -> InterpreterMonad PValue
 isDomainName s = do
-    rs <- resolvePValueString s
-    let ndrs = if Text.last rs == '.'
-                   then Text.init rs
-                   else rs
-        prts = Text.splitOn "." ndrs
-        checkPart x = not (Text.null x)
-                        && (Text.length x <= 63)
-                        && (Text.head x /= '-')
-                        && (Text.last x /= '-')
-                        && Text.all (\y -> Char.isAlphaNum y || y == '-') x
-    return $ PBoolean $ not (Text.null rs) && Text.length rs <= 255 && all checkPart prts
+  rs <- resolvePValueString s
+  let ndrs = if Text.last rs == '.'
+               then Text.init rs
+               else rs
+      prts = Text.splitOn "." ndrs
+      checkPart x = not (Text.null x)
+                      && (Text.length x <= 63)
+                      && (Text.head x /= '-')
+                      && (Text.last x /= '-')
+                      && Text.all (\y -> Char.isAlphaNum y || y == '-') x
+  return $ PBoolean $ not (Text.null rs) && Text.length rs <= 255 && all checkPart prts
 
 isInteger :: PValue -> InterpreterMonad PValue
 isInteger = return . PBoolean . has _Integer
@@ -374,20 +375,22 @@ merge :: [PValue] -> InterpreterMonad PValue
 merge xs | length xs < 2 = throwPosError "merge(): Expects at least two hashes"
          | otherwise = let hashcontents = mapM (preview _PHash) xs
                        in  case hashcontents of
-                               Nothing -> throwPosError "merge(): Expects hashes"
+                               Nothing     -> throwPosError "merge(): Expects hashes"
                                Just hashes -> return $ PHash (getDual $ foldMap Dual hashes)
 
 pick :: [PValue] -> InterpreterMonad PValue
 pick [] = throwPosError "pick(): must receive at least one non empty value"
-pick xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
-              []    -> throwPosError "pick(): no value suitable to be picked"
-              (x:_) -> return x
+pick xs =
+  case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
+    [] -> throwPosError "pick(): no value suitable to be picked"
+    (x:_) -> return x
 
 pickDefault :: [PValue] -> InterpreterMonad PValue
 pickDefault [] = throwPosError "pick_default(): must receive at least one non empty value"
-pickDefault xs = case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
-                     []    -> return (List.last xs)
-                     (x:_) -> return x
+pickDefault xs =
+  case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
+    [] -> return (List.last xs)
+    (x:_) -> return x
 
 size :: PValue -> InterpreterMonad PValue
 size (PHash h) = return (_Integer # fromIntegral (HM.size h))
@@ -409,84 +412,84 @@ str2Bool :: PValue -> InterpreterMonad PValue
 str2Bool PUndef = return (PBoolean False)
 str2Bool a@(PBoolean _) = return a
 str2Bool a = do
-    s <- resolvePValueString a
-    let b | s `elem` ["", "1", "t", "y", "true", "yes"] = Just True
-          | s `elem` [    "0", "f", "n", "false", "no"] = Just False
-          | otherwise = Nothing
-    case b of
-        Just x  -> return (PBoolean x)
-        Nothing -> throwPosError "str2bool(): Unknown type of boolean given"
+  s <- resolvePValueString a
+  let b | s `elem` ["", "1", "t", "y", "true", "yes"] = Just True
+        | s `elem` [    "0", "f", "n", "false", "no"] = Just False
+        | otherwise = Nothing
+  case b of
+    Just x  -> return (PBoolean x)
+    Nothing -> throwPosError "str2bool(): Unknown type of boolean given"
 
 validateAbsolutePath :: [PValue] -> InterpreterMonad PValue
 validateAbsolutePath [] = throwPosError "validateAbsolutePath(): wrong number of arguments, must be > 0"
 validateAbsolutePath a = mapM_ (resolvePValueString >=> validate) a >> return PUndef
-    where
-        validate x | Text.head x == '/' = return ()
-                   | otherwise = throwPosError (ppline x <+> "is not an absolute path")
+  where
+    validate x | Text.head x == '/' = return ()
+               | otherwise = throwPosError (ppline x <+> "is not an absolute path")
 
 validateArray :: [PValue] -> InterpreterMonad PValue
 validateArray [] = throwPosError "validate_array(): wrong number of arguments, must be > 0"
 validateArray x = mapM_ vb x >> return PUndef
-    where
-        vb (PArray _) = return ()
-        vb y          = throwPosError (pretty y <+> "is not an array.")
+  where
+    vb (PArray _) = return ()
+    vb y          = throwPosError (pretty y <+> "is not an array.")
 
 validateBool :: [PValue] -> InterpreterMonad PValue
 validateBool [] = throwPosError "validate_bool(): wrong number of arguments, must be > 0"
 validateBool x = mapM_ vb x >> return PUndef
-    where
-        vb (PBoolean _) = return ()
-        vb y            = throwPosError (pretty y <+> "is not a boolean.")
+  where
+    vb (PBoolean _) = return ()
+    vb y            = throwPosError (pretty y <+> "is not a boolean.")
 
 validateHash :: [PValue] -> InterpreterMonad PValue
 validateHash [] = throwPosError "validate_hash(): wrong number of arguments, must be > 0"
 validateHash x = mapM_ vb x >> return PUndef
-    where
-        vb (PHash _) = return ()
-        vb y         = throwPosError (pretty y <+> "is not a hash.")
+  where
+    vb (PHash _) = return ()
+    vb y         = throwPosError (pretty y <+> "is not a hash.")
 
 validateNumeric :: [PValue] -> InterpreterMonad PValue
 validateNumeric [] = throwPosError "validate_numeric: invalid arguments"
 validateNumeric (arr:extra) = do
-    (mn, mx) <- case extra of
-                    [mx'] -> (Nothing,) . Just <$> resolvePValueNumber mx'
-                    [PUndef, mi'] -> (,Nothing) . Just <$> resolvePValueNumber mi'
-                    [mx',mi'] -> (,) <$> (Just <$> resolvePValueNumber mi') <*> (Just <$> resolvePValueNumber mx')
-                    [] -> pure (Nothing, Nothing)
-                    _ -> throwPosError "validate_numeric: invalid arguments"
-    numbers <- case arr of
-        PArray lst -> mapM resolvePValueNumber (V.toList lst)
-        _          -> pure <$> resolvePValueNumber arr
-    forM_ mn $ \mn' -> unless (all (>= mn') numbers) $ throwPosError "validate_numeric: failure"
-    forM_ mx $ \mx' -> unless (all (<= mx') numbers) $ throwPosError "validate_numeric: failure"
-    return PUndef
+  (mn, mx) <- case extra of
+                  [mx'] -> (Nothing,) . Just <$> resolvePValueNumber mx'
+                  [PUndef, mi'] -> (,Nothing) . Just <$> resolvePValueNumber mi'
+                  [mx',mi'] -> (,) <$> (Just <$> resolvePValueNumber mi') <*> (Just <$> resolvePValueNumber mx')
+                  [] -> pure (Nothing, Nothing)
+                  _ -> throwPosError "validate_numeric: invalid arguments"
+  numbers <- case arr of
+      PArray lst -> mapM resolvePValueNumber (V.toList lst)
+      _          -> pure <$> resolvePValueNumber arr
+  forM_ mn $ \mn' -> unless (all (>= mn') numbers) $ throwPosError "validate_numeric: failure"
+  forM_ mx $ \mx' -> unless (all (<= mx') numbers) $ throwPosError "validate_numeric: failure"
+  return PUndef
 
 validateRe :: [PValue] -> InterpreterMonad PValue
 validateRe [str, reg] = validateRe [str, reg, PString "Match failed"]
 validateRe [str, PString reg, msg] = validateRe [str, PArray (V.singleton (PString reg)), msg]
 validateRe [str, PArray v, msg] = do
-    rstr <- resolvePValueString str
-    rest <- mapM (resolvePValueString >=> compileRE >=> flip matchRE rstr) (V.toList v)
-    if or rest
-        then return PUndef
-        else throwPosError (pretty msg <> line <> "Source string:" <+> pretty str <> comma <+> "regexps:" <+> pretty (V.toList v))
+  rstr <- resolvePValueString str
+  rest <- mapM (resolvePValueString >=> compileRE >=> flip matchRE rstr) (V.toList v)
+  if or rest
+    then return PUndef
+    else throwPosError (pretty msg <> line <> "Source string:" <+> pretty str <> comma <+> "regexps:" <+> pretty (V.toList v))
 validateRe [_, r, _] = throwPosError ("validate_re(): expected a regexp or an array of regexps, but not" <+> pretty r)
 validateRe _ = throwPosError "validate_re(): wrong number of arguments (#{args.length}; must be 2 or 3)"
 
 validateString :: [PValue] -> InterpreterMonad PValue
 validateString [] = throwPosError "validate_string(): wrong number of arguments, must be > 0"
-validateString x = mapM_ resolvePValueString x >> return PUndef
+validateString x  = mapM_ resolvePValueString x >> return PUndef
 
 validateInteger :: [PValue] -> InterpreterMonad PValue
 validateInteger [] = throwPosError "validate_integer(): wrong number of arguments, must be > 0"
 validateInteger x = PUndef <$ mapM_ vb x
-    where
-        msg d = pretty d <+> "is not an integer."
-        check n = unless (Scientific.isInteger n) $ throwPosError (msg n)
-        vb (PNumber n) = check n
-        vb (PString s) | Just n <- text2Scientific s = check n
-        vb a           = throwPosError (msg a)
+  where
+    msg d = pretty d <+> "is not an integer."
+    check n = unless (Scientific.isInteger n) $ throwPosError (msg n)
+    vb (PNumber n) = check n
+    vb (PString s) | Just n <- text2Scientific s = check n
+    vb a           = throwPosError (msg a)
 
 pvalues :: PValue -> InterpreterMonad PValue
 pvalues (PHash h) = return $ PArray (toVectorOf traverse h)
-pvalues x = throwPosError ("values(): expected a hash, not" <+> pretty x)
+pvalues x         = throwPosError ("values(): expected a hash, not" <+> pretty x)

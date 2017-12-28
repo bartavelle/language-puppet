@@ -1,17 +1,14 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE GADTs        #-}
-{-# LANGUAGE LambdaCase   #-}
-{-# LANGUAGE RankNTypes   #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE RankNTypes       #-}
 module Puppet.Interpreter
        ( interpretCatalog
-       , evaluateStatement
        , computeCatalog
+       , evaluateStatement
        -- * Utils
        , initialState
        , extractFromState
        , containerModName
-       -- * Re-exports
        , module Puppet.Interpreter.Types
        , module Puppet.Interpreter.Resolve
        , module Puppet.Interpreter.IO
@@ -35,7 +32,6 @@ import qualified System.Log.Logger                as Log
 
 import           Facter
 import           Hiera.Server
-import           Puppet.Language.NativeTypes
 import           Puppet.Interpreter.Helpers
 import           Puppet.Interpreter.IO
 import           Puppet.Interpreter.PrettyPrinter ()

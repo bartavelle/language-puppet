@@ -1,12 +1,11 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE NamedFieldPuns         #-}
+{-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE TypeApplications       #-}
-{-# LANGUAGE RecordWildCards        #-}
 
 {- | This module runs a Hiera server that caches Hiera data. There is
 a huge caveat : only the data files are watched for changes, not the main configuration file.
@@ -159,9 +158,9 @@ instance FromJSON HieraConfigFile where
                                              "json" -> return (JsonBackend, ":json")
                                              _      -> fail ("Unknown backend " <> toS name)
            datadir <- case Object v ^? key skey . key ":datadir" of
-                             Just (String dir)   -> return dir
-                             Just _              -> fail ":datadir should be a string"
-                             Nothing             -> return "/etc/puppet/hieradata"
+                             Just (String dir) -> return dir
+                             Just _            -> fail ":datadir should be a string"
+                             Nothing           -> return "/etc/puppet/hieradata"
            pure (backendConstructor (toS datadir))
 
     in
@@ -260,7 +259,7 @@ resolveText :: [Text] -> Text -> QM Text
 resolveText prevqueries t =
   case parseInterpolableString t of
     Right qparts -> Text.concat <$> mapM (resolveStringPart prevqueries) qparts
-    Left _ -> return t
+    Left _       -> return t
 
 resolveStringPart :: [Text] -> HieraStringPart -> QM Text
 resolveStringPart prevqueries sp =
@@ -287,7 +286,7 @@ mergeWith qt cur new =
           newarray = getArray new
       in  case new of
               Object _ -> throwError "Tried to merge a hash"
-              _ -> return (Array (Vector.fromList (List.nub (curarray ++ newarray))))
+              _        -> return (Array (Vector.fromList (List.nub (curarray ++ newarray))))
     QHash -> case (cur, new) of
       (Object curh, Object newh) -> return (Object (curh <> newh))
       _ -> throwError (PrettyError ("Tried to merge things that are not hashes: " <> ppline (show cur) <+> ppline (show new)))

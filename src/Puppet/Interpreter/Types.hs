@@ -4,7 +4,6 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
@@ -89,19 +88,19 @@ import           XPrelude.PP
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
 import           Control.Monad.Writer.Class
-import           Data.Aeson                  as A
-import qualified Data.Either.Strict          as S
-import qualified Data.HashMap.Strict         as HM
-import qualified Data.Maybe.Strict           as S
-import qualified Data.List                   as List
+import           Data.Aeson                 as A
+import qualified Data.Either.Strict         as S
+import qualified Data.HashMap.Strict        as HM
+import qualified Data.List                  as List
+import qualified Data.Maybe.Strict          as S
 import qualified GHC.Show
 import qualified GHC.Stack
-import qualified System.Log.Logger           as Log
+import qualified System.Log.Logger          as Log
 
+import           Facter
+import           Hiera.Server
 import           Puppet.Language
 import           Puppet.Parser.Types
-import           Hiera.Server
-import           Facter
 import           PuppetDB
 
 
@@ -125,35 +124,36 @@ data RSearchExpression
   | RAlwaysTrue
   deriving (Show, Eq)
 
--- | Puppet has two main ways to declare classes: include-like and resource-like
--- See <https://docs.puppetlabs.com/puppet/latest/reference/lang_classes.html#include-like-vs-resource-like> puppet reference>
+-- | Puppet has two main ways to declare classes: include-like and resource-like.
+--
+-- See <https://docs.puppetlabs.com/puppet/latest/reference/lang_classes.html#include-like-vs-resource-like puppet reference>.
 data ClassIncludeType
-  = ClassIncludeLike -- ^ using the include or contain function
-  | ClassResourceLike -- ^ resource like declaration
+  = ClassIncludeLike -- ^ Using the include or contain function
+  | ClassResourceLike -- ^ Resource like declaration
   deriving (Eq)
 
 -- | This type is used to differentiate the distinct top level types that are exposed by the DSL.
 data TopLevelType
-  = TopNode -- ^ for node entries
-  | TopDefine -- ^ for defines
-  | TopClass -- ^ for classes
+  = TopNode -- ^ For node entries
+  | TopDefine -- ^ For defines
+  | TopClass -- ^ For classes
   deriving (Generic, Eq)
 
 instance Hashable TopLevelType
 
 -- | From the evaluation of Resource Default Declaration.
 data ResDefaults = ResDefaults
-  { _resDefType :: !Text
+  { _resDefType     :: !Text
   , _resDefSrcScope :: !Text
-  , _resDefValues :: !(Container PValue)
-  , _resDefPos :: !PPosition
+  , _resDefValues   :: !(Container PValue)
+  , _resDefPos      :: !PPosition
   }
 
 -- | From the evaluation of Resource Override Declaration.
 data ResRefOverride = ResRefOverride
-  { _rrid :: !RIdentifier
+  { _rrid     :: !RIdentifier
   , _rrparams :: !(Container PValue)
-  , _rrpos :: !PPosition
+  , _rrpos    :: !PPosition
   } deriving (Eq)
 
 data ScopeEnteringContext
@@ -168,29 +168,29 @@ data CurContainer = CurContainer
   } deriving (Eq)
 
 data ScopeInformation = ScopeInformation
-  { _scopeVariables :: !(Container (Pair (Pair PValue PPosition) CurContainerDesc))
+  { _scopeVariables   :: !(Container (Pair (Pair PValue PPosition) CurContainerDesc))
   , _scopeResDefaults :: !(Container ResDefaults)
-  , _scopeExtraTags :: !(HashSet Text)
-  , _scopeContainer :: !CurContainer
-  , _scopeOverrides :: !(HashMap RIdentifier ResRefOverride)
-  , _scopeParent :: !(S.Maybe Text)
+  , _scopeExtraTags   :: !(HashSet Text)
+  , _scopeContainer   :: !CurContainer
+  , _scopeOverrides   :: !(HashMap RIdentifier ResRefOverride)
+  , _scopeParent      :: !(S.Maybe Text)
   }
 
 data InterpreterState = InterpreterState
-  { _scopes :: !(Container ScopeInformation)
-  , _loadedClasses :: !(Container (Pair ClassIncludeType PPosition))
-  , _definedResources :: !(HM.HashMap RIdentifier Resource)
-  , _curScope :: ![CurContainerDesc]
-  , _curPos :: !PPosition
+  { _scopes             :: !(Container ScopeInformation)
+  , _loadedClasses      :: !(Container (Pair ClassIncludeType PPosition))
+  , _definedResources   :: !(HM.HashMap RIdentifier Resource)
+  , _curScope           :: ![CurContainerDesc]
+  , _curPos             :: !PPosition
   , _nestedDeclarations :: !(HashMap (TopLevelType, Text) Statement)
-  , _extraRelations :: ![LinkInformation]
-  , _resModifiers :: ![ResourceModifier]
+  , _extraRelations     :: ![LinkInformation]
+  , _resModifiers       :: ![ResourceModifier]
   }
 
 data IoMethods m = IoMethods
   { _ioGetCurrentCallStack :: m [String]
-  , _ioReadFile :: [Text] -> m (Either String Text)
-  , _ioTraceEvent :: String -> m ()
+  , _ioReadFile            :: [Text] -> m (Either String Text)
+  , _ioTraceEvent          :: String -> m ()
   }
 
 data InterpreterReader m = InterpreterReader
@@ -261,12 +261,12 @@ instance MonadWriter InterpreterWriter InterpreterMonad where
 
 
 data ResourceModifier = ResourceModifier
-  { _rmResType :: !Text
+  { _rmResType      :: !Text
   , _rmModifierType :: !ModifierType
-  , _rmType :: !ResourceCollectorType
-  , _rmSearch :: !RSearchExpression
-  , _rmMutation :: !(Resource -> InterpreterMonad Resource)
-  , _rmDeclaration :: !PPosition
+  , _rmType         :: !ResourceCollectorType
+  , _rmSearch       :: !RSearchExpression
+  , _rmMutation     :: !(Resource -> InterpreterMonad Resource)
+  , _rmDeclaration  :: !PPosition
   }
 
 instance Show ResourceModifier where
@@ -311,7 +311,7 @@ class MonadStack m where
   getCurrentCallStack :: m [String]
 
 instance MonadStack InterpreterMonad where
-    getCurrentCallStack = singleton GetCurrentCallStack
+  getCurrentCallStack = singleton GetCurrentCallStack
 
 instance MonadThrowPos InterpreterMonad where
   throwPosError s = do
