@@ -12,37 +12,30 @@ module Helpers ( module Exports
                , withStdlibFunction
                ) where
 
+import           XPrelude     as Exports hiding (checkError)
 
--- import           Control.Lens               as Exports hiding (Strict, argument,
---                                                         failing, noneOf, op)
-import           Control.Monad              as Exports(fail)
+import           Control.Monad       as Exports (fail)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Maybe.Strict   as S
+import           Data.Text           as Text
+import qualified Data.Vector         as Vector
+import           Test.Hspec          as Exports
 
-import           Puppet.Interpreter.Pure    as Exports
-import           Puppet.Interpreter.Types   as Exports
-import           Puppet.Parser.Types        as Exports
-import           Puppet.PP                  as Exports hiding (bool, cat, empty,
-                                                        text, group)
-import           Puppet.Prelude             as Exports
-import           Test.Hspec                 as Exports
+import           Puppet.Interpreter  as Exports
+import           Puppet.Parser       as Exports
+import           Puppet.Runner       as Exports hiding (getCatalog)
 
-import qualified Data.HashMap.Strict        as HM
-import qualified Data.Maybe.Strict          as S
-import           Data.Text                  as Text
-import qualified Data.Vector                as Vector
-
-import           Puppet.Interpreter         (computeCatalog)
-import           Puppet.Interpreter.Resolve
-import           Puppet.Parser
-import           Puppet.Stdlib
 
 compileCatalog :: MonadError String m => Text -> m (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
 compileCatalog input = do
-    statements <- either (throwError . show) return (runPParser "dummy" input)
-    let nodename = "node.fqdn"
-        sttmap = [( (TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos "dummy")) ) ]
-        (res, finalState, _) = pureEval dummyFacts sttmap (computeCatalog nodename)
-    (catalog,em,exported,defResources) <- either (throwError . show) return res
-    return (catalog,em,exported,defResources,finalState)
+  statements <- either (throwError . show) return (runPParser "dummy" input)
+  let nodename = "node.fqdn"
+      sttmap =
+        [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos "dummy")))
+        ]
+      (res, finalState, _) = pureEval dummyFacts sttmap (computeCatalog nodename)
+  (catalog, em, exported, defResources) <- either (throwError . show) return res
+  return (catalog, em, exported, defResources, finalState)
 
 getCatalog :: MonadError String m => Text -> m FinalCatalog
 getCatalog = fmap (view _1) . compileCatalog
@@ -57,13 +50,13 @@ getAttribute :: Monad m => Text -> Resource -> m PValue
 getAttribute att res =
   case res ^? rattributes . ix att of
     Nothing -> fail ("Unknown attribute: " ++ Text.unpack att)
-    Just x -> return x
+    Just x  -> return x
 
 withStdlibFunction :: Text -> ( ([PValue] -> InterpreterMonad PValue) -> Spec ) -> Spec
 withStdlibFunction fname testsuite =
-    case stdlibFunctions ^? ix fname of
-        Just f  -> testsuite f
-        Nothing -> panic ("Don't know this function: " <> fname)
+  case stdlibFunctions ^? ix fname of
+    Just f  -> testsuite f
+    Nothing -> panic ("Don't know this function: " <> fname)
 
 checkExprsSuccess :: Text ->  [Expression] -> Text -> Expectation
 checkExprsSuccess fname args res =

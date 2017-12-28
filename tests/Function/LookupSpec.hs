@@ -15,7 +15,6 @@ checkSuccess = checkExprsSuccess fname
 checkError :: [Expression] -> String -> Expectation
 checkError = checkExprsError fname
 
-
 boolDatatype = Terminal (UDataType UDTBoolean)
 stringDatatype = Terminal (UDataType (UDTString Nothing Nothing))
 

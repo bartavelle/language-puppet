@@ -23,8 +23,10 @@ let
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
   drv = hlib.dontHaddock (haskellPackages.callPackage ./. {
-    megaparsec = haskellPackages.megaparsec_6_2_0;
-    hspec-megaparsec = haskellPackages.hspec-megaparsec_1_0_0;
+     protolude = haskellPackages.protolude_0_2;
+     megaparsec = hlib.dontCheck(hlib.dontHaddock(haskellPackages.megaparsec_6_2_0));
+     ansi-wl-pprint = hlib.dontCheck(hlib.dontHaddock(haskellPackages.ansi-wl-pprint_0_6_8_1));
+    # hspec-megaparsec = haskellPackages.hspec-megaparsec_1_0_0;
   });
 in
 

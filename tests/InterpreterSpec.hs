@@ -2,14 +2,10 @@ module InterpreterSpec (collectorSpec, classIncludeSpec, main) where
 
 import           Helpers
 
-import           Data.HashMap.Strict      (HashMap)
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.Text                as Text
 import qualified Data.Vector              as V
 import           Text.Megaparsec          (eof, parse)
-
-import           Puppet.Interpreter
-import           Puppet.Parser
 
 appendArrowNode :: Text
 appendArrowNode = "appendArrow"

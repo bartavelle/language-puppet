@@ -4,8 +4,6 @@ import qualified Data.Text                   as T
 import           Data.Tuple.Strict
 import qualified Data.Vector                 as V
 import           Puppet.Parser
-import           Puppet.Parser.PrettyPrinter ()
-import           Puppet.Parser.Types
 import           Text.Megaparsec
 
 import           Test.Hspec

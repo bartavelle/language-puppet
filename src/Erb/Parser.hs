@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Erb.Parser where
 
-import           Puppet.Prelude         hiding (option, try)
+import           XPrelude.Extra hiding (option, try)
 
 import           Control.Exception      (catch)
 import qualified Data.Text              as Text
@@ -172,11 +172,12 @@ erbparser :: Parser [RubyStatement]
 erbparser = textblock
 
 parseErbFile :: FilePath -> IO (Either ParseError [RubyStatement])
-parseErbFile fname = parseContent `catch` handler
-    where
-        parseContent = (runParser erbparser () fname . Text.unpack) `fmap` readFile fname
-        handler e = let msg = show (e :: SomeException)
-                    in  return $ Left $ newErrorMessage (Message msg) (initialPos fname)
+parseErbFile fname =
+  parseContent `catch` handler
+  where
+      parseContent = (runParser erbparser () fname . Text.unpack) `fmap` readFile fname
+      handler e = let msg = show (e :: SomeException)
+                  in  return $ Left $ newErrorMessage (Message msg) (initialPos fname)
 
 parseErbString :: String -> Either ParseError [RubyStatement]
 parseErbString = runParser erbparser () "dummy"

@@ -2,16 +2,13 @@ module Main where
 
 import Control.Monad
 import System.IO.Temp
-import Data.Monoid
+import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Control.Lens
 import Control.Monad.Trans.Except
 
-import Puppet.Interpreter.Types
-import PuppetDB.Common
-import PuppetDB.TestDB
-import Facter
+import PuppetDB
 
 checkError :: Show x => String -> Either x a -> IO a
 checkError _ (Right x) = return x

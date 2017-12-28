@@ -1,24 +1,41 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Facter where
 
 import           Prelude
 
-import           Control.Arrow
 import           Control.Lens
-import           Control.Monad.Trans.Except
+import           Data.Aeson
 import           Data.Char
-import qualified Data.HashMap.Strict        as HM
-import qualified Data.HashSet               as HS
-import           Data.List                  (intercalate, stripPrefix)
-import           Data.List.Split            (splitOn)
-import           Data.Maybe                 (mapMaybe)
-import qualified Data.Text                  as T
-import           Puppet.Interpreter.Types
-import           System.Directory           (doesFileExist)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet        as HS
+import           Data.List           (intercalate, stripPrefix)
+import           Data.List.Split     (splitOn)
+import           Data.Maybe          (mapMaybe)
+import qualified Data.Text           as T
+import           System.Directory    (doesFileExist)
 import           System.Environment
-import           System.Posix.Unistd        (SystemID (..), getSystemID)
+import           System.Posix.Unistd (SystemID (..), getSystemID)
 import           System.Posix.User
 import           Text.Printf
+
+import           Puppet.Language
+
+type Facts = HM.HashMap T.Text PValue
+
+data FactInfo = FactInfo
+  { _factInfoNodename :: !NodeName
+  , _factInfoName     :: !T.Text
+  , _factInfoVal      :: !PValue
+  }
+makeClassy ''FactInfo
+
+instance ToJSON FactInfo where
+    toJSON (FactInfo n f v) = object [("certname", String n), ("name", String f), ("value", toJSON v)]
+
+instance FromJSON FactInfo where
+    parseJSON (Object v) = FactInfo <$> v .: "certname" <*> v .: "name" <*> v .: "value"
+    parseJSON _ = fail "invalid fact info"
 
 storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
@@ -170,29 +187,3 @@ factProcessor = do
     let cpuinfos = zip [ "processor" ++ show (n :: Int) | n <- [0..]] modelnames
         modelnames = mapMaybe (fmap (dropWhile (`elem` ("\t :" :: String))) . stripPrefix "model name") (lines cpuinfo)
     return $ ("processorcount", show (length cpuinfos)) : cpuinfos
-
-puppetDBFacts :: NodeName -> PuppetDBAPI IO -> IO (Container PValue)
-puppetDBFacts node pdbapi =
-    runExceptT (getFacts pdbapi (QEqual FCertname node)) >>= \case
-        Right facts@(_:_) -> return (HM.fromList (map (\f -> (f ^. factInfoName, f ^. factInfoVal)) facts))
-        _ -> do
-            rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv, factProcessor])
-            let ofacts = genFacts $ map (T.pack *** T.pack) rawFacts
-                (hostname, ddomainname) = T.break (== '.') node
-                domainname = if T.null ddomainname
-                                 then ""
-                                 else T.tail ddomainname
-                nfacts = genFacts [ ("fqdn", node)
-                                  , ("hostname", hostname)
-                                  , ("domain", domainname)
-                                  , ("rootrsa", "xxx")
-                                  , ("operatingsystem", "Ubuntu")
-                                  , ("puppetversion", "language-puppet")
-                                  , ("virtual", "xenu")
-                                  , ("clientcert", node)
-                                  , ("is_virtual", "true")
-                                  , ("concat_basedir", "/var/lib/puppet/concat")
-                                  ]
-                allfacts = nfacts `HM.union` ofacts
-                genFacts = HM.fromList
-            return (allfacts & traverse %~ PString)

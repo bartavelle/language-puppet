@@ -1,8 +1,7 @@
 module Main where
 
 import System.Environment
-import Erb.Parser
-import Erb.Ruby
+import Erb
 import Control.Monad (when)
 
 checkParse :: FilePath -> IO (Maybe [RubyStatement])

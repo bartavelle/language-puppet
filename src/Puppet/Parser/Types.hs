@@ -3,20 +3,7 @@
 {-# LANGUAGE TypeFamilies    #-}
 -- | All the types used for parsing, and helpers working on these types.
 module Puppet.Parser.Types
- ( -- * Position management
-   Position,
-   PPosition,
-   initialPPos,
-   toPPos,
-   -- ** Lenses
-   lSourceName,
-   lSourceLine,
-   lSourceColumn,
-   -- * Helpers
-   capitalizeRT,
-   rel2text,
-   -- * Types
-   -- ** Expressions
+ ( -- ** Expressions
    Expression(..),
    SelectorCase(..),
    UnresolvedValue(..),
@@ -48,61 +35,23 @@ module Puppet.Parser.Types
    DefineDecl(..),
    NodeDecl(..),
    VarAssignDecl(..),
-   vadname,
-   vadpos,
-   vadvalue,
    MainFuncDecl(..),
    HigherOrderLambdaDecl(..),
    ResCollDecl(..)
    ) where
 
-import           Puppet.Prelude         hiding (show)
+import           XPrelude            hiding (show)
 
-import           Data.Aeson
-import qualified Data.Char              as Char
-import           Data.List.NonEmpty     (NonEmpty)
-import qualified Data.Maybe.Strict      as S
-import           Data.String
-import qualified Data.Text              as Text
-import qualified Data.Vector            as V
-import qualified GHC.Exts               as Exts
-import           GHC.Show               (Show (..))
-import           Text.Megaparsec.Pos
+import           Data.List.NonEmpty  (NonEmpty)
+import qualified Data.Maybe.Strict   as S
+import qualified Data.Text           as Text
+import qualified Data.Vector         as V
+import qualified GHC.Exts            as Exts
+import           GHC.Show            (Show (..))
 
--- | Properly capitalizes resource types.
-capitalizeRT :: Text -> Text
-capitalizeRT = Text.intercalate "::" . map capitalize' . Text.splitOn "::"
-    where
-        capitalize' :: Text -> Text
-        capitalize' t | Text.null t = Text.empty
-                      | otherwise = Text.cons (Char.toUpper (Text.head t)) (Text.tail t)
+import           Puppet.Language
 
--- | A pair containing the start and end of a given token.
-type PPosition = Pair Position Position
 
--- | Position in a puppet file. Currently an alias to 'SourcePos'.
-type Position = SourcePos
-
-lSourceName :: Lens' Position String
-lSourceName = lens sourceName (\s n -> s { sourceName = n })
-
-lSourceLine :: Lens' Position Pos
-lSourceLine = lens sourceLine (\s l -> s { sourceLine = l })
-
-lSourceColumn :: Lens' Position Pos
-lSourceColumn = lens sourceColumn (\s c -> s { sourceColumn = c })
-
--- | Generates an initial position based on a filename.
-initialPPos :: Text -> PPosition
-initialPPos x =
-    let i = initialPos (toS x)
-    in (i :!: i)
-
--- | Generates a 'PPosition' based on a filename and line number.
-toPPos :: Text -> Int -> PPosition
-toPPos fl ln =
-    let p = (initialPos (toS fl)) { sourceLine = mkPos $ fromIntegral (max 1 ln) }
-    in  (p :!: p)
 
 -- | /High Order lambdas/.
 data LambdaFunc
@@ -148,16 +97,6 @@ data ArrowOp
     = AppendArrow -- ^ `+>`
     | AssignArrow -- ^ `=>`
     deriving (Show, Eq)
-
-data CompRegex = CompRegex !Text !Regex
-instance Show CompRegex where
-  show (CompRegex t _) = show t
-instance Eq CompRegex where
-    (CompRegex a _) == (CompRegex b _) = a == b
-instance FromJSON CompRegex where
-  parseJSON = panic "Can't deserialize a regular expression"
-instance ToJSON CompRegex where
-  toJSON (CompRegex t _) = toJSON t
 
 -- | An unresolved value, typically the parser's output.
 data UnresolvedValue
@@ -282,43 +221,12 @@ data CollectorType
     | ExportedCollector
     deriving (Eq, Show)
 
-data Virtuality
-    = Normal -- ^ Normal resource, that will be included in the catalog.
-    | Virtual -- ^ Type for virtual resources.
-    | Exported -- ^ Type for exported resources.
-    | ExportedRealized -- ^ These are resources that are exported AND included in the catalogderiving (Generic, Eq, Show).
-    deriving (Eq, Show)
-
 data NodeDesc
     = NodeName !Text
     | NodeMatch !CompRegex
     | NodeDefault
     deriving (Show, Eq)
 
--- | Relationship link type.
-data LinkType
-    = RNotify
-    | RRequire
-    | RBefore
-    | RSubscribe
-    deriving(Show, Eq,Generic)
-instance Hashable LinkType
-
-rel2text :: LinkType -> Text
-rel2text RNotify    = "notify"
-rel2text RRequire   = "require"
-rel2text RBefore    = "before"
-rel2text RSubscribe = "subscribe"
-
-instance FromJSON LinkType where
-    parseJSON (String "require")   = return RRequire
-    parseJSON (String "notify")    = return RNotify
-    parseJSON (String "subscribe") = return RSubscribe
-    parseJSON (String "before")    = return RBefore
-    parseJSON _                    = panic "invalid linktype"
-
-instance ToJSON LinkType where
-    toJSON = String . rel2text
 
 -- | Resource declaration:
 --
@@ -391,4 +299,3 @@ data Statement
     deriving (Eq, Show)
 
 makeClassy ''HOLambdaCall
-makeLenses ''VarAssignDecl

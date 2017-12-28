@@ -3,18 +3,14 @@
 {-# LANGUAGE StrictData        #-}
 module Main (main) where
 
-import           Puppet.Prelude                   hiding (option)
+import           XPrelude            hiding (option)
 
-import qualified Data.Either.Strict               as S
-import qualified Data.HashMap.Strict              as HM
-import qualified Data.List                        as List
+import qualified Data.Either.Strict  as S
+import qualified Data.HashMap.Strict as Map
+import qualified Data.List           as List
 import           Options.Applicative
-import           Text.PrettyPrint.ANSI.Leijen     (pretty)
 
 import           Hiera.Server
-import           Puppet.Interpreter.PrettyPrinter ()
-import           Puppet.Interpreter.Types
-import           Puppet.Interpreter.Utils (readQueryType)
 
 data Config
   = Config
@@ -46,7 +42,7 @@ main :: IO ()
 main = do
   Config fp query qtype vars <- execParser configInfo
   hiera <- startHiera fp
-  hiera (HM.fromList vars) (toS query) qtype >>= \case
+  hiera (Map.fromList vars) (toS query) qtype >>= \case
     S.Left rr -> panic (show rr)
     S.Right Nothing -> die "no match"
     S.Right (Just res) -> print (pretty res)

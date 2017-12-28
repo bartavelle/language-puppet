@@ -1,26 +1,32 @@
-module Puppet.Interpreter.RubyRandom (rbGenrandInt32, randInit, limitedRand) where
+module Puppet.Interpreter.RubyRandom
+  ( rbGenrandInt32
+  , randInit
+  , limitedRand
+  ) where
 
-import Puppet.Prelude
+import           XPrelude
 
-import qualified Data.Vector.Unboxed as V
+import qualified Data.List                   as List
+import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
-import qualified Data.List as List
 
-data RandState = RandState { _array :: V.Vector Int
-                           , _left  :: Int
-                           , _initf :: Int
-                           , _next  :: Int
-                           } deriving (Show)
+data RandState = RandState
+  { _array :: V.Vector Int
+  , _left :: Int
+  , _initf :: Int
+  , _next :: Int
+  } deriving (Show)
 
 mixbits :: Int -> Int -> Int
 mixbits u v = (u .&. 0x80000000) .|. (v .&. 0x7fffffff)
 
 twist :: Int -> Int -> Int
 twist u v = (mixbits u v `shiftR` 1) `xor` ma
-    where
-        ma = if (v .&. 1) == 1
-                 then 0x9908b0df
-                 else 0
+  where
+    ma =
+      if (v .&. 1) == 1
+        then 0x9908b0df
+        else 0
 
 valN :: Int
 valN = 624
@@ -28,11 +34,11 @@ valM :: Int
 valM = 397
 
 initGenrand :: Integer -> RandState
-initGenrand rseed = RandState (V.fromList (scanl genfunc seed [1..(valN - 1)])) 1 1 0
-    where
-        seed = fromIntegral rseed .&. 0xffffffff
-        genfunc :: Int -> Int -> Int
-        genfunc curval x = (1812433253 * (curval `xor` (curval `shiftR` 30)) + x) .&. 0xffffffff
+initGenrand rseed = RandState (V.fromList (scanl genfunc seed [1 .. (valN - 1)])) 1 1 0
+  where
+    seed = fromIntegral rseed .&. 0xffffffff
+    genfunc :: Int -> Int -> Int
+    genfunc curval x = (1812433253 * (curval `xor` (curval `shiftR` 30)) + x) .&. 0xffffffff
 
 nextState :: RandState -> RandState
 nextState (RandState array _ initf _) = RandState narray valN 1 0

@@ -2,9 +2,13 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RankNTypes     #-}
 {-# LANGUAGE TupleSections  #-}
+
+{-# LANGUAGE FlexibleContexts#-}
+
 -- | This module is all about converting and resolving foreign data into
--- the fully exploitable corresponding data type. The main use case is the
--- conversion of 'Expression' to 'PValue'.
+-- the fully exploitable corresponding data type.
+--
+-- The main use case is the conversion of 'Expression' to 'PValue'.
 module Puppet.Interpreter.Resolve
     ( -- * Pure resolution functions
       getVariable,
@@ -36,7 +40,8 @@ module Puppet.Interpreter.Resolve
       NumberPair
     ) where
 
-import           Puppet.Prelude
+import           XPrelude.Extra
+import           XPrelude.PP
 
 import qualified Control.Monad.Operational          as Operational
 import           "cryptonite" Crypto.Hash
@@ -59,17 +64,16 @@ import qualified Data.Tuple.Strict                  as Tuple
 import qualified Data.Vector                        as V
 import           Data.Version                       (Version (..), parseVersion)
 import           Text.ParserCombinators.ReadP       (readP_to_S)
-import qualified Text.PrettyPrint.ANSI.Leijen       as PP
 import qualified Text.Regex.PCRE.ByteString.Utils   as Regex
 
+import           Hiera.Server
+import           Puppet.Interpreter.Helpers
 import           Puppet.Interpreter.PrettyPrinter   ()
 import           Puppet.Interpreter.Resolve.Sprintf (sprintf)
 import           Puppet.Interpreter.RubyRandom
 import           Puppet.Interpreter.Types
-import           Puppet.Interpreter.Utils
-import           Puppet.Parser.Types
-import           Puppet.Paths
-import           Puppet.PP
+import           Puppet.Parser
+import           PuppetDB
 
 sha1 :: ByteString -> ByteString
 sha1 = ByteArray.convert . (hash :: ByteString -> Digest SHA1)
@@ -112,7 +116,7 @@ hieraCall qt q df dt _ = do
       _ -> pure p
     Nothing -> case df of
       Just d  -> pure d
-      Nothing -> throwPosError ("Lookup for " <> ttext qs <> " failed")
+      Nothing -> throwPosError ("Lookup for " <> ppline qs <> " failed")
 
 -- | Tries to convert a pair of 'PValue's into a 'NumberPair', as defined in
 -- attoparsec. If the two values can be converted, it will convert them so
@@ -142,7 +146,7 @@ integerOperation a b opr = do
   rb <- resolveExpressionNumber b
   case (preview _Integer ra, preview _Integer rb) of
     (Just na, Just nb) -> pure (PNumber $ fromIntegral (opr na nb))
-    _ -> throwPosError ("Expected integer values, not" <+> string (show ra) <+> "or" <+> string (show rb))
+    _ -> throwPosError ("Expected integer values, not" <+> pretty ra <+> "or" <+> pretty rb)
 
 -- | Resolves a variable, or throws an error if it can't.
 resolveVariable :: Text -> InterpreterMonad PValue
@@ -173,7 +177,7 @@ getVariable scps scp fullvar = do
     Nothing -> -- check top level scope
       case scps ^? ix "::" . scopeVariables . ix varname of
         Just pp -> extractVariable pp
-        Nothing -> Left ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ttext varscope <+> "or root")
+        Nothing -> Left ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ppline varscope <+> "or root")
 
 -- | A helper for numerical comparison functions.
 numberCompare :: Expression -> Expression -> (Scientific -> Scientific -> Bool) -> InterpreterMonad PValue
@@ -221,7 +225,7 @@ resolveExpression (MoreEqualThan a b) = numberCompare a b (>=)
 resolveExpression (RegexMatch a v@(Terminal (URegexp (CompRegex _ rv)))) = do
   ra <- fmap Text.encodeUtf8 (resolveExpressionString a)
   case Regex.execute' rv ra of
-    Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> string rr)
+    Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> ppstring rr)
     Right Nothing  -> pure $ PBoolean False
     Right (Just matches) -> do
       -- A bit of logic to save the capture variables.
@@ -263,8 +267,8 @@ resolveExpression (Lookup a idx) =
         Just v -> pure v
         Nothing -> do
           checkStrict
-            ("Look up for an hash with the unknown key '" <> ttext ridx <> "' for" <+> pretty (PHash h))
-            ("Can't find index '" <> ttext ridx <> "' in" <+> pretty (PHash h))
+            ("Look up for an hash with the unknown key '" <> ppline ridx <> "' for" <+> pretty (PHash h))
+            ("Can't find index '" <> ppline ridx <> "' in" <+> pretty (PHash h))
           pure PUndef
     PArray ar -> do
       ridx <- resolveExpression idx
@@ -273,7 +277,7 @@ resolveExpression (Lookup a idx) =
         _ -> throwPosError ("Need an integral number for indexing an array, not" <+> pretty ridx)
       let arl = V.length ar
       if arl <= i
-        then throwPosError ("Out of bound indexing, array size is" <+> int arl <+> "index is" <+> int i)
+        then throwPosError ("Out of bound indexing, array size is" <+> pretty arl <+> "index is" <+> pretty i)
         else pure (ar V.! i)
     src -> throwPosError ("This data can't be indexed:" <+> pretty src)
 resolveExpression stmt@(ConditionalValue e conds) = do
@@ -283,7 +287,7 @@ resolveExpression stmt@(ConditionalValue e conds) = do
       checkCond ((SelectorValue v@(URegexp (CompRegex _ rg)) :!: ce) : xs) = do
         rs <- fmap Text.encodeUtf8 (resolvePValueString rese)
         case Regex.execute' rg rs of
-            Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> string rr)
+            Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> ppstring rr)
             Right Nothing  -> checkCond xs
             Right (Just _) -> resolveExpression ce
       checkCond ((SelectorType udt :!: ce) : xs) = do
@@ -364,14 +368,14 @@ resolvePValueString PUndef = do
     "Resolving the keyword `undef` to the string \"undef\""
     "Strict mode won't convert the keyword `undef` to the string \"undef\""
   pure "undef"
-resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" PP.<$> pretty x)
+resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <> line <>  pretty x)
 
 -- | Turns everything it can into a number, or throws an error
 resolvePValueNumber :: PValue -> InterpreterMonad Scientific
 resolvePValueNumber x =
   case x ^? _Number of
     Just n -> pure n
-    Nothing -> throwPosError ("Don't know how to convert this to a number:" PP.<$> pretty x)
+    Nothing -> throwPosError ("Don't know how to convert this to a number:" <> line <> pretty x)
 
 -- | > resolveExpressionString = resolveExpression >=> resolvePValueString
 resolveExpressionString :: Expression -> InterpreterMonad Text
@@ -405,7 +409,7 @@ resolveFunction "fqdn_rand" args = do
   (mx:targs) <- mapM resolveExpressionString (V.toList args)
   curmax <- case PString mx ^? _Integer of
     Just x -> pure x
-    _ -> throwPosError ("fqdn_rand(): the first argument must be an integer, not" <+> ttext mx)
+    _ -> throwPosError ("fqdn_rand(): the first argument must be an integer, not" <+> ppline mx)
   let rargs = if null targs
                 then [fqdn, ""]
                 else fqdn : targs
@@ -467,7 +471,7 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
   let sub t = do
         t' <- fmap Text.encodeUtf8 (resolvePValueString t)
         case Regex.substituteCompile' regexp t' replacement of
-          Left rr -> throwPosError ("regsubst():" <+> string rr)
+          Left rr -> throwPosError ("regsubst():" <+> ppstring rr)
           Right x -> fmap PString (safeDecodeUtf8 x)
   case ptarget of
     PArray a -> fmap PArray (traverse sub a)
@@ -477,7 +481,7 @@ resolveFunction' "split" [psrc, psplt] = do
   src  <- fmap Text.encodeUtf8 (resolvePValueString psrc)
   splt <- fmap Text.encodeUtf8 (resolvePValueString psplt)
   case Regex.splitCompile' splt src of
-    Left rr -> throwPosError ("splitCompile():" <+> string rr)
+    Left rr -> throwPosError ("splitCompile():" <+> ppstring rr)
     Right x -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
 resolveFunction' "sha1" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . sha1 . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
@@ -507,7 +511,7 @@ resolveFunction' "file" args = do
                                       (md:x:rst) -> do
                                           moduledir <- view modulesPath <$> getPuppetPaths
                                           pure (Text.intercalate "/" (Text.pack moduledir : md : "files" : x : rst))
-                                      _ -> throwPosError ("file() argument invalid: " <> ttext s)
+                                      _ -> throwPosError ("file() argument invalid: " <> ppline s)
   mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . Operational.singleton . ReadFile
 
 resolveFunction' "tagged" ptags = do
@@ -559,15 +563,15 @@ pdbresourcequery :: PValue -> Maybe Text -> InterpreterMonad PValue
 pdbresourcequery q mkey = do
   rrv <- case fromJSON (toJSON q) of
     Aeson.Success rq -> Operational.singleton (PDBGetResources rq)
-    Aeson.Error rr   -> throwPosError ("Invalid resource query:" <+> Puppet.PP.string rr)
+    Aeson.Error rr   -> throwPosError ("Invalid resource query:" <+> ppstring rr)
   rv <- case fromJSON (toJSON rrv) of
     Aeson.Success x -> pure x
-    Aeson.Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> Puppet.PP.string rr <+> pretty rrv)
+    Aeson.Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> ppstring rr <+> pretty rrv)
   let extractSubHash :: Text -> PValue -> InterpreterMonad PValue
       extractSubHash ky (PHash h) =
         case h ^. at ky of
           Just val -> pure val
-          Nothing -> throwPosError ("pdbresourcequery strange error, could not find key" <+> ttext ky <+> "in" <+> pretty (PHash h))
+          Nothing -> throwPosError ("pdbresourcequery strange error, could not find key" <+> ppline ky <+> "in" <+> pretty (PHash h))
       extractSubHash _ x = throwPosError ("pdbresourcequery strange error, expected a hash, had" <+> pretty x)
   case mkey of
     Nothing  -> pure (PArray rv)

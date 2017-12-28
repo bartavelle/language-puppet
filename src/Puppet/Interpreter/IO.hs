@@ -6,30 +6,20 @@
 
 -- | This is an internal module.
 module Puppet.Interpreter.IO (
-    defaultImpureMethods
-  , interpretMonad
+    interpretMonad
   ) where
 
-import           Puppet.Prelude
+import           XPrelude
 
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
 import qualified Data.Either.Strict               as S
 import qualified Data.Text                        as Text
-import qualified Data.Text.IO                     as Text
-import           Debug.Trace                      (traceEventIO)
 
+import           Hiera.Server
 import           Puppet.Interpreter.PrettyPrinter ()
 import           Puppet.Interpreter.Types
-import           Puppet.PP
-
-defaultImpureMethods :: MonadIO m => IoMethods m
-defaultImpureMethods = IoMethods (liftIO currentCallStack)
-                                 (liftIO . file)
-                                 (liftIO . traceEventIO)
-    where
-        file [] = return $ Left ""
-        file (x:xs) = (Right <$> Text.readFile (Text.unpack x)) `catch` (\SomeException{} -> file xs)
+import           PuppetDB
 
 
 -- | The operational interpreter function
@@ -53,7 +43,7 @@ eval r s (a :>>= k) =
         thpe = interpretMonad r s . throwPosError . getError
         pdb = r^.readerPdbApi
         strFail iof errf = iof >>= \case
-            Left rr -> thpe (errf (string rr))
+            Left rr -> thpe (errf (ppstring rr))
             Right x -> runInstr x
         canFail iof = iof >>= \case
             S.Left err -> thpe err
@@ -66,7 +56,7 @@ eval r s (a :>>= k) =
             IsStrict                     -> runInstr (r ^. readerIsStrict)
             ExternalFunction fname args  -> case r ^. readerExternalFunc . at fname of
                                                 Just fn -> interpretMonad r s ( fn args >>= k)
-                                                Nothing -> thpe (PrettyError ("Unknown function: " <> ttext fname))
+                                                Nothing -> thpe (PrettyError ("Unknown function: " <> ppline fname))
             GetStatement topleveltype toplevelname
                                          -> canFail ((r ^. readerGetStatement) topleveltype toplevelname)
             ComputeTemplate fn stt       -> canFail ((r ^. readerGetTemplate) fn stt r)
@@ -89,7 +79,7 @@ eval r s (a :>>= k) =
             PDBCommitDB                  -> canFailX (commitDB pdb)
             PDBGetResourcesOfNode nn q   -> canFailX (getResourcesOfNode pdb nn q)
             GetCurrentCallStack          -> (r ^. readerIoMethods . ioGetCurrentCallStack) >>= runInstr
-            ReadFile fls                 -> strFail ((r ^. readerIoMethods . ioReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ttext fls)))
+            ReadFile fls                 -> strFail ((r ^. readerIoMethods . ioReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ppline fls)))
             TraceEvent e                 -> (r ^. readerIoMethods . ioTraceEvent) e >>= runInstr
             IsIgnoredModule m            -> runInstr (r ^. readerIgnoredModules . contains m)
             IsExternalModule m           -> runInstr (r ^. readerExternalModules . contains m)
@@ -110,9 +100,9 @@ queryHiera layers scps q t = do
       let
         modname =
           case Text.splitOn "::" (Text.dropWhile (==':') q) of
-            [] -> Nothing
-            [_] -> Nothing
-            (m:_)  -> Just m
+            []    -> Nothing
+            [_]   -> Nothing
+            (m:_) -> Just m
         layer = modname >>= (\n -> layers ^.moduleLayer.at n)
       maybe (pure val) (\hq -> hq scps q t) layer
     _ -> pure val
