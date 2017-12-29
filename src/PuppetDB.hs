@@ -16,7 +16,6 @@ import           Control.Arrow ((***))
 import qualified Data.Text              as Text
 import           Data.Vector.Lens
 import           Network.HTTP.Client
-import           Servant.Common.BaseUrl
 import           System.Environment
 
 import           Facter
@@ -31,7 +30,7 @@ import           PuppetDB.TestDB
 getDefaultDB :: PDBType -> IO (Either PrettyError (PuppetDBAPI IO))
 getDefaultDB PDBDummy  = return (Right dummyPuppetDB)
 getDefaultDB PDBRemote = do
-  url <- parseBaseUrl "http://localhost:8080"
+  let url = "http://localhost:8080"
   mgr <- newManager defaultManagerSettings
   pdbConnect mgr url
 getDefaultDB PDBTest =

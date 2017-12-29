@@ -14,7 +14,6 @@ import qualified Data.Version           as Meta
 import qualified Network.HTTP.Client    as Http
 import           Options.Applicative    as O
 import qualified Paths_language_puppet  as Meta
-import qualified Servant.Common.BaseUrl as Servant
 
 import           Facter
 import           Puppet.Interpreter
@@ -103,7 +102,7 @@ run Options {_pdbversion = True, ..} = putStrLn ("language-puppet " ++ Meta.show
 run Options{_pdbcmd = Just pdbcmd, ..} = do
   mgr <- Http.newManager Http.defaultManagerSettings
   epdbapi <- case (_pdbloc, _pdbtype) of
-    (Just l, PDBRemote) -> pdbConnect mgr $ either (panic . show) identity $ Servant.parseBaseUrl l
+    (Just url, PDBRemote) -> pdbConnect mgr url
     (Just l, PDBTest)   -> loadTestDB l
     (_, x)              -> getDefaultDB x
   pdbapi <- case epdbapi of

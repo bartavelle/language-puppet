@@ -125,15 +125,15 @@ library
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2 && < 0.4
                      , semigroups
-                     , servant              >= 0.9 && < 0.12
-                     , servant-client       >= 0.9 && < 0.12
+                     , servant              >= 0.9
+                     , servant-client       >= 0.9
                      , split                == 0.2.*
                      , stm                  == 2.4.*
                      , strict-base-types    >= 0.3
                      , text                 >= 0.11
                      , time                 >= 1.5  && < 2
                      , transformers         >= 0.4  && < 0.6
-                     , unix                 >= 2.7     && < 2.8
+                     , unix                 >= 2.7  && < 2.8
                      , unordered-containers == 0.2.*
                      , vector               >= 0.10
                      , yaml                 >= 0.8.8   && < 0.9
@@ -223,7 +223,6 @@ executable puppetresources
                      , optparse-applicative
                      , parallel-io
                      , regex-pcre-builtin
-                     , servant-client
                      , strict-base-types
                      , text
                      , unordered-containers
@@ -257,7 +256,6 @@ executable pdbquery
                      , lens
                      , mtl
                      , optparse-applicative
-                     , servant-client
                      , strict-base-types
                      , text
                      , transformers

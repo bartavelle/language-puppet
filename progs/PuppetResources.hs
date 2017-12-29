@@ -20,7 +20,6 @@ import qualified Data.Version                  (showVersion)
 import qualified Network.HTTP.Client           as Http
 import           Options.Applicative
 import qualified Paths_language_puppet         as Meta
-import qualified Servant.Common.BaseUrl        as Servant
 import qualified System.FilePath.Glob          as Glob
 import           System.IO                     (hIsTerminalDevice)
 import qualified System.Log.Logger             as Log
@@ -162,9 +161,7 @@ initializedaemonWithPuppet workingdir Options {..} = do
     pdbapi <- case (_optPdburl, _optPdbfile) of
                   (Nothing, Nothing) -> return dummyPuppetDB
                   (Just _, Just _)   -> panic "You must choose between a testing PuppetDB and a remote one"
-                  (Just url, _)      -> checkError "Error when parsing url" (Servant.parseBaseUrl url)
-                                            >>= pdbConnect mgr
-                                            >>= checkError "Error when connecting to the remote PuppetDB"
+                  (Just url, _)      -> pdbConnect mgr url >>= checkError "Error when connecting to the remote PuppetDB"
                   (_, Just file)     -> PuppetDB.loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     pref <- dfPreferences workingdir <&> prefPDB .~ pdbapi
                                      <&> prefHieraPath .~ _optHieraFile
