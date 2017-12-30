@@ -21,7 +21,7 @@ import           Erb
 import           Facter
 import           Hiera.Server
 import           Puppet.Interpreter
-import           Puppet.Parser
+import           Puppet.Parser (Statement)
 import           Puppet.Runner.Erb
 import           PuppetDB              (dummyPuppetDB)
 

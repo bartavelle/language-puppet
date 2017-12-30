@@ -1,17 +1,57 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
-module Puppet.Runner.Daemon.Manifests (filterStatements) where
+module Puppet.Runner.Daemon.FileParser (parseFunc) where
 
 import           XPrelude
 
 import qualified Data.Either.Strict               as S
+import           Data.FileCache                   as FileCache
 import qualified Data.HashMap.Strict              as Map
+import qualified Data.List                        as List
+import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
 import qualified Data.Vector                      as V
+import           Debug.Trace                      (traceEventIO)
+import qualified Text.Megaparsec                  as Megaparsec
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
 import           Puppet.Interpreter
 import           Puppet.Parser
+import           Puppet.Runner.Stats
+
+-- | Return an HOF that would parse the file associated with a toplevel.
+-- The toplevel is defined by the tuple (type, name)
+-- The result of the parsing is a single Statement (which recursively contains others statements)
+parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
+parseFunc ppath filecache stats = \toptype topname ->
+  let nameparts = Text.splitOn "::" topname in
+  let topLevelFilePath :: TopLevelType -> Text -> Either PrettyError Text
+      topLevelFilePath TopNode _ = Right $ Text.pack (ppath^.manifestPath <> "/site.pp")
+      topLevelFilePath  _ name
+          | length nameparts == 1 = Right $ Text.pack (ppath^.modulesPath) <> "/" <> name <> "/manifests/init.pp"
+          | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ppline name))
+          | otherwise             = Right $ Text.pack (ppath^.modulesPath) <> "/" <> List.head nameparts <> "/manifests/" <> Text.intercalate "/" (List.tail nameparts) <> ".pp"
+  in
+  case topLevelFilePath toptype topname of
+      Left rr     -> return (S.Left rr)
+      Right fname -> do
+          let sfname = Text.unpack fname
+              handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
+              handleFailure e = return (S.Left (show e))
+          x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname `catch` handleFailure))
+          case x of
+            S.Right stmts -> filterStatements toptype topname stmts
+            S.Left rr     -> return (S.Left (PrettyError (red (pptext rr))))
+
+parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
+parseFile fname = do
+  traceEventIO ("START parsing " ++ fname)
+  cnt <- readFile fname
+  o <- case runPParser fname cnt of
+    Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
+    Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")") >> return (S.Left (Megaparsec.parseErrorPretty rr))
+  traceEventIO ("STOP parsing " ++ fname)
+  return o
 
 -- TODO pre-triage stuff
 filterStatements :: TopLevelType -> Text -> V.Vector Statement -> IO (S.Either PrettyError Statement)

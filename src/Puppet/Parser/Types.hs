@@ -22,9 +22,9 @@ module Puppet.Parser.Types
    UDataType(..),
    -- ** Search Expressions
    SearchExpression(..),
-   -- ** Statements
-   ArrowOp(..),
+   -- ** Declaration
    AttributeDecl(..),
+   ArrowOp(..),
    ConditionalDecl(..),
    ClassDecl(..),
    ResDefaultDecl(..),

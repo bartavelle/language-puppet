@@ -10,9 +10,7 @@ import           XPrelude
 import qualified Data.Either.Strict          as S
 import           Data.FileCache              as FileCache
 import qualified Data.HashMap.Strict         as HM
-import qualified Data.List                   as List
 import qualified Data.Text                   as Text
-import qualified Data.Vector                 as V
 import           Debug.Trace                 (traceEventIO)
 import           Foreign.Ruby.Safe
 import qualified System.Directory            as Directory
@@ -20,11 +18,10 @@ import qualified System.Log.Formatter        as Log (simpleLogFormatter)
 import qualified System.Log.Handler          as Log (setFormatter)
 import qualified System.Log.Handler.Simple   as Log (streamHandler)
 import qualified System.Log.Logger           as Log
-import qualified Text.Megaparsec             as Megaparsec
 
 import           Facter
 import           Hiera.Server
-import           Puppet.Runner.Daemon.Manifests
+import           Puppet.Runner.Daemon.FileParser
 import           Puppet.Runner.Daemon.OptionalTests
 import           Puppet.Runner.Erb
 import           Puppet.Interpreter
@@ -72,7 +69,7 @@ initDaemon pref = do
   setupLogger (pref ^. prefLogLevel)
   logDebug "Initialize daemon"
   traceEventIO "initDaemon"
-  hquery      <- hQueryApis pref
+  hquery      <- hieraQuery pref
   fcache      <- newFileCache
   intr        <- startRubyInterpreter
   templStats  <- newStats
@@ -80,33 +77,11 @@ initDaemon pref = do
   catStats    <- newStats
   parseStats  <- newStats
   return (Daemon
-              (getCatalog' pref (parseFunc (pref ^. prefPuppetPaths) fcache parseStats) getTemplate catStats hquery)
-              parseStats
-              catStats
-              templStats
+            (getCatalog' pref (parseFunc (pref ^. prefPuppetPaths) fcache parseStats) getTemplate catStats hquery)
+            parseStats
+            catStats
+            templStats
          )
-
-hQueryApis :: Preferences IO -> IO (HieraQueryLayers IO)
-hQueryApis pref = do
-  api0 <- case pref ^. prefHieraPath of
-    Just p  -> startHiera p
-    Nothing -> pure dummyHiera
-  modapis <- getModApis pref
-  pure (HieraQueryLayers api0 modapis)
-
-getModApis :: Preferences IO -> IO (Container (HieraQueryFunc IO))
-getModApis pref = do
-  let ignored_modules = pref^.prefIgnoredmodules
-      modpath = pref^.prefPuppetPaths.modulesPath
-  dirs <- Directory.listDirectory modpath
-  (HM.fromList . catMaybes) <$>
-    for dirs (\dir -> runMaybeT $ do
-      let modname = toS dir
-          path = modpath <> "/" <> dir <> "/hiera.yaml"
-      guard (modname `notElem` ignored_modules)
-      guard =<< liftIO (Directory.doesFileExist path)
-      liftIO $ (modname, ) <$> startHiera path)
-
 
 getCatalog' :: Preferences IO
          -> ( TopLevelType -> Text -> IO (S.Either PrettyError Statement) )
@@ -139,51 +114,46 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
                                             (pref ^. prefPuppetSettings)
   (stmts :!: warnings) <- measure stats node catalogComputation
   mapM_ (\(p :!: m) -> Log.logM loggerName p (displayS (renderCompact (ppline node <> ":" <+> m)) "")) warnings
-  traceEventIO ("STOP getCatalog' " <> Text.unpack node)
+  traceEventIO ("STOP getCatalog' " <> toS node)
   if pref ^. prefExtraTests
      then runOptionalTests stmts
      else pure stmts
   where
     runOptionalTests stm = case stm ^? _Right._1 of
-        Nothing  -> pure stm
-        (Just c) -> catching _PrettyError
-                            (do {testCatalog pref c; pure stm})
-                            (pure . Left)
+      Nothing  -> pure stm
+      (Just c) -> catching _PrettyError
+                          (do {testCatalog pref c; pure stm})
+                          (pure . Left)
 
--- Return an HOF that would parse the file associated with a toplevel.
--- The toplevel is defined by the tuple (type, name)
--- The result of the parsing is a single Statement (which recursively contains others statements)
-parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
-parseFunc ppath filecache stats = \toptype topname ->
-  let nameparts = Text.splitOn "::" topname in
-  let topLevelFilePath :: TopLevelType -> Text -> Either PrettyError Text
-      topLevelFilePath TopNode _ = Right $ Text.pack (ppath^.manifestPath <> "/site.pp")
-      topLevelFilePath  _ name
-          | length nameparts == 1 = Right $ Text.pack (ppath^.modulesPath) <> "/" <> name <> "/manifests/init.pp"
-          | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ppline name))
-          | otherwise             = Right $ Text.pack (ppath^.modulesPath) <> "/" <> List.head nameparts <> "/manifests/" <> Text.intercalate "/" (List.tail nameparts) <> ".pp"
-  in
-  case topLevelFilePath toptype topname of
-      Left rr     -> return (S.Left rr)
-      Right fname -> do
-          let sfname = Text.unpack fname
-              handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
-              handleFailure e = return (S.Left (show e))
-          x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname `catch` handleFailure))
-          case x of
-              S.Right stmts -> filterStatements toptype topname stmts
-              S.Left rr -> return (S.Left (PrettyError (red (pptext rr))))
+-- Build the 'HieraQueryLayers' needed by the interpreter to lookup hiera values.
+hieraQuery :: Preferences IO -> IO (HieraQueryLayers IO)
+hieraQuery pref = do
+  api0 <- case pref ^. prefHieraPath of
+    Just p  -> startHiera p
+    Nothing -> pure dummyHiera
+  modapis <- getModApis
+  pure (HieraQueryLayers api0 modapis)
+  where
+    getModApis :: IO (Container (HieraQueryFunc IO))
+    getModApis = do
+      let ignored_modules = pref^.prefIgnoredmodules
+          modpath = pref^.prefPuppetPaths.modulesPath
+      dirs <- Directory.listDirectory modpath
+      (HM.fromList . catMaybes) <$>
+        for dirs (\dir -> runMaybeT $ do
+          let modname = toS dir
+              path = modpath <> "/" <> dir <> "/hiera.yaml"
+          guard (modname `notElem` ignored_modules)
+          guard =<< liftIO (Directory.doesFileExist path)
+          liftIO $ (modname, ) <$> startHiera path)
 
-parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
-parseFile fname = do
-  traceEventIO ("START parsing " ++ fname)
-  cnt <- readFile fname
-  o <- case runPParser fname cnt of
-      Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
-      Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")") >> return (S.Left (Megaparsec.parseErrorPretty rr))
-  traceEventIO ("STOP parsing " ++ fname)
-  return o
 
+defaultImpureMethods :: MonadIO m => IoMethods m
+defaultImpureMethods =
+  IoMethods (liftIO currentCallStack) (liftIO . file) (liftIO . traceEventIO)
+  where
+    file [] = return $ Left ""
+    file (x:xs) = (Right <$> readFile (Text.unpack x)) `catch` (\SomeException {} -> file xs)
 
 setupLogger :: Log.Priority -> IO ()
 setupLogger p = do
@@ -194,10 +164,3 @@ setupLogger p = do
     consoleLogHandler = Log.setFormatter
                        <$> Log.streamHandler stdout Log.DEBUG
                        <*> pure (Log.simpleLogFormatter "$prio: $msg")
-
-defaultImpureMethods :: MonadIO m => IoMethods m
-defaultImpureMethods =
-  IoMethods (liftIO currentCallStack) (liftIO . file) (liftIO . traceEventIO)
-  where
-    file [] = return $ Left ""
-    file (x:xs) = (Right <$> readFile (Text.unpack x)) `catch` (\SomeException {} -> file xs)

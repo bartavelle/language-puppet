@@ -89,7 +89,7 @@ eval r s (a :>>= k) =
                     Right x -> logStuff w (interpretMonad r s' (k x))
 
 
--- | Query hiera layers
+-- query hiera layers
 queryHiera :: Monad m =>  HieraQueryLayers m -> Container Text -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
 queryHiera layers scps q t = do
   val <- (layers^.globalLayer) scps q t

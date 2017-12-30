@@ -221,5 +221,6 @@ instance Pretty Statement where
                       Collector         -> enclose (ppline "<|")   (ppline "|>")
                       ExportedCollector -> enclose (ppline "<<|")  (ppline "|>>")
 
+-- | Pretty print a series of statements.
 ppStatements :: Vector Statement -> Doc
 ppStatements = vcat . map pretty . V.toList

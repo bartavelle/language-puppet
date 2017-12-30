@@ -85,7 +85,7 @@ library
                        , Puppet.Runner.Erb.Evaluate
                        , Puppet.Runner.Erb
                        , Puppet.Runner.Pure
-                       , Puppet.Runner.Daemon.Manifests
+                       , Puppet.Runner.Daemon.FileParser
                        , Puppet.Runner.Daemon.OptionalTests
                        , Puppet.Runner.Daemon
   extensions:          OverloadedStrings, BangPatterns, LambdaCase, NoImplicitPrelude

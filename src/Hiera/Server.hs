@@ -16,11 +16,8 @@ module Hiera.Server (
     startHiera
   , dummyHiera
   , HieraQueryType (..)
-  , globalLayer
-  , moduleLayer
   , readQueryType
   , HieraQueryFunc
-  , HieraQueryLayers(..)
 ) where
 
 import           XPrelude
@@ -67,15 +64,6 @@ type HieraQueryFunc m = Container Text -- ^ Scope: all variables that Hiera can 
                      -> Text -- ^ The query
                      -> HieraQueryType
                      -> m (S.Either PrettyError (Maybe PValue))
-
--- | All available queries including the global and module layer
--- The environment layer is not implemented.
-data HieraQueryLayers m = HieraQueryLayers
-  { _globalLayer :: HieraQueryFunc m
-  , _moduleLayer :: Container (HieraQueryFunc m)
-  }
-
-makeLenses ''HieraQueryLayers
 
 data Backend
   = YamlBackend FilePath

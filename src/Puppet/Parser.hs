@@ -14,7 +14,7 @@ module Puppet.Parser (
   , dummypos
   , dummyppos
  -- * Pretty Printer
-  , ppStatements
+  , module Puppet.Parser.PrettyPrinter
   , module Puppet.Parser.Types
   , module Puppet.Parser.Lens
 ) where
@@ -36,7 +36,7 @@ import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
 import           Puppet.Language
 import           Puppet.Parser.Lens
-import           Puppet.Parser.PrettyPrinter      (ppStatements)
+import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 
 type Parser = Parsec Void Text

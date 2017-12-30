@@ -78,6 +78,10 @@ module Puppet.Interpreter.Types (
  , ResRefOverride(..)
  , ScopeEnteringContext(..)
  , TopLevelType(..)
+ -- * Hiera
+ , HieraQueryLayers(..)
+ , globalLayer
+ , moduleLayer
  -- * Re-export
  , module Puppet.Language
 ) where
@@ -132,7 +136,7 @@ data ClassIncludeType
   | ClassResourceLike -- ^ Resource like declaration
   deriving (Eq)
 
--- | This type is used to differentiate the distinct top level types that are exposed by the DSL.
+-- | Differentiate the distinct top level types such as node, define or class.
 data TopLevelType
   = TopNode -- ^ For node entries
   | TopDefine -- ^ For defines
@@ -191,6 +195,15 @@ data IoMethods m = IoMethods
   { _ioGetCurrentCallStack :: m [String]
   , _ioReadFile            :: [Text] -> m (Either String Text)
   , _ioTraceEvent          :: String -> m ()
+  }
+
+-- | All available queries including the global and module layer
+-- The environment layer is not implemented.
+--
+-- The datatype belongs to the "Puppet.Interpreter" module because it serves to implement how Hiera is used within Puppet.
+data HieraQueryLayers m = HieraQueryLayers
+  { _globalLayer :: HieraQueryFunc m
+  , _moduleLayer :: Container (HieraQueryFunc m)
   }
 
 data InterpreterReader m = InterpreterReader
@@ -290,8 +303,8 @@ data ResourceCollectorType
   | DontRealize
   deriving (Show, Eq)
 
-
 makeLenses ''ResDefaults
+makeLenses ''HieraQueryLayers
 makeLenses ''ResourceModifier
 makeLenses ''InterpreterReader
 makeLenses ''IoMethods
