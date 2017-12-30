@@ -124,7 +124,6 @@ library
                      , random
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2 && < 0.4
-                     , semigroups
                      , servant              >= 0.9
                      , servant-client       >= 0.9
                      , split                == 0.2.*
