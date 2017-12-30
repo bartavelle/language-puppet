@@ -159,10 +159,10 @@ initializedaemonWithPuppet :: FilePath
 initializedaemonWithPuppet workingdir Options {..} = do
     mgr <- Http.newManager Http.defaultManagerSettings
     pdbapi <- case (_optPdburl, _optPdbfile) of
-                  (Nothing, Nothing) -> return dummyPuppetDB
-                  (Just _, Just _)   -> panic "You must choose between a testing PuppetDB and a remote one"
-                  (Just url, _)      -> pdbConnect mgr url >>= checkError "Error when connecting to the remote PuppetDB"
-                  (_, Just file)     -> PuppetDB.loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
+                (Nothing, Nothing) -> return dummyPuppetDB
+                (Just _, Just _)   -> panic "You must choose between a testing PuppetDB and a remote one"
+                (Just url, _)      -> pdbConnect mgr url >>= checkError "Error when connecting to the remote PuppetDB"
+                (_, Just file)     -> PuppetDB.loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
     pref <- dfPreferences workingdir <&> prefPDB .~ pdbapi
                                      <&> prefHieraPath .~ _optHieraFile
                                      <&> prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods)
@@ -283,18 +283,18 @@ computeStats workingdir Options {..}
       (templating, Just (wTName, wTMean)) = worstAndSum tStats
       parserShare = 100 * parsing / cataloging
       templateShare = 100 * templating / cataloging
-      formatDouble = take 5 . show -- yeah, well ...
+      formatDouble = Text.take 5 . show -- yeah, well ...
       nbnodes = length topnodes
-      worstAndSum = (_1 %~ getSum)
-                          . (_2 %~ fmap swap . getMaximum)
-                          . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
+      worstAndSum =   (_1 %~ getSum)
+                    . (_2 %~ fmap swap . getMaximum)
+                    . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
   putStr ("\nTested " ++ show nbnodes ++ " nodes. ")
   unless (nbnodes == 0) $ do
-    putStrLn (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
+    putText (formatDouble parserShare <> "% of total CPU time spent parsing, " <> formatDouble templateShare <> "% spent computing templates")
     when (_optLoglevel <= Log.NOTICE) $ do
-      putStrLn ("Slowest template:           " <> Text.unpack wTName <> ", taking " <> formatDouble wTMean <> "s on average")
-      putStrLn ("Slowest file to parse:      " <> Text.unpack wPName <> ", taking " <> formatDouble wPMean <> "s on average")
-      putStrLn ("Slowest catalog to compute: " <> Text.unpack wCName <> ", taking " <> formatDouble wCMean <> "s on average")
+      putText ("Slowest template:           " <> wTName <> ", taking " <> formatDouble wTMean <> "s on average")
+      putText ("Slowest file to parse:      " <> wPName <> ", taking " <> formatDouble wPMean <> "s on average")
+      putText ("Slowest catalog to compute: " <> wCName <> ", taking " <> formatDouble wCMean <> "s on average")
 
   if failures > 0
      then do {putDoc ("Found" <+> red (pretty failures) <+> "failure(s)." <> line) ; exitFailure}
@@ -348,12 +348,12 @@ filterCatalog typeFilter nameFilter =
     -- filter catalog using the adhoc lens
     filterC Nothing _ c = return c
     filterC (Just regexp) l c = Reg.compile Reg.compBlank Reg.execBlank (Text.unpack regexp) >>= \case
-       Left rr   -> panic ("Error compiling regexp 're': "  <> show rr)
-       Right reg -> Map.fromList <$> filterM (filterResource reg l) (Map.toList c)
+      Left rr   -> panic ("Error compiling regexp 're': "  <> show rr)
+      Right reg -> Map.fromList <$> filterM (filterResource reg l) (Map.toList c)
     filterResource reg l v = Reg.execute reg (v ^. l) >>= \case
-                                 Left rr -> panic ("Error when applying regexp: " <> show rr)
-                                 Right Nothing -> return False
-                                 _ -> return True
+      Left rr -> panic ("Error when applying regexp: " <> show rr)
+      Right Nothing -> return False
+      _ -> return True
 
 
 run :: Options -> IO ()
