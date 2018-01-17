@@ -1,4 +1,5 @@
 Source: language-puppet
+Section: admin
 Maintainer: Simon Marechal <bartavelle@gmail.com>
 Priority: optional
 
