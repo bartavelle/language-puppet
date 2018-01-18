@@ -19,7 +19,7 @@ module Puppet.Parser (
   , module Puppet.Parser.Lens
 ) where
 
-import           XPrelude.Extra                   hiding (option, try)
+import           XPrelude.Extra                   hiding (option, try, many, some)
 
 import qualified Data.Char                        as Char
 import qualified Data.List                        as List
