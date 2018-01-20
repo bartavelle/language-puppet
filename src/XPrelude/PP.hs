@@ -5,7 +5,6 @@ module XPrelude.PP (
   module Exports
   , PrettyError (..)
   , _PrettyError
-  , displayNocolor
   , prettyToShow
   , ppline
   , pplines
@@ -69,14 +68,3 @@ pptext = text
 
 prettyToShow :: Doc -> String
 prettyToShow d = displayS (renderCompact d) ""
-
--- | A rendering function that drops colors.
-displayNocolor :: Doc -> String
-displayNocolor = flip displayS "" . dropEffects . renderPretty 0.4 180
-  where
-    dropEffects :: SimpleDoc -> SimpleDoc
-    dropEffects (SSGR _ x)    = dropEffects x
-    dropEffects (SLine l d)   = SLine l (dropEffects d)
-    dropEffects (SText v t d) = SText v t (dropEffects d)
-    dropEffects (SChar c d)   = SChar c (dropEffects d)
-    dropEffects x             = x
