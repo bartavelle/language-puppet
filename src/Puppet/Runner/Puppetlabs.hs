@@ -113,7 +113,7 @@ aclToHash acl _ = throwPosError $ "Unable to parse acl line" <+> squotes (ppline
 
 -- faked implementation, replace by the correct one if you need so.
 mockDockerRunFlags :: MonadThrowPos m => [PValue] -> m PValue
-mockDockerRunFlags arg@[PHash _]= (return . PString . Text.pack . displayNocolor . pretty . head) arg
+mockDockerRunFlags arg@[PHash _]= (pure . PString . show . head) arg
 mockDockerRunFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- utils
