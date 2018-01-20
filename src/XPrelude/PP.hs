@@ -6,7 +6,6 @@ module XPrelude.PP (
   , PrettyError (..)
   , _PrettyError
   , displayNocolor
-  , prettyToText
   , prettyToShow
   , ppline
   , pplines
@@ -67,9 +66,6 @@ ppstring = string
 -- | pretty print one line of string
 pptext :: String -> Doc
 pptext = text
-
-prettyToText :: Doc -> Text
-prettyToText = Text.pack . prettyToShow
 
 prettyToShow :: Doc -> String
 prettyToShow d = displayS (renderCompact d) ""

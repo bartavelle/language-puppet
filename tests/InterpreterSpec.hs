@@ -16,7 +16,7 @@ arrowOperationInput arr = Text.unlines [ "node " <> appendArrowNode <> " {"
                   , "  groups => 'ci'"
                   , "}"
                   , "User <| title == 'jenkins' |> {"
-                  , "groups " <> (prettyToText . pretty) arr <> " 'docker',"
+                  , "groups " <> show arr <> " 'docker',"
                   , "uid => 1000}"
                   , "}"
                   ]

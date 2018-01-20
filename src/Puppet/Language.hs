@@ -1,7 +1,8 @@
 -- | General puppet language specification.
 --
--- This module can be safely exported from all other Puppet module layers
--- such as "Puppet.Parser" or "Puppet.Interpreter".
+-- This module doesn't depend on any other project modules (except for "XPrelude").
+-- It serves as a common bridge that can be used in "PuppetDB" or "Facter" as well as in
+-- "Puppet.Interpreter" or "Puppet.Parser".
 module Puppet.Language(
     module Puppet.Language.Core
   , module Puppet.Language.NativeTypes
