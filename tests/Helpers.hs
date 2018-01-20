@@ -12,7 +12,7 @@ module Helpers ( module Exports
                , withStdlibFunction
                ) where
 
-import           XPrelude     as Exports hiding (checkError)
+import           XPrelude     as Exports
 
 import           Control.Monad       as Exports (fail)
 import qualified Data.HashMap.Strict as HM

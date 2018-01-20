@@ -87,8 +87,8 @@ display :: (Show r, Aeson.ToJSON a) => Text -> Either r a -> IO ()
 display s (Left rr) = panic (s <> " " <> show rr)
 display _ (Right a) = putLByteString (Aeson.encode a)
 
-runCheck :: Show r => Doc -> ExceptT r IO a -> IO a
-runCheck s = runExceptT >=> checkError s
+runCheck :: Doc -> ExceptT PrettyError IO a -> IO a
+runCheck s = runExceptT >=> unwrapError s
 
 showHelpText :: ParserPrefs -> ParserInfo a -> IO ()
 showHelpText pprefs pinfo = handleParseResult . Failure $
@@ -113,7 +113,7 @@ run Options{_pdbcmd = Just pdbcmd, ..} = do
                      then puppetDBFacts "dummy"  pdbapi >>= mapM_ print . HM.toList
                      else do
                        allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
-                       tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= checkError "load test db"
+                       tmpdb <- loadTestDB "/tmp/allfacts.yaml" >>= unwrapError "load test db"
                        let groupfacts = foldl' groupfact HM.empty allfacts
                            groupfact curmap (FactInfo ndname fctname fctval) =
                                curmap & at ndname . non HM.empty %~ (at fctname ?~ fctval)
@@ -128,7 +128,7 @@ run Options{_pdbcmd = Just pdbcmd, ..} = do
         runCheck "replace facts" (replaceFacts pdbapi [(n, fcts)])
         runCheck "commit db" (commitDB pdbapi)
       CreateTestDB destfile -> do
-        ndb <- loadTestDB destfile >>= checkError "puppetdb load"
+        ndb <- loadTestDB destfile >>= unwrapError "puppetdb load"
         allnodes <- runCheck "get nodes" (getNodes pdbapi QEmpty)
         allfacts <- runCheck "get facts" (getFacts pdbapi QEmpty)
         let factsGrouped = HM.toList $ HM.fromListWith (<>) $ map (\x -> (x ^. factInfoNodename, HM.singleton (x ^. factInfoName) (x ^. factInfoVal))) allfacts

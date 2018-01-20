@@ -7,7 +7,7 @@ module XPrelude.Extra (
       module Exports
     , String
     , Container
-    , checkError
+    , unwrapError
     , isEmpty
     , dropInitialColons
     , textElem
@@ -178,9 +178,9 @@ logError = Log.errorM "language-puppet" . toS
 logDebugStr :: String -> IO ()
 logDebugStr = Log.debugM "language-puppet"
 
--- | In case of a Left value, print the error and exit immediately.
-checkError :: Show e => Doc -> Either e a -> IO a
-checkError desc = either exit return
+-- | In case of a Left error, print and exit immediately.
+unwrapError :: Doc -> Either PrettyError a -> IO a
+unwrapError desc = either exit pure
     where
       exit = \err -> putDoc (display err) >> exitFailure
-      display err = red desc <> ": " <+> (pplines . show) err
+      display err = red desc <> ":" <+> getError err

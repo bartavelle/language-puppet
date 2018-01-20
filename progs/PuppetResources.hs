@@ -161,8 +161,8 @@ initializedaemonWithPuppet workingdir Options {..} = do
     pdbapi <- case (_optPdburl, _optPdbfile) of
                 (Nothing, Nothing) -> return dummyPuppetDB
                 (Just _, Just _)   -> panic "You must choose between a testing PuppetDB and a remote one"
-                (Just url, _)      -> pdbConnect mgr url >>= checkError "Error when connecting to the remote PuppetDB"
-                (_, Just file)     -> PuppetDB.loadTestDB file >>= checkError "Error when initializing the PuppetDB API"
+                (Just url, _)      -> pdbConnect mgr url >>= unwrapError "Error when connecting to the remote PuppetDB"
+                (_, Just file)     -> PuppetDB.loadTestDB file >>= unwrapError "Error when initializing the PuppetDB API"
     pref <- dfPreferences workingdir <&> prefPDB .~ pdbapi
                                      <&> prefHieraPath .~ _optHieraFile
                                      <&> prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods)
