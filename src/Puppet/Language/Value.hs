@@ -76,11 +76,11 @@ data PValue
 makePrisms ''PValue
 
 instance Pretty PValue where
-  pretty (PBoolean True) = dullmagenta $ ppline "true"
-  pretty (PBoolean False) = dullmagenta $ ppline "false"
+  pretty (PBoolean True) = dullmagenta $ "true"
+  pretty (PBoolean False) = dullmagenta $ "false"
   pretty (PString s) = dullcyan (ppline (stringEscape s))
   pretty (PNumber n) = cyan (ppline (scientific2text n))
-  pretty PUndef = dullmagenta (ppline "undef")
+  pretty PUndef = dullmagenta "undef"
   pretty (PResourceReference t n) = capitalizeR t <> brackets (ppline n)
   pretty (PArray v) = list (map pretty (toList v))
   pretty (PHash g) = containerComma g

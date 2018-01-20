@@ -72,7 +72,7 @@ containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 2 ins
   where
     ins = mconcat $ intersperse (comma <> line <> mempty) (fmap showC x)
-    showC (a,b) = a <+> ppline "=>" <+> pretty b
+    showC (a,b) = a <+> "=>" <+> pretty b
 
 containerComma' :: Pretty a => [(Doc, a)] -> Doc
 containerComma' = braces . containerComma''

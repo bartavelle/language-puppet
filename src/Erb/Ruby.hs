@@ -42,10 +42,10 @@ data Expression
 
 instance Pretty Expression where
     pretty (LookupOperation a b) = pretty a <> brackets (pretty b)
-    pretty (PlusOperation a b) = parens (pretty a <+> ppline "+" <+> pretty b)
-    pretty (MinusOperation a b) = parens (pretty a <+> ppline "-" <+> pretty b)
-    pretty (DivOperation a b) = parens (pretty a <+> ppline "/" <+> pretty b)
-    pretty (MultiplyOperation a b) = parens (pretty a <+> ppline "*" <+> pretty b)
+    pretty (PlusOperation a b) = parens (pretty a <+> "+" <+> pretty b)
+    pretty (MinusOperation a b) = parens (pretty a <+> "-" <+> pretty b)
+    pretty (DivOperation a b) = parens (pretty a <+> "/" <+> pretty b)
+    pretty (MultiplyOperation a b) = parens (pretty a <+> "*" <+> pretty b)
     pretty op = ppline (show op)
 
 data RubyStatement

@@ -56,8 +56,8 @@ data CurContainerDesc
 instance Pretty CurContainerDesc where
   pretty (ContImport  p x) = magenta "import" <> braces (ppline p) <> braces (pretty x)
   pretty (ContImported x) = magenta "imported" <> braces (pretty x)
-  pretty ContRoot = dullyellow (ppline "::")
-  pretty (ContClass cname) = dullyellow (ppline "class") <+> dullgreen (ppline cname)
+  pretty ContRoot = dullyellow "::"
+  pretty (ContClass cname) = dullyellow "class" <+> dullgreen (ppline cname)
   pretty (ContDefine dtype dname _) = pretty (PResourceReference dtype dname)
 
 -- | Relationship/ordering between resources.
