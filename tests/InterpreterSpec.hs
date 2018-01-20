@@ -10,13 +10,13 @@ import           Text.Megaparsec          (eof, parse)
 appendArrowNode :: Text
 appendArrowNode = "appendArrow"
 
-arrowOperationInput :: ArrowOp -> Text
+arrowOperationInput :: Text -> Text
 arrowOperationInput arr = Text.unlines [ "node " <> appendArrowNode <> " {"
                   , "user { 'jenkins':"
                   , "  groups => 'ci'"
                   , "}"
                   , "User <| title == 'jenkins' |> {"
-                  , "groups " <> show arr <> " 'docker',"
+                  , "groups " <> arr <> " 'docker',"
                   , "uid => 1000}"
                   , "}"
                   ]
@@ -38,13 +38,13 @@ collectorSpec = do
   let computeWith arr = pureCompute appendArrowNode (arrowOperationInput arr)
   describe "Resource Collector" $
     it "should append the new 'uid' attribute in the user resource" $
-      getResAttr (computeWith AssignArrow) ^. at "uid" `shouldBe` Just (PNumber 1000)
+      getResAttr (computeWith "=>") ^. at "uid" `shouldBe` Just (PNumber 1000)
   describe "AppendArrow in AttributeDecl" $
     it "should add 'docker' to the 'groups' attribute of the user resource" $
-      getResAttr (computeWith AppendArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["ci", "docker"])
+      getResAttr (computeWith "+>") ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["ci", "docker"])
   describe "AssignArrow in AttributeDecl" $
     it "should override the 'groups' attributes from the user resource" $
-      getResAttr (computeWith AssignArrow) ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["docker"])
+      getResAttr (computeWith "=>") ^. at "groups" `shouldBe` Just (PArray $ V.fromList ["docker"])
 
 classIncludeSpec :: Spec
 classIncludeSpec = do
