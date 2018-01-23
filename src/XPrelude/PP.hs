@@ -4,7 +4,6 @@
 module XPrelude.PP (
   module Exports
   , PrettyError (..)
-  , _PrettyError
   , prettyToShow
   , ppline
   , pplines
@@ -15,7 +14,6 @@ where
 
 import           Protolude
 
-import           Control.Lens
 import           Data.Scientific
 import           Data.String
 import qualified Data.Text                    as Text
@@ -31,17 +29,12 @@ newtype PrettyError = PrettyError
   { getError :: Doc
   } deriving Show
 
-_PrettyError :: Prism' SomeException PrettyError
-_PrettyError = prism' toException fromException
-
 instance Monoid PrettyError where
   mempty = PrettyError mempty
-  mappend a b = PrettyError $ getError a <+> getError b
+  mappend a b = PrettyError $ align (vsep [getError a, getError b])
 
 instance IsString PrettyError where
   fromString = PrettyError . string
-
-instance Exception PrettyError
 
 instance Pretty PrettyError where
   pretty = getError
