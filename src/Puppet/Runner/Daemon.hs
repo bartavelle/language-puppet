@@ -115,15 +115,12 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
   (stmts :!: warnings) <- measure stats node catalogComputation
   mapM_ (\(p :!: m) -> Log.logM loggerName p (displayS (renderCompact (ppline node <> ":" <+> m)) "")) warnings
   traceEventIO ("STOP getCatalog' " <> toS node)
-  if pref ^. prefExtraTests
-     then runOptionalTests stmts
-     else pure stmts
-  where
-    runOptionalTests stm = case stm ^? _Right._1 of
-      Nothing  -> pure stm
-      (Just c) -> catching _PrettyError
-                          (do {testCatalog pref c; pure stm})
-                          (pure . Left)
+  case stmts of
+    Left _ -> pure stmts -- no catalog so we can't do the extra tests
+    Right r@(c,_,_,_) -> do
+      if pref ^. prefExtraTests
+        then second (const r) <$> (testCatalog pref c)
+        else pure stmts
 
 -- Build the 'HieraQueryLayers' needed by the interpreter to lookup hiera values.
 hieraQuery :: Preferences IO -> IO (HieraQueryLayers IO)

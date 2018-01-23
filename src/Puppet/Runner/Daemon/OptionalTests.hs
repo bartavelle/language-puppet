@@ -1,10 +1,8 @@
--- | The module works in IO and throws a 'PrettyError' exception at each failure.
--- These exceptions can be caught (see the exceptions package).
+-- | The module accumulates 'PrettyError's in the ExceptT monad transformer.
 module Puppet.Runner.Daemon.OptionalTests (testCatalog) where
 
 import           XPrelude
 
-import           Control.Monad.Catch       (throwM)
 import qualified Data.HashSet              as Set
 import qualified Data.Text                 as Text
 import           System.Posix.Files        (fileExist)
@@ -14,13 +12,16 @@ import           Puppet.Runner.Preferences
 
 
 -- | Entry point for all optional tests
-testCatalog :: Preferences IO -> FinalCatalog -> IO ()
+testCatalog :: Preferences IO
+            -> FinalCatalog
+            -> IO (Either PrettyError ())
 testCatalog prefs c =
-     testFileSources (prefs ^. prefPuppetPaths.baseDir) c
-  *> testUsersGroups (prefs ^. prefKnownusers) (prefs ^. prefKnowngroups) c
+  runExceptT
+    $  testFileSources (prefs ^. prefPuppetPaths.baseDir) c
+    *> testUsersGroups (prefs ^. prefKnownusers) (prefs ^. prefKnowngroups) c
 
 -- | Tests that all users and groups are defined
-testUsersGroups :: [Text] -> [Text] -> FinalCatalog -> IO ()
+testUsersGroups :: [Text] -> [Text] -> FinalCatalog -> ExceptT PrettyError IO ()
 testUsersGroups kusers kgroups c = do
   let users = Set.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "user") ++ kusers
       groups = Set.fromList $ "" : "0" : map (view (rid . iname)) (getResourceFrom "group") ++ kgroups
@@ -33,12 +34,12 @@ testUsersGroups kusers kgroups c = do
           case lu of
               Just lu' -> do
                   let u = res ^. rattributes . lu' . _PString
-                  unless (Set.member u users) $ throwM $ PrettyError (msg "user" u)
+                  unless (Set.member u users) $ throwE $ PrettyError (msg "user" u)
               Nothing -> pure ()
           case lg of
               Just lg' -> do
                   let g = res ^. rattributes . lg' . _PString
-                  unless (Set.member g groups) $ throwM $ PrettyError (msg "group" g)
+                  unless (Set.member g groups) $ throwE $ PrettyError (msg "group" g)
               Nothing -> pure ()
   do
       checkResource (Just $ ix "owner") (Just $ ix "group") (getResourceFrom "file")
@@ -51,7 +52,7 @@ testUsersGroups kusers kgroups c = do
     getResourceFrom t = c ^.. traverse . filtered (\r -> r ^. rid . itype == t && r ^. rattributes . at "ensure" /= Just "absent")
 
 -- | Test source for every file resources in the catalog.
-testFileSources :: FilePath -> FinalCatalog -> IO ()
+testFileSources :: FilePath -> FinalCatalog -> ExceptT PrettyError IO ()
 testFileSources basedir c = do
     let getfiles = filter presentFile . toList
         presentFile r = r ^. rid . itype == "file"
@@ -61,16 +62,25 @@ testFileSources basedir c = do
     checkAllSources basedir $ (getsource . getfiles) c
 
 -- | Check source for all file resources and append failures along.
-checkAllSources :: FilePath -> [(Resource, PValue)] -> IO ()
-checkAllSources fp fs = go fs []
+checkAllSources :: FilePath -> [(Resource, PValue)] -> ExceptT PrettyError IO ()
+checkAllSources fp fs =
+  -- we could just do :
+  -- traverse_ (\(res, src) -> catchE (checkFile fp src) (throwE ...)) fs
+  -- but that would print the first encountered failure.
+  go fs []
   where
-    go ((res, filesource):xs) es =
-      runExceptT (checkFile fp filesource) >>= \case
-        Right () -> go xs es
-        Left err -> go xs ((PrettyError $ "Could not find " <+> pretty filesource <> semi
-                           <+> align (vsep [getError err, showPos (res^.rpos^._1)])):es)
+    go :: [(Resource, PValue)] -> [PrettyError] -> ExceptT PrettyError IO ()
+    go ((res, filesrc):xs) es = ExceptT $ do
+      runExceptT (checkFile fp filesrc) >>= \case
+        Right () -> runExceptT $ go xs es
+        Left err ->
+          runExceptT
+          $ go xs ((PrettyError $ align (vsep [ "Could not find" <+> pretty filesrc
+                                              , getError err
+                                              , showPos (res^.rpos^._1)
+                                              ])):es)
     go [] [] = pure ()
-    go [] es = traverse_ throwM es
+    go [] es = throwE (mconcat es)
 
 testFile :: FilePath -> ExceptT PrettyError IO ()
 testFile fp = do
@@ -80,7 +90,8 @@ testFile fp = do
 -- | Only test the `puppet:///` protocol (files managed by the puppet server)
 --   we don't test absolute path (puppet client files)
 checkFile :: FilePath -> PValue -> ExceptT PrettyError IO ()
-checkFile basedir (PString f) = case Text.stripPrefix "puppet:///" f of
+checkFile basedir (PString f)  =
+  case Text.stripPrefix "puppet:///" f of
     Just stringdir -> case Text.splitOn "/" stringdir of
         ("modules":modname:rest) -> testFile (basedir <> "/modules/" <> toS modname <> "/files/" <> toS (Text.intercalate "/" rest))
         ("files":rest)           -> testFile (basedir <> "/files/" <> toS (Text.intercalate "/" rest))
@@ -88,5 +99,5 @@ checkFile basedir (PString f) = case Text.stripPrefix "puppet:///" f of
         _                        -> throwE (PrettyError $ "Invalid file source:" <+> ppline f)
     Nothing        -> return ()
 -- source is always an array of possible paths. We only fails if none of them check.
-checkFile basedir (PArray xs) = asum [checkFile basedir x | x <- toList xs]
+checkFile basedir (PArray xs)  = asum [checkFile basedir x | x <- toList xs]
 checkFile _ x = throwE (PrettyError $ "Source was not a string, but" <+> pretty x)
