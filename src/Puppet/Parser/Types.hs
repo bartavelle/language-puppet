@@ -262,7 +262,8 @@ data NodeDecl = NodeDecl !NodeDesc !(V.Vector Statement) !(S.Maybe NodeDesc) !PP
 -- | @ $newvar = 'world' @
 data VarAssignDecl
     = VarAssignDecl
-    { _vadname  :: !Text
+    { _vadtype  :: Maybe UDataType
+    , _vadname  :: !Text
     , _vadvalue :: !Expression
     , _vadpos   :: !PPosition
     } deriving (Eq, Show)

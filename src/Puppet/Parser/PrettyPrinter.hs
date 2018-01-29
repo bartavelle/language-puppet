@@ -205,7 +205,7 @@ instance Pretty Statement where
           inheritance = case inherit of
             S.Nothing -> mempty
             S.Just x -> mempty <+> "inherits" <+> ppline x
-    pretty (VarAssignmentDeclaration (VarAssignDecl a b p)) = dullblue (pretty '$' <> ppline a <+> pretty '=' <+> pretty b <+> showPPos p)
+    pretty (VarAssignmentDeclaration (VarAssignDecl mt a b p)) = foldMap (\t -> pretty t <+> mempty) mt <> dullblue (pretty '$' <> ppline a <+> pretty '=' <+> pretty b <+> showPPos p)
     pretty (NodeDeclaration (NodeDecl nodename stmts i p)) = dullyellow "node" <+> pretty nodename <> inheritance <+> showPPos p <$> braceStatements stmts
         where
           inheritance = case i of

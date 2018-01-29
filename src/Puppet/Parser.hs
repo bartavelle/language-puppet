@@ -357,12 +357,13 @@ stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reser
 varAssign :: Parser VarAssignDecl
 varAssign = do
     p <- getPosition
+    mt <- optional datatype
     v <- variableReference
     void $ symbolic '='
     e <- expression
     when (Text.all Char.isDigit v) (fail "Can't assign fully numeric variables")
     pe <- getPosition
-    return (VarAssignDecl v e (p :!: pe))
+    return (VarAssignDecl mt v e (p :!: pe))
 
 nodeDecl :: Parser [NodeDecl]
 nodeDecl = do

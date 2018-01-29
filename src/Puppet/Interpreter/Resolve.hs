@@ -34,6 +34,7 @@ module Puppet.Interpreter.Resolve
       hfRestorevars,
       fixResourceName,
       datatypeMatch,
+      checkMatch
     ) where
 
 import           XPrelude.Extra
@@ -797,3 +798,6 @@ datatypeMatch dt v =
       fromMaybe False $ do
         vr <- f <$> v ^? prm
         pure $ and (catMaybes [fmap (vr >=) mmin, fmap (vr <=) mmax])
+
+checkMatch :: DataType -> PValue -> InterpreterMonad ()
+checkMatch dt pv = unless (datatypeMatch dt pv) (throwPosError (pretty pv <+> "does not match type" <+> pretty dt))

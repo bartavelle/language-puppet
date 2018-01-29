@@ -462,9 +462,10 @@ evaluateStatement (ResourceDeclaration (ResDecl t ern eargs virt p)) = do
 evaluateStatement (MainFunctionDeclaration (MainFuncDecl funcname funcargs p)) = do
   curPos .= p
   mapM resolveExpression (toList funcargs) >>= mainFunctionCall funcname
-evaluateStatement (VarAssignmentDeclaration (VarAssignDecl varname varexpr p)) = do
+evaluateStatement (VarAssignmentDeclaration (VarAssignDecl mt varname varexpr p)) = do
   curPos .= p
   varval <- resolveExpression varexpr
+  mapM_ (resolveDataType >=> (`checkMatch` varval)) mt
   loadVariable varname varval
   return []
 evaluateStatement (ConditionalDeclaration (ConditionalDecl conds p)) = do
