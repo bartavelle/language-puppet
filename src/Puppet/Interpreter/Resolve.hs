@@ -549,7 +549,10 @@ resolveFunction' "hiera_hash"  [q,d]   = hieraCall QHash  q (Just d) Nothing Not
 resolveFunction' "hiera_hash"  [q,d,o] = hieraCall QHash  q (Just d) Nothing (Just o)
 resolveFunction' "lookup"      [q]                        = hieraCall QFirst   q Nothing  Nothing Nothing
 resolveFunction' "lookup"      [q, PType dt]              = hieraCall QFirst   q Nothing (Just dt) Nothing
-resolveFunction' "lookup"      [q, PType dt, PString t,d] = hieraCall (fromMaybe QFirst (readQueryType t)) q (Just d) (Just dt) Nothing
+resolveFunction' "lookup"      [q, PType dt, PString t,d] =
+  case readQueryType t of
+    Nothing -> throwPosError ("Unknown merge strategy " <> ppline t)
+    Just qt -> hieraCall qt q (Just d) (Just dt) Nothing
 resolveFunction' "lookup" _                               =  throwPosError "lookup(): Wrong set of arguments"
 
 -- user functions
