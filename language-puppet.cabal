@@ -32,10 +32,10 @@ source-repository head
 
 library
   hs-source-dirs: src
-  exposed-modules:       Erb
+  exposed-modules:       XPrelude
+                       , Erb
                        , Facter
                        , Hiera.Server
-                       , XPrelude
                        , PuppetDB
                        , Puppet.Language
                        , Puppet.Parser
