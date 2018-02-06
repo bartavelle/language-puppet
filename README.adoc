@@ -23,9 +23,9 @@ git clone https://github.com/bartavelle/language-puppet.git
 cd language-puppet
 # Using nix
 cabal2nix . > default.nix
-nix-build shell.nix # or nix-shell
+nix-build shell.nix
 # Using stack
-ln -s stack-9.yaml stack.yaml
+ln -s stack-10.yaml stack.yaml
 stack build
 ```
 

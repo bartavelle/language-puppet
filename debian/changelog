@@ -4,7 +4,7 @@ language-puppet (1.3.14) UNRELEASED; urgency=medium
   * The `lookup` function now fails if an input strategy is unknown
   * Display all errors when testing file sources in optional tests (not just the first one).
   * Fix haddock rendering
-  * re-organize haskell modules to strengthen dependency paths
+  * Re-organize haskell modules to strengthen dependency paths
 
  -- Simon Marechal <simon.marechal@edf.fr>  Tue, 06 Feb 2018 17:54:51 +0100
 
