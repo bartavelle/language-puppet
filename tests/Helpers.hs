@@ -28,7 +28,7 @@ import           Puppet.Runner       as Exports hiding (getCatalog)
 
 compileCatalog :: MonadError String m => Text -> m (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
 compileCatalog input = do
-  statements <- either (throwError . show) return (runPParser "dummy" input)
+  statements <- either (throwError . show) return (runPuppetParser mempty input)
   let nodename = "node.fqdn"
       sttmap =
         [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos "dummy")))

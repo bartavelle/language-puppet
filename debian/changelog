@@ -1,4 +1,10 @@
-language-puppet (1.3.14) UNRELEASED; urgency=medium
+language-puppet (1.3.15) UNRELEASED; urgency=medium
+
+  * Improve parsing error messages
+
+ -- Simon Marechal <simon.marechal@edf.fr>
+
+language-puppet (1.3.14) xenial; urgency=medium
 
   * Allow declaring type of variables during assignment
   * The `lookup` function now fails if an input strategy is unknown

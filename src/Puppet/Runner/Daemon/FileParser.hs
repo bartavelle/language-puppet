@@ -22,7 +22,7 @@ import           Puppet.Runner.Stats
 -- | Return an HOF that would parse the file associated with a toplevel.
 -- The toplevel is defined by the tuple (type, name)
 -- The result of the parsing is a single Statement (which recursively contains others statements)
-parseFunc :: PuppetDirPaths -> FileCache (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
+parseFunc :: PuppetDirPaths -> FileCacheR PrettyError (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
 parseFunc ppath filecache stats = \toptype topname ->
   let nameparts = Text.splitOn "::" topname in
   let topLevelFilePath :: TopLevelType -> Text -> Either PrettyError Text
@@ -36,20 +36,20 @@ parseFunc ppath filecache stats = \toptype topname ->
       Left rr     -> return (S.Left rr)
       Right fname -> do
           let sfname = Text.unpack fname
-              handleFailure :: SomeException -> IO (S.Either String (V.Vector Statement))
-              handleFailure e = return (S.Left (show e))
-          x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname `catch` handleFailure))
+          x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname))
           case x of
             S.Right stmts -> filterStatements toptype topname stmts
-            S.Left rr     -> return (S.Left (PrettyError (red (pptext rr))))
+            S.Left rr     -> return (S.Left rr)
 
-parseFile :: FilePath -> IO (S.Either String (V.Vector Statement))
+parseFile :: FilePath -> IO (S.Either PrettyError (V.Vector Statement))
 parseFile fname = do
   traceEventIO ("START parsing " ++ fname)
   cnt <- readFile fname
-  o <- case runPParser fname cnt of
+  o <- case runPuppetParser fname cnt of
     Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
-    Left rr -> traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")") >> return (S.Left (Megaparsec.parseErrorPretty rr))
+    Left rr -> do
+      traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")")
+      pure (S.Left $ prettyParseError cnt rr)
   traceEventIO ("STOP parsing " ++ fname)
   return o
 

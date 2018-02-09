@@ -23,7 +23,6 @@ import qualified Paths_language_puppet         as Meta
 import qualified System.FilePath.Glob          as Glob
 import           System.IO                     (hIsTerminalDevice)
 import qualified System.Log.Logger             as Log
-import qualified Text.Megaparsec               as Megaparsec
 import qualified Text.Regex.PCRE.String        as Reg
 
 import           Puppet.Parser                 hiding (Parser)
@@ -32,7 +31,6 @@ import           PuppetDB                      (PuppetDBAPI, dummyPuppetDB, pdbC
                                                 puppetDBFacts)
 import qualified PuppetDB
 
-type ParseError' = Megaparsec.ParseError Char Void
 type QueryFunc = NodeName -> IO (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
 data MultNodes
@@ -178,8 +176,12 @@ initializedaemonWithPuppet workingdir Options {..} = do
       unifyFacts :: Container PValue -> Container PValue -> Container PValue -> Container PValue
       unifyFacts defaults override c = override `Map.union` c `Map.union` defaults
 
-parseFile :: FilePath -> IO (Either ParseError' (V.Vector Statement))
-parseFile fp = runPParser fp <$> readFile fp
+parseFile :: FilePath -> IO (V.Vector Statement)
+parseFile fp = do
+  s <- readFile fp
+  case runPuppetParser fp s of
+    Left err -> putDoc (red "ERROR:" <+> getError (prettyParseError s err)) *> exitFailure
+    Right r -> pure r
 
 printContent :: Text -> FinalCatalog -> IO ()
 printContent filename catalog =
@@ -233,7 +235,9 @@ findDeadCode puppetdir catalogs allfiles = do
     unless (Set.null deadfiles) $ do
         putDoc ("The following files" <+> pretty (Set.size deadfiles) <+> "are not used: " <> list (map ppstring $ Set.toList deadfiles))
         putText ""
-    allparses <- parallel (map parseFile (Set.toList usedfiles))
+    allparses <- do
+     let parsefp fp = runPuppetParser fp <$> readFile fp
+     parallel (map (parsefp) (Set.toList usedfiles))
     let (parseFailed, parseSucceeded) = partitionEithers allparses
     unless (null parseFailed) $ do
         putDoc ("The following" <+> pretty (length parseFailed) <+> "files could not be parsed:" <> softline <> indent 4 (vcat (map (ppstring . show) parseFailed)))
@@ -360,11 +364,11 @@ run :: Options -> IO ()
 run Options {_optVersion = True, ..} = putStrLn ("language-puppet " ++ Data.Version.showVersion Meta.version)
 
 -- Parse mode
-run Options {_optParse = Just fp, ..} = parseFile fp >>= \case
-  Left rr -> panic (toS $ Megaparsec.parseErrorPretty rr)
-  Right s -> if _optLoglevel == Log.DEBUG
-                then mapM_ print  s
-                else putDoc $ ppStatements s
+run Options {_optParse = Just fp, ..} = do
+  sx <- parseFile fp
+  if _optLoglevel == Log.DEBUG
+    then mapM_ print  sx
+    else putDoc $ ppStatements sx
 
 run Options {_optPuppetdir = Nothing, _optParse = Nothing } =
     panic "Without a puppet dir, only the `--parse` option can be supported"
@@ -384,9 +388,7 @@ run cmd@Options {_optNodename = Nothing, _optMultnodes = Just nodes, _optPuppetd
   where
     retrieveNodes :: MultNodes -> IO [NodeName]
     retrieveNodes AllNodes = do
-      allstmts <- parseFile (workingdir <> "/manifests/site.pp") >>= \case
-        Left err -> panic (show err)
-        Right x -> return x
+      allstmts <- parseFile (workingdir <> "/manifests/site.pp")
       let getNodeName (NodeDeclaration (NodeDecl (NodeName n) _ _ _)) = Just n
           getNodeName _                                               = Nothing
       return $ mapMaybe getNodeName (V.toList allstmts)

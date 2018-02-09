@@ -3,10 +3,12 @@
 {-| Parse puppet source code from text. -}
 module Puppet.Parser (
   -- * Runner
-    runPParser
+    runPuppetParser
   -- * Parsers
   , Parser
   , puppetParser
+  , PuppetParseError
+  , prettyParseError
   , expression
   , datatype
   -- * Position
@@ -20,6 +22,7 @@ module Puppet.Parser (
 ) where
 
 import           XPrelude.Extra                   hiding (option, try, many, some)
+import           XPrelude.PP hiding (braces, comma, brackets, parens, sep)
 
 import qualified Data.Char                        as Char
 import qualified Data.List                        as List
@@ -39,11 +42,16 @@ import           Puppet.Parser.Lens
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 
+
+type PuppetParseError = ParseError Char Void
 type Parser = Parsec Void Text
 
+prettyParseError :: Text -> ParseError Char Void -> PrettyError
+prettyParseError s err = PrettyError $ "cannot parse" <+> pretty (parseErrorPretty' s err)
+
 -- | Run a puppet parser against some 'Text' input.
-runPParser :: String -> Text -> Either (ParseError Char Void) (Vector Statement)
-runPParser = parse puppetParser
+runPuppetParser :: String -> Text -> Either PuppetParseError (Vector Statement)
+runPuppetParser src input = parse puppetParser src input
 
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
@@ -465,8 +473,6 @@ zipChain (EndOfChain _) = []
 depOperator :: Parser LinkType
 depOperator =   (operator "->" *> pure RBefore)
             <|> (operator "~>" *> pure RNotify)
-
-
 
 assignment :: Parser AttributeDecl
 assignment = AttributeDecl <$> key <*> arrowOp  <*> expression
