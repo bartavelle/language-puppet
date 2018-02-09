@@ -65,7 +65,7 @@ integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrIn
         hex = string "0x" *> L.hexadecimal
 
 symbol :: Text -> Parser ()
-symbol = void . try . L.symbol sc
+symbol = void . L.symbol sc
 
 symbolic :: Char -> Parser ()
 symbolic = symbol . Text.singleton
