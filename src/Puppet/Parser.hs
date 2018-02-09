@@ -45,11 +45,11 @@ type Parser = Parsec Void Text
 runPParser :: String -> Text -> Either (ParseError Char Void) (Vector Statement)
 runPParser = parse puppetParser
 
-someSpace :: Parser ()
-someSpace = L.space (skipSome spaceChar) (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
+sc :: Parser ()
+sc = L.space space1 (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
 
 token :: Parser a -> Parser a
-token = L.lexeme someSpace
+token = L.lexeme sc
 
 integerOrDouble :: Parser (Either Integer Double)
 integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrInteger <$> L.scientific)
@@ -57,7 +57,7 @@ integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrIn
         hex = string "0x" *> L.hexadecimal
 
 symbol :: Text -> Parser ()
-symbol = void . try . L.symbol someSpace
+symbol = void . try . L.symbol sc
 
 symbolic :: Char -> Parser ()
 symbolic = symbol . Text.singleton
@@ -82,7 +82,7 @@ sepComma1 p = p `sepEndBy1` comma
 
 -- | Parse a collection of puppet 'Statement'.
 puppetParser :: Parser (Vector Statement)
-puppetParser = optional someSpace >> statementList
+puppetParser = optional sc >> statementList
 
 -- | Parse a puppet 'Expression'.
 expression :: Parser Expression
@@ -144,7 +144,7 @@ reserved s =
   try $ do
     void (string s)
     notFollowedBy (satisfy identifierPart)
-    someSpace
+    sc
 
 variableName :: Parser Text
 variableName = do
@@ -499,7 +499,7 @@ resCollDecl p restype = do
     e <- option AlwaysTrue searchExpression
     void (char '|')
     void (count (length openchev) (char '>'))
-    someSpace
+    sc
     overrides <- option [] $ braces (sepComma assignment)
     let collectortype = if length openchev == 1
                             then Collector
