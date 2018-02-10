@@ -69,7 +69,7 @@ capitalizeRT = Text.intercalate "::" . map capitalize' . Text.splitOn "::"
                   | otherwise = Text.cons (Char.toUpper (Text.head t)) (Text.tail t)
 
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
-containerComma'' x = indent 2 ins
+containerComma'' x = indent 4 ins
   where
     ins = mconcat $ intersperse (comma <> line <> mempty) (fmap showC x)
     showC (a,b) = a <+> "=>" <+> pretty b
