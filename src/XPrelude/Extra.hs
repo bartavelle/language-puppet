@@ -1,8 +1,6 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes       #-}
--- | General specific prelude for language-puppet
--- | Customization of the Protolude with extra specific utilities.
 module XPrelude.Extra (
       module Exports
     , String
