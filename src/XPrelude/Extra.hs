@@ -8,7 +8,6 @@ module XPrelude.Extra (
     , unwrapError
     , isEmpty
     , dropInitialColons
-    , textElem
     , getDirectoryContents
     , takeBaseName
     , strictifyEither
@@ -80,10 +79,6 @@ scientific2text n =
 strictifyEither :: Either a b -> S.Either a b
 strictifyEither (Left x)  = S.Left x
 strictifyEither (Right x) = S.Right x
-
-textElem :: Char -> Text -> Bool
-textElem c = Text.any (==c)
-
 
 -- | See "System.FilePath.Posix"
 takeBaseName :: Text -> Text
