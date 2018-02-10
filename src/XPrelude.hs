@@ -1,6 +1,6 @@
 {-|
 General specific prelude for language-puppet.
-Customization of the Protolude with extra specific utilities.
+Customization of the <https://hackage.haskell.org/package/protolude Protolude> with extra specific utilities.
 -}
 module XPrelude
   ( module XPrelude.Extra

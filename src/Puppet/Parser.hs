@@ -9,9 +9,10 @@ module Puppet.Parser (
   , puppetParser
   , PuppetParseError
   , prettyParseError
+  -- ** exposed to ease testing
   , expression
   , datatype
- -- * Pretty Printer
+  -- * Pretty Print
   , module Puppet.Parser.PrettyPrinter
   , module Puppet.Parser.Types
   , module Puppet.Parser.Lens
@@ -42,6 +43,8 @@ import           Puppet.Parser.Types
 type PuppetParseError = ParseError Char Void
 type Parser = Parsec Void Text
 
+-- | Build a 'PrettyError' from a 'ParseError' given the text source.
+-- The source is used to display the line on which the error occurs.
 prettyParseError :: Text -> ParseError Char Void -> PrettyError
 prettyParseError s err = PrettyError $ "cannot parse" <+> pretty (parseErrorPretty' s err)
 
@@ -49,6 +52,7 @@ prettyParseError s err = PrettyError $ "cannot parse" <+> pretty (parseErrorPret
 runPuppetParser :: String -> Text -> Either PuppetParseError (Vector Statement)
 runPuppetParser src input = parse puppetParser src input
 
+-- space consumer
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
 
@@ -88,7 +92,7 @@ sepComma1 p = p `sepEndBy1` comma
 puppetParser :: Parser (Vector Statement)
 puppetParser = optional sc >> statementList
 
--- | Parse a puppet 'Expression'.
+-- | Parse an 'Expression'.
 expression :: Parser Expression
 expression =
   condExpression
