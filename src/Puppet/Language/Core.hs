@@ -14,10 +14,17 @@ import           Text.Megaparsec.Pos
 
 
 showPos :: Position -> Doc
-showPos p = green (pretty '#' <+> ppline (show p))
+showPos = blue . pptext . sourcePosPretty
 
+-- | showing a position interval only show the first position
 showPPos :: PPosition -> Doc
-showPPos p = green (pretty '#' <+> ppline (show (Tuple.fst p)))
+showPPos = showPos . Tuple.fst
+
+-- | Generates an initial position interval based on a filename.
+initialPPos :: FilePath -> PPosition
+initialPPos x =
+    let i = initialPos x
+    in (i :!: i)
 
 -- | A pair containing the start and end of a given token.
 type PPosition = Pair Position Position

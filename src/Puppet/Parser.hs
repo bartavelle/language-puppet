@@ -11,8 +11,6 @@ module Puppet.Parser (
   , prettyParseError
   , expression
   , datatype
-  -- * Position
-  , initialPPos
   , dummypos
   , dummyppos
  -- * Pretty Printer
@@ -762,13 +760,6 @@ lambdaCall = do
                         [a]   -> return (BPSingle a)
                         [a,b] -> return (BPPair a b)
                         _     -> fail "Invalid number of variables between the pipes"
-
--- | Generates an initial position based on a filename.
-initialPPos :: Text -> PPosition
-initialPPos x =
-    let i = initialPos (toS x)
-    in (i :!: i)
-
 dummyppos :: PPosition
 dummyppos = initialPPos "dummy"
 
