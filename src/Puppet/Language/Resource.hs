@@ -126,9 +126,9 @@ resourceRelations = concatMap expandSet . Map.toList . view rrelations
     expandSet (ri, lts) = [(ri, lt) | lt <- Set.toList lts]
 
 meta :: Resource -> Doc
-meta r = showPPos (r ^. rpos) <+> green (node <+> brackets scp)
+meta r = showPPos (r ^. rpos) <+> red node <+> green (brackets scp)
   where
-    node = red (ppline (r ^. rnode))
+    node = ppline (r ^. rnode)
     scp = "Scope" <+> pretty (r ^.. rscope . folded . filtered (/=ContRoot) . to pretty)
 
 resourceBody :: Resource -> Doc

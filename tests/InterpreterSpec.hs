@@ -71,7 +71,7 @@ pureCompute node input =
 
       getStatement :: NodeName -> Text -> HashMap (TopLevelType, NodeName) Statement
       getStatement n i = HM.fromList [ ((TopNode, n), nodeStatement i)
-                                     , ((TopClass, "foo"), ClassDeclaration $ ClassDecl mempty mempty mempty mempty (initialPPos "dummy"))
+                                     , ((TopClass, "foo"), ClassDeclaration $ ClassDecl mempty mempty mempty mempty (initialPPos mempty))
                                      ]
 
       nodeStatement :: Text -> Statement

@@ -200,7 +200,7 @@ computeCatalog nodename = do
         let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
         return (toList res)
 
-      mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty dummyppos nodename
+      mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty (initialPPos mempty) nodename
 
       evaluateNode :: NodeDecl -> InterpreterMonad [Resource]
       evaluateNode (NodeDecl _ sx inheritnode p) = do

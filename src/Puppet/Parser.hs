@@ -11,8 +11,6 @@ module Puppet.Parser (
   , prettyParseError
   , expression
   , datatype
-  , dummypos
-  , dummyppos
  -- * Pretty Printer
   , module Puppet.Parser.PrettyPrinter
   , module Puppet.Parser.Types
@@ -760,8 +758,3 @@ lambdaCall = do
                         [a]   -> return (BPSingle a)
                         [a,b] -> return (BPPair a b)
                         _     -> fail "Invalid number of variables between the pipes"
-dummyppos :: PPosition
-dummyppos = initialPPos "dummy"
-
-dummypos :: Position
-dummypos = initialPos "dummy"
