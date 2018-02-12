@@ -1,5 +1,4 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes       #-}
 module XPrelude.Extra (
       module Exports

@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs             #-}
 module Puppet.Interpreter.PrettyPrinter () where
 

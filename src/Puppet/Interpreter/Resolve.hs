@@ -2,8 +2,6 @@
 {-# LANGUAGE RankNTypes       #-}
 {-# LANGUAGE TupleSections    #-}
 
-{-# LANGUAGE FlexibleContexts #-}
-
 -- | This module is all about converting and resolving foreign data into
 -- the fully exploitable corresponding data type.
 --

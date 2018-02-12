@@ -1,5 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE GADTs #-}
 module Puppet.Runner.Daemon.FileParser (parseFunc) where
 
 import           XPrelude

@@ -1,6 +1,4 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE GADTs #-}
 
 -- | This is an internal module.
 module Puppet.Interpreter.IO (
