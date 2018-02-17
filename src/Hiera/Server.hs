@@ -33,6 +33,7 @@ import           Data.String          (fromString)
 import qualified Data.Text            as Text
 import qualified Data.Vector          as Vector
 import qualified Data.Yaml            as Yaml
+import qualified System.Directory     as Directory
 import qualified System.FilePath      as FilePath
 import           System.FilePath.Lens (directory)
 
@@ -200,15 +201,16 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
         basedir = case datadir of
           '/' : _ -> mempty
           _       -> fp ^. directory <> "/"
-    efilecontent <- Cache.query cache filename (decodefunction filename)
-    case efilecontent of
-      S.Left r -> do
-        let errs = "Hiera: error when reading file " <> ppstring filename <+> ppstring r
-        if "Yaml file not found: " `List.isInfixOf` r
-          then logDebug (show errs)
-          else logWarning (show errs)
-        return Nothing
-      S.Right val -> return (Just val)
+        querycache = do
+          efilecontent <- Cache.query cache filename (decodefunction filename)
+          case efilecontent of
+            S.Left r -> do
+              logWarningStr $ "Hiera: error when reading file " <> filename <> ": "<> r
+              pure Nothing
+            S.Right val -> pure (Just val)
+    ifM (Directory.doesFileExist filename)
+      querycache
+      (pure Nothing)
   let vals = catMaybes mvals
   -- step 3, query through all the results
   return (strictifyEither $ runReader (runExceptT (recursiveQuery hquery [])) (QRead vars qt vals))

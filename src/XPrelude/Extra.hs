@@ -20,6 +20,7 @@ module XPrelude.Extra (
     , logInfo
     , logInfoStr
     , logWarning
+    , logWarningStr
     , logError
     , logDebugStr
 ) where
@@ -163,6 +164,9 @@ logInfoStr = Log.infoM "language-puppet"
 
 logWarning :: Text -> IO ()
 logWarning = Log.warningM "language-puppet" . toS
+
+logWarningStr :: String -> IO ()
+logWarningStr = Log.warningM "language-puppet"
 
 logError :: Text -> IO ()
 logError = Log.errorM "language-puppet" . toS
