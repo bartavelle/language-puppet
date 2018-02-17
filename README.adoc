@@ -183,7 +183,7 @@ Output version information and exit.
 == Unsupported Puppet idioms or features
 
 OS::
-  * `OS X` is currently not supported (https://github.com/bartavelle/language-puppet/issues/197[issue #197])
+  * `OS X` is supported when using the latest `filecache` 0.3
 
 puppet functions::
   * the `require` function is not supported (see https://github.com/bartavelle/language-puppet/issues/17[issue #17])
