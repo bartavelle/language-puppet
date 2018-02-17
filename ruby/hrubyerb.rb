@@ -1,6 +1,7 @@
 require 'erb'
 require 'digest/md5'
 require 'yaml'
+require 'json'
 
 class Scope
     def initialize(context,variables,filename,stt,rdr)
