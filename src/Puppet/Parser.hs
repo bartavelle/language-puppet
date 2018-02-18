@@ -28,9 +28,9 @@ import qualified Data.Maybe.Strict                as S
 import qualified Data.Scientific                  as Scientific
 import qualified Data.Text                        as Text
 import qualified Data.Vector                      as V
-import           Text.Megaparsec                  hiding (token)
+import           Text.Megaparsec
 import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer       as L
+import qualified Text.Megaparsec.Char.Lexer       as Lexer
 import           Text.Megaparsec.Expr
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
@@ -54,21 +54,21 @@ runPuppetParser src input = parse puppetParser src input
 
 -- space consumer
 sc :: Parser ()
-sc = L.space space1 (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
+sc = Lexer.space space1 (Lexer.skipLineComment "#") (Lexer.skipBlockComment "/*" "*/")
 
-token :: Parser a -> Parser a
-token = L.lexeme sc
-
-integerOrDouble :: Parser (Either Integer Double)
-integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrInteger <$> L.scientific)
-    where
-        hex = string "0x" *> L.hexadecimal
+lexeme :: Parser a -> Parser a
+lexeme = Lexer.lexeme sc
 
 symbol :: Text -> Parser ()
-symbol = void . L.symbol sc
+symbol = void . Lexer.symbol sc
 
 symbolic :: Char -> Parser ()
 symbolic = symbol . Text.singleton
+
+integerOrDouble :: Parser (Either Integer Double)
+integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrInteger <$> Lexer.scientific)
+    where
+        hex = string "0x" *> Lexer.hexadecimal
 
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
@@ -96,12 +96,12 @@ puppetParser = optional sc >> statementList
 expression :: Parser Expression
 expression =
   condExpression
-  <|> makeExprParser (token terminal) expressionTable
+  <|> makeExprParser (lexeme terminal) expressionTable
   <?> "expression"
   where
     condExpression = do
       selectedExpression <- try $ do
-          trm <- token terminal
+          trm <- lexeme terminal
           lookups <- optional indexLookupChain
           symbolic '?'
           return $ maybe trm ($ trm) lookups
@@ -141,7 +141,7 @@ identifierPart x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x 
 identl :: Parser Char -> Parser Char -> Parser Text
 identl fstl nxtl = do
   f <- fstl
-  nxt <- token $ many nxtl
+  nxt <- lexeme $ many nxtl
   return $ Text.pack $ f : nxt
 
 operator :: Text -> Parser ()
@@ -163,7 +163,7 @@ variableName = do
     return out
 
 qualif :: Parser Text -> Parser Text
-qualif p = token $ do
+qualif p = lexeme $ do
     header <- option "" (string "::")
     ( header <> ) . Text.intercalate "::" <$> p `sepBy1` string "::"
 
@@ -276,7 +276,7 @@ genFunctionCall nonparens = do
     -- include foo::bar
     let argsc sep e = (fmap (Terminal . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
         terminalF = terminalG (fail "function hack")
-        expressionF = makeExprParser (token terminalF) expressionTable <?> "function expression"
+        expressionF = makeExprParser (lexeme terminalF) expressionTable <?> "function expression"
         withparens = parens (argsc sepEndBy expression)
         withoutparens = argsc sepEndBy1 expressionF
     args  <- withparens <|> if nonparens
@@ -286,7 +286,7 @@ genFunctionCall nonparens = do
 
 
 literalValue :: Parser UnresolvedValue
-literalValue = token (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
+literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
     where
         numericalvalue = integerOrDouble >>= \i -> case i of
             Left x  -> return (fromIntegral x)
@@ -484,7 +484,7 @@ assignment = AttributeDecl <$> key <*> arrowOp  <*> expression
           <|> (symbol "+>" *> pure AppendArrow)
 
 searchExpression :: Parser SearchExpression
-searchExpression = makeExprParser (token searchterm) searchTable
+searchExpression = makeExprParser (lexeme searchterm) searchTable
     where
         searchTable :: [[Operator Parser SearchExpression]]
         searchTable = [ [ InfixL ( reserved "and"   >> return AndSearch )
