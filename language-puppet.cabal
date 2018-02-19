@@ -155,9 +155,10 @@ Test-Suite spec
                   , strict-base-types
                   , hspec-megaparsec
                   , protolude
-  other-modules:  EvalSpec
+  other-modules:  DT.Parser
+                  ErbSpec
+                  EvalSpec
                   ExprSpec
-                  DT.Parser
                   Function.ShellquoteSpec
                   Function.SprintfSpec
                   Function.SizeSpec
@@ -189,13 +190,6 @@ Test-Suite test-puppetdb
   extensions:     OverloadedStrings
   build-depends:  language-puppet,base,temporary,strict-base-types,lens,text,transformers,mtl
   main-is:        puppetdb.hs
-Test-Suite erbparser
-  hs-source-dirs: tests
-  type:           exitcode-stdio-1.0
-  ghc-options:    -Wall -rtsopts -threaded
-  extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,strict-base-types,lens,text
-  main-is:        erb.hs
 
 executable puppetresources
   hs-source-dirs:      progs

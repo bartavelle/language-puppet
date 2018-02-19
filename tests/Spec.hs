@@ -14,6 +14,7 @@ import qualified Function.DeleteAtSpec
 import qualified Interpreter.IfSpec
 import qualified Function.SprintfSpec
 import qualified Function.LookupSpec
+import qualified ErbSpec
 import qualified EvalSpec
 import qualified ExprSpec
 import qualified LexerSpec
@@ -28,6 +29,7 @@ spec = do
     describe "Parser" DT.Parser.spec
   EvalSpec.spec
   ExprSpec.spec
+  ErbSpec.spec
   LexerSpec.spec
   describe "Interpreter" $ do
     describe "Collector" InterpreterSpec.collectorSpec
