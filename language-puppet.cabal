@@ -136,27 +136,44 @@ library
                      , unordered-containers == 0.2.*
                      , vector               >= 0.10
                      , yaml                 >= 0.8.8   && < 0.9
-Test-Suite test-evals
+Test-Suite spec
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
-  ghc-options:    -Wall -rtsopts -threaded
-  extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,text,lens,megaparsec,hspec,vector
-  main-is:        evals.hs
-Test-Suite test-lexer
-  hs-source-dirs: tests
-  type:           exitcode-stdio-1.0
-  ghc-options:    -Wall -rtsopts -threaded
-  extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,Glob,text,megaparsec,vector,ansi-wl-pprint,unix
-  main-is:        lexer.hs
-Test-Suite test-expr
-  hs-source-dirs: tests
-  type:           exitcode-stdio-1.0
-  ghc-options:    -Wall -rtsopts -threaded
-  extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,text,megaparsec,vector,ansi-wl-pprint, strict-base-types, hspec, hspec-megaparsec
-  main-is:        expr.hs
+  ghc-options:    -Wall -Wno-missing-signatures -rtsopts -threaded
+  extensions:     OverloadedStrings, NoImplicitPrelude, FlexibleContexts, LambdaCase
+  build-depends:    base
+                  , Glob
+                  , language-puppet
+                  , lens
+                  , text
+                  , hspec
+                  , unordered-containers
+                  , megaparsec
+                  , vector
+                  , scientific
+                  , mtl
+                  , strict-base-types
+                  , hspec-megaparsec
+                  , protolude
+  other-modules:  EvalSpec
+                  ExprSpec
+                  DT.Parser
+                  Function.ShellquoteSpec
+                  Function.SprintfSpec
+                  Function.SizeSpec
+                  Function.MergeSpec
+                  Function.EachSpec
+                  Function.DeleteAtSpec
+                  Function.AssertPrivateSpec
+                  Function.JoinKeysToValuesSpec
+                  Function.LookupSpec
+                  Helpers
+                  InterpreterSpec
+                  Interpreter.CollectorSpec
+                  Interpreter.IfSpec
+                  LexerSpec
+  main-is:        Spec.hs
+
 Test-Suite test-hiera
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
@@ -179,27 +196,6 @@ Test-Suite erbparser
   extensions:     OverloadedStrings
   build-depends:  language-puppet,base,strict-base-types,lens,text
   main-is:        erb.hs
-Test-Suite spec
-  hs-source-dirs: tests
-  type:           exitcode-stdio-1.0
-  ghc-options:    -Wall -Wno-missing-signatures -rtsopts -threaded
-  extensions:     OverloadedStrings, NoImplicitPrelude, FlexibleContexts
-  build-depends:  language-puppet,base,strict-base-types,lens,text,hspec,unordered-containers,megaparsec,vector,scientific,mtl,hspec-megaparsec, protolude >= 0.2
-  other-modules:  Function.ShellquoteSpec
-                  Function.SprintfSpec
-                  Function.SizeSpec
-                  Function.MergeSpec
-                  Function.EachSpec
-                  Function.DeleteAtSpec
-                  Function.AssertPrivateSpec
-                  Function.JoinKeysToValuesSpec
-                  Function.LookupSpec
-                  InterpreterSpec
-                  Interpreter.CollectorSpec
-                  Interpreter.IfSpec
-                  DT.Parser
-                  Helpers
-  main-is:        Spec.hs
 
 executable puppetresources
   hs-source-dirs:      progs
