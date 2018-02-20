@@ -116,7 +116,7 @@ computeTemplate intr fileinfo stt rdr mstats filecache = do
   o <- case parsed of
       Left err -> do
         let msg = "Template '" <> filename <> "' could not be parsed " <> show (tgetError err)
-        logError msg
+        logDebug msg
         measure mstats ("ruby - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
       Right ast -> case rubyEvaluate variables curcontext ast of
         Right ev -> return (S.Right ev)
