@@ -1,24 +1,25 @@
-import Test.Hspec
+import           Test.Hspec
 
-import Helpers
+import           Helpers
 
-import qualified InterpreterSpec
-import qualified Interpreter.CollectorSpec
-import qualified Function.ShellquoteSpec
-import qualified Function.SizeSpec
-import qualified Function.MergeSpec
-import qualified Function.EachSpec
-import qualified Function.AssertPrivateSpec
-import qualified Function.JoinKeysToValuesSpec
-import qualified Function.DeleteAtSpec
-import qualified Interpreter.IfSpec
-import qualified Function.SprintfSpec
-import qualified Function.LookupSpec
+import qualified DT.Parser
 import qualified ErbSpec
 import qualified EvalSpec
 import qualified ExprSpec
+import qualified Function.AssertPrivateSpec
+import qualified Function.DeleteAtSpec
+import qualified Function.EachSpec
+import qualified Function.JoinKeysToValuesSpec
+import qualified Function.LookupSpec
+import qualified Function.MergeSpec
+import qualified Function.ShellquoteSpec
+import qualified Function.SizeSpec
+import qualified Function.SprintfSpec
+import qualified Interpreter.CollectorSpec
+import qualified Interpreter.IfSpec
+import qualified InterpreterSpec
 import qualified LexerSpec
-import qualified DT.Parser
+import qualified PuppetdbSpec
 
 main :: IO ()
 main = hspec spec
@@ -47,3 +48,4 @@ spec = do
     describe "The merge function" Function.MergeSpec.spec
     describe "The size function" Function.SizeSpec.spec
     describe "The delete_at function" Function.DeleteAtSpec.spec
+  PuppetdbSpec.spec

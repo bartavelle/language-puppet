@@ -143,18 +143,20 @@ Test-Suite spec
   extensions:     OverloadedStrings, NoImplicitPrelude, FlexibleContexts, LambdaCase
   build-depends:    base
                   , Glob
+                  , hspec
+                  , hspec-megaparsec
+                  , megaparsec
                   , language-puppet
                   , lens
-                  , text
-                  , hspec
-                  , unordered-containers
-                  , megaparsec
-                  , vector
-                  , scientific
                   , mtl
-                  , strict-base-types
-                  , hspec-megaparsec
+                  , scientific
                   , protolude
+                  , strict-base-types
+                  , text
+                  , temporary
+                  , transformers
+                  , unordered-containers
+                  , vector
   other-modules:  DT.Parser
                   ErbSpec
                   EvalSpec
@@ -173,6 +175,7 @@ Test-Suite spec
                   Interpreter.CollectorSpec
                   Interpreter.IfSpec
                   LexerSpec
+                  PuppetdbSpec
   main-is:        Spec.hs
 
 Test-Suite test-hiera
@@ -183,13 +186,6 @@ Test-Suite test-hiera
   Other-Modules:  Helpers
   build-depends:  language-puppet,base,hspec,temporary,strict-base-types,HUnit,lens,vector,unordered-containers,text,hslogger,neat-interpolation,protolude >=0.2,scientific,mtl
   main-is:        hiera.hs
-Test-Suite test-puppetdb
-  hs-source-dirs: tests
-  type:           exitcode-stdio-1.0
-  ghc-options:    -Wall -rtsopts -threaded
-  extensions:     OverloadedStrings
-  build-depends:  language-puppet,base,temporary,strict-base-types,lens,text,transformers,mtl
-  main-is:        puppetdb.hs
 
 executable puppetresources
   hs-source-dirs:      progs
