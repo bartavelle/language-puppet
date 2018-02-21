@@ -729,6 +729,10 @@ datatype = dtString
       <|> reserved "Stdlib::Unixpath" $> UDTData
       <|> reserved "Nginx::ErrorLogSeverity" $> UDTData
       <|> reserved "Jenkins::Tunnel" $> UDTData
+      <|> reserved "Systemd::Unit" $> UDTData
+      <|> reserved "Systemd::ServiceLimits" $> UDTData
+      <|> reserved "Systemd::Dropin" $> UDTData
+
 
 
 statementList :: Parser (Vector Statement)
