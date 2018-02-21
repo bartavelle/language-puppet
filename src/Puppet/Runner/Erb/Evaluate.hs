@@ -6,9 +6,10 @@ module Puppet.Runner.Erb.Evaluate (
 import           XPrelude
 
 import           Data.Aeson.Lens
-import qualified Data.Char          as Char
-import qualified Data.Text          as Text
-import qualified Data.Vector        as V
+import qualified Data.Char           as Char
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Text           as Text
+import qualified Data.Vector         as V
 
 import           Erb.Ruby
 import           Puppet.Interpreter
@@ -58,9 +59,20 @@ evalExpression mp ctx (Object (Value (Literal x))) = getVariable mp ctx x >>= ev
 evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
 
 evalValue :: PValue -> Either Doc Text
-evalValue (PString x) = Right x
-evalValue (PNumber x) = Right (scientific2text x)
-evalValue x           = Right $ show x
+evalValue = go False
+  where
+    txt = Text.pack . show
+    go escaped p = case p of
+      PString x      -> Right $ if escaped
+                                  then txt x
+                                  else x
+      PNumber x      -> Right (scientific2text x)
+      PUndef         -> Right "nil"
+      PBoolean True  -> Right "true"
+      PBoolean False -> Right "false"
+      PArray lst     -> fmap (\c -> "[" <> Text.intercalate ", " c <> "]") (mapM (go True) (V.toList lst))
+      PHash hash     -> fmap (\l -> "{" <> Text.intercalate ", " (map (\(k,v) -> txt k <> "=>" <> v) l) <> "}") (mapM (traverse (go True)) (HM.toList hash))
+      _              -> Left ("Can't display the ruby equivalent of" <+> pretty p)
 
 a2i :: Text -> Maybe Integer
 a2i x = case text2Scientific x of
