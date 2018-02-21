@@ -728,6 +728,7 @@ datatype = dtString
       <|> reserved "Stdlib::Absolutepath" $> UDTData
       <|> reserved "Stdlib::Unixpath" $> UDTData
       <|> reserved "Nginx::ErrorLogSeverity" $> UDTData
+      <|> reserved "Jenkins::Tunnel" $> UDTData
 
 
 statementList :: Parser (Vector Statement)
