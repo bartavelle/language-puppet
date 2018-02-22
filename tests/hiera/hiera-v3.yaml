@@ -1,0 +1,12 @@
+:backends:
+  - "yaml"
+  - "json"
+:logger: "console"
+:hierarchy:
+  - "%{::fqdn}"
+  - "%{::environment}"
+  - common
+:yaml:
+  :datadir: . 
+:json:
+  :datadir: .

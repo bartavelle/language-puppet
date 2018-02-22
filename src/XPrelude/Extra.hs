@@ -180,3 +180,4 @@ unwrapError desc = either exit pure
     where
       exit = \err -> putDoc (display err) >> exitFailure
       display err = red desc <> ":" <+> getError err
+  

@@ -1,0 +1,10 @@
+---
+http_port: 8080
+ntp_servers: ['0.ntp.puppetlabs.com', '1.ntp.puppetlabs.com']
+interp1: "**%{::fqdn}**"
+global: 'glob'
+users:
+  pete:
+    uid: 2000
+  tom:
+    uid: 2001

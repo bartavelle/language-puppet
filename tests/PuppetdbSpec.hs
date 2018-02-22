@@ -15,7 +15,7 @@ fqdn = "node.site.com"
 
 spec :: SpecWith ()
 spec =
-  around (Temp.withSystemTempDirectory "hieratest") $ do
+  around (Temp.withSystemTempDirectory "puppetdbtest") $ do
     describe "PuppetDB" $ do
       it "should save facts" $ \tmpfp -> do
         let pdbfile = tmpfp <> "/puppetdb.yaml"

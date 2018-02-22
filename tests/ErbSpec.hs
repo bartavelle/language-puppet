@@ -15,6 +15,9 @@ tests =
   , ("<%= @repuser['name'] %>", [ Puts (Value (Literal ""))
                                 , Puts (LookupOperation (Object (Value (Literal "repuser"))) (Value (Literal "name")))
                                 , Puts (Value (Literal ""))])
+  -- , ("<% if false %>ko<% end -%>", [ Puts (Value (Literal ""))
+  --                                 , Puts (LookupOperation (Object (Value (Literal "repuser"))) (Value (Literal "name")))
+  --                                 , Puts (Value (Literal ""))])
   ]
 
 bogus= [ "<% var %>"]

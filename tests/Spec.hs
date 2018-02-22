@@ -20,6 +20,7 @@ import qualified Interpreter.IfSpec
 import qualified InterpreterSpec
 import qualified LexerSpec
 import qualified PuppetdbSpec
+import qualified HieraSpec
 
 main :: IO ()
 main = hspec spec
@@ -49,3 +50,4 @@ spec = do
     describe "The size function" Function.SizeSpec.spec
     describe "The delete_at function" Function.DeleteAtSpec.spec
   PuppetdbSpec.spec
+  HieraSpec.spec

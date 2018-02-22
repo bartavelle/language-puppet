@@ -1,0 +1,9 @@
+---
+http_port: 9090
+ntp_servers: ['2.ntp.puppetlabs.com', '3.ntp.puppetlabs.com']
+interp1: "**%{::fqdn}**"
+users:
+  bob:
+    uid: 100
+  tom:
+    uid: 12

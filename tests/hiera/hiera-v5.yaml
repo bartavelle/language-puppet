@@ -1,0 +1,10 @@
+---
+version: 5
+hierarchy:
+  - name: "Hiera config for unit test"
+    data_hash: yaml_data
+    datadir: .
+    paths:
+      - "%{::fqdn}.yaml"
+      - "%{::environment}.yaml"
+      - common.yaml

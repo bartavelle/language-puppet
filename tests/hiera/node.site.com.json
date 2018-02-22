@@ -1,0 +1,6 @@
+{ "testnode":
+  { "1": "**%{::fqdn}**",
+    "2": "nothing special"},
+  "testjson": "ok",
+  "arraytest": [ "a", "%{::fqdn}", "c"]
+}

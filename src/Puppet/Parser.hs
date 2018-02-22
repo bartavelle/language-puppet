@@ -733,8 +733,6 @@ datatype = dtString
       <|> reserved "Systemd::ServiceLimits" $> UDTData
       <|> reserved "Systemd::Dropin" $> UDTData
 
-
-
 statementList :: Parser (Vector Statement)
 statementList = (V.fromList . concat) <$> many statement
 
