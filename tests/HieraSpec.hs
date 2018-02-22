@@ -16,8 +16,8 @@ checkOutput v (S.Right x) = x `shouldBe` v
 checkOutput _ (S.Left rr) = expectationFailure (show rr)
 
 fqdn = "node.site.com"
-config_v3 = "tests/hiera/hiera-v3.yaml"
-config_v5 = "tests/hiera/hiera-v5.yaml"
+config_v3 = "./tests/hiera/hiera-v3.yaml"
+config_v5 = "./tests/hiera/hiera-v5.yaml"
 
 vars = HM.fromList [ ("::environment", "production")
                    , ("::fqdn"       , fqdn)
