@@ -15,7 +15,7 @@ import           Puppet.Language
 checkOutput v (S.Right x) = x `shouldBe` v
 checkOutput _ (S.Left rr) = expectationFailure (show rr)
 
-fqdn = "node.site.com"
+fqdn = "node.com"
 config_v3 = "./tests/hiera/hiera-v3.yaml"
 config_v5 = "./tests/hiera/hiera-v5.yaml"
 
