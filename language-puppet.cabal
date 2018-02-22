@@ -22,6 +22,8 @@ extra-source-files:
     CHANGELOG
     README.adoc
     HLint.hs
+    tests/hiera/*.yaml
+    tests/hiera/*.json
 
 Data-Files:
   ruby/hrubyerb.rb
