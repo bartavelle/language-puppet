@@ -14,17 +14,23 @@ import qualified Data.Vector         as V
 import           Erb.Ruby
 import           Puppet.Interpreter
 
-rubyEvaluate :: Container ScopeInformation -> Text -> [RubyStatement] -> Either Doc Text
+type ScopeName = Text
+
+-- | Evaluate a list of ruby statements.
+rubyEvaluate :: Container ScopeInformation
+             -> ScopeName
+             -> [RubyStatement]
+             -> Either Doc Text
 rubyEvaluate vars ctx = foldl (evalruby vars ctx) (Right "") . optimize
-    where
-        optimize []                             = []
-        optimize (Puts x : DropPrevSpace' : xs) = optimize $ DropPrevSpace (Puts x) : xs
-        optimize (x:xs)                         = x : optimize xs
+  where
+    optimize []                             = []
+    optimize (Puts x : DropPrevSpace' : xs) = optimize $ DropPrevSpace (Puts x) : xs
+    optimize (x:xs)                         = x : optimize xs
 
 spaceNotCR :: Char -> Bool
 spaceNotCR c = Char.isSpace c && c /= '\n' && c /= '\r'
 
-evalruby :: Container ScopeInformation -> Text -> Either Doc Text -> RubyStatement -> Either Doc Text
+evalruby :: Container ScopeInformation -> ScopeName -> Either Doc Text -> RubyStatement -> Either Doc Text
 evalruby _  _   (Left err)     _        = Left err
 evalruby _ _  (Right _) (DropPrevSpace') = Left "Could not evaluate a non optimize DropPrevSpace'"
 evalruby mp ctx (Right curstr) (DropNextSpace x) =
@@ -39,20 +45,21 @@ evalruby mp ctx (Right curstr) (Puts e) = case evalExpression mp ctx e of
     Left err -> Left err
     Right ex -> Right (curstr <> ex)
 
-evalExpression :: Container ScopeInformation -> Text -> Expression -> Either Doc Text
+evalExpression :: Container ScopeInformation -> ScopeName -> Expression -> Either Doc Text
 evalExpression mp ctx (LookupOperation varname varindex) = do
   rvname <- evalExpression mp ctx varname
   rvindx <- evalExpression mp ctx varindex
   getVariable mp ctx rvname >>= \case
     PArray arr ->
-        case a2i rvindx of
-            Nothing -> Left $ "Can't convert index to integer when resolving" <+> ppline rvname <> brackets (ppline rvindx)
-            Just  i -> if fromIntegral (V.length arr) <= i
-              then Left $ "Array out of bound" <+> ppline rvname <> brackets (ppline rvindx)
-              else evalValue (arr V.! fromIntegral i)
-    PHash hs -> case hs ^. at rvindx of
-                  Just x -> evalValue x
-                  _ -> Left $ "Can't index variable" <+> ppline rvname <+> ", it is " <+> pretty (PHash hs)
+      case a2i rvindx of
+        Nothing -> Left $ "Can't convert index to integer when resolving" <+> ppline rvname <> brackets (ppline rvindx)
+        Just  i -> if fromIntegral (V.length arr) <= i
+          then Left $ "Array out of bound" <+> ppline rvname <> brackets (ppline rvindx)
+          else evalValue (arr V.! fromIntegral i)
+    PHash hs ->
+      case hs ^. at rvindx of
+        Just x -> evalValue x
+        _ -> Left $ "Can't index variable" <+> ppline rvname <+> ", it is " <+> pretty (PHash hs)
     varvalue -> Left $ "Can't index variable" <+> ppline rvname <+> ", it is " <+> pretty varvalue
 evalExpression _  _   (Value (Literal x))          = Right x
 evalExpression mp ctx (Object (Value (Literal x))) = getVariable mp ctx x >>= evalValue
@@ -61,20 +68,17 @@ evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
 evalValue :: PValue -> Either Doc Text
 evalValue = go False
   where
-    txt = Text.pack . show
     go escaped p = case p of
-      PString x      -> Right $ if escaped
-                                  then txt x
-                                  else x
+      PString x      -> Right $ if escaped then show x else x
       PNumber x      -> Right (scientific2text x)
       PUndef         -> Right "nil"
       PBoolean True  -> Right "true"
       PBoolean False -> Right "false"
       PArray lst     -> fmap (\c -> "[" <> Text.intercalate ", " c <> "]") (mapM (go True) (V.toList lst))
-      PHash hash     -> fmap (\l -> "{" <> Text.intercalate ", " (map (\(k,v) -> txt k <> "=>" <> v) l) <> "}") (mapM (traverse (go True)) (HM.toList hash))
+      PHash hash     -> fmap (\l -> "{" <> Text.intercalate ", " (map (\(k,v) -> show k <> "=>" <> v) l) <> "}") (mapM (traverse (go True)) (HM.toList hash))
       _              -> Left ("Can't display the ruby equivalent of" <+> pretty p)
 
 a2i :: Text -> Maybe Integer
 a2i x = case text2Scientific x of
-            Just y -> y ^? _Integer
-            _      -> Nothing
+  Just y -> y ^? _Integer
+  _      -> Nothing

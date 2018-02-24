@@ -51,7 +51,7 @@ data Preferences m = Preferences
   , _prefKnownusers      :: [Text]
   , _prefKnowngroups     :: [Text]
   , _prefExternalmodules :: HS.HashSet Text
-  , _prefPuppetSettings  :: Container Text
+  , _prefPuppetSettings  :: Container Text -- ^ Puppet server settings
   , _prefFactsOverride   :: Container PValue
   , _prefFactsDefault    :: Container PValue
   , _prefLogLevel        :: LOG.Priority
