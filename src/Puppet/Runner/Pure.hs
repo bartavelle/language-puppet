@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 -- | Publicly exposed pure helpers to evaluate the 'InterpreterMonad'
 -- functions that can be found in "Puppet.Interpreter" and
 -- "Puppet.Interpreter.Resolve".
@@ -135,6 +136,7 @@ dummyFacts = HM.fromList
         , ("network_lo", "127.0.0.0")
         , ("operatingsystem", "Ubuntu")
         , ("operatingsystemrelease", "12.04")
+        , ("os", PHash [("architecture", "amd64")])
         , ("osfamily", "Debian")
         , ("path", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
         , ("physicalprocessorcount", "1")

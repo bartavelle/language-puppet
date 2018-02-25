@@ -5,9 +5,12 @@ import           XPrelude
 import           Test.Hspec
 
 import           Erb
+import           Puppet.Interpreter
+import           Puppet.Runner.Erb.Evaluate
+import           Puppet.Runner.Pure
 
-tests :: [(String, [RubyStatement])]
-tests =
+parsingtests :: [(String, [RubyStatement])]
+parsingtests =
   [ ("port = 5432", [ Puts (Value (Literal "port = 5432" ))])
   , ("mode = host=<% @var %>", [ Puts (Value (Literal "mode = host="))
                                , Puts (Object (Value (Literal "var")))
@@ -15,27 +18,31 @@ tests =
   , ("<%= @repuser['name'] %>", [ Puts (Value (Literal ""))
                                 , Puts (LookupOperation (Object (Value (Literal "repuser"))) (Value (Literal "name")))
                                 , Puts (Value (Literal ""))])
-  -- , ("<% if false %>ko<% end -%>", [ Puts (Value (Literal ""))
-  --                                 , Puts (LookupOperation (Object (Value (Literal "repuser"))) (Value (Literal "name")))
-  --                                 , Puts (Value (Literal ""))])
   ]
 
-bogus= [ "<% var %>"]
+resolvetests :: [([RubyStatement], Text)]
+resolvetests =
+  [ ([ Puts (Object (Value (Literal "hostname")))], "dummy")
+  , ([ Puts (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "architecture")))], "amd64")
+  ]
 
-positivetests =
-  for_ tests $ \(s, e) ->
-    let item = it ("should parse " <> s)
-    in
+parsingspec =
+  for_ parsingtests $ \(s, e) ->
+    let item = it ("should parse " <> s) in
     case parseErbString s of
       Left err -> item $ expectationFailure (show err)
       Right r -> item $ r `shouldBe` e
 
-negativetests =
-  for_ bogus $ \b ->
-    it "should fail to parse" $ do
-      pendingWith "In puppet 4, a variable need its @ prefix. See issue #237"
-      (parseErbString b) `shouldSatisfy` isLeft
+resolvespec =
+  let state0 = initialState dummyFacts mempty
+      Just (scope_name, scope) = extractFromState state0
+  in
+  for_ resolvetests $ \(s, e) ->
+    let item = it ("should resolve " <> show s) in
+    case rubyEvaluate scope scope_name s of
+      Left err -> item $ do {pendingWith "See #213"; expectationFailure (show err)}
+      Right r -> item $ r `shouldBe` e
 
 spec = describe "Erb" $ do
-  positivetests
-  negativetests
+  parsingspec
+  resolvespec

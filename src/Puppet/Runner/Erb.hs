@@ -115,14 +115,15 @@ computeTemplate intr fileinfo stt rdr mstats filecache = do
     Left s  -> measure mstats ("parsing - " <> filename) $ pure $ encapsulateError (runParser erbparser () "inline" (toS s))
   o <- case parsed of
       Left err -> do
-        let msg = "Template '" <> filename <> "' could not be parsed " <> show (tgetError err)
-        logDebug msg
+        let !msg = "Template '" <> filename <> "' could not be parsed " <> show (tgetError err)
+        -- if the haskell parser fails the ruby one will fallback.
+        logInfo msg
         measure mstats ("ruby - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
       Right ast -> case rubyEvaluate variables curcontext ast of
         Right ev -> return (S.Right ev)
         Left err -> do
           let !msg = "Template '" <> toS ufilename <> "' evaluation failed with: " <> show err
-          logDebug msg
+          logInfo msg
           measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables stt rdr
   traceEventIO ("STOP template " ++ Text.unpack filename)
   return o
