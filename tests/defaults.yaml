@@ -20,7 +20,8 @@ factsoverride:
   puppetversion: 3.7.5
   id: unitesting
   fqdn: utesting
-  architecture: x86_64
+  os:
+    architecture: x86_64
   osfamily: RedHat
   operatingsystem: CentOS
   operatingsystemmajrelease: '7'

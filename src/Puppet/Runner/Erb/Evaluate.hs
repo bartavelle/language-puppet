@@ -46,24 +46,31 @@ evalruby mp ctx (Right curstr) (Puts e) = case evalExpression mp ctx e of
     Right ex -> Right (curstr <> ex)
 
 evalExpression :: Container ScopeInformation -> ScopeName -> Expression -> Either Doc Text
-evalExpression mp ctx (LookupOperation varname varindex) = do
-  rvname <- evalExpression mp ctx varname
-  rvindx <- evalExpression mp ctx varindex
-  getVariable mp ctx rvname >>= \case
+evalExpression mp ctx x = evalExpression' mp ctx x >>= evalValue
+
+evalExpression' :: Container ScopeInformation -> ScopeName -> Expression -> Either Doc PValue
+evalExpression' mp ctx (LookupOperation expvar expidx) = do
+  val <- evalExpression' mp ctx expvar
+  idx <- evalExpression' mp ctx expidx
+  case val of
     PArray arr ->
-      case a2i rvindx of
-        Nothing -> Left $ "Can't convert index to integer when resolving" <+> ppline rvname <> brackets (ppline rvindx)
-        Just  i -> if fromIntegral (V.length arr) <= i
-          then Left $ "Array out of bound" <+> ppline rvname <> brackets (ppline rvindx)
-          else evalValue (arr V.! fromIntegral i)
+      case idx ^? _Integer of
+        Nothing -> Left $ "Can't convert index to integer when resolving" <+> pretty val <> brackets (pretty idx)
+        Just i  ->
+          if fromIntegral (V.length arr) <= i
+          then Left $ "Array out of bound" <+> pretty val <> brackets (pretty idx)
+          else Right (arr V.! (fromIntegral i))
     PHash hs ->
-      case hs ^. at rvindx of
-        Just x -> evalValue x
-        _ -> Left $ "Can't index variable" <+> ppline rvname <+> ", it is " <+> pretty (PHash hs)
-    varvalue -> Left $ "Can't index variable" <+> ppline rvname <+> ", it is " <+> pretty varvalue
-evalExpression _  _   (Value (Literal x))          = Right x
-evalExpression mp ctx (Object (Value (Literal x))) = getVariable mp ctx x >>= evalValue
-evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
+      case idx of
+        PString idx' ->
+          case hs ^. at idx' of
+            Just x' -> Right x'
+            _ -> Left $ "Can't index variable" <+> pretty val <+> ", it is " <+> pretty (PHash hs)
+        _ -> Left $ "Can't index variable" <+> pretty val <+> ", it is " <+> pretty (PHash hs)
+    unexpectedval -> Left $ "Can't index variable" <+> pretty val <+> ", it is " <+> pretty unexpectedval
+evalExpression' _  _   (Value (Literal x))          = Right (PString x)
+evalExpression' mp ctx (Object (Value (Literal x))) = getVariable mp ctx x
+evalExpression' _  _   x = Left $ "Can't evaluate" <+> pretty x
 
 evalValue :: PValue -> Either Doc Text
 evalValue = go False
@@ -77,8 +84,3 @@ evalValue = go False
       PArray lst     -> fmap (\c -> "[" <> Text.intercalate ", " c <> "]") (mapM (go True) (V.toList lst))
       PHash hash     -> fmap (\l -> "{" <> Text.intercalate ", " (map (\(k,v) -> show k <> "=>" <> v) l) <> "}") (mapM (traverse (go True)) (HM.toList hash))
       _              -> Left ("Can't display the ruby equivalent of" <+> pretty p)
-
-a2i :: Text -> Maybe Integer
-a2i x = case text2Scientific x of
-  Just y -> y ^? _Integer
-  _      -> Nothing
