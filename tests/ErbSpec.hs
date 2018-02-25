@@ -5,9 +5,7 @@ import           XPrelude
 import           Test.Hspec
 
 import           Erb
-import           Puppet.Interpreter
-import           Puppet.Runner.Erb.Evaluate
-import           Puppet.Runner.Pure
+import           Puppet.Runner
 
 parsingtests :: [(String, [RubyStatement])]
 parsingtests =

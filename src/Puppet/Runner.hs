@@ -19,6 +19,7 @@ module Puppet.Runner(
   -- * Daemon
   , module Puppet.Runner.Daemon
   -- * Re-export
+  , module Puppet.Runner.Erb.Evaluate
   , module Puppet.Interpreter
   )
   where
@@ -28,4 +29,5 @@ import Puppet.Runner.Preferences
 import Puppet.Runner.Stats
 import Puppet.Runner.Stdlib
 import Puppet.Runner.Pure
+import Puppet.Runner.Erb.Evaluate
 import Puppet.Interpreter
