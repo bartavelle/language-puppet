@@ -19,17 +19,28 @@ parsingtests =
   , ("<%= @os['release']['major'] %>", [ Puts (Value (Literal ""))
                                        , Puts (LookupOperation (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "release"))) (Value (Literal "major")))
                                        , Puts (Value (Literal ""))])
+  , ("<%= @processors['models'] %>", [ Puts (Value (Literal ""))
+                                     , Puts (LookupOperation (Object (Value (Literal "processors"))) (Value (Literal "models")))
+                                     , Puts (Value (Literal ""))])
   ]
 
 resolvetests :: [([RubyStatement], Text)]
 resolvetests =
   [ ([ Puts (Object (Value (Literal "hostname")))]
-    , "dummy")
+    , "dummy"
+    )
   , ([ Puts (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "architecture")))]
-    , "amd64")
+    , "amd64"
+    )
   , ([ Puts (LookupOperation (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "release"))) (Value (Literal "major")))]
-    , "7")
+    , "7"
+    )
+  , ([ Puts (LookupOperation (Object (Value (Literal "processors"))) (Value (Literal "models")))]
+    , expectedmodels
+    )
   ]
+ where
+   expectedmodels = "[\"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\"]"
 
 parsingspec =
   for_ parsingtests $ \(s, e) ->
