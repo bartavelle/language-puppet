@@ -41,17 +41,15 @@ evalruby mp ctx (Right curstr) (DropPrevSpace x) =
   case evalruby mp ctx (Right curstr) x of
     Left err -> Left err
     Right y  -> Right (Text.dropWhileEnd spaceNotCR y)
-evalruby mp ctx (Right curstr) (Puts e) = case evalExpression mp ctx e of
+evalruby mp ctx (Right curstr) (Puts e) =
+  case (evalExpression mp ctx e >>= evalValue) of
     Left err -> Left err
     Right ex -> Right (curstr <> ex)
 
-evalExpression :: Container ScopeInformation -> ScopeName -> Expression -> Either Doc Text
-evalExpression mp ctx x = evalExpression' mp ctx x >>= evalValue
-
-evalExpression' :: Container ScopeInformation -> ScopeName -> Expression -> Either Doc PValue
-evalExpression' mp ctx (LookupOperation expvar expidx) = do
-  val <- evalExpression' mp ctx expvar
-  idx <- evalExpression' mp ctx expidx
+evalExpression :: Container ScopeInformation -> ScopeName -> Expression -> Either Doc PValue
+evalExpression mp ctx (LookupOperation expvar expidx) = do
+  val <- evalExpression mp ctx expvar
+  idx <- evalExpression mp ctx expidx
   case val of
     PArray arr ->
       case idx ^? _Integer of
@@ -68,9 +66,10 @@ evalExpression' mp ctx (LookupOperation expvar expidx) = do
             _ -> Left $ "Can't index variable" <+> pretty val <+> ", it is " <+> pretty (PHash hs)
         _ -> Left $ "Can't index variable" <+> pretty val <+> ", it is " <+> pretty (PHash hs)
     unexpectedval -> Left $ "Can't index variable" <+> pretty val <+> ", it is " <+> pretty unexpectedval
-evalExpression' _  _   (Value (Literal x))          = Right (PString x)
-evalExpression' mp ctx (Object (Value (Literal x))) = getVariable mp ctx x
-evalExpression' _  _   x = Left $ "Can't evaluate" <+> pretty x
+
+evalExpression _  _   (Value (Literal x))          = Right (PString x)
+evalExpression mp ctx (Object (Value (Literal x))) = getVariable mp ctx x
+evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
 
 evalValue :: PValue -> Either Doc Text
 evalValue = go False
