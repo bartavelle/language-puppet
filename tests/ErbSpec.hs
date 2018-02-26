@@ -13,16 +13,34 @@ parsingtests =
   , ("mode = host=<% @var %>", [ Puts (Value (Literal "mode = host="))
                                , Puts (Object (Value (Literal "var")))
                                , Puts (Value (Literal ""))])
-  , ("<%= @repuser['name'] %>", [ Puts (Value (Literal ""))
-                                , Puts (LookupOperation (Object (Value (Literal "repuser"))) (Value (Literal "name")))
-                                , Puts (Value (Literal ""))])
+  , ("<%= @os['architecture'] %>", [ Puts (Value (Literal ""))
+                                   , Puts (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "architecture")))
+                                   , Puts (Value (Literal ""))])
+  , ("<%= @os['release']['major'] %>", [ Puts (Value (Literal ""))
+                                       , Puts (LookupOperation (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "release"))) (Value (Literal "major")))
+                                       , Puts (Value (Literal ""))])
+  , ("<%= @processors['models'] %>", [ Puts (Value (Literal ""))
+                                     , Puts (LookupOperation (Object (Value (Literal "processors"))) (Value (Literal "models")))
+                                     , Puts (Value (Literal ""))])
   ]
 
 resolvetests :: [([RubyStatement], Text)]
 resolvetests =
-  [ ([ Puts (Object (Value (Literal "hostname")))], "dummy")
-  , ([ Puts (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "architecture")))], "amd64")
+  [ ([ Puts (Object (Value (Literal "hostname")))]
+    , "dummy"
+    )
+  , ([ Puts (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "architecture")))]
+    , "amd64"
+    )
+  , ([ Puts (LookupOperation (LookupOperation (Object (Value (Literal "os"))) (Value (Literal "release"))) (Value (Literal "major")))]
+    , "7"
+    )
+  , ([ Puts (LookupOperation (Object (Value (Literal "processors"))) (Value (Literal "models")))]
+    , expectedmodels
+    )
   ]
+ where
+   expectedmodels = "[\"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\", \"Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz\"]"
 
 parsingspec =
   for_ parsingtests $ \(s, e) ->
@@ -38,7 +56,7 @@ resolvespec =
   for_ resolvetests $ \(s, e) ->
     let item = it ("should resolve " <> show s) in
     case rubyEvaluate scope scope_name s of
-      Left err -> item $ do {pendingWith "See #213"; expectationFailure (show err)}
+      Left err -> item $ expectationFailure (show err)
       Right r -> item $ r `shouldBe` e
 
 spec = describe "Erb" $ do

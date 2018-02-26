@@ -136,19 +136,24 @@ dummyFacts = HM.fromList
         , ("network_lo", "127.0.0.0")
         , ("operatingsystem", "Ubuntu")
         , ("operatingsystemrelease", "12.04")
-        , ("os", PHash [("architecture", "amd64")])
+        , ("os", PHash [ ("architecture", "amd64")
+                       , ("release", PHash [("major", "7")])
+                       ])
         , ("osfamily", "Debian")
         , ("path", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-        , ("physicalprocessorcount", "1")
-        , ("processor0", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processor1", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processor2", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processor3", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processor4", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processor5", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processor6", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processor7", "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz")
-        , ("processorcount", "8")
+        , ("processors", PHash [("models", PArray [ "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  , "Intel(R) Core(TM) i7 CPU         860  @ 2.80GHz"
+                                                  ])
+                               , ("count", "8")
+                               , ("physicalprocessorcount", "1")
+                               ])
         , ("productname", "Vostro 430")
         , ("ps", "ps -ef")
         , ("puppetversion", "3.4.3")
