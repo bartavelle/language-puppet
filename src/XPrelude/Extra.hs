@@ -16,6 +16,7 @@ module XPrelude.Extra (
     , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
     -- * Logger
     , loggerName
+    , logCritical
     , logDebug
     , logInfo
     , logInfoStr
@@ -171,6 +172,9 @@ logWarningStr = Log.warningM "language-puppet"
 logError :: Text -> IO ()
 logError = Log.errorM "language-puppet" . toS
 
+logCritical :: Text -> IO ()
+logCritical = Log.criticalM "language-puppet" . toS
+
 logDebugStr :: String -> IO ()
 logDebugStr = Log.debugM "language-puppet"
 
@@ -180,4 +184,3 @@ unwrapError desc = either exit pure
     where
       exit = \err -> putDoc (display err) >> exitFailure
       display err = red desc <> ":" <+> getError err
-  
