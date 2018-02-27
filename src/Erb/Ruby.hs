@@ -32,6 +32,7 @@ data Expression
     | NegOperation !Expression
     | ConditionalValue !Expression !Expression
     | Object !Expression
+    | ScopeObject !Expression
     | MethodCall !Expression !Expression
     | BlockOperation !Text
     | Value !Value

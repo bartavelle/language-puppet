@@ -68,7 +68,12 @@ evalExpression mp ctx (LookupOperation expvar expidx) = do
     unexpectedval -> Left $ "Can't index variable" <+> pretty val <+> ", it is " <+> pretty unexpectedval
 
 evalExpression _  _   (Value (Literal x))          = Right (PString x)
-evalExpression mp ctx (Object (Value (Literal x))) = getVariable mp ctx x
+evalExpression mp ctx (ScopeObject (Value (Literal x))) = getVariable mp ctx x
+evalExpression mp ctx (Object (Value (Literal x))) = do
+  case Text.stripPrefix "@" x of
+    Nothing -> Left $ "Erb variables '" <> ppline x <> "' should be prefix by '@'"
+    Just x' -> getVariable mp ctx x'
+
 evalExpression _  _   x = Left $ "Can't evaluate" <+> pretty x
 
 evalValue :: PValue -> Either Doc Text

@@ -95,7 +95,7 @@ scopeLookup = do
   end <- (string ".lookupvar(" >> return (char ')')) <|> (char '[' >> return (char ']'))
   expr <- rubyexpression
   void end
-  pure $ Object expr
+  pure $ ScopeObject expr
 
 stringLiteral :: Parser Expression
 stringLiteral = Value `fmap` (doubleQuoted <|> singleQuoted)
@@ -117,9 +117,9 @@ singleQuoted = Literal . Text.pack <$> between (char '\'') (char '\'') (many $ n
 
 objectterm :: Parser Expression
 objectterm = do
-  void $ optional (char '@')
-  methodname' <- fmap Text.pack identifier
-  let methodname = Value (Literal methodname')
+  arobase <- optional (char '@')
+  methodname' <- toS <$> identifier
+  let methodname = Value (Literal $ maybe methodname' (\a -> Text.cons a methodname') arobase)
   lookAhead anyChar >>= \case
     '[' -> do
         hr <- many (symbol "[" *> rubyexpression <* symbol "]")
