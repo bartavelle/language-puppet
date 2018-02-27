@@ -79,7 +79,7 @@ table =  [ [ Infix  ( reservedOp "+" >> return PlusOperation        ) AssocLeft
          , [ Prefix ( symbol "!" >> return NotOperation             )           ]
          , [ Prefix ( symbol "-" >> return NegOperation             )           ]
          , [ Infix  ( reservedOp "?" >> return ConditionalValue     ) AssocLeft ]
-         , [ Infix  ( reservedOp "." >> return MethodCall           ) AssocLeft ]
+         -- , [ Infix  ( reservedOp "." >> return MethodCall           ) AssocLeft ]
          ]
 term :: Parser Expression
 term =
