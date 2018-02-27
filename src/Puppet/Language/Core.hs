@@ -12,13 +12,16 @@ import qualified Data.Tuple.Strict   as Tuple
 import qualified GHC.Show            as Show (Show (..))
 import           Text.Megaparsec.Pos
 
-
 showPos :: Position -> Doc
 showPos = blue . pptext . sourcePosPretty
 
--- | showing a position interval only show the first position
+-- | showing the first position of a position interval.
 showPPos :: PPosition -> Doc
 showPPos = showPos . Tuple.fst
+
+-- | showing the first position of a position interval as string.
+showPPos' :: PPosition -> String
+showPPos' = sourcePosPretty . Tuple.fst
 
 -- | Generates an initial position interval based on a filename.
 initialPPos :: FilePath -> PPosition

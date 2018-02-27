@@ -122,9 +122,9 @@ computeTemplate rubyintp fileinfo intpstate intpreader mstats filecache = do
     Right ast -> case rubyEvaluate variables curcontext ast of
       Right ev -> return (S.Right ev)
       Left err -> do
-        let !msg = "Template '" <> toS ufilename <> "' evaluation failed with: " <> show err
-      -- if the haskell evaluation fails the ruby one will fallback. It is likely that the reason for this failure is a real template issue.
-        logWarning msg
+        let !msg = "At " <> showPPos'(intpstate^.curPos) <> " the evaluation of template '" <> ufilename <> "' failed. " <> show err
+      -- if the haskell evaluation fails the ruby one will fallback. It is likely that the reason for the failure is a real template issue.
+        logCriticalStr msg
         measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables intpstate intpreader
   traceEventIO ("STOP template " <> Text.unpack filename)
   return o

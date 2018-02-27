@@ -16,14 +16,15 @@ module XPrelude.Extra (
     , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
     -- * Logger
     , loggerName
-    , logCritical
     , logDebug
+    , logDebugStr
     , logInfo
     , logInfoStr
     , logWarning
     , logWarningStr
     , logError
-    , logDebugStr
+    , logCritical
+    , logCriticalStr
 ) where
 
 import           Protolude                         as Exports hiding (Down, Infix, Prefix, Selector,
@@ -174,6 +175,9 @@ logError = Log.errorM "language-puppet" . toS
 
 logCritical :: Text -> IO ()
 logCritical = Log.criticalM "language-puppet" . toS
+
+logCriticalStr :: String -> IO ()
+logCriticalStr = Log.criticalM "language-puppet"
 
 logDebugStr :: String -> IO ()
 logDebugStr = Log.debugM "language-puppet"
