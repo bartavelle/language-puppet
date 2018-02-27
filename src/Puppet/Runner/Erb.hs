@@ -124,7 +124,7 @@ computeTemplate rubyintp fileinfo intpstate intpreader mstats filecache = do
       Left err -> do
         let !msg = "Template '" <> toS ufilename <> "' evaluation failed with: " <> show err
       -- if the haskell evaluation fails the ruby one will fallback. It is likely that the reason for this failure is a real template issue.
-        logInfo msg
+        logWarning msg
         measure mstats ("ruby efail - " <> filename) $ mkSafe $ computeTemplateWRuby fileinfo curcontext variables intpstate intpreader
   traceEventIO ("STOP template " <> Text.unpack filename)
   return o
