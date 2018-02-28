@@ -452,7 +452,10 @@ resolveFunction' "defined" [ut] = do
 resolveFunction' "defined" x = throwPosError ("defined(): expects a single resource reference, type or class name, and not" <+> pretty x)
 resolveFunction' "fail" x = throwPosError ("fail:" <+> pretty x)
 resolveFunction' "inline_template" [] = throwPosError "inline_template(): Expects at least one argument"
-resolveFunction' "inline_template" templates = PString . mconcat <$> mapM (calcTemplate Left) templates
+resolveFunction' "inline_template" templates =
+  let compute = fmap Inline . resolvePValueString >=> calcTemplate
+  in
+  PString . mconcat <$> traverse compute templates
 resolveFunction' "md5" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . md5 . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "md5" _ = throwPosError "md5(): Expects a single argument"
 resolveFunction' "regsubst" [ptarget, pregexp, preplacement] = resolveFunction' "regsubst" [ptarget, pregexp, preplacement, PString "G"]
@@ -475,8 +478,8 @@ resolveFunction' "split" [psrc, psplt] = do
   src  <- fmap Text.encodeUtf8 (resolvePValueString psrc)
   splt <- fmap Text.encodeUtf8 (resolvePValueString psplt)
   case Regex.splitCompile' splt src of
-    Left rr -> throwPosError ("splitCompile():" <+> ppstring rr)
-    Right x -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
+    Left err -> throwPosError ("splitCompile():" <+> ppstring err)
+    Right x  -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
 resolveFunction' "sha1" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . sha1 . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
 resolveFunction' "shellquote" args = do
@@ -514,7 +517,10 @@ resolveFunction' "tagged" ptags = do
   scpset <- use (scopes . ix scp . scopeExtraTags)
   pure (PBoolean (scpset `HS.intersection` tags == tags))
 resolveFunction' "template" [] = throwPosError "template(): Expects at least one argument"
-resolveFunction' "template" templates = PString . mconcat <$> mapM (calcTemplate Right) templates
+resolveFunction' "template" templates =
+  let compute = fmap (Filename . Text.unpack) . resolvePValueString >=> calcTemplate
+  in
+  PString . mconcat <$> traverse compute templates
 resolveFunction' "versioncmp" [pa,pb] = do
   a <- resolvePValueString pa
   b <- resolvePValueString pb
@@ -574,11 +580,11 @@ pdbresourcequery q mkey = do
     Nothing  -> pure (PArray rv)
     (Just k) -> fmap PArray (V.mapM (extractSubHash k) rv)
 
-calcTemplate :: (Text -> Either Text Text) -> PValue -> InterpreterMonad Text
-calcTemplate templatetype templatename = do
-  fname       <- resolvePValueString templatename
-  stt         <- use identity
-  Operational.singleton (ComputeTemplate (templatetype fname) stt)
+
+calcTemplate :: TemplateSource -> InterpreterMonad Text
+calcTemplate templatetype = do
+  intpstate <- use identity
+  Operational.singleton (ComputeTemplate templatetype intpstate)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
 resolveExpressionSE e =

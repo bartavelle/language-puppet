@@ -85,7 +85,7 @@ initDaemon pref = do
 
 getCatalog' :: Preferences IO
          -> ( TopLevelType -> Text -> IO (S.Either PrettyError Statement) )
-         -> (Either Text Text -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text))
+         -> (TemplateSource -> InterpreterState -> InterpreterReader IO -> IO (S.Either PrettyError Text))
          -> MStats
          -> HieraQueryLayers IO
          -> NodeName

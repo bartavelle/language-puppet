@@ -80,6 +80,8 @@ module Puppet.Interpreter.Types (
  , HieraQueryLayers(..)
  , globalLayer
  , moduleLayer
+ -- * Template
+ , TemplateSource(..)
  -- * Re-export
  , module Puppet.Language
 ) where
@@ -204,10 +206,13 @@ data HieraQueryLayers m = HieraQueryLayers
   , _moduleLayer :: Container (HieraQueryFunc m)
   }
 
+-- | Whether the template source is specified 'inline' or loaded from a file.
+data  TemplateSource= Inline Text | Filename FilePath
+
 data InterpreterReader m = InterpreterReader
   { _readerNativeTypes :: !(Container NativeTypeMethods)
   , _readerGetStatement :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
-  , _readerGetTemplate :: Either Text Text -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
+  , _readerGetTemplate ::  TemplateSource-> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
   , _readerPdbApi :: PuppetDBAPI m
   , _readerExternalFunc :: Container ([PValue] -> InterpreterMonad PValue) -- ^ External func such as stdlib or puppetlabs
   , _readerNodename :: Text
@@ -224,7 +229,7 @@ data InterpreterInstr a where
   -- Utility for using what's in 'InterpreterReader'
   GetNativeTypes      :: InterpreterInstr (Container NativeTypeMethods)
   GetStatement        :: TopLevelType -> Text -> InterpreterInstr Statement
-  ComputeTemplate     :: Either Text Text -> InterpreterState -> InterpreterInstr Text
+  ComputeTemplate     :: TemplateSource-> InterpreterState -> InterpreterInstr Text
   ExternalFunction    :: Text -> [PValue] -> InterpreterInstr PValue
   GetNodeName         :: InterpreterInstr Text
   HieraQuery          :: Container Text -> Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)

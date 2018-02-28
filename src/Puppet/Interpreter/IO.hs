@@ -55,7 +55,7 @@ eval r s (a :>>= k) =
                                                 Nothing -> thpe (PrettyError ("Unknown function: " <> ppline fname))
             GetStatement topleveltype toplevelname
                                          -> canFail ((r ^. readerGetStatement) topleveltype toplevelname)
-            ComputeTemplate fn stt       -> canFail ((r ^. readerGetTemplate) fn stt r)
+            ComputeTemplate src st       -> canFail ((r ^. readerGetTemplate) src st r)
             WriterTell t                 -> logStuff t (runInstr ())
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"

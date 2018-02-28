@@ -10,6 +10,10 @@ import qualified Data.ByteString.Lazy.Char8 as BSL
 import           Puppet.Interpreter.Types
 import           PuppetDB
 
+instance Pretty TemplateSource where
+  pretty (Inline s) = pretty (PString s)
+  pretty (Filename s) = pptext s
+
 instance Pretty TopLevelType where
     pretty TopNode   = dullyellow "node"
     pretty TopDefine = dullyellow "define"
@@ -41,11 +45,7 @@ instance Pretty (InterpreterInstr a) where
   pretty IsStrict = pf "IsStrict" []
   pretty GetNativeTypes = pf "GetNativeTypes" []
   pretty (GetStatement tlt nm) = pf "GetStatement" [pretty tlt,ppline nm]
-  pretty (ComputeTemplate fn _) = pf "ComputeTemplate" [fn']
-      where
-          fn' = case fn of
-                    Left content -> pretty (PString content)
-                    Right filena -> ppline filena
+  pretty (ComputeTemplate src _) = pf "ComputeTemplate" [pretty src]
   pretty (ExternalFunction fn args)  = pf (ppline fn) (map pretty args)
   pretty GetNodeName                 = pf "GetNodeName" []
   pretty (HieraQuery _ q _)          = pf "HieraQuery" [ppline q]
