@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds         #-}
@@ -26,11 +27,16 @@ type PDBAPI = "v3" :> PDBAPIv3
 api :: Proxy PDBAPI
 api = Proxy
 
+#if !MIN_VERSION_servant(0,13,0)
+mkClientEnv :: Manager -> BaseUrl -> ClientEnv
+mkClientEnv = ClientEnv
+#endif
+
 -- | Given an URL (ie. @http://localhost:8080@), will return an incomplete 'PuppetDBAPI'.
 pdbConnect :: Manager -> String -> IO (Either PrettyError (PuppetDBAPI IO))
 pdbConnect mgr url = do
   url' <- parseBaseUrl url
-  let env = ClientEnv mgr url'
+  let env = mkClientEnv mgr url'
   pure $ Right $ PuppetDBAPI
     (return (ppline $ fromString url))
     (const (throwError "operation not supported"))

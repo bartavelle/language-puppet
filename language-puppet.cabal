@@ -126,8 +126,8 @@ library
                      , random
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2 && < 0.4
-                     , servant              >= 0.9 && < 0.13
-                     , servant-client       >= 0.9 && < 0.13
+                     , servant              >= 0.9 && < 0.14
+                     , servant-client       >= 0.9 && < 0.14
                      , split                == 0.2.*
                      , stm                  == 2.4.*
                      , strict-base-types    >= 0.3
