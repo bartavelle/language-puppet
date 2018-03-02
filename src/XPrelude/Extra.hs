@@ -7,12 +7,9 @@ module XPrelude.Extra (
     , unwrapError
     , isEmpty
     , dropInitialColons
-    , getDirectoryContents
-    , takeBaseName
     , strictifyEither
     , scientific2text
     , text2Scientific
-    , getFiles
     , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
     -- * Logger
     , loggerName
@@ -51,43 +48,29 @@ import           Data.Vector                       as Exports (Vector)
 import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
 
 import           Data.Attoparsec.Text              (parseOnly, rational)
-import qualified Data.ByteString                   as BS
 import qualified Data.Either.Strict                as S
 import qualified Data.HashMap.Strict               as Map
 import qualified Data.HashSet                      as HS
-import qualified Data.List                         as List
 import qualified Data.Scientific                   as Scientific
 import           Data.String                       (String)
 import qualified Data.Text                         as Text
-import qualified Data.Text.Encoding                as Text
 import qualified System.Log.Logger                 as Log
-import           System.Posix.Directory.ByteString
 import           XPrelude.PP
 
 type Container = Map.HashMap Text
 
 text2Scientific :: Text -> Maybe Scientific
-text2Scientific t =
-  case parseOnly rational t of
-    Left _  -> Nothing
-    Right s -> Just s
+text2Scientific t = rightToMaybe (parseOnly rational t)
 
 scientific2text :: Scientific -> Text
 scientific2text n =
-  Text.pack $ case Scientific.floatingOrInteger n of
+  case Scientific.floatingOrInteger n of
     Left r  -> show (r :: Double)
     Right i -> show (i :: Integer)
 
 strictifyEither :: Either a b -> S.Either a b
 strictifyEither (Left x)  = S.Left x
 strictifyEither (Right x) = S.Right x
-
--- | See "System.FilePath.Posix"
-takeBaseName :: Text -> Text
-takeBaseName fullname =
-  let afterLastSlash = List.last $ Text.splitOn "/" fullname
-      splitExtension = List.init $ Text.splitOn "." afterLastSlash
-  in Text.intercalate "." splitExtension
 
 -- | Helper for hashmap, in case we want another kind of map.
 ifromList :: (Monoid m, At m, Foldable f) => f (Index m, IxValue m) -> m
@@ -117,33 +100,6 @@ iinsertWith f k v m =
 iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HashMap k v -> HashMap k v -> HashMap k v
 {-# INLINABLE iunionWith #-}
 iunionWith = Map.unionWith
-
-getFiles :: Text -> Text -> Text -> IO [Text]
-getFiles moduledir subdir extension =
-  fmap concat
-  $ getDirContents moduledir
-    >>= mapM ( checkForSubFiles extension . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
-
-checkForSubFiles :: Text -> Text -> IO [Text]
-checkForSubFiles extension dir =
-  catch (fmap Right (getDirContents dir)) (\e -> return $ Left (e :: IOException)) >>= \case
-    Right o -> return ((map (\x -> dir <> "/" <> x) . filter (Text.isSuffixOf extension)) o )
-    Left _ -> return []
-
-getDirContents :: Text -> IO [Text]
-getDirContents x = fmap (filter (not . Text.all (=='.'))) (getDirectoryContents x)
-
-getDirectoryContents :: Text -> IO [Text]
-getDirectoryContents fpath = do
-  h <- openDirStream (Text.encodeUtf8 fpath)
-  let readHandle = do
-        fp <- readDirStream h
-        if BS.null fp
-          then return []
-          else fmap (Text.decodeUtf8 fp :) readHandle
-  out <- readHandle
-  closeDirStream h
-  pure out
 
 isEmpty :: (Eq x, Monoid x) => x -> Bool
 isEmpty = (== mempty)

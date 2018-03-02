@@ -29,10 +29,12 @@ import           XPrelude
 import           Data.Aeson
 import qualified Data.HashMap.Strict      as HM
 import qualified Data.HashSet             as HS
+import qualified Data.List                as List
 import qualified Data.Text                as Text
 import qualified Data.Yaml                as Yaml
+import qualified System.Directory         as Directory
+import qualified System.FilePath          as FilePath
 import qualified System.Log.Logger        as LOG
-import           System.Posix             (fileExist)
 
 import           Puppet.Interpreter
 import qualified Puppet.Runner.Puppetlabs as Puppetlabs
@@ -97,8 +99,8 @@ dfPreferences basedir = do
         testdir = dirpaths ^. testPath
         hierafile = basedir <> "/hiera.yaml"
         defaultfile = testdir <> "/defaults.yaml"
-    defaults <- ifM (fileExist defaultfile) (Yaml.decodeFile defaultfile) (pure Nothing)
-    hieradir <- ifM (fileExist hierafile) (pure $ Just hierafile) (pure Nothing)
+    defaults <- ifM (Directory.doesFileExist defaultfile) (Yaml.decodeFile defaultfile) (pure Nothing)
+    hieradir <- ifM (Directory.doesFileExist hierafile) (pure $ Just hierafile) (pure Nothing)
     loadedtypes <- loadedTypes modulesdir
     labsFunctions <- Puppetlabs.extFunctions modulesdir
     return $ Preferences dirpaths
@@ -120,8 +122,19 @@ dfPreferences basedir = do
 
 loadedTypes :: FilePath -> IO (HM.HashMap NativeTypeName NativeTypeMethods)
 loadedTypes modulesdir = do
-  typenames <- fmap (map takeBaseName) (getFiles (Text.pack modulesdir) "lib/puppet/type" ".rb")
+  typenames <- map (Text.pack . FilePath.takeBaseName) <$> (getFiles modulesdir "lib/puppet/type" ".rb")
   pure $ HM.fromList (map defaulttype typenames)
+  where
+   getFiles :: FilePath -> FilePath -> FilePath -> IO [FilePath]
+   getFiles moduledir subdir extension =
+     fmap concat
+     $ Directory.listDirectory moduledir
+       >>= mapM ( checkForSubFiles extension . (\x -> moduledir <> "/" <> x <> "/" <> subdir))
+   checkForSubFiles :: FilePath -> FilePath -> IO [FilePath]
+   checkForSubFiles extension dir =
+     catch (fmap Right (Directory.listDirectory dir)) (\e -> return $ Left (e :: IOException)) >>= \case
+       Right o -> return ((map (\x -> dir <> "/" <> x) . filter (List.isSuffixOf extension)) o )
+       Left _ -> return []
 
 -- Utilities for getting default values from the yaml file
 -- It provides (the same) static defaults (see the 'Nothing' case) when
