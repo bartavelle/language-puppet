@@ -3,18 +3,18 @@ module Puppet.Runner.Puppetlabs (extFunctions) where
 
 import           XPrelude
 
-import           Crypto.Hash                      as Crypto
-import           Data.ByteString                  (ByteString)
-import           Data.Foldable                    (foldlM)
-import qualified Data.HashMap.Strict              as HM
-import           Data.Scientific                  as Sci
-import qualified Data.Text                        as Text
-import qualified Data.Text.Encoding               as Text
-import           Data.Vector                      (Vector)
-import           Formatting                       (scifmt, sformat, (%), (%.))
-import qualified Formatting                       as FMT
-import           System.Posix.Files               (fileExist)
-import           System.Random                    (mkStdGen, randomRs)
+import           Crypto.Hash         as Crypto
+import           Data.ByteString     (ByteString)
+import           Data.Foldable       (foldlM)
+import qualified Data.HashMap.Strict as HM
+import           Data.Scientific     as Sci
+import qualified Data.Text           as Text
+import qualified Data.Text.Encoding  as Text
+import           Data.Vector         (Vector)
+import           Formatting          (scifmt, sformat, (%), (%.))
+import qualified Formatting          as FMT
+import qualified System.Directory    as Directory
+import           System.Random       (mkStdGen, randomRs)
 
 import           Puppet.Interpreter
 
@@ -43,13 +43,13 @@ extFunctions modpath = foldlM f HM.empty extFun
       if test
          then return $ HM.insert fname fn acc
          else return acc
-    testFile modname fname = fileExist (modpath <> modname <> "/lib/puppet/parser/functions/" <> Text.unpack fname <>".rb")
+    testFile modname fname = Directory.doesFileExist (modpath <> modname <> "/lib/puppet/parser/functions/" <> Text.unpack fname <>".rb")
 
 apacheBool2httpd :: MonadThrowPos m => [PValue] -> m PValue
-apacheBool2httpd [PBoolean True] = return $ PString "On"
+apacheBool2httpd [PBoolean True]  = return $ PString "On"
 apacheBool2httpd [PString "true"] = return $ PString "On"
-apacheBool2httpd [_] = return $ PString "Off"
-apacheBool2httpd arg@_ = throwPosError $ "expect one single argument" <+> pretty arg
+apacheBool2httpd [_]              = return $ PString "Off"
+apacheBool2httpd arg@_            = throwPosError $ "expect one single argument" <+> pretty arg
 
 pgPassword :: MonadThrowPos m => [PValue] -> m PValue
 pgPassword [PString username, PString pwd] =
@@ -68,17 +68,17 @@ randomPassword _ = throwPosError "expect one single string arguments"
 
 -- To be implemented if needed.
 mockJenkinsPrefix :: MonadThrowPos m => [PValue] -> m PValue
-mockJenkinsPrefix [] = return $ PString ""
+mockJenkinsPrefix []    = return $ PString ""
 mockJenkinsPrefix arg@_ = throwPosError $ "expect no argument" <+> pretty arg
 
 -- To be implemented if needed.
 mockJenkinsPort :: MonadThrowPos m => [PValue] -> m PValue
-mockJenkinsPort [] = return $ PString "8080"
+mockJenkinsPort []    = return $ PString "8080"
 mockJenkinsPort arg@_ = throwPosError $ "expect no argument" <+> pretty arg
 
 mockCacheData :: MonadThrowPos m => [PValue] -> m PValue
 mockCacheData [_, _, b] = return b
-mockCacheData arg@_ = throwPosError $ "expect 3 string arguments" <+> pretty arg
+mockCacheData arg@_     = throwPosError $ "expect 3 string arguments" <+> pretty arg
 
 -- | Simple implemenation that does not handle all cases.
 -- For instance 'auth_option' is currently not implemented.

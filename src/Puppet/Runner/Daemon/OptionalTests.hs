@@ -5,7 +5,7 @@ import           XPrelude
 
 import qualified Data.HashSet              as Set
 import qualified Data.Text                 as Text
-import           System.Posix.Files        (fileExist)
+import qualified System.Directory          as Directory
 
 import           Puppet.Language
 import           Puppet.Runner.Preferences
@@ -84,7 +84,7 @@ checkAllSources fp fs =
 
 testFile :: FilePath -> ExceptT PrettyError IO ()
 testFile fp = do
-    p <-  liftIO (fileExist fp)
+    p <-  liftIO (Directory.doesFileExist fp)
     unless p (throwE $ PrettyError $ "searched in" <+> squotes (pptext fp))
 
 -- | Only test the `puppet:///` protocol (files managed by the puppet server)

@@ -8,11 +8,12 @@ import           Data.Aeson
 import           Data.Char
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet        as HS
-import           Data.List           (intercalate, stripPrefix)
-import           Data.List.Split     (splitOn)
+import qualified Data.List           as List
+import qualified Data.List.Split     as List
 import           Data.Maybe          (mapMaybe)
+import           Data.Semigroup
 import qualified Data.Text           as T
-import           System.Directory    (doesFileExist)
+import qualified System.Directory    as Directory
 import           System.Environment
 import           System.Posix.Unistd (SystemID (..), getSystemID)
 import           System.Posix.User
@@ -40,12 +41,12 @@ storageunits :: [(String, Int)]
 storageunits = [ ("", 0), ("K", 1), ("M", 2), ("G", 3), ("T", 4) ]
 
 getPrefix :: Int -> String
-getPrefix n | null fltr = error $ "Could not get unit prefix for order " ++ show n
+getPrefix n | null fltr = error $ "Could not get unit prefix for order " <> show n
             | otherwise = fst $ head fltr
   where fltr = filter (\(_, x) -> x == n) storageunits
 
 getOrder :: String -> Int
-getOrder n | null fltr = error $ "Could not get order for unit prefix " ++ show n
+getOrder n | null fltr = error $ "Could not get order for unit prefix " <> show n
            | otherwise = snd $ head fltr
   where
     nu = map toUpper n
@@ -81,8 +82,8 @@ factNET = return [("ipaddress", "192.168.0.1")]
 
 factOS :: IO [(String, String)]
 factOS = do
-    islsb <- doesFileExist "/etc/lsb-release"
-    isdeb <- doesFileExist "/etc/debian_version"
+    islsb <- Directory.doesFileExist "/etc/lsb-release"
+    isdeb <- Directory.doesFileExist "/etc/debian_version"
     case (islsb, isdeb) of
         (True, _) -> factOSLSB
         (_, True) -> factOSDebian
@@ -98,7 +99,7 @@ factOSDebian = fmap (toV . head . lines) (readFile "/etc/debian_version")
                 , ("lsbmajdistrelease"      , takeWhile (/='.') v)
                 , ("osfamily"               , "Debian")
                 , ("lsbdistcodename"        , codename v)
-                , ("lsbdistdescription"     , "Debian GNU/Linux " ++ v ++ " (" ++ codename v ++ ")")
+                , ("lsbdistdescription"     , "Debian GNU/Linux " <> v <> " (" <> codename v <> ")")
                 ]
         codename v | null v = "unknown"
                    | h '7' = "wheezy"
@@ -165,11 +166,11 @@ factUser = do
 factUName :: IO [(String, String)]
 factUName = do
     SystemID sn nn rl _ mc <- getSystemID
-    let vparts = splitOn "." (takeWhile (/='-') rl)
+    let vparts = List.splitOn "." (takeWhile (/='-') rl)
     return [ ("kernel"           , sn)                              -- Linux
-           , ("kernelmajversion" , intercalate "." (take 2 vparts)) -- 3.5
+           , ("kernelmajversion" , List.intercalate "." (take 2 vparts)) -- 3.5
            , ("kernelrelease"    , rl)                              -- 3.5.0-45-generic
-           , ("kernelversion"    , intercalate "." (take 3 vparts)) -- 3.5.0
+           , ("kernelversion"    , List.intercalate "." (take 3 vparts)) -- 3.5.0
            , ("hardwareisa"      , mc)                              -- x86_64
            , ("hardwaremodel"    , mc)                              -- x86_64
            , ("hostname"         , nn)
@@ -183,6 +184,6 @@ fenv = do
 factProcessor :: IO [(String,String)]
 factProcessor = do
     cpuinfo <- readFile "/proc/cpuinfo"
-    let cpuinfos = zip [ "processor" ++ show (n :: Int) | n <- [0..]] modelnames
-        modelnames = mapMaybe (fmap (dropWhile (`elem` ("\t :" :: String))) . stripPrefix "model name") (lines cpuinfo)
+    let cpuinfos = zip [ "processor" <> show (n :: Int) | n <- [0..]] modelnames
+        modelnames = mapMaybe (fmap (dropWhile (`elem` ("\t :" :: String))) . List.stripPrefix "model name") (lines cpuinfo)
     return $ ("processorcount", show (length cpuinfos)) : cpuinfos

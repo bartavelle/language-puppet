@@ -37,10 +37,4 @@ fragmentparamfunctions =
     ,("source"              , [string])
      -- order should be an int or a string
     ,("order"               , [defaultvalue "10", string])
-    ,("ensure"              , [string, values ["present","absent"]])
-   -- deprecated field
-   -- ,("mode"                , [string])
-   -- ,("owner"               , [string])
-   -- ,("group"               , [string])
-   -- ,("backup"              , [string])
     ]
