@@ -6,7 +6,6 @@
 #
 language: c
 sudo: false
-dist: precise
 
 git:
   submodules: false  # whether to recursively clone submodules
@@ -36,6 +35,8 @@ matrix:
       addons: {apt: {packages: [ghc-ppa-tools,cabal-install-2.0,ghc-8.2.2,ruby-dev], sources: [hvr-ghc]}}
     - compiler: "ghc-8.4.1"
       addons: {apt: {packages: [ghc-ppa-tools,cabal-install-2.2,ghc-8.4.1], sources: [hvr-ghc]}}
+  allow_failures:
+    - compiler: "ghc-8.4.1"
 
 before_install:
  - HC=${CC}
@@ -43,6 +44,7 @@ before_install:
  - unset CC
  - PATH=/opt/ghc/bin:/opt/ghc-ppa-tools/bin:$PATH
  - PKGNAME='language-puppet'
+ - rvm install 2.4.3
 
 install:
  - cabal --version
