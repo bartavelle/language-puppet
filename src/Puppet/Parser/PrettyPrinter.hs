@@ -154,6 +154,7 @@ showAss vx = folddoc (\a b -> a <> pretty ',' <$> b) prettyDecl (V.toList vx)
     folddoc acc docGen (x:xs) = foldl acc (docGen x) (map docGen xs)
     maxlen = maximum (fmap (\(AttributeDecl k _ _) -> Text.length k) vx)
     prettyDecl (AttributeDecl k op v) = dullblue (fill maxlen (ppline k)) <+> pretty op <+> pretty v
+    prettyDecl (AttributeWildcard v) = dullblue "*" <+> pretty AssignArrow <+> pretty v
 
 showArgs :: Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)) -> Doc
 showArgs vec = tupled (map ra lst)

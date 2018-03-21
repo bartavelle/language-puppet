@@ -382,12 +382,18 @@ fromAttributeDecls :: Vector AttributeDecl -> InterpreterMonad (Container PValue
 fromAttributeDecls =
   foldM resolve mempty
   where
-    resolve acc (AttributeDecl k _ v) =
+    resolve acc adcl =
+      case adcl of
+        AttributeWildcard v -> do
+          pv <- resolveExpression v
+          case pv of
+            PHash h -> foldM (\curacc (attrname, attrvalue) -> go curacc attrname attrvalue) acc (itoList h)
+            _ -> throwPosError ("A hash was expected, not" <+> pretty pv)
+        AttributeDecl k _ v -> resolveExpression v >>= go acc k
+    go acc k pv =
       case acc ^. at k of
         Just _ -> throwPosError ("Parameter" <+> dullyellow (ppline k) <+> "already defined!")
-        Nothing -> do
-          pv <- resolveExpression v
-          return (acc & at k ?~ pv)
+        Nothing -> return (acc & at k ?~ pv)
 
 saveCaptureVariables :: InterpreterMonad (HashMap Text (Pair (Pair PValue PPosition) CurContainerDesc))
 saveCaptureVariables = do
@@ -778,12 +784,20 @@ defaultAttribute attributename res value =
     Just _  -> res
 
 modifyCollectedAttribute :: Resource -> AttributeDecl -> InterpreterMonad Resource
-modifyCollectedAttribute res (AttributeDecl attributename arrowop expr) = do
-  value <- resolveExpression expr
-  let optype = case arrowop of
-        AppendArrow -> AppendAttribute
-        AssignArrow -> Replace
-  addAttribute optype attributename res value
+modifyCollectedAttribute res adecl
+  = case adecl of
+      AttributeDecl attributename arrowop expr -> do
+        value <- resolveExpression expr
+        let optype = case arrowop of
+              AppendArrow -> AppendAttribute
+              AssignArrow -> Replace
+        addAttribute optype attributename res value
+      AttributeWildcard expr -> do
+        resolved <- resolveExpression expr
+        case resolved of
+          PHash hash ->
+            foldM (\curres (attrname, attrval) -> addAttribute Replace attrname curres attrval) res (itoList hash)
+          _ -> throwPosError ("A hash was expected, not" <+> pretty resolved)
 
 registerResource :: Text -> Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"

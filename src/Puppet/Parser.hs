@@ -475,7 +475,8 @@ depOperator =   (operator "->" *> pure RBefore)
             <|> (operator "~>" *> pure RNotify)
 
 assignment :: Parser AttributeDecl
-assignment = AttributeDecl <$> key <*> arrowOp  <*> expression
+assignment = (AttributeDecl <$> key <*> arrowOp  <*> expression)
+         <|> (AttributeWildcard <$> (symbolic '*' *> symbol "=>" *> expression))
     where
         key = identl (satisfy Char.isAsciiLower) (satisfy acceptable) <?> "Assignment key"
         acceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_') || (x == '-')

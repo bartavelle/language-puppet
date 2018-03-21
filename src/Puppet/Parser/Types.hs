@@ -91,7 +91,9 @@ data ChainableRes
     | ChainResRefr !Text [Expression] !PPosition
     deriving (Show, Eq)
 
-data AttributeDecl = AttributeDecl !Text !ArrowOp !Expression
+data AttributeDecl
+    = AttributeDecl !Text !ArrowOp !Expression
+    | AttributeWildcard !Expression
     deriving (Show, Eq)
 data ArrowOp
     = AppendArrow -- ^ `+>`
