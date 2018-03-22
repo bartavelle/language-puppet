@@ -19,7 +19,8 @@ import qualified Data.HashSet           as HS
 import qualified Data.Maybe.Strict      as S
 import qualified Data.Text              as Text
 import qualified Data.Vector            as V
-import           Data.Yaml
+import           Data.Yaml              (ParseException (..), YamlException (..), YamlMark(..))
+import qualified Data.Yaml              as Yaml
 import           Text.Megaparsec.Pos
 
 import           Facter
@@ -38,7 +39,7 @@ type DB = TVar DBContent
 
 instance FromJSON DBContent where
   parseJSON (Object v) = DBContent <$> v .: "resources" <*> v .: "facts" <*> pure Nothing
-  parseJSON _ = mempty
+  parseJSON _          = mempty
 
 instance ToJSON DBContent where
   toJSON (DBContent r f _) = object [("resources", toJSON r), ("facts", toJSON f)]
@@ -46,7 +47,7 @@ instance ToJSON DBContent where
 -- | Initializes the test DB using a file to back its content
 loadTestDB :: FilePath -> IO (Either PrettyError (PuppetDBAPI IO))
 loadTestDB fp =
-  decodeFileEither fp >>= \case
+  Yaml.decodeFileEither fp >>= \case
     Left (OtherParseException rr) -> return (Left (PrettyError (pplines (show rr))))
     Left (InvalidYaml Nothing) -> baseError "Unknown error"
     Left (InvalidYaml (Just (YamlException s))) -> if take 21 s == "Yaml file not found: "
@@ -176,7 +177,7 @@ commit db = do
     dbc <- liftIO $ atomically $ readTVar db
     case dbc ^. backingFile of
         Nothing -> throwError "No backing file defined"
-        Just bf -> liftIO (encodeFile bf dbc `catches` [ ])
+        Just bf -> liftIO (Yaml.encodeFile bf dbc `catches` [ ])
 
 getNds :: DB -> Query NodeField -> ExceptT PrettyError IO [NodeInfo]
 getNds db QEmpty = fmap toNodeInfo (liftIO $ readTVarIO db)
