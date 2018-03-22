@@ -175,7 +175,7 @@ hrcallfunction _ rfname rargs rstt rrdr = do
       rubyerr err = fmap (either snd identity) (FR.toRuby (Text.pack err) >>= FR.safeMethodCall "MyError" "new" . (:[]))
   case (,) <$> efname <*> eargs of
     Right (fname, varray) | fname `elem` ["template", "inline_template"] -> do
-      logError $ "Can't parse a call to the external ruby function '" <> fname <> "'  n an erb file.\n\tIt is not possible to call it from a Ruby function. It would stall (yes it sucks ...).\n\tChoosing to output \"undef\" !"
+      logWarning $ "Can't parse a call to the external ruby function '" <> fname <> "'  n an erb file.\n\tIt is not possible to call it from a Ruby function. It would stall (yes it sucks ...).\n\tChoosing to output \"undef\" !"
       getSymbol "undef"
                           | otherwise -> do
       let args = case varray of
