@@ -85,4 +85,29 @@ puppetDBFacts node pdbapi =
                               ]
             allfacts = nfacts `Map.union` ofacts
             genFacts = Map.fromList
-        return (allfacts & traverse %~ PString)
+        return (allfacts & traverse %~ PString & buildOSHash)
+
+buildOSHash :: Facts -> Facts
+buildOSHash facts = case buildObject topLevel of
+                      Nothing -> facts
+                      Just os -> facts & at "os" ?~ os
+  where
+    buildObject keys =
+      let nobject = foldl' addKey mempty keys
+      in  if nobject == mempty
+            then Nothing
+            else Just (PHash nobject)
+    g k = facts ^? ix k
+    topLevel = [ ("name", g "operatingsystem")
+               , ("family", g "osfamily")
+               , ("release", buildObject [("major", g "lsbdistrelease"), ("full", g "lsbdistrelease")])
+               , ("lsb", buildObject [ ("distcodename", g "lsbdistcodename")
+                                     , ("distid", g "lsbdistid")
+                                     , ("distdescription", g "lsbdistdescription")
+                                     , ("distrelease", g "lsbdistrelease")
+                                     , ("majdistrelease", g "lsbmajdistrelease")
+                                     ])
+               ]
+    addKey hash (k, mv) = case mv of
+                           Nothing -> hash
+                           Just v -> hash & at k ?~ v
