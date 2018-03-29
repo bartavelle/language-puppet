@@ -1,6 +1,6 @@
 language-puppet (1.3.17) artful; urgency=medium
-  [ PierreR ]
   * Loose upperbound for servant to include 0.13
+  * Loose upperbound for exceptions to include 0.10.0
 
  -- Simon Marechal <bartavelle@gmail.com> UNRELEASED
 
