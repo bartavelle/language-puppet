@@ -725,9 +725,49 @@ datatype = dtString
         Just (tk, tv, Just [mi, mx]) -> return (UDTHash tk tv mi (Just mx))
         Just (_, _, Just _) -> fail "Too many arguments to datatype Hash"
     dtExternal =
-          reserved "Stdlib::HTTPUrl" $> UDTData
-      <|> reserved "Stdlib::Absolutepath" $> UDTData
+      reserved "Stdlib::Absolutepath" $> UDTData
+      <|> reserved "Stdlib::Base32" $> UDTData
+      <|> reserved "Stdlib::Base64" $> UDTData
+      <|> reserved "Stdlib::Compat::Absolute_path" $> UDTData
+      <|> reserved "Stdlib::Compat::Array" $> UDTData
+      <|> reserved "Stdlib::Compat::Bool" $> UDTData
+      <|> reserved "Stdlib::Compat::Float" $> UDTData
+      <|> reserved "Stdlib::Compat::Hash" $> UDTData
+      <|> reserved "Stdlib::Compat::Integer" $> UDTData
+      <|> reserved "Stdlib::Compat::Ip_address" $> UDTData
+      <|> reserved "Stdlib::Compat::Ipv4" $> UDTData
+      <|> reserved "Stdlib::Compat::Ipv6" $> UDTData
+      <|> reserved "Stdlib::Compat::Numeric" $> UDTData
+      <|> reserved "Stdlib::Compat::String" $> UDTData
+      <|> reserved "Stdlib::Ensure::Service" $> UDTData
+      <|> reserved "Stdlib::Filemode" $> UDTData
+      <|> reserved "Stdlib::Filesource" $> UDTData
+      <|> reserved "Stdlib::Fqdn" $> UDTData
+      <|> reserved "Stdlib::Host" $> UDTData
+      <|> reserved "Stdlib::HTTPSUrl" $> UDTData
+      <|> reserved "Stdlib::HTTPUrl" $> UDTData
+      <|> reserved "Stdlib::IP::Address::Nosubnet" $> UDTData
+      <|> reserved "Stdlib::Ip_address" $> UDTData
+      <|> reserved "Stdlib::IP::Address" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V4::CIDR" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V4::Nosubnet" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V4" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6::Alternative" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6::Compressed" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6::Full" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6::Nosubnet::Alternative" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6::Nosubnet::Compressed" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6::Nosubnet::Full" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6::Nosubnet" $> UDTData
+      <|> reserved "Stdlib::IP::Address::V6" $> UDTData
+      <|> reserved "Stdlib::Ipv4" $> UDTData
+      <|> reserved "Stdlib::Ipv6" $> UDTData
+      <|> reserved "Stdlib::MAC" $> UDTData
+      <|> reserved "Stdlib::Port::Privileged" $> UDTData
+      <|> reserved "Stdlib::Port" $> UDTData
+      <|> reserved "Stdlib::Port::Unprivileged" $> UDTData
       <|> reserved "Stdlib::Unixpath" $> UDTData
+      <|> reserved "Stdlib::Windowspath" $> UDTData
       <|> reserved "Nginx::ErrorLogSeverity" $> UDTData
       <|> reserved "Jenkins::Tunnel" $> UDTData
       <|> reserved "Systemd::Unit" $> UDTData
