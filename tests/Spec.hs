@@ -15,6 +15,8 @@ import qualified Function.MergeSpec
 import qualified Function.ShellquoteSpec
 import qualified Function.SizeSpec
 import qualified Function.SprintfSpec
+import qualified Function.SuffixSpec
+import qualified Function.PrefixSpec
 import qualified Interpreter.CollectorSpec
 import qualified Interpreter.IfSpec
 import qualified InterpreterSpec
@@ -43,6 +45,8 @@ spec = do
     describe "The sprintf function" Function.SprintfSpec.spec
     describe "The each function" Function.EachSpec.spec
     describe "The lookup function" Function.LookupSpec.spec
+    describe "The suffix function" Function.SuffixSpec.spec
+    describe "The prefix function" Function.PrefixSpec.spec
   describe "stdlib functions" $ do
     describe "The assert_private function" Function.AssertPrivateSpec.spec
     describe "The join_keys_to_values function" Function.JoinKeysToValuesSpec.spec

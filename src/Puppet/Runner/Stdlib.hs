@@ -91,7 +91,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- parseyaml
                               , ("pick", pick)
                               , ("pick_default", pickDefault)
-                              -- prefix
+                              , ("prefix", prefix)
                               -- private
                               -- pw_hash
                               -- range
@@ -107,7 +107,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- strtosaltedshar512
                               -- strftime
                               , ("strip", stringArrayFunction Text.strip)
-                              -- suffix
+                              , ("suffix", suffix )
                               -- swapcase
                               -- time
                               -- to_bytes
@@ -171,6 +171,25 @@ puppetAbs :: PValue -> InterpreterMonad PValue
 puppetAbs y = case y ^? _Number of
                   Just x  -> return $ _Number # abs x
                   Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
+
+suffix :: [PValue] -> InterpreterMonad PValue
+suffix = foofix "suffix" (flip (<>))
+
+prefix :: [PValue] -> InterpreterMonad PValue
+prefix = foofix "prefix" (<>)
+
+foofix :: Doc -> (Text -> Text -> Text) -> [PValue] -> InterpreterMonad PValue
+foofix nm f args =
+    case args of
+      [PHash h] -> pure (PHash h)
+      [PArray r] -> pure (PArray r)
+      [_] -> throwPosError (nm <> ": expects the first argument to be an array or a hash")
+      [PHash h, PString s] -> pure (PHash . HM.fromList . map (_1 %~ f s) . HM.toList $ h)
+      [PArray r, PString s] -> pure (PArray (r & traverse . _PString %~ f s))
+      [PHash _, _] -> throwPosError (nm <> ": expects the second argument to be a string")
+      [PArray _, _] -> throwPosError (nm <> ": expects the second argument to be a string")
+      [_, _] -> throwPosError (nm <> ": expects the first argument to be an array or a hash")
+      _ -> throwPosError (nm <> ": expects two arguments")
 
 assertPrivate :: [PValue] -> InterpreterMonad PValue
 assertPrivate args =
