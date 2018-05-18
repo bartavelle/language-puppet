@@ -38,6 +38,7 @@ instance Pretty UDataType where
     UDTScalar            -> "Scalar"
     UDTData              -> "Data"
     UDTOptional o        -> "Optional" <> brackets (pretty o)
+    UDTSensitive o       -> "Sensitive" <> brackets (pretty o)
     UNotUndef            -> "NotUndef"
     UDTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
     UDTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)
