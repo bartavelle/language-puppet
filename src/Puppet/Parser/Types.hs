@@ -179,6 +179,7 @@ data UDataType
     | UDTEnum (NonEmpty Expression)
     | UDTAny
     | UDTCollection
+    | UDTRegexp (Maybe CompRegex)
     -- Tuple (NonEmpty DataType) Integer Integer
     -- DTDefault
     -- Struct TODO

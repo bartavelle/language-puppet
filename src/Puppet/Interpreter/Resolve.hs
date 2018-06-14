@@ -668,6 +668,7 @@ resolveDataType ud
       UDTEnum ens         -> DTEnum . NE.fromList . sconcat <$> traverse resolveExpressionStrings ens
       UDTAny              -> pure DTAny
       UDTCollection       -> pure DTCollection
+      UDTRegexp mr        -> pure (DTRegexp mr)
 
 -- | Generates variable associations for evaluation of blocks.
 -- Each item corresponds to an iteration in the calling block.
@@ -790,6 +791,9 @@ datatypeMatch dt v =
     DTAny                -> True
     DTCollection         -> datatypeMatch (DTVariant (DTArray DTData 0 Nothing :| [DTHash DTScalar DTData 0 Nothing])) v
     DTPattern patterns   -> maybe False (\str -> any (checkPattern (Text.encodeUtf8 str)) patterns) (v ^? _PString)
+    DTRegexp mr          -> case v ^? _PRegexp of
+                              Nothing -> False
+                              Just cr -> maybe True (== cr) mr
   where
     checkPattern str (CompRegex _ ptrn) =
       case Regex.execute' ptrn str of

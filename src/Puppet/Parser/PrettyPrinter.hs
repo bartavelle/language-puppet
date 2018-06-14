@@ -44,6 +44,7 @@ instance Pretty UDataType where
     UDTEnum tx           -> "Enum" <> list (foldMap (pure . pretty) tx)
     UDTAny               -> "Any"
     UDTCollection        -> "Collection"
+    UDTRegexp mr         -> "Regexp" <> foldMap (brackets . pretty) mr
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
       bounded s ma mb = s <> case (ma, mb) of

@@ -160,6 +160,7 @@ Test-Suite spec
                   , transformers
                   , unordered-containers
                   , vector
+                  , pcre-utils
   other-modules:  DT.Parser
                   ErbSpec
                   EvalSpec

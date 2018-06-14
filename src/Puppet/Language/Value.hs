@@ -8,6 +8,7 @@ import           XPrelude
 import           Data.Aeson
 import           Data.Aeson.Lens
 import           Data.Aeson.TH
+import qualified Data.HashMap.Strict as HM
 import           Foreign.Ruby.Helpers
 
 import           Puppet.Language.Core
@@ -30,6 +31,7 @@ data DataType
     | DTEnum (NonEmpty Text)
     | DTAny
     | DTCollection
+    | DTRegexp (Maybe CompRegex)
     deriving (Show, Eq)
 
 instance Pretty DataType where
@@ -51,6 +53,7 @@ instance Pretty DataType where
     DTEnum tx           -> "Enum" <> list (foldMap (pure . ppline) tx)
     DTAny               -> "Any"
     DTCollection        -> "Collection"
+    DTRegexp mr         -> "Regex" <> foldMap (brackets . pretty) mr
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
       bounded s ma mb = s <> case (ma, mb) of
@@ -69,7 +72,8 @@ data PValue
   | PArray !(Vector PValue)
   | PHash !(Container PValue)
   | PNumber !Scientific
-  | PType DataType
+  | PType !DataType
+  | PRegexp !CompRegex
   deriving (Eq, Show)
 
 makePrisms ''PValue
@@ -84,6 +88,7 @@ instance Pretty PValue where
   pretty (PArray v) = list (map pretty (toList v))
   pretty (PHash g) = containerComma g
   pretty (PType dt) = pretty dt
+  pretty (PRegexp cr) = pretty cr
 
 instance IsString PValue where
   fromString = PString . toS
@@ -109,6 +114,7 @@ instance FromJSON PValue where
   parseJSON (String s) = return (PString s)
   parseJSON (Bool b) = return (PBoolean b)
   parseJSON (Array v) = fmap PArray (mapM parseJSON v)
+  parseJSON (Object o) | HM.size o == 1 && HM.keys o == ["regexp"] = o .: "regexp"
   parseJSON (Object o) = fmap PHash (mapM parseJSON o)
 
 instance ToJSON PValue where
@@ -120,6 +126,7 @@ instance ToJSON PValue where
   toJSON (PArray r) = Array (fmap toJSON r)
   toJSON (PHash x) = Object (fmap toJSON x)
   toJSON (PNumber n) = Number n
+  toJSON (PRegexp r) = object [("regexp", toJSON r)]
 
 instance ToRuby PValue where
     toRuby = toRuby . toJSON
