@@ -93,7 +93,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("pick_default", pickDefault)
                               , ("prefix", prefix)
                               -- private
-                              -- pw_hash
+                              , ("pw_hash", pw_hash)
                               -- range
                               -- reject
                               -- reverse
@@ -177,6 +177,13 @@ suffix = foofix "suffix" (flip (<>))
 
 prefix :: [PValue] -> InterpreterMonad PValue
 prefix = foofix "prefix" (<>)
+
+-- Dummy mock implementation of pw_hash
+-- To be implemented if required
+pw_hash :: [PValue] -> InterpreterMonad PValue
+pw_hash [PString (pwd), PString(algo), PString(salt)] =
+  pure (PString ("plain " <> pwd <> "(crypt with " <> algo <> " and " <> salt))
+pw_hash _ = throwPosError "pw_hash(): expects 3 string arguments"
 
 foofix :: Doc -> (Text -> Text -> Text) -> [PValue] -> InterpreterMonad PValue
 foofix nm f args =
@@ -401,14 +408,14 @@ pick :: [PValue] -> InterpreterMonad PValue
 pick [] = throwPosError "pick(): must receive at least one non empty value"
 pick xs =
   case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
-    [] -> throwPosError "pick(): no value suitable to be picked"
+    []    -> throwPosError "pick(): no value suitable to be picked"
     (x:_) -> return x
 
 pickDefault :: [PValue] -> InterpreterMonad PValue
 pickDefault [] = throwPosError "pick_default(): must receive at least one non empty value"
 pickDefault xs =
   case filter (`notElem` [PUndef, PString "", PString "undef"]) xs of
-    [] -> return (List.last xs)
+    []    -> return (List.last xs)
     (x:_) -> return x
 
 size :: PValue -> InterpreterMonad PValue
