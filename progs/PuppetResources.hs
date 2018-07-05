@@ -3,6 +3,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE StrictData        #-}
+{-# LANGUAGE CPP               #-}
 module Main where
 
 import           XPrelude                      hiding (option)
@@ -12,6 +13,7 @@ import qualified Data.Aeson                    as Aeson
 import qualified Data.HashMap.Strict           as Map
 import qualified Data.HashSet                  as HS
 import qualified Data.List                     as List
+import           Data.Semigroup                as Sem   hiding (option)
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Data.Text.Strict.Lens         (unpacked)
@@ -67,7 +69,7 @@ data Options = Options
 
 options :: Parser Options
 options = Options
-    <$> switch
+   <$> switch
        (  long "JSON"
        <> short 'j'
        <> help "Shows the output as a JSON document (useful for full catalog views)")
@@ -237,7 +239,7 @@ findDeadCode puppetdir catalogs allfiles = do
         putText ""
     allparses <- do
      let parsefp fp = runPuppetParser fp <$> readFile fp
-     parallel (map (parsefp) (Set.toList usedfiles))
+     parallel (map parsefp (Set.toList usedfiles))
     let (parseFailed, parseSucceeded) = partitionEithers allparses
     unless (null parseFailed) $ do
         putDoc ("The following" <+> pretty (length parseFailed) <+> "files could not be parsed:" <> softline <> indent 4 (vcat (map (ppstring . show) parseFailed)))
@@ -256,17 +258,21 @@ findDeadCode puppetdir catalogs allfiles = do
         deadResources = filter isDead allResources
         isDead (ResourceDeclaration (ResDecl _ _ _ _ pp)) = not $ Set.member pp allpositions
         isDead _                                          = True
-    unless (null deadResources) $ do
+    unless (null deadResources) $
         putDoc ("The following" <+> pretty (length deadResources) <+> "resource declarations are not used:" <> softline <> indent 4 (vcat (map pretty deadResources)) <> line )
 
 newtype Maximum a = Maximum { getMaximum :: Maybe a }
 
+instance (Ord a) => Semigroup (Maximum a) where
+  Maximum Nothing <> m2                  = m2
+  m1 <> Maximum Nothing                  = m1
+  Maximum (Just a1) <> Maximum (Just a2) = Maximum (Just (max a1 a2))
+
 instance (Ord a) => Monoid (Maximum a) where
   mempty = Maximum Nothing
-  mappend (Maximum Nothing) m2                    = m2
-  mappend m1 (Maximum Nothing)                    = m1
-  mappend (Maximum (Just a1)) (Maximum (Just a2)) = Maximum (Just (max a1 a2))
-
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (Sem.<>)
+#endif
 
 -- For each node, queryfunc the catalog and return stats
 computeStats :: FilePath -> Options -> QueryFunc -> (MStats, MStats, MStats) -> [NodeName] -> IO ()
