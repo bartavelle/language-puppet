@@ -6,7 +6,7 @@
 {-# LANGUAGE CPP               #-}
 module Main where
 
-import           XPrelude                      hiding (option)
+import           XPrelude                      hiding (option, (<>))
 
 import           Control.Concurrent.ParallelIO (parallel)
 import qualified Data.Aeson                    as Aeson
