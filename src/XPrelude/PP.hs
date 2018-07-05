@@ -1,6 +1,6 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE CPP #-}
 module XPrelude.PP (
   module Exports
   , PrettyError (..)
@@ -15,6 +15,7 @@ where
 import           Protolude
 
 import           Data.Scientific
+import           Data.Semigroup as Sem
 import           Data.String
 import qualified Data.Text                    as Text
 import           Text.PrettyPrint.ANSI.Leijen as Exports hiding (bool, cat,
@@ -29,9 +30,14 @@ newtype PrettyError = PrettyError
   { getError :: Doc
   } deriving Show
 
+instance Sem.Semigroup PrettyError where
+  a <> b = PrettyError $ align (vsep [getError a, getError b])
+
 instance Monoid PrettyError where
   mempty = PrettyError mempty
-  mappend a b = PrettyError $ align (vsep [getError a, getError b])
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (Sem.<>)
+#endif
 
 instance IsString PrettyError where
   fromString = PrettyError . string
