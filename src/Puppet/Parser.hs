@@ -50,7 +50,7 @@ prettyParseError s err = PrettyError $ "cannot parse" <+> pretty (parseErrorPret
 
 -- | Run a puppet parser against some 'Text' input.
 runPuppetParser :: String -> Text -> Either PuppetParseError (Vector Statement)
-runPuppetParser src input = parse puppetParser src input
+runPuppetParser = parse puppetParser
 
 -- space consumer
 sc :: Parser ()
@@ -296,7 +296,7 @@ literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|>
 terminalG :: Parser Expression -> Parser Expression
 terminalG g = parens expression
          <|> fmap (Terminal . UInterpolable) interpolableString
-         <|> (reserved "undef" *> return (Terminal UUndef))
+         <|> (Terminal UUndef <$ reserved "undef")
          <|> fmap (Terminal . URegexp) termRegexp
          <|> variable
          <|> fmap Terminal puppetArray
@@ -471,8 +471,8 @@ zipChain (OperatorChain a d nx) = (a, operatorChainStatement nx, d) : zipChain n
 zipChain (EndOfChain _) = []
 
 depOperator :: Parser LinkType
-depOperator =   (operator "->" *> pure RBefore)
-            <|> (operator "~>" *> pure RNotify)
+depOperator =   (RBefore <$ operator "->")
+            <|> (RNotify <$ operator "~>")
 
 assignment :: Parser AttributeDecl
 assignment = (AttributeDecl <$> key <*> arrowOp  <*> expression)
@@ -481,8 +481,8 @@ assignment = (AttributeDecl <$> key <*> arrowOp  <*> expression)
         key = identl (satisfy Char.isAsciiLower) (satisfy acceptable) <?> "Assignment key"
         acceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_') || (x == '-')
         arrowOp =
-              (symbol "=>" *> pure AssignArrow)
-          <|> (symbol "+>" *> pure AppendArrow)
+              (AssignArrow <$ symbol "=>")
+          <|> (AppendArrow <$ symbol "+>")
 
 searchExpression :: Parser SearchExpression
 searchExpression = makeExprParser (lexeme searchterm) searchTable
@@ -494,7 +494,8 @@ searchExpression = makeExprParser (lexeme searchterm) searchTable
         searchterm = parens searchExpression <|> check
         check = do
             attrib <- parameterName
-            opr    <- (operator "==" *> return EqualitySearch) <|> (operator "!=" *> return NonEqualitySearch)
+            opr    <- (EqualitySearch <$ operator "==")
+                  <|> (NonEqualitySearch <$ operator "!=")
             term   <- stringExpression
             return (opr attrib term)
 
@@ -789,12 +790,12 @@ lambdaCall = do
                  <*> fmap tostrict (optional expression) <* symbolic '}'
     where
         lambFunc :: Parser LambdaFunc
-        lambFunc = (reserved "each"   *> pure LambEach)
-               <|> (reserved "map"    *> pure LambMap )
-               <|> (reserved "reduce" *> pure LambReduce)
-               <|> (reserved "filter" *> pure LambFilter)
-               <|> (reserved "slice"  *> pure LambSlice)
-               <|> (reserved "lookup" *> pure LambLookup)
+        lambFunc = (LambEach   <$ reserved "each")
+               <|> (LambMap    <$ reserved "map")
+               <|> (LambReduce <$ reserved "reduce")
+               <|> (LambFilter <$ reserved "filter")
+               <|> (LambSlice  <$ reserved "slice")
+               <|> (LambLookup <$ reserved "lookup")
         lambParams :: Parser LambdaParameters
         lambParams = between (symbolic '|') (symbolic '|') hp
             where
