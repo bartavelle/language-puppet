@@ -669,6 +669,7 @@ datatype = dtString
        <|> dtHash
        <|> (UDTUndef <$ reserved "Undef")
        <|> (reserved "Optional" *> (UDTOptional <$> brackets datatype))
+       <|> (reserved "Sensitive" *> (UDTSensitive <$> brackets datatype))
        <|> (UNotUndef <$ reserved "NotUndef")
        <|> (reserved "Variant" *> (UDTVariant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
        <|> (reserved "Regexp" *> (UDTRegexp <$> optional (brackets termRegexp)))

@@ -25,6 +25,7 @@ data DataType
     | DTScalar
     | DTData
     | DTOptional DataType
+    | DTSensitive DataType
     | NotUndef
     | DTVariant (NonEmpty DataType)
     | DTPattern (NonEmpty CompRegex)
@@ -47,6 +48,7 @@ instance Pretty DataType where
     DTScalar            -> "Scalar"
     DTData              -> "Data"
     DTOptional o        -> "Optional" <> brackets (pretty o)
+    DTSensitive o       -> "Sensitive" <> brackets (pretty o)
     NotUndef            -> "NotUndef"
     DTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
     DTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)

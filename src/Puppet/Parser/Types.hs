@@ -173,6 +173,7 @@ data UDataType
     | UDTScalar
     | UDTData
     | UDTOptional UDataType
+    | UDTSensitive UDataType
     | UNotUndef
     | UDTVariant (NonEmpty UDataType)
     | UDTPattern (NonEmpty CompRegex)

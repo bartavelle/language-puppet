@@ -661,6 +661,7 @@ resolveDataType ud
       UDTScalar           -> pure DTScalar
       UDTData             -> pure DTData
       UDTOptional dt      -> DTOptional <$> resolveDataType dt
+      UDTSensitive dt     -> DTSensitive <$> resolveDataType dt
       UNotUndef           -> pure NotUndef
       UDTVariant vrs      -> DTVariant <$> traverse resolveDataType vrs
       UDTPattern a        -> pure (DTPattern a)
@@ -786,6 +787,7 @@ datatypeMatch dt v =
     DTScalar             -> datatypeMatch (DTVariant (DTInteger Nothing Nothing :| [DTString Nothing Nothing, DTBoolean])) v
     DTData               -> datatypeMatch (DTVariant (DTScalar :| [DTArray DTData 0 Nothing, DTHash DTScalar DTData 0 Nothing])) v
     DTOptional sdt       -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
+    DTSensitive sdt      -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
     DTVariant sdts       -> any (`datatypeMatch` v) sdts
     DTEnum lst           -> maybe False (`elem` lst) (v ^? _PString)
     DTAny                -> True

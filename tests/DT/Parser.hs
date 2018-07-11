@@ -22,3 +22,5 @@ spec = do
     it "accepts variables" $ pendingWith "to be fixed" *> parse datatype "?" "String[$var]" `shouldParse` UDTString (Just 5) Nothing
   describe "Stdlib::" $ do
     "Stdlib::HTTPUrl" `parsed` UDTData
+  describe "Sensitive" $ do
+    "Sensitive[String]" `parsed` UDTSensitive (UDTString Nothing Nothing)
