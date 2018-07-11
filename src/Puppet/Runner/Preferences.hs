@@ -99,7 +99,7 @@ dfPreferences basedir = do
         testdir = dirpaths ^. testPath
         hierafile = basedir <> "/hiera.yaml"
         defaultfile = testdir <> "/defaults.yaml"
-    defaults <- ifM (Directory.doesFileExist defaultfile) (Yaml.decodeFile defaultfile) (pure Nothing)
+    defaults <- ifM (Directory.doesFileExist defaultfile) (either (const Nothing) Just <$> Yaml.decodeFileEither defaultfile) (pure Nothing)
     hieradir <- ifM (Directory.doesFileExist hierafile) (pure $ Just hierafile) (pure Nothing)
     loadedtypes <- loadedTypes modulesdir
     labsFunctions <- Puppetlabs.extFunctions modulesdir
@@ -122,7 +122,7 @@ dfPreferences basedir = do
 
 loadedTypes :: FilePath -> IO (HM.HashMap NativeTypeName NativeTypeMethods)
 loadedTypes modulesdir = do
-  typenames <- map (Text.pack . FilePath.takeBaseName) <$> (getFiles modulesdir "lib/puppet/type" ".rb")
+  typenames <- map (Text.pack . FilePath.takeBaseName) <$> getFiles modulesdir "lib/puppet/type" ".rb"
   pure $ HM.fromList (map defaulttype typenames)
   where
    getFiles :: FilePath -> FilePath -> FilePath -> IO [FilePath]

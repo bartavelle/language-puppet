@@ -1,8 +1,15 @@
-language-puppet (1.3.18) UNRELEASED; urgency=medium
+language-puppet (1.3.19.1) xenial; urgency=medium
+
+  * Relaxed yaml version bounds
+
+ -- Simon Marechal <simon.marechal@edf.fr>  Wed, 11 Jul 2018 09:38:28 +0200
+
+language-puppet (1.3.19) xenial; urgency=medium
 
   * Added prefix and suffix functions (Fix #246)
+  * Many travis/GHC fixes
 
- -- Simon Marechal <bartavelle@gmail.com>  Fri, 18 May 2018 11:42:19 +0200
+ -- Simon Marechal <simon.marechal@edf.fr>  Thu, 05 Jul 2018 09:36:55 +0200
 
 language-puppet (1.3.17) artful; urgency=medium
   * Loose upperbound for servant to include 0.13
