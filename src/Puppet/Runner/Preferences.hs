@@ -99,7 +99,7 @@ dfPreferences basedir = do
         testdir = dirpaths ^. testPath
         hierafile = basedir <> "/hiera.yaml"
         defaultfile = testdir <> "/defaults.yaml"
-    defaults <- ifM (Directory.doesFileExist defaultfile) (Just <$> Yaml.decodeFileThrow defaultfile) (pure Nothing)
+    defaults <- ifM (Directory.doesFileExist defaultfile) (Yaml.decodeFileThrow defaultfile) (pure Nothing)
     hieradir <- ifM (Directory.doesFileExist hierafile) (pure $ Just hierafile) (pure Nothing)
     loadedtypes <- loadedTypes modulesdir
     labsFunctions <- Puppetlabs.extFunctions modulesdir

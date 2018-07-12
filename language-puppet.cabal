@@ -137,7 +137,7 @@ library
                      , unix                 >= 2.7  && < 2.8
                      , unordered-containers == 0.2.*
                      , vector               >= 0.10
-                     , yaml                 >= 0.8.8   && < 0.10
+                     , yaml                 >= 0.8.31   && < 0.10
 Test-Suite spec
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
