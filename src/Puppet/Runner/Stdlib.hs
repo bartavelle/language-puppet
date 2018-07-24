@@ -79,6 +79,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("join", puppetJoin)
                               , ("join_keys_to_values", joinKeysToValues)
                               , singleArgument "keys" keys
+                              , singleArgument "length" size
                               -- load_module_metadata
                               -- loadyaml
                               , ("lstrip", stringArrayFunction Text.stripStart)
