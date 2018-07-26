@@ -1,6 +1,7 @@
 language-puppet (1.3.20) UNRELEASED; urgency=medium
 
   * Add `length` as an alias to `size`.
+  * Add the `unique` stdlib function.
 
  -- Simon Marechal <simon.marechal@edf.fr>  Tue, 24 Jul 2018 17:47:07 +0200
 

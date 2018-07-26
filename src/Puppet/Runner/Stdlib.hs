@@ -13,6 +13,7 @@ import qualified Data.List                        as List
 import qualified Data.List.Split                  as List (chunksOf)
 import qualified Data.Scientific                  as Scientific
 import qualified Data.Text                        as Text
+import           Data.Text.Lens                   (unpacked)
 import qualified Data.Vector                      as V
 import           Data.Vector.Lens                 (toVectorOf)
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
@@ -116,7 +117,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- type3x
                               -- type
                               -- union
-                              -- unique
+                              , singleArgument "unique" unique
                               -- unix2dos
                               , ("upcase", stringArrayFunction Text.toUpper)
                               -- uriescape
@@ -424,6 +425,11 @@ size (PHash h) = return (_Integer # fromIntegral (HM.size h))
 size (PArray v) = return (_Integer # fromIntegral (V.length v))
 size (PString s) = return (_Integer # fromIntegral (Text.length s))
 size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+> pretty x)
+
+unique :: PValue -> InterpreterMonad PValue
+unique (PString s) = return $ PString (s & unpacked %~ List.nub)
+unique (PArray v) = return $ PArray (V.uniq v)
+unique x = throwPosError ("unique(): Expects an array or a string, not" <+> pretty x)
 
 sort :: PValue -> InterpreterMonad PValue
 sort (PArray s) =
