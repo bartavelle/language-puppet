@@ -428,7 +428,7 @@ size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+>
 
 unique :: PValue -> InterpreterMonad PValue
 unique (PString s) = return $ PString (s & unpacked %~ List.nub)
-unique (PArray v) = return $ PArray (V.uniq v)
+unique (PArray v) = return $ PArray (V.fromList (List.nub (V.toList v))) -- :(
 unique x = throwPosError ("unique(): Expects an array or a string, not" <+> pretty x)
 
 sort :: PValue -> InterpreterMonad PValue
@@ -436,7 +436,7 @@ sort (PArray s) =
   let lst = V.toList s
       msort :: Ord a => Prism' PValue a -> Maybe PValue
       msort prsm = PArray . V.fromList . map (review prsm) . List.sort <$> mapM (preview prsm) lst
-  in  case (msort _PString <|> msort _PNumber) of
+  in  case msort _PString <|> msort _PNumber of
         Just x -> return x
         _ -> throwPosError "sort(): only homogeneous arrays of numbers or strings are allowed"
 sort x = throwPosError ("sort(): Expect to sort an array, not" <+> pretty x)
