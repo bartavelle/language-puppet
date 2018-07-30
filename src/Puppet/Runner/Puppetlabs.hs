@@ -5,6 +5,7 @@ import           XPrelude
 
 import           Crypto.Hash         as Crypto
 import           Data.ByteString     (ByteString)
+import           Data.Char           (isDigit)
 import           Data.Foldable       (foldlM)
 import qualified Data.HashMap.Strict as HM
 import           Data.Scientific     as Sci
@@ -84,9 +85,7 @@ mockCacheData arg@_     = throwPosError $ "expect 3 string arguments" <+> pretty
 -- For instance 'auth_option' is currently not implemented.
 -- Please add cases as needed.
 pgAclsToHash :: MonadThrowPos m => [PValue] -> m PValue
-pgAclsToHash [PArray as, PString ident, PNumber offset] = do
-  x <- aclsToHash as ident offset
-  return $ PHash x
+pgAclsToHash [PArray as, PString ident, PNumber offset] = PHash <$> aclsToHash as ident offset
 pgAclsToHash _ = throwPosError "expects 3 arguments; one array one string and one number"
 
 aclsToHash :: MonadThrowPos m  => Vector PValue -> Text -> Scientific -> m (Container PValue)
@@ -101,14 +100,28 @@ aclsToHash vec ident offset = ifoldlM f HM.empty vec
     f _ _ pval = throwPosError $ "expect a string as acl but get" <+> pretty pval
 
 aclToHash :: (MonadThrowPos m) => [Text] -> Scientific -> m PValue
-aclToHash [typ, db, usr, addr, auth] order =
-  return $ PHash $ HM.fromList [ ("type", PString typ)
-                      , ("database", PString db )
-                      , ("user", PString usr)
-                      , ("order", PString (sformat (FMT.left 3 '0' %. scifmt Sci.Fixed (Just 0))  order))
-                      , ("address", PString addr)
-                      , ("auth_method", PString auth)
-                      ]
+aclToHash acl@(typ : db : usr : remaining) order = analyze
+  where
+    fin remn hs = return $ PHash $
+        if null remn
+          then hs
+          else HM.insert "auth_option" (PString (Text.unwords remn)) hs
+    analyze = case remaining of
+                method : remn | typ == "local" ->
+                  fin remn $ baseHash & at "auth_method" ?~ PString method
+                addr : msk : method : remn | Text.all isDigit msk ->
+                  fin remn $ baseHash & at "address" ?~ PString (Text.unwords [addr,msk])
+                                      & at "auth_method" ?~ PString method
+                addr : method : remn ->
+                  fin remn $ baseHash & at "address" ?~ PString addr
+                                      & at "auth_method" ?~ PString method
+                _ -> throwPosError $ "Unable to parse acl line" <+> squotes (ppline (Text.unwords acl))
+    baseHash = HM.fromList
+                  [ ("type", PString "local")
+                  , ("database", PString db )
+                  , ("user", PString usr)
+                  , ("order", PString (sformat (FMT.left 3 '0' %. scifmt Sci.Fixed (Just 0))  order))
+                  ]
 aclToHash acl _ = throwPosError $ "Unable to parse acl line" <+> squotes (ppline (Text.unwords acl))
 
 -- faked implementation, replace by the correct one if you need so.
