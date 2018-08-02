@@ -1,10 +1,10 @@
-language-puppet (1.3.20) UNRELEASED; urgency=medium
+language-puppet (1.3.20) xenial; urgency=medium
 
   * Add `length` as an alias to `size`.
   * Add the `unique` stdlib function.
   * Fix a small problem with `postgresql_acls_to_resources_hash`
 
- -- Simon Marechal <simon.marechal@edf.fr>  Tue, 24 Jul 2018 17:47:07 +0200
+ -- Simon Marechal <simon.marechal@edf.fr>  Thu, 02 Aug 2018 14:43:35 +0200
 
 language-puppet (1.3.19.1) xenial; urgency=medium
 
