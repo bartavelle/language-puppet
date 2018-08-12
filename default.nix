@@ -17,7 +17,7 @@ let
   hlib = pkgs.haskell.lib;
   lib = pkgs.lib;
   filter =  path: type:
-              type != "link" && baseNameOf path != ".stack-work";
+              type != "symlink" && baseNameOf path != ".stack-work";
   haskellPackages = if compiler == "default"
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
