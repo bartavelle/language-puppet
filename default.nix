@@ -17,13 +17,13 @@ let
   hlib = pkgs.haskell.lib;
   lib = pkgs.lib;
   filter =  path: type:
-              type != "symlink" && baseNameOf path != ".stack-work";
+    type != "symlink" && baseNameOf path != ".stack-work" && baseNameOf path != ".git";
   haskellPackages = if compiler == "default"
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
   project = hlib.dontHaddock (hlib.overrideCabal
               ( haskellPackages.callPackage ./language-puppet.nix { })
-              ( csuper: { src =  lib.cleanSourceWith { inherit filter ; src = lib.cleanSource csuper.src;};})
+              ( csuper: { src = builtins.path { name = "language-puppet"; inherit filter; path = csuper.src;};})
             );
 in
 
