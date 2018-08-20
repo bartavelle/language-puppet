@@ -23,10 +23,12 @@ let
   haskellPackages = if compiler == "default"
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
-  project = hlib.dontHaddock (hlib.overrideCabal
-              ( haskellPackages.callCabal2nix "language-puppet" ./. { })
-              ( csuper: { src = builtins.path { name = "language-puppet"; inherit filter; path = csuper.src;};})
-            );
+  project = hlib.dontHaddock
+    ( haskellPackages.callCabal2nix
+        "language-puppet"
+        (builtins.path { name = "language-puppet"; inherit filter; path = ./.; } )
+        { }
+    );
 in
 
 {
