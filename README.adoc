@@ -12,9 +12,14 @@ A library to work with Puppet manifests, test them and eventually replace everyt
 puppetresources -p /where/your/puppet/files/are -o node.name.com
 ```
 
-.Quick install instruction with stack
+.Quick install instruction with stack:
 ```bash
 stack install language-puppet
+```
+
+.Quick install instruction with nix:
+```bash
+nix-env -i -f https://github.com/bartavelle/language-puppet/tarball/v1.3.20.1
 ```
 
 .Build instructions:

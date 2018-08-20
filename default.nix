@@ -17,12 +17,14 @@ let
   hlib = pkgs.haskell.lib;
   lib = pkgs.lib;
   filter =  path: type:
-    type != "symlink" && baseNameOf path != ".stack-work" && baseNameOf path != ".git";
+    type != "symlink" && baseNameOf path != ".stack-work"
+                      && baseNameOf path != ".git"
+                      && baseNameOf path != "README.adoc";
   haskellPackages = if compiler == "default"
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
   project = hlib.dontHaddock (hlib.overrideCabal
-              ( haskellPackages.callPackage ./language-puppet.nix { })
+              ( haskellPackages.callCabal2nix "language-puppet" ./. { })
               ( csuper: { src = builtins.path { name = "language-puppet"; inherit filter; path = csuper.src;};})
             );
 in
