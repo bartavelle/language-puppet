@@ -1,10 +1,5 @@
-# You can build this repository using Nix by running:
-#     $ nix-build
-#
-# You can also open up this repository inside a Nix shell by running:
-#
-#     $ nix-shell
-#
+# You can build this repository by running:
+#   $ nix-build
 { pkgs ? import ./nix/pin.nix {}
 , compiler ? "default" }:
 
@@ -18,11 +13,15 @@ let
   haskellPackages = if compiler == "default"
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
-  drv = dontHaddock
+  drv = disableLibraryProfiling (dontCheck (dontHaddock
     ( haskellPackages.callCabal2nix
         "language-puppet"
         (builtins.path { name = "language-puppet"; inherit filter; path = ./.; } )
         { }
-    );
+    )));
 in
-  if pkgs.lib.inNixShell then drv.env else drv
+
+# There is no need to create a static exec or other related artifacts as of now
+# This is because the drv is used as a library.
+# For now we just return the single drv without wrapping it in a record.
+drv
