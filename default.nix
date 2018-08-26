@@ -1,6 +1,6 @@
 # You can build this repository by running:
 #   $ nix-build
-{ pkgs ? import ./nix/pin.nix {}
+{ pkgs ? import ./nix/nixpkgs.nix
 , compiler ? "default" }:
 
 with pkgs.haskell.lib;
