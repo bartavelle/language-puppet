@@ -1,3 +1,9 @@
+language-puppet (1.4.0) xenial; urgency=medium
+
+  * Now supporting megaparsec-7.0.0
+
+ -- Simon Marechal <simon.marechal@edf.fr>  Thu, 06 Sep 2018 11:04:25 +0200
+
 language-puppet (1.3.20.1) xenial; urgency=medium
 
   * Maintenance release for supporting yaml-0.10.

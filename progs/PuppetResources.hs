@@ -182,7 +182,7 @@ parseFile :: FilePath -> IO (V.Vector Statement)
 parseFile fp = do
   s <- readFile fp
   case runPuppetParser fp s of
-    Left err -> putDoc (red "ERROR:" <+> getError (prettyParseError s err)) *> exitFailure
+    Left err -> putDoc (red "ERROR:" <+> getError (prettyParseError err)) *> exitFailure
     Right r -> pure r
 
 printContent :: Text -> FinalCatalog -> IO ()

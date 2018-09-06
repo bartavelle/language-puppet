@@ -47,8 +47,8 @@ parseFile fname = do
   o <- case runPuppetParser fname cnt of
     Right r -> traceEventIO ("Stopped parsing " ++ fname) >> return (S.Right r)
     Left rr -> do
-      traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.parseErrorPretty rr ++ ")")
-      pure (S.Left $ prettyParseError cnt rr)
+      traceEventIO ("Stopped parsing " ++ fname ++ " (failure: " ++ Megaparsec.errorBundlePretty rr ++ ")")
+      pure (S.Left $ prettyParseError rr)
   traceEventIO ("STOP parsing " ++ fname)
   return o
 

@@ -31,7 +31,7 @@ import qualified Data.Vector                      as V
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer       as Lexer
-import           Text.Megaparsec.Expr
+import           Control.Monad.Combinators.Expr
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
 import           Puppet.Language
@@ -39,17 +39,16 @@ import           Puppet.Parser.Lens
 import           Puppet.Parser.PrettyPrinter
 import           Puppet.Parser.Types
 
-
 type PuppetParseError = ParseError Char Void
 type Parser = Parsec Void Text
 
 -- | Build a 'PrettyError' from a 'ParseError' given the text source.
 -- The source is used to display the line on which the error occurs.
-prettyParseError :: Text -> ParseError Char Void -> PrettyError
-prettyParseError s err = PrettyError $ "cannot parse" <+> pretty (parseErrorPretty' s err)
+prettyParseError :: ParseErrorBundle Text Void -> PrettyError
+prettyParseError err = PrettyError $ "cannot parse" <+> pretty (errorBundlePretty err)
 
 -- | Run a puppet parser against some 'Text' input.
-runPuppetParser :: String -> Text -> Either PuppetParseError (Vector Statement)
+runPuppetParser :: String -> Text -> Either (ParseErrorBundle Text Void) (Vector Statement)
 runPuppetParser = parse puppetParser
 
 -- space consumer
@@ -128,7 +127,7 @@ variable = Terminal . UVariableReference <$> variableReference
 stringLiteral' :: Parser Text
 stringLiteral' = char '\'' *> interior <* symbolic '\''
     where
-        interior = Text.pack . concat <$> many (some (noneOf ['\'', '\\']) <|> (char '\\' *> fmap escape anyChar))
+        interior = Text.pack . concat <$> many (some (noneOf ['\'', '\\']) <|> (char '\\' *> fmap escape anySingle))
         escape '\'' = "'"
         escape x    = ['\\',x]
 
@@ -205,7 +204,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
      ( many (interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (Terminal . UString . Text.singleton) (char '$')) )
     where
         doubleQuotedStringContent = Terminal . UString . Text.pack . concat <$>
-            some ((char '\\' *> fmap escaper anyChar) <|> some (noneOf [ '"', '\\', '$' ]))
+            some ((char '\\' *> fmap escaper anySingle) <|> some (noneOf [ '"', '\\', '$' ]))
         escaper :: Char -> String
         escaper 'n'  = "\n"
         escaper 't'  = "\t"
@@ -232,7 +231,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
 regexp :: Parser Text
 regexp = do
     void (char '/')
-    Text.pack . concat <$> many ( do { void (char '\\') ; x <- anyChar; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
+    Text.pack . concat <$> many ( do { void (char '\\') ; x <- anySingle; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
         <* symbolic '/'
 
 puppetArray :: Parser UnresolvedValue
@@ -364,18 +363,18 @@ stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reser
 
 varAssign :: Parser VarAssignDecl
 varAssign = do
-    p <- getPosition
+    p <- getSourcePos
     mt <- optional datatype
     v <- variableReference
     void $ symbolic '='
     e <- expression
     when (Text.all Char.isDigit v) (fail "Can't assign fully numeric variables")
-    pe <- getPosition
+    pe <- getSourcePos
     return (VarAssignDecl mt v e (p :!: pe))
 
 nodeDecl :: Parser [NodeDecl]
 nodeDecl = do
-    p <- getPosition
+    p <- getSourcePos
     reserved "node"
     let toString (UString s) = s
         toString (UNumber n) = scientific2text n
@@ -384,18 +383,18 @@ nodeDecl = do
     ns <- (fmap NodeMatch termRegexp <|> nodename) `sepBy1` comma
     inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
     st <- braces statementList
-    pe <- getPosition
+    pe <- getSourcePos
     return [NodeDecl n st inheritance (p :!: pe) | n <- ns]
 
 defineDecl :: Parser DefineDecl
 defineDecl = do
-    p <- getPosition
+    p <- getSourcePos
     reserved "define"
     name <- typeName
     -- TODO check native type
     params <- option V.empty puppetClassParameters
     st <- braces statementList
-    pe <- getPosition
+    pe <- getSourcePos
     return (DefineDecl name params st (p :!: pe))
 
 puppetClassParameters :: Parser (Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)))
@@ -415,15 +414,15 @@ puppetIfStyleCondition = (:!:) <$> expression <*> braces statementList
 
 unlessCondition :: Parser ConditionalDecl
 unlessCondition = do
-    p <- getPosition
+    p <- getSourcePos
     reserved "unless"
     (cond :!: stmts) <- puppetIfStyleCondition
-    pe <- getPosition
+    pe <- getSourcePos
     return (ConditionalDecl (V.singleton (Not cond :!: stmts)) (p :!: pe))
 
 ifCondition :: Parser ConditionalDecl
 ifCondition = do
-    p <- getPosition
+    p <- getSourcePos
     reserved "if"
     maincond <- puppetIfStyleCondition
     others   <- many (reserved "elsif" *> puppetIfStyleCondition)
@@ -431,7 +430,7 @@ ifCondition = do
     let ec = if V.null elsecond
                  then []
                  else [Terminal (UBoolean True) :!: elsecond]
-    pe <- getPosition
+    pe <- getSourcePos
     return (ConditionalDecl (V.fromList (maincond : others ++ ec)) (p :!: pe))
 
 caseCondition :: Parser ConditionalDecl
@@ -448,11 +447,11 @@ caseCondition = do
             void $ symbolic ':'
             stmts <- braces statementList
             return $ map (,stmts) matches
-    p <- getPosition
+    p <- getSourcePos
     reserved "case"
     expr1 <- expression
     condlist <- concat <$> braces (some cases)
-    pe <- getPosition
+    pe <- getSourcePos
     return (ConditionalDecl (V.fromList (map (matchesToExpression expr1) condlist)) (p :!: pe) )
 
 data OperatorChain a = OperatorChain a LinkType (OperatorChain a)
@@ -512,38 +511,38 @@ resCollDecl p restype = do
     let collectortype = if length openchev == 1
                             then Collector
                             else ExportedCollector
-    pe <- getPosition
+    pe <- getSourcePos
     return (ResCollDecl collectortype restype e (V.fromList overrides) (p :!: pe) )
 
 classDecl :: Parser ClassDecl
 classDecl = do
-    p <- getPosition
+    p <- getSourcePos
     reserved "class"
     ClassDecl <$> className
               <*> option V.empty puppetClassParameters
               <*> option S.Nothing (fmap S.Just (reserved "inherits" *> className))
               <*> braces statementList
-              <*> ( (p :!:) <$> getPosition )
+              <*> ( (p :!:) <$> getSourcePos )
 
 mainFuncDecl :: Parser MainFuncDecl
 mainFuncDecl = do
-    p <- getPosition
+    p <- getSourcePos
     (fname, args) <- genFunctionCall True
-    pe <- getPosition
+    pe <- getSourcePos
     return (MainFuncDecl fname args (p :!: pe))
 
 hoLambdaDecl :: Parser HigherOrderLambdaDecl
 hoLambdaDecl = do
-    p <- getPosition
+    p <- getSourcePos
     fc <- try lambdaCall
-    pe <- getPosition
+    pe <- getSourcePos
     return (HigherOrderLambdaDecl fc (p :!: pe))
 
 dotLambdaDecl :: Parser HigherOrderLambdaDecl
 dotLambdaDecl = do
-    p <- getPosition
+    p <- getSourcePos
     ex <- expression
-    pe <- getPosition
+    pe <- getSourcePos
     hf <- case ex of
               FunctionApplication e (Terminal (UHOLambdaCall hf)) -> do
                   unless (S.isNothing (hf ^. hoLambdaExpr)) (fail "Can't call a function with . and ()")
@@ -558,20 +557,20 @@ dotLambdaDecl = do
 
 resDefaultDecl :: Parser ResDefaultDecl
 resDefaultDecl = do
-    p <- getPosition
+    p <- getSourcePos
     rnd  <- resourceNameRef
     let assignmentList = V.fromList <$> sepComma1 assignment
     asl <- braces assignmentList
-    pe <- getPosition
+    pe <- getSourcePos
     return (ResDefaultDecl rnd asl (p :!: pe))
 
 resOverrideDecl :: Parser [ResOverrideDecl]
 resOverrideDecl = do
-    p <- getPosition
+    p <- getSourcePos
     restype  <- resourceNameRef
     names <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
     assignments <- V.fromList <$> braces (sepComma assignment)
-    pe <- getPosition
+    pe <- getSourcePos
     return [ ResOverrideDecl restype n assignments (p :!: pe) | n <- names ]
 
 -- | Heterogeneous chain (interleaving resource declarations with
@@ -582,12 +581,12 @@ resOverrideDecl = do
 chainableResources :: Parser [Statement]
 chainableResources = do
     let withresname = do
-            p <- getPosition
+            p <- getSourcePos
             restype  <- resourceNameRef
-            lookAhead anyChar >>= \x -> case x of
+            lookAhead anySingle >>= \x -> case x of
                 '[' -> do
                     resnames <- brackets (expression `sepBy1` comma)
-                    pe <- getPosition
+                    pe <- getSourcePos
                     pure (ChainResRefr restype resnames (p :!: pe))
                 _ -> ChainResColl <$> resCollDecl p restype
     chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resDeclGroup
@@ -620,11 +619,11 @@ chainableResources = do
     resDeclGroup = do
         let resourceName = expression
             resourceDeclaration = do
-                p <- getPosition
+                p <- getSourcePos
                 names <- brackets (sepComma1 resourceName) <|> fmap return resourceName
                 void $ symbolic ':'
                 vals  <- fmap V.fromList (sepComma assignment)
-                pe <- getPosition
+                pe <- getSourcePos
                 return [(n, vals, p :!: pe) | n <- names ]
             groupDeclaration = (,) <$> many (char '@') <*> typeName <* symbolic '{'
         (virts, rtype) <- try groupDeclaration -- for matching reasons, this gets a try until the opening brace
