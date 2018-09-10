@@ -24,6 +24,7 @@ md5 = Text.pack . show . (Crypto.hash :: ByteString -> Digest MD5) . Text.encode
 
 extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
 extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
+          , ("/docker", "docker_swarm_join_flags", mockDockerSwarmJoinFlags)
           , ("/docker", "docker_run_flags", mockDockerRunFlags)
           , ("/jenkins", "jenkins_port", mockJenkinsPort)
           , ("/jenkins", "jenkins_prefix", mockJenkinsPrefix)
@@ -128,6 +129,11 @@ aclToHash acl _ = throwPosError $ "Unable to parse acl line" <+> squotes (ppline
 mockDockerRunFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerRunFlags arg@[PHash _]= (pure . PString . show . head) arg
 mockDockerRunFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+
+-- faked implementation, replace by the correct one if you need so.
+mockDockerSwarmJoinFlags :: MonadThrowPos m => [PValue] -> m PValue
+mockDockerSwarmJoinFlags arg@[PHash _]= (pure . PString . show . head) arg
+mockDockerSwarmJoinFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- utils
 scientificToInt :: MonadThrowPos m => Scientific -> m Int
