@@ -301,9 +301,9 @@ terminalG g = parens expression
          <|> fmap Terminal puppetArray
          <|> fmap Terminal puppetHash
          <|> fmap (Terminal . UBoolean) puppetBool
+         <|> fmap (Terminal . UDataType) datatype
          <|> fmap Terminal resourceReference
          <|> g
-         <|> fmap (Terminal . UDataType) datatype
          <|> fmap Terminal literalValue
 
 compileRegexp :: Text -> Parser CompRegex
