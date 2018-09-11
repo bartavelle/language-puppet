@@ -6,3 +6,11 @@ $binaries.each |$binary| {
     target => "/opt/puppetlabs/bin/$binary",
   }
 }
+
+each($binaries) |$binary| {
+  file {"/usr/bin/$binary":
+    ensure => link,
+    target => "/opt/puppetlabs/bin/$binary",
+  }
+
+}
