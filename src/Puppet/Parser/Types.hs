@@ -12,7 +12,7 @@ module Puppet.Parser.Types
    ChainableRes(..),
    HasHOLambdaCall(..),
    LambdaParameter(..),
-   LambdaParameters(..),
+   LambdaParameters,
    CompRegex(..),
    CollectorType(..),
    Virtuality(..),
@@ -54,23 +54,14 @@ import           Puppet.Language
 
 
 -- | /High Order lambdas/.
-data LambdaFunc
-    = LambEach
-    | LambMap
-    | LambReduce
-    | LambFilter
-    | LambSlice
-    | LambLookup
+newtype LambdaFunc = LambdaFunc Text
     deriving (Eq, Show)
 
 -- | Lambda block parameters:
 --
 -- Currently only two types of block parameters are supported:
 -- single values and pairs.
-data LambdaParameters
-    = BPSingle !LambdaParameter -- ^ @|k|@
-    | BPPair   !LambdaParameter !LambdaParameter -- ^ @|k,v|@
-    deriving (Eq, Show)
+type LambdaParameters = V.Vector LambdaParameter
 
 data LambdaParameter
     = LParam !(Maybe UDataType) !Text

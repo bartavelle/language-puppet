@@ -551,7 +551,6 @@ dotLambdaDecl = do
                   when (S.isNothing (hf ^. hoLambdaExpr)) (fail "This function needs data to operate on")
                   return hf
               _ -> fail "A method chained by dots."
-    unless (hf ^. hoLambdaFunc == LambEach) (fail "Expected 'each', the other types of method calls are not supported by language-puppet at the statement level.")
     return (HigherOrderLambdaDecl hf (p :!: pe))
 
 
@@ -789,21 +788,11 @@ lambdaCall = do
                  <*> fmap tostrict (optional expression) <* symbolic '}'
     where
         lambFunc :: Parser LambdaFunc
-        lambFunc = (LambEach   <$ reserved "each")
-               <|> (LambMap    <$ reserved "map")
-               <|> (LambReduce <$ reserved "reduce")
-               <|> (LambFilter <$ reserved "filter")
-               <|> (LambSlice  <$ reserved "slice")
-               <|> (LambLookup <$ reserved "lookup")
+        lambFunc = LambdaFunc <$> moduleName
         lambParams :: Parser LambdaParameters
         lambParams = between (symbolic '|') (symbolic '|') hp
             where
                 acceptablePart = Text.pack <$> identifier
                 lambdaParameter :: Parser LambdaParameter
                 lambdaParameter = LParam <$> optional datatype <*> (char '$' *> acceptablePart)
-                hp = do
-                    vars <- lambdaParameter `sepBy1` comma
-                    case vars of
-                        [a]   -> return (BPSingle a)
-                        [a,b] -> return (BPPair a b)
-                        _     -> fail "Invalid number of variables between the pipes"
+                hp = V.fromList <$> lambdaParameter `sepBy1` comma

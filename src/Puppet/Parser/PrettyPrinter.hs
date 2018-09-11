@@ -79,22 +79,13 @@ instance Pretty Expression where
   pretty (FunctionApplication e1 e2) = parens (pretty e1) <> "." <> pretty e2
 
 instance Pretty LambdaFunc where
-  pretty LambEach = bold $ red "each"
-  pretty LambMap = bold $ red "map"
-  pretty LambReduce = bold $ red "reduce"
-  pretty LambFilter = bold $ red "filter"
-  pretty LambSlice = bold $ red "slice"
-  pretty LambLookup = bold $ red "lookup"
+  pretty (LambdaFunc nm) = bold $ red (ppline nm)
 
 instance Pretty LambdaParameters where
-  pretty b = magenta (pretty '|') <+> vars <+> magenta (pretty '|')
+  pretty b = magenta (pretty '|') <+> parensList (fmap mkv b) <+> magenta (pretty '|')
     where
       pmspace = foldMap ((<> " ") . pretty)
-      vars =
-        case b of
-          BPSingle (LParam mt v) -> pmspace mt <> pretty (UVariableReference v)
-          BPPair (LParam mt1 v1) (LParam mt2 v2) ->
-            pmspace mt1 <> pretty (UVariableReference v1) <> comma <+> pmspace mt2 <> pretty (UVariableReference v2)
+      mkv (LParam mt v) = pmspace mt <> pretty (UVariableReference v)
 
 instance Pretty SearchExpression where
   pretty (EqualitySearch t e) = ppline t <+> "==" <+> pretty e
@@ -104,8 +95,8 @@ instance Pretty SearchExpression where
   pretty (OrSearch s1 s2) = parens (pretty s1) <+> "and" <+> parens (pretty s2)
 
 instance Pretty UnresolvedValue where
-  pretty (UBoolean True) = dullmagenta $ "true"
-  pretty (UBoolean False) = dullmagenta $ "false"
+  pretty (UBoolean True) = dullmagenta "true"
+  pretty (UBoolean False) = dullmagenta "false"
   pretty (UString s) = pretty '"' <> dullcyan (ppline (stringEscape s)) <> pretty '"'
   pretty (UNumber n) = cyan (ppline (scientific2text n))
   pretty (UInterpolable v) = pretty '"' <> hcat (map specific (V.toList v)) <> pretty '"'

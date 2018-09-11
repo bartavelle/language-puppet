@@ -521,16 +521,18 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
   curPos .= p >> evaluateHFC c
   where
     evaluateHFC :: HOLambdaCall -> InterpreterMonad [Resource]
-    evaluateHFC hf = do
-      varassocs <- hfGenerateAssociations hf
-      let runblock :: [(Text, PValue)] -> InterpreterMonad [Resource]
-          runblock assocs = do
-            saved <- hfSetvars assocs
-            res <- evaluateStatementsFoldable (hf ^. hoLambdaStatements)
-            hfRestorevars  saved
-            return res
-      results <- mapM runblock varassocs
-      return (concat results)
+    evaluateHFC hf =
+      case hf ^. hoLambdaFunc of
+        LambdaFunc "each" -> do
+          varassocs <- hfGenerateAssociations hf
+          let runblock :: [(Text, PValue)] -> InterpreterMonad [Resource]
+              runblock assocs = do
+                saved <- hfSetvars assocs
+                res <- evaluateStatementsFoldable (hf ^. hoLambdaStatements)
+                hfRestorevars  saved
+                return res
+          concat <$> mapM runblock varassocs
+        fn -> throwError (PrettyError ("This lambda function is unknown:" </> pretty fn))
 evaluateStatement r = throwError (PrettyError ("Do not know how to evaluate this statement:" </> pretty r))
 
 -----------------------------------------------------------

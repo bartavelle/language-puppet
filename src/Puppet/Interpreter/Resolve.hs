@@ -682,17 +682,17 @@ hfGenerateAssociations hol = do
       check (Just udtype) tocheck = do
         dtype <- resolveDataType udtype
         mapM_ (\v -> unless (datatypeMatch dtype v) (throwPosError (pretty v <+> "isn't of type" <+> pretty dtype))) tocheck
-  case (sourcevalue, hol ^. hoLambdaParams) of
-     (PArray pr, BPSingle (LParam mvtype varname)) -> do
+  case (sourcevalue, V.toList (hol ^. hoLambdaParams)) of
+     (PArray pr, [LParam mvtype varname]) -> do
        check mvtype pr
        pure (map (\x -> [(varname, x)]) (V.toList pr))
-     (PArray pr, BPPair (LParam _ idx) (LParam mvtype var)) -> do
+     (PArray pr, [LParam _ idx, LParam mvtype var] ) -> do
        check mvtype pr
        pure [ [(idx,PString (Text.pack (show i))),(var,v)]  |  (i,v) <- zip ([0..] :: [Int]) (V.toList pr) ]
-     (PHash hh, BPSingle (LParam mvtype varname)) -> do
+     (PHash hh, [LParam mvtype varname]) -> do
        check mvtype hh
        pure [ [(varname, PArray (V.fromList [PString k,v]))]  |  (k,v) <- HM.toList hh]
-     (PHash hh, BPPair (LParam midxtype idx) (LParam mvtype var)) -> do
+     (PHash hh, [LParam midxtype idx, LParam mvtype var]) -> do
        check mvtype hh
        check midxtype (PString <$> HM.keys hh)
        pure [ [(idx,PString k),(var,v)]  |  (k,v) <- HM.toList hh]
@@ -748,7 +748,6 @@ transformPureHf hol =
 evaluateHFCPure :: HOLambdaCall -> InterpreterMonad PValue
 evaluateHFCPure hol' = do
   (hol, finalexpression) <- transformPureHf hol'
-  varassocs <- hfGenerateAssociations hol
   let runblock :: [(Text, PValue)] -> InterpreterMonad PValue
       runblock assocs = do
           saved <- hfSetvars assocs
@@ -757,9 +756,12 @@ evaluateHFCPure hol' = do
           hfRestorevars  saved
           pure r
   case hol ^. hoLambdaFunc of
-    LambEach -> throwPosError "The 'each' function can't be used at the value level in language-puppet. Please use map."
-    LambMap -> fmap (PArray . V.fromList) (mapM runblock varassocs)
-    LambFilter -> do
+    LambdaFunc "each" -> throwPosError "The 'each' function can't be used at the value level in language-puppet. Please use map."
+    LambdaFunc "map" -> do
+      varassocs <- hfGenerateAssociations hol
+      fmap (PArray . V.fromList) (mapM runblock varassocs)
+    LambdaFunc "filter" -> do
+      varassocs <- hfGenerateAssociations hol
       res <- mapM (fmap pValue2Bool . runblock) varassocs
       sourcevalue <- case hol ^. hoLambdaExpr of
         S.Just x  -> resolveExpression x
@@ -768,7 +770,7 @@ evaluateHFCPure hol' = do
         PArray ar -> pure $ PArray $ V.map fst $ V.filter snd $ V.zip ar (V.fromList res)
         PHash  hh -> pure $ PHash  $ HM.fromList $ map fst $ filter snd $ zip (HM.toList hh) res
         x         -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
-    x -> throwPosError ("This type of function is not supported yet by language-puppet!" <+> pretty x)
+    x -> throwPosError ("This type of lambda function is not supported yet by language-puppet!" <+> pretty x)
 
 -- | Checks that a value matches a puppet datatype
 datatypeMatch :: DataType -> PValue -> Bool
