@@ -4,6 +4,7 @@ let
 in
      type != "symlink"
   && baseName != ".stack-work"
+  && baseName != "stack.yaml"
   && baseName != ".git"
   && baseName != "default.nix"
   && baseName != "README.adoc"
