@@ -118,6 +118,8 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- type
                               -- union
                               , singleArgument "unique" unique
+                              -- from puppetlabs-translate
+                              , ("translate", translate)
                               -- unix2dos
                               , ("upcase", stringArrayFunction Text.toUpper)
                               -- uriescape
@@ -526,3 +528,8 @@ validateInteger x = PUndef <$ mapM_ vb x
 pvalues :: PValue -> InterpreterMonad PValue
 pvalues (PHash h) = return $ PArray (toVectorOf traverse h)
 pvalues x         = throwPosError ("values(): expected a hash, not" <+> pretty x)
+
+-- dummy translate method from puppetlabs-translate (used in puppetlabs-docker for instance)
+translate :: [PValue] -> InterpreterMonad PValue
+translate [v@(PString _)] = pure v
+translate x = throwPosError ("values(): expected a String, not" <+> pretty x)

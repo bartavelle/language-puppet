@@ -19,8 +19,9 @@ stack install language-puppet
 
 .Quick install instruction with nix:
 ```bash
-nix-env -i -f https://github.com/pierrer/language-puppet/tarball/7d48bca894d41d1c52ee31c0858714e7795d70b3
+nix-env -i -f https://github.com/bartavelle/language-puppet/tarball/1.4.1 <1>
 ```
+<1> replace `1.4.1` with any commit ref or tag
 
 .Build instructions:
 ```bash
