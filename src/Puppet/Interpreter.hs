@@ -522,17 +522,32 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
   where
     evaluateHFC :: HOLambdaCall -> InterpreterMonad [Resource]
     evaluateHFC hf =
-      case hf ^. hoLambdaFunc of
-        LambdaFunc "each" -> do
-          varassocs <- hfGenerateAssociations hf
-          let runblock :: [(Text, PValue)] -> InterpreterMonad [Resource]
-              runblock assocs = do
-                saved <- hfSetvars assocs
-                res <- evaluateStatementsFoldable (hf ^. hoLambdaStatements)
-                hfRestorevars  saved
-                return res
-          concat <$> mapM runblock varassocs
-        fn -> throwError (PrettyError ("This lambda function is unknown:" </> pretty fn))
+      let runblock :: [(Text, PValue)] -> InterpreterMonad [Resource]
+          runblock assocs = do
+            saved <- hfSetvars assocs
+            res <- evaluateStatementsFoldable (hf ^. hoLambdaStatements)
+            hfRestorevars  saved
+            return res
+      in  case hf ^. hoLambdaFunc of
+            LambdaFunc "each" -> do
+              varassocs <- hfGenerateAssociations hf
+              concat <$> mapM runblock varassocs
+            -- we associate each pair of expressions and arguments, and
+            -- run the inner code in this scope
+            LambdaFunc "with" -> do
+              let expressions = hf ^. hoLambdaExpr
+                  parameters = hf ^. hoLambdaParams
+              unless (V.length expressions == V.length parameters)
+                (throwPosError ("Mismatched number of arguments and lambda parameters in" <> pretty hf))
+              assocs <- forM (V.zip expressions parameters) $ \(uval, LParam mt name) -> do
+                val <- resolveExpression uval
+                -- type checking
+                forM_ mt $ \ut -> do
+                  t <- resolveDataType ut
+                  checkMatch t val
+                return (name, val)
+              runblock (V.toList assocs)
+            fn -> throwPosError ("This lambda function is unknown:" </> pretty fn)
 evaluateStatement r = throwError (PrettyError ("Do not know how to evaluate this statement:" </> pretty r))
 
 -----------------------------------------------------------

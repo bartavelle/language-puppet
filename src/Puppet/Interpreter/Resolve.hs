@@ -322,9 +322,9 @@ resolveExpression (LeftShift a b) = do
       (PArray ha, v) -> pure (PArray (V.snoc ha v))
       _              -> integerOperation a b (\x -> shiftL x . fromIntegral)
 resolveExpression a@(FunctionApplication e (Terminal (UHOLambdaCall hol))) = do
-  unless (S.isNothing (hol ^. hoLambdaExpr))
+  unless (null (hol ^. hoLambdaExpr))
     (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
-  resolveValue (UHOLambdaCall (hol & hoLambdaExpr .~ S.Just e))
+  resolveValue (UHOLambdaCall (hol & hoLambdaExpr .~ V.singleton e))
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
 resolveExpression (Negate x) = PNumber . negate <$> resolveExpressionNumber x
 
@@ -674,9 +674,10 @@ resolveDataType ud
 -- Each item corresponds to an iteration in the calling block.
 hfGenerateAssociations :: HOLambdaCall -> InterpreterMonad [[(Text, PValue)]]
 hfGenerateAssociations hol = do
-  sourceexpression <- case hol ^. hoLambdaExpr of
-    S.Just x  -> pure x
-    S.Nothing -> throwPosError ("No expression to run the function on" <+> pretty hol)
+  sourceexpression <- case hol ^.. hoLambdaExpr . folded of
+    [x]  -> pure x
+    [] -> throwPosError ("No expression to run the function on" <+> pretty hol)
+    _ -> throwPosError ("Too many expressions to run the function on" <+> pretty hol)
   sourcevalue <- resolveExpression sourceexpression
   let check Nothing _ = pure ()
       check (Just udtype) tocheck = do
@@ -763,9 +764,9 @@ evaluateHFCPure hol' = do
     LambdaFunc "filter" -> do
       varassocs <- hfGenerateAssociations hol
       res <- mapM (fmap pValue2Bool . runblock) varassocs
-      sourcevalue <- case hol ^. hoLambdaExpr of
-        S.Just x  -> resolveExpression x
-        S.Nothing -> throwPosError "Internal error evaluateHFCPure 1"
+      sourcevalue <- case hol ^.. hoLambdaExpr . folded of
+        [x] -> resolveExpression x
+        _   -> throwPosError "Internal error evaluateHFCPure 1"
       case sourcevalue of
         PArray ar -> pure $ PArray $ V.map fst $ V.filter snd $ V.zip ar (V.fromList res)
         PHash  hh -> pure $ PHash  $ HM.fromList $ map fst $ filter snd $ zip (HM.toList hh) res

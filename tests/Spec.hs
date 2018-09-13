@@ -9,6 +9,7 @@ import qualified ExprSpec
 import qualified Function.AssertPrivateSpec
 import qualified Function.DeleteAtSpec
 import qualified Function.EachSpec
+import qualified Function.WithSpec
 import qualified Function.JoinKeysToValuesSpec
 import qualified Function.LookupSpec
 import qualified Function.MergeSpec
@@ -44,6 +45,7 @@ spec = do
     describe "The shellquote function" Function.ShellquoteSpec.spec
     describe "The sprintf function" Function.SprintfSpec.spec
     describe "The each function" Function.EachSpec.spec
+    describe "The with function" Function.WithSpec.spec
     describe "The lookup function" Function.LookupSpec.spec
     describe "The suffix function" Function.SuffixSpec.spec
     describe "The prefix function" Function.PrefixSpec.spec

@@ -1,3 +1,9 @@
+language-puppet (1.4.1) UNRELEASED; urgency=medium
+
+  * Add the `with` function.
+
+ -- Simon Marechal <simon.marechal@edf.fr>  Thu, 13 Sep 2018 15:54:03 +0200
+
 language-puppet (1.4.0) xenial; urgency=medium
 
   * Now supporting megaparsec-7.0.0

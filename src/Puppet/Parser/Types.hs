@@ -70,7 +70,7 @@ data LambdaParameter
 -- The description of the /higher level lambda/ call.
 data HOLambdaCall = HOLambdaCall
     { _hoLambdaFunc       :: !LambdaFunc
-    , _hoLambdaExpr       :: !(S.Maybe Expression)
+    , _hoLambdaExpr       :: !(V.Vector Expression)
     , _hoLambdaParams     :: !LambdaParameters
     , _hoLambdaStatements :: !(V.Vector Statement)
     , _hoLambdaLastExpr   :: !(S.Maybe Expression)

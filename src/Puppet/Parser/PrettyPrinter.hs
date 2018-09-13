@@ -82,7 +82,7 @@ instance Pretty LambdaFunc where
   pretty (LambdaFunc nm) = bold $ red (ppline nm)
 
 instance Pretty LambdaParameters where
-  pretty b = magenta (pretty '|') <+> parensList (fmap mkv b) <+> magenta (pretty '|')
+  pretty b = encloseSep (magenta (pretty '|')) (magenta (pretty '|')) comma (V.toList (fmap mkv b))
     where
       pmspace = foldMap ((<> " ") . pretty)
       mkv (LParam mt v) = pmspace mt <> pretty (UVariableReference v)
@@ -119,12 +119,8 @@ instance Pretty UnresolvedValue where
 
 instance Pretty HOLambdaCall where
   pretty (HOLambdaCall hf me bp stts mee) =
-    pretty hf <> mme <+> pretty bp <+> nest 2 (pretty '{' <> line <> ppStatements stts <> mmee) <$> pretty '}'
+    pretty hf <> parensList me <+> pretty bp <+> nest 2 (pretty '{' <> line <> ppStatements stts <> mmee) <$> pretty '}'
     where
-      mme =
-        case me of
-          S.Just x -> mempty <+> pretty x
-          S.Nothing -> mempty
       mmee =
         case mee of
           S.Just x -> mempty </> pretty x

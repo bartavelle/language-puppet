@@ -545,10 +545,10 @@ dotLambdaDecl = do
     pe <- getSourcePos
     hf <- case ex of
               FunctionApplication e (Terminal (UHOLambdaCall hf)) -> do
-                  unless (S.isNothing (hf ^. hoLambdaExpr)) (fail "Can't call a function with . and ()")
-                  return (hf & hoLambdaExpr .~ S.Just e)
+                  unless (null (hf ^. hoLambdaExpr)) (fail "Can't call a function with . and ()")
+                  return (hf & hoLambdaExpr .~ V.singleton e)
               Terminal (UHOLambdaCall hf) -> do
-                  when (S.isNothing (hf ^. hoLambdaExpr)) (fail "This function needs data to operate on")
+                  when (null (hf ^. hoLambdaExpr)) (fail "This function needs data to operate on")
                   return hf
               _ -> fail "A method chained by dots."
     return (HigherOrderLambdaDecl hf (p :!: pe))
@@ -782,11 +782,13 @@ lambdaCall = do
     let tostrict (Just x) = S.Just x
         tostrict Nothing  = S.Nothing
     HOLambdaCall <$> lambFunc
-                 <*> fmap (tostrict . join) (optional (parens (optional expression)))
+                 <*> parameters
                  <*> lambParams
                  <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
                  <*> fmap tostrict (optional expression) <* symbolic '}'
     where
+        parameters :: Parser (V.Vector Expression)
+        parameters = maybe V.empty V.fromList <$> optional (parens (expression `sepBy` comma))
         lambFunc :: Parser LambdaFunc
         lambFunc = LambdaFunc <$> moduleName
         lambParams :: Parser LambdaParameters

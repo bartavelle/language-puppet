@@ -172,6 +172,7 @@ Test-Suite spec
                   Function.SizeSpec
                   Function.MergeSpec
                   Function.EachSpec
+                  Function.WithSpec
                   Function.DeleteAtSpec
                   Function.AssertPrivateSpec
                   Function.JoinKeysToValuesSpec
