@@ -761,6 +761,19 @@ evaluateHFCPure hol' = do
     LambdaFunc "map" -> do
       varassocs <- hfGenerateAssociations hol
       fmap (PArray . V.fromList) (mapM runblock varassocs)
+    LambdaFunc "with" -> do
+      let expressions = hol ^. hoLambdaExpr
+          parameters = hol ^. hoLambdaParams
+      unless (V.length expressions == V.length parameters)
+        (throwPosError ("Mismatched number of arguments and lambda parameters in" <> pretty hol))
+      assocs <- forM (V.zip expressions parameters) $ \(uval, LParam mt name) -> do
+        val <- resolveExpression uval
+        -- type checking
+        forM_ mt $ \ut -> do
+          t <- resolveDataType ut
+          checkMatch t val
+        return (name, val)
+      runblock (V.toList assocs)
     LambdaFunc "filter" -> do
       varassocs <- hfGenerateAssociations hol
       res <- mapM (fmap pValue2Bool . runblock) varassocs
