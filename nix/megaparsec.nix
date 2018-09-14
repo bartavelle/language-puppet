@@ -6,7 +6,7 @@
 mkDerivation {
   pname = "megaparsec";
   version = "7.0.0";
-  sha256 = "bfd6870d468d680e5ca8845afb8c871d8e40231ae95a977407c371c251cc3380";
+  sha256 = "101kri8w4wf30xs9fnp938il13hxhy6gnnl4m1f0ws4d8q6qgmmz";
   libraryHaskellDepends = [
     base bytestring case-insensitive containers deepseq mtl
     parser-combinators scientific text transformers

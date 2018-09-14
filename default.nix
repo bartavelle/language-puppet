@@ -1,23 +1,25 @@
 # You can build this repository by running:
 #   $ nix-build
 {
-pkgs ? import ./nix/nixpkgs.nix
+  pkgs ? import ./nix/nixpkgs.nix
+, compiler ? "default"
 }:
 
 
 let
   filter = import ./nix/filter.nix;
-  hpkgs = import ./nix/hpkgs.nix {inherit pkgs;};
+  hpkgs = import ./nix/hpkgs.nix {inherit pkgs compiler;};
   haskellPackages = hpkgs.override {
     overrides = self: super: rec {
       megaparsec = self.callPackage ./nix/megaparsec.nix {};
+      hspec-megaparsec = self.callPackage ./nix/hspec-megaparsec.nix {inherit megaparsec;};
       language-puppet = with pkgs.haskell.lib;
-        disableLibraryProfiling (dontCheck (dontHaddock
+        disableLibraryProfiling
         ( super.callCabal2nix
             "language-puppet"
             (builtins.path { name = "language-puppet"; inherit filter; path = ./.; } )
-            { inherit megaparsec;}
-        )));
+            { inherit megaparsec hspec-megaparsec;}
+        );
      };
   };
 in
