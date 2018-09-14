@@ -534,6 +534,28 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
               concat <$> mapM runblock varassocs
             -- we associate each pair of expressions and arguments, and
             -- run the inner code in this scope
+            LambdaFunc "assert_type" ->
+              case (hf ^.. hoLambdaExpr . folded, hf ^.. hoLambdaParams . folded) of
+                ( [utp, uval], [a, b] ) -> do
+                  let typecheck_lambda (LParam ltype lvar)
+                        = case ltype of
+                            Nothing -> pure lvar
+                            Just udt -> do
+                              dt <- resolveDataType udt
+                              if dt == DTType
+                                then pure lvar
+                                else throwPosError ("The lambda value can only be a type in assert_type, not" <+> pretty dt)
+                  mtp <- resolveExpression utp
+                  val <- resolveExpression uval
+                  varexpected <- typecheck_lambda a
+                  varactual <- typecheck_lambda b
+                  case mtp of
+                    PType expectedType ->
+                      if datatypeMatch expectedType val
+                        then return []
+                        else runblock [(varexpected, PType expectedType), (varactual, PType (typeOf val))]
+                    _ -> throwPosError ("The first argument to assert_type should be a data type, not" <+> pretty mtp)
+                _ -> throwPosError "assert_types requires two parameters, and two lambda parameters"
             LambdaFunc "with" -> do
               let expressions = hf ^. hoLambdaExpr
                   parameters = hf ^. hoLambdaParams

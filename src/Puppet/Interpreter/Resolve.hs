@@ -32,7 +32,8 @@ module Puppet.Interpreter.Resolve
       hfRestorevars,
       fixResourceName,
       datatypeMatch,
-      checkMatch
+      checkMatch,
+      typeOf
     ) where
 
 import           XPrelude.Extra
@@ -828,3 +829,18 @@ datatypeMatch dt v =
 
 checkMatch :: DataType -> PValue -> InterpreterMonad ()
 checkMatch dt pv = unless (datatypeMatch dt pv) (throwPosError (pretty pv <+> "does not match type" <+> pretty dt))
+
+typeOf :: PValue -> DataType
+typeOf pv =
+    case pv of
+      PBoolean _             -> DTBoolean
+      PUndef                 -> DTUndef
+      PString _              -> DTString Nothing Nothing
+      PResourceReference _ _ -> DTType -- ???
+      PArray _               -> DTArray DTAny 0 Nothing
+      PHash _                -> DTHash DTAny DTAny 0 Nothing
+      PType _                -> DTType
+      PRegexp _              -> DTRegexp Nothing
+      PNumber n              -> if Scientific.isInteger n
+                                  then DTInteger Nothing Nothing
+                                  else DTFloat Nothing Nothing
