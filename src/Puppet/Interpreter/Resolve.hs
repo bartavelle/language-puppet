@@ -685,16 +685,16 @@ hfGenerateAssociations hol = do
         dtype <- resolveDataType udtype
         mapM_ (\v -> unless (datatypeMatch dtype v) (throwPosError (pretty v <+> "isn't of type" <+> pretty dtype))) tocheck
   case (sourcevalue, V.toList (hol ^. hoLambdaParams)) of
-     (PArray pr, [LParam mvtype varname]) -> do
+     (PArray pr, [LambdaParam mvtype varname]) -> do
        check mvtype pr
        pure (map (\x -> [(varname, x)]) (V.toList pr))
-     (PArray pr, [LParam _ idx, LParam mvtype var] ) -> do
+     (PArray pr, [LambdaParam _ idx, LambdaParam mvtype var] ) -> do
        check mvtype pr
        pure [ [(idx,PString (Text.pack (show i))),(var,v)]  |  (i,v) <- zip ([0..] :: [Int]) (V.toList pr) ]
-     (PHash hh, [LParam mvtype varname]) -> do
+     (PHash hh, [LambdaParam mvtype varname]) -> do
        check mvtype hh
        pure [ [(varname, PArray (V.fromList [PString k,v]))]  |  (k,v) <- HM.toList hh]
-     (PHash hh, [LParam midxtype idx, LParam mvtype var]) -> do
+     (PHash hh, [LambdaParam midxtype idx, LambdaParam mvtype var]) -> do
        check mvtype hh
        check midxtype (PString <$> HM.keys hh)
        pure [ [(idx,PString k),(var,v)]  |  (k,v) <- HM.toList hh]
@@ -767,7 +767,7 @@ evaluateHFCPure hol' = do
           parameters = hol ^. hoLambdaParams
       unless (V.length expressions == V.length parameters)
         (throwPosError ("Mismatched number of arguments and lambda parameters in" <> pretty hol))
-      assocs <- forM (V.zip expressions parameters) $ \(uval, LParam mt name) -> do
+      assocs <- forM (V.zip expressions parameters) $ \(uval, LambdaParam mt name) -> do
         val <- resolveExpression uval
         -- type checking
         forM_ mt $ \ut -> do

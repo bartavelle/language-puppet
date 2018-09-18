@@ -85,7 +85,7 @@ instance Pretty LambdaParameters where
   pretty b = encloseSep (magenta (pretty '|')) (magenta (pretty '|')) comma (V.toList (fmap mkv b))
     where
       pmspace = foldMap ((<> " ") . pretty)
-      mkv (LParam mt v) = pmspace mt <> pretty (UVariableReference v)
+      mkv (LambdaParam mt v) = pmspace mt <> pretty (UVariableReference v)
 
 instance Pretty SearchExpression where
   pretty (EqualitySearch t e) = ppline t <+> "==" <+> pretty e

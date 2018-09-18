@@ -54,8 +54,8 @@ interpretCatalog :: Monad m
                  -> Container Text -- ^ Server settings
                  -> m (Pair (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))  [Pair Log.Priority Doc])
 interpretCatalog r node facts settings = do
-    (output, _, warnings) <- interpretMonad r (initialState facts settings) (computeCatalog node)
-    pure (output :!: warnings)
+  (output, _, warnings) <- interpretMonad r (initialState facts settings) (computeCatalog node)
+  pure (output :!: warnings)
 
 isParent :: Text -> CurContainerDesc -> InterpreterMonad Bool
 isParent cur (ContClass possibleparent) =
@@ -174,12 +174,12 @@ interpretTopLevel toptype topname =
   where
     evalTopLevel :: Statement -> InterpreterMonad ([Resource], Statement)
     evalTopLevel (TopContainer tops s) = do
-        pushScope ContRoot
-        r <- mapM evaluateStatement tops >>= finalize . concat
-        -- popScope
-        (nr, ns) <- evalTopLevel s
-        popScope
-        return (r <> nr, ns)
+      pushScope ContRoot
+      r <- mapM evaluateStatement tops >>= finalize . concat
+      -- popScope
+      (nr, ns) <- evalTopLevel s
+      popScope
+      return (r <> nr, ns)
     evalTopLevel x = return ([], x)
 
 -- | Main internal entry point, this function completes the interpretation
@@ -537,7 +537,7 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
             LambdaFunc "assert_type" ->
               case (hf ^.. hoLambdaExpr . folded, hf ^.. hoLambdaParams . folded) of
                 ( [utp, uval], [a, b] ) -> do
-                  let typecheck_lambda (LParam ltype lvar)
+                  let typecheck_lambda (LambdaParam ltype lvar)
                         = case ltype of
                             Nothing -> pure lvar
                             Just udt -> do
@@ -561,7 +561,7 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
                   parameters = hf ^. hoLambdaParams
               unless (V.length expressions == V.length parameters)
                 (throwPosError ("Mismatched number of arguments and lambda parameters in" <> pretty hf))
-              assocs <- forM (V.zip expressions parameters) $ \(uval, LParam mt name) -> do
+              assocs <- forM (V.zip expressions parameters) $ \(uval, LambdaParam mt name) -> do
                 val <- resolveExpression uval
                 -- type checking
                 forM_ mt $ \ut -> do
@@ -1021,9 +1021,9 @@ logWithModifier _ _ _ = throwPosError "This function takes a single argument"
 -- | Contrary to the previous iteration, this will let non native types pass.
 validateNativeType :: Resource -> InterpreterMonad Resource
 validateNativeType r = do
-    tps <- singleton GetNativeTypes
-    case tps ^. at (r ^. rid . itype) of
-        Just x -> case (x ^. puppetValidate) r of
-                      Right nr -> return nr
-                      Left err -> throwPosError ("Invalid resource" <+> pretty r </> getError err)
-        Nothing -> return r
+  tps <- singleton GetNativeTypes
+  case tps ^. at (r ^. rid . itype) of
+    Just x -> case (x ^. puppetValidate) r of
+      Right nr -> return nr
+      Left err -> throwPosError ("Invalid resource" <+> pretty r </> getError err)
+    Nothing -> return r

@@ -104,22 +104,22 @@ expression =
           lookups <- optional indexLookupChain
           symbolic '?'
           return $ maybe trm ($ trm) lookups
-      let cas = do
-            c <- (SelectorDefault <$ symbol "default") -- default case
-                    <|> fmap SelectorType (try datatype)
-                    <|> fmap SelectorValue
-                          (   fmap UVariableReference variableReference
-                          <|> fmap UBoolean puppetBool
-                          <|> (UUndef <$ symbol "undef")
-                          <|> literalValue
-                          <|> fmap UInterpolable interpolableString
-                          <|> (URegexp <$> termRegexp)
-                          )
-            void $ symbol "=>"
+      let case_expr = do
+            c <-     SelectorDefault <$ symbol "default" -- default case
+                 <|> SelectorType <$> try datatype
+                 <|> fmap SelectorValue
+                       (   UVariableReference <$> variableReference
+                       <|> UBoolean <$> puppetBool
+                       <|> UUndef <$ symbol "undef"
+                       <|> literalValue
+                       <|> UInterpolable <$> interpolableString
+                       <|> URegexp <$> termRegexp
+                       )
+            symbol "=>"
             e <- expression
-            return (c :!: e)
-      cases <- braces (sepComma1 cas)
-      return (ConditionalValue selectedExpression (V.fromList cases))
+            pure (c :!: e)
+      cases <- braces (sepComma1 case_expr)
+      pure (ConditionalValue selectedExpression (V.fromList cases))
 
 variable :: Parser Expression
 variable = Terminal . UVariableReference <$> variableReference
@@ -285,7 +285,7 @@ genFunctionCall nonparens = do
 literalValue :: Parser UnresolvedValue
 literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
     where
-        numericalvalue = integerOrDouble >>= \i -> case i of
+        numericalvalue = integerOrDouble >>= \case
             Left x  -> return (fromIntegral x)
             Right y -> return (Scientific.fromFloatDigits y)
 
@@ -357,7 +357,7 @@ indexLookupChain = List.foldr1 (flip (.)) <$> some checkLookup
         checkLookup = flip Lookup <$> between (operator "[") (operator "]") expression
 
 stringExpression :: Parser Expression
-stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reserved "undef" *> return (Terminal UUndef)) <|> fmap (Terminal . UBoolean) puppetBool <|> variable <|> fmap Terminal literalValue
+stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reserved "undef" $> Terminal UUndef) <|> fmap (Terminal . UBoolean) puppetBool <|> variable <|> fmap Terminal literalValue
 
 varAssign :: Parser VarAssignDecl
 varAssign = do
@@ -580,7 +580,7 @@ chainableResources = do
     let withresname = do
             p <- getSourcePos
             restype  <- resourceNameRef
-            lookAhead anySingle >>= \x -> case x of
+            lookAhead anySingle >>= \case
                 '[' -> do
                     resnames <- brackets (expression `sepBy1` comma)
                     pe <- getSourcePos
@@ -773,7 +773,7 @@ datatype = dtString
       <|> reserved "Systemd::Dropin" $> UDTData
 
 statementList :: Parser (Vector Statement)
-statementList = (V.fromList . concat) <$> many statement
+statementList = V.fromList . concat <$> many statement
 
 lambdaCall :: Parser HOLambdaCall
 lambdaCall = do
@@ -793,5 +793,5 @@ lambdaCall = do
       lambParams = between (symbolic '|') (symbolic '|') hp
         where
           lambdaParameter :: Parser LambdaParameter
-          lambdaParameter = LParam <$> optional datatype <*> (char '$' *> identifier)
+          lambdaParameter = LambdaParam <$> optional datatype <*> (char '$' *> identifier)
           hp = V.fromList <$> lambdaParameter `sepBy1` comma
