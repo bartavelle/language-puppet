@@ -131,8 +131,8 @@ stringLiteral' = char '\'' *> interior <* symbolic '\''
         escape '\'' = "'"
         escape x    = ['\\',x]
 
-identifier :: Parser String
-identifier = some (satisfy identifierPart)
+identifier :: Parser (Tokens Text)
+identifier = takeWhile1P (Just "identifierpart") identifierPart
 
 identifierPart :: Char -> Bool
 identifierPart x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
@@ -155,8 +155,7 @@ reserved s =
 
 variableName :: Parser Text
 variableName = do
-    let acceptablePart = Text.pack <$> many (satisfy identifierAcceptable)
-        identifierAcceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
+    let acceptablePart = takeWhileP (Just "identifierpart") identifierPart
     out <- qualif acceptablePart
     when (out == "string") (panic "The special variable $string should never be used")
     return out
@@ -787,14 +786,13 @@ lambdaCall = do
                  <*> (symbolic '{' *> fmap (V.fromList . concat) (many (try statement)))
                  <*> fmap tostrict (optional expression) <* symbolic '}'
     where
-        parameters :: Parser (V.Vector Expression)
-        parameters = maybe V.empty V.fromList <$> optional (parens (expression `sepBy` comma))
-        lambFunc :: Parser LambdaFunc
-        lambFunc = LambdaFunc <$> moduleName
-        lambParams :: Parser LambdaParameters
-        lambParams = between (symbolic '|') (symbolic '|') hp
-            where
-                acceptablePart = Text.pack <$> identifier
-                lambdaParameter :: Parser LambdaParameter
-                lambdaParameter = LParam <$> optional datatype <*> (char '$' *> acceptablePart)
-                hp = V.fromList <$> lambdaParameter `sepBy1` comma
+      parameters :: Parser (V.Vector Expression)
+      parameters = maybe V.empty V.fromList <$> optional (parens (expression `sepBy` comma))
+      lambFunc :: Parser LambdaFunc
+      lambFunc = LambdaFunc <$> moduleName
+      lambParams :: Parser LambdaParameters
+      lambParams = between (symbolic '|') (symbolic '|') hp
+        where
+          lambdaParameter :: Parser LambdaParameter
+          lambdaParameter = LParam <$> optional datatype <*> (char '$' *> identifier)
+          hp = V.fromList <$> lambdaParameter `sepBy1` comma
