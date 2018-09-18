@@ -155,8 +155,7 @@ reserved s =
 
 variableName :: Parser Text
 variableName = do
-    let acceptablePart = takeWhileP (Just "identifierpart") identifierPart
-    out <- qualif acceptablePart
+    out <- qualif identifier
     when (out == "string") (panic "The special variable $string should never be used")
     return out
 
