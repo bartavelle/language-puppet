@@ -208,7 +208,7 @@ resolveExpression (And a b) = do
       pure (PBoolean (ra && rb))
     else pure (PBoolean False)
 resolveExpression (Or a b) = do
-  ra <- fmap pValue2Bool (resolveExpression a)
+  ra <- pValue2Bool <$> resolveExpression a
   if ra
     then pure (PBoolean True)
     else do
@@ -391,7 +391,7 @@ resolveExpressionStrings x =
 -- | Turns a 'PValue' into a 'Bool' as explained in the reference documentation.
 pValue2Bool :: PValue -> Bool
 pValue2Bool PUndef       = False
-pValue2Bool (PString "") = False
+pValue2Bool (PString "") = True
 pValue2Bool (PBoolean x) = x
 pValue2Bool _            = True
 

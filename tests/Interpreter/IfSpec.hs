@@ -34,5 +34,7 @@ spec = do
         [ "if (false) { fail ':(' }" ]
     it "enters true conditions" $ shouldFail
         [ "if (true) { fail ':(' }" ]
+    it "enters empty string conditions" $ shouldFail
+        [ "if '' { fail ':(' }" ]
     it "not (unknown variable) is true" $ shouldFail
         [ "if (!$::unknown123) { fail ':(' }" ]
