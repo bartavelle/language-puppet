@@ -70,16 +70,16 @@ integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrIn
         hex = string "0x" *> Lexer.hexadecimal
 
 braces :: Parser a -> Parser a
-braces = between (symbol "{") (symbol "}")
+braces = between (symbolic '{') (symbolic '}')
 
 parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
+parens = between (symbolic '(') (symbolic ')')
 
 brackets :: Parser a -> Parser a
-brackets = between (symbol "[") (symbol "]")
+brackets = between (symbolic '[') (symbolic ']')
 
 comma :: Parser ()
-comma = symbol ","
+comma = symbolic ','
 
 sepComma :: Parser a -> Parser [a]
 sepComma p = p `sepEndBy` comma
@@ -143,8 +143,7 @@ identl fstl nxtl = do
   nxt <- lexeme $ many nxtl
   return $ Text.pack $ f : nxt
 
-operator :: Text -> Parser ()
-operator = void . try . symbol
+isBarewordChar :: Char -> Bool
 
 reserved :: Text -> Parser ()
 reserved s =
@@ -238,7 +237,7 @@ puppetArray = fmap (UArray . V.fromList) (brackets (sepComma expression)) <?> "A
 puppetHash :: Parser UnresolvedValue
 puppetHash = fmap (UHash . V.fromList) (braces (sepComma hashPart)) <?> "Hash"
     where
-        hashPart = (:!:) <$> (expression <* operator "=>")
+        hashPart = (:!:) <$> (expression <* symbol "=>")
                          <*> expression
 
 puppetBool :: Parser Bool
@@ -322,29 +321,29 @@ terminal = terminalG (fmap Terminal (fmap UHOLambdaCall (try lambdaCall) <|> try
 
 expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
-                  , [ Prefix ( operator "-"   >> return Negate           ) ]
-                  , [ Prefix ( operator "!"   >> return Not              ) ]
-                  , [ InfixL  ( operator "."   >> return FunctionApplication ) ]
+                  , [ Prefix ( symbolic '-'   >> return Negate           ) ]
+                  , [ Prefix ( symbolic '!'   >> return Not              ) ]
+                  , [ InfixL  ( symbolic '.'   >> return FunctionApplication ) ]
                   , [ InfixL  ( reserved "in"  >> return Contains         ) ]
-                  , [ InfixL  ( operator "/"   >> return Division         )
-                    , InfixL  ( operator "*"   >> return Multiplication   )
+                  , [ InfixL  ( symbolic '/'   >> return Division         )
+                    , InfixL  ( symbolic '*'   >> return Multiplication   )
                     ]
-                  , [ InfixL  ( operator "+"   >> return Addition     )
-                    , InfixL  ( operator "-"   >> return Substraction )
+                  , [ InfixL  ( symbolic '+'   >> return Addition     )
+                    , InfixL  ( symbolic '-'   >> return Substraction )
                     ]
-                  , [ InfixL  ( operator "<<"  >> return LeftShift  )
-                    , InfixL  ( operator ">>"  >> return RightShift )
+                  , [ InfixL  ( symbol "<<"  >> return LeftShift  )
+                    , InfixL  ( symbol ">>"  >> return RightShift )
                     ]
-                  , [ InfixL  ( operator "=="  >> return Equal     )
-                    , InfixL  ( operator "!="  >> return Different )
+                  , [ InfixL  ( symbol "=="  >> return Equal     )
+                    , InfixL  ( symbol "!="  >> return Different )
                     ]
-                  , [ InfixL  ( operator "=~"  >> return RegexMatch    )
-                    , InfixL  ( operator "!~"  >> return NotRegexMatch )
+                  , [ InfixL  ( symbol "=~"  >> return RegexMatch    )
+                    , InfixL  ( symbol "!~"  >> return NotRegexMatch )
                     ]
-                  , [ InfixL  ( operator ">="  >> return MoreEqualThan )
-                    , InfixL  ( operator "<="  >> return LessEqualThan )
-                    , InfixL  ( operator ">"   >> return MoreThan      )
-                    , InfixL  ( operator "<"   >> return LessThan      )
+                  , [ InfixL  ( symbol ">="  >> return MoreEqualThan )
+                    , InfixL  ( symbol "<="  >> return LessEqualThan )
+                    , InfixL  ( symbol ">"   >> return MoreThan      )
+                    , InfixL  ( symbol "<"   >> return LessThan      )
                     ]
                   , [ InfixL  ( reserved "and" >> return And )
                     , InfixL  ( reserved "or"  >> return Or  )
@@ -354,7 +353,7 @@ expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/que
 indexLookupChain :: Parser (Expression -> Expression)
 indexLookupChain = List.foldr1 (flip (.)) <$> some checkLookup
     where
-        checkLookup = flip Lookup <$> between (operator "[") (operator "]") expression
+        checkLookup = flip Lookup <$> brackets expression
 
 stringExpression :: Parser Expression
 stringExpression = fmap (Terminal . UInterpolable) interpolableString <|> (reserved "undef" $> Terminal UUndef) <|> fmap (Terminal . UBoolean) puppetBool <|> variable <|> fmap Terminal literalValue
@@ -468,15 +467,14 @@ zipChain (OperatorChain a d nx) = (a, operatorChainStatement nx, d) : zipChain n
 zipChain (EndOfChain _) = []
 
 depOperator :: Parser LinkType
-depOperator =   (RBefore <$ operator "->")
-            <|> (RNotify <$ operator "~>")
+depOperator =   (RBefore <$ symbol "->")
+            <|> (RNotify <$ symbol "~>")
 
 assignment :: Parser AttributeDecl
-assignment = (AttributeDecl <$> key <*> arrowOp  <*> expression)
+assignment = (AttributeDecl <$> lexeme key <*> arrowOp  <*> expression)
          <|> (AttributeWildcard <$> (symbolic '*' *> symbol "=>" *> expression))
     where
-        key = identl (satisfy Char.isAsciiLower) (satisfy acceptable) <?> "Assignment key"
-        acceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_') || (x == '-')
+        key = (Text.cons) <$> (satisfy Char.isAsciiLower) <*> takeWhileP Nothing isBarewordChar <?> "Assignment key"
         arrowOp =
               (AssignArrow <$ symbol "=>")
           <|> (AppendArrow <$ symbol "+>")
@@ -491,8 +489,8 @@ searchExpression = makeExprParser (lexeme searchterm) searchTable
         searchterm = parens searchExpression <|> check
         check = do
             attrib <- parameterName
-            opr    <- (EqualitySearch <$ operator "==")
-                  <|> (NonEqualitySearch <$ operator "!=")
+            opr    <- (EqualitySearch <$ symbol "==")
+                  <|> (NonEqualitySearch <$ symbol "!=")
             term   <- stringExpression
             return (opr attrib term)
 
