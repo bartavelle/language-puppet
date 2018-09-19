@@ -62,7 +62,7 @@ symbol :: Text -> Parser ()
 symbol = void . Lexer.symbol sc
 
 symbolic :: Char -> Parser ()
-symbolic = symbol . Text.singleton
+symbolic = lexeme . void . single
 
 integerOrDouble :: Parser (Either Integer Double)
 integerOrDouble = fmap Left hex <|> (either Right Left . Scientific.floatingOrInteger <$> Lexer.scientific)
