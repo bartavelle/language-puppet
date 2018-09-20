@@ -132,24 +132,19 @@ stringLiteral' = char '\'' *> interior <* symbolic '\''
         escape x    = ['\\',x]
 
 identifier :: Parser (Tokens Text)
-identifier = takeWhile1P (Just "identifierpart") identifierPart
+identifier = takeWhile1P Nothing isIdentifierChar
 
-identifierPart :: Char -> Bool
-identifierPart x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
-
-identl :: Parser Char -> Parser Char -> Parser Text
-identl fstl nxtl = do
-  f <- fstl
-  nxt <- lexeme $ many nxtl
-  return $ Text.pack $ f : nxt
+isIdentifierChar :: Char -> Bool
+isIdentifierChar x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
 
 isBarewordChar :: Char -> Bool
+isBarewordChar x = isIdentifierChar x || (x == '-')
 
 reserved :: Text -> Parser ()
 reserved s =
   try $ do
     void (string s)
-    notFollowedBy (satisfy identifierPart)
+    notFollowedBy (satisfy isIdentifierChar)
     sc
 
 variableName :: Parser Text
@@ -177,10 +172,10 @@ typeName :: Parser Text
 typeName = className
 
 moduleName :: Parser Text
-moduleName = genericModuleName False
+moduleName = lexeme $ genericModuleName False
 
 resourceNameRef :: Parser Text
-resourceNameRef = qualif (genericModuleName True)
+resourceNameRef = lexeme $ qualif (genericModuleName True)
 
 genericModuleName :: Bool -> Parser Text
 genericModuleName isReference = do
@@ -188,7 +183,7 @@ genericModuleName isReference = do
         firstletter = if isReference
                           then fmap Char.toLower (satisfy Char.isAsciiUpper)
                           else satisfy Char.isAsciiLower
-    identl firstletter (satisfy acceptable)
+    (Text.cons) <$> firstletter <*> takeWhileP Nothing acceptable
 
 parameterName :: Parser Text
 parameterName = moduleName
@@ -254,14 +249,10 @@ resourceReferenceRaw = do
 resourceReference :: Parser UnresolvedValue
 resourceReference = do
     (restype, resnames) <- resourceReferenceRaw
-    return $ UResourceReference restype $ case resnames of
+    pure $ UResourceReference restype $ case resnames of
                  [x] -> x
                  _   -> Terminal $ UArray (V.fromList resnames)
 
-bareword :: Parser Text
-bareword = identl (satisfy Char.isAsciiLower) (satisfy acceptable) <?> "Bare word"
-    where
-        acceptable x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_') || (x == '-')
 
 -- The first argument defines if non-parenthesized arguments are acceptable
 genFunctionCall :: Bool -> Parser (Text, Vector Expression)
@@ -283,10 +274,11 @@ genFunctionCall nonparens = do
 
 literalValue :: Parser UnresolvedValue
 literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
-    where
-        numericalvalue = integerOrDouble >>= \case
-            Left x  -> return (fromIntegral x)
-            Right y -> return (Scientific.fromFloatDigits y)
+  where
+    bareword = (Text.cons) <$> (satisfy Char.isAsciiLower) <*> takeWhileP Nothing isBarewordChar <?> "Bare word"
+    numericalvalue = integerOrDouble >>= \case
+        Left x  -> return (fromIntegral x)
+        Right y -> return (Scientific.fromFloatDigits y)
 
 -- this is a hack for functions :(
 terminalG :: Parser Expression -> Parser Expression
