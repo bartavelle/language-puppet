@@ -188,16 +188,19 @@ Adds facts to the test DB for the given node name, if they are not already defin
 `--version`::
 Output version information and exit.
 
-== Unsupported Puppet idioms or features
+== Supported and unsupported idioms or features
 
-OS::
-  * `OS X` is supported when using the latest `filecache-0.3`.
+Supported version::
+puppet 4 is mostly supported. Please look at the list of issues for details.
 
-puppet functions::
+Custom ruby functions::
+The tool might bark when resolving custom ruby functions.
+These function can easily be mocked or implemented in Haskell if necessary.
+
+Puppet functions::
   * the `require` function is not supported (see https://github.com/bartavelle/language-puppet/issues/17[issue #17])
   * the deprecated `import` function is not supported
   * the deprecated node inheritance feature is not supported
 
-supported version:: puppet 4 is mostly supported. Please look at the list of issues for details.
-
-custom ruby functions::
+OS::
+  Linux is the default OS. The tool has also been successfully installed and used on `OS X`. Windows is not supported.
