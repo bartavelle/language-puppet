@@ -28,8 +28,7 @@ nix-env -i -f https://github.com/bartavelle/language-puppet/tarball/1.4.1 <1>
 git clone https://github.com/bartavelle/language-puppet.git
 cd language-puppet
 # Using nix
-cabal2nix . > default.nix
-nix-build shell.nix
+nix-build
 # Using stack
 ln -s stack-10.yaml stack.yaml
 stack build
