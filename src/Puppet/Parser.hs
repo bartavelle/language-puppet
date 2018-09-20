@@ -206,9 +206,8 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
         escaper '$'  = "$"
         escaper x    = ['\\',x]
         -- this is specialized because we can't be "tokenized" here
-        variableAccept x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || x == '_'
         rvariableName = do
-            v <- Text.concat <$> some (string "::" <|> fmap Text.pack (some (satisfy variableAccept)))
+            v <- Text.concat <$> some (string "::" <|> identifier)
             when (v == "string") (fail "The special variable $string must not be used")
             return v
         rvariable = Terminal . UVariableReference <$> rvariableName
@@ -298,7 +297,7 @@ terminalG g = parens expression
 compileRegexp :: Text -> Parser CompRegex
 compileRegexp p = case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 p) of
     Right r -> return $ CompRegex p r
-    Left ms -> fail ("Can't parse regexp /" ++ Text.unpack p ++ "/ : " ++ show ms)
+    Left ms -> fail ("Can't parse regexp /" <> Text.unpack p <> "/ : " ++ show ms)
 
 termRegexp :: Parser CompRegex
 termRegexp = regexp >>= compileRegexp
