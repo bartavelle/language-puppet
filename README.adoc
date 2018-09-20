@@ -36,7 +36,7 @@ stack build
 
 .Basic usage:
 ```
-puppetresources -p /where/your/puppet/files/are -o node.name.com
+puppetresources --puppetdir /where/your/puppet/files/are --node node.name.com
 ```
 
 The `puppetresources` command is a command line utility that let you interactively compute catalogs on your local computer.
@@ -62,7 +62,7 @@ This argument is mandatory except in `parse` mode. It must point to the base of 
 
 Enable the `node mode`. This let you specify the name of the node you wish to compute the catalog for.
 
-`-a` or `-all`::
+`-a` or `--all`::
 
 Enable the `stats mode`. If you specify `allnodes` it will compute the catalogs for all nodes that are specified in `site.pp` (this will not work for regexp-specified or the default nodes). You can also specify a list of nodes separated by a comma.
 +
@@ -197,5 +197,7 @@ puppet functions::
   * the `require` function is not supported (see https://github.com/bartavelle/language-puppet/issues/17[issue #17])
   * the deprecated `import` function is not supported
   * the deprecated node inheritance feature is not supported
+
+supported version:: puppet 4 is mostly supported. Please look at the list of issues for details.
 
 custom ruby functions::
