@@ -55,9 +55,11 @@ runPuppetParser = parse puppetParser
 sc :: Parser ()
 sc = Lexer.space space1 (Lexer.skipLineComment "#") (Lexer.skipBlockComment "/*" "*/")
 
+-- lexeme consume spaces after the input parser
 lexeme :: Parser a -> Parser a
 lexeme = Lexer.lexeme sc
 
+-- consume its arguments then consume spaces
 symbol :: Text -> Parser ()
 symbol = void . Lexer.symbol sc
 
@@ -67,7 +69,7 @@ symbolic = lexeme . void . single
 integerOrDouble :: Parser (Either Integer Double)
 integerOrDouble = Left <$> hex <|> (either Right Left . Scientific.floatingOrInteger <$> Lexer.scientific)
   where
-    hex = string "0x" *> Lexer.hexadecimal
+    hex = chunk "0x" *> Lexer.hexadecimal
 
 braces :: Parser a -> Parser a
 braces = between (symbolic '{') (symbolic '}')
@@ -121,11 +123,8 @@ expression =
       cases <- braces (sepComma1 case_expr)
       pure (ConditionalValue selectedExpression (V.fromList cases))
 
-variable :: Parser Expression
-variable = Terminal . UVariableReference <$> variableReference
-
 stringLiteral' :: Parser Text
-stringLiteral' = char '\'' *> interior <* symbolic '\''
+stringLiteral' = between (char '\'') (symbolic '\'') interior
   where
     interior = Text.pack . concat <$> many (some (noneOf ['\'', '\\']) <|> (char '\\' *> fmap escape anySingle))
     escape '\'' = "'"
@@ -145,26 +144,32 @@ isBarewordChar x = isIdentifierChar x || (x == '-')
 reserved :: Text -> Parser ()
 reserved s =
   try $ do
-    void (string s)
+    void (chunk s)
     notFollowedBy (satisfy isIdentifierChar)
     sc
 
-variableName :: Parser Text
-variableName = do
-  out <- qualif identifier
-  when (out == "string") (panic "The special variable $string should never be used")
-  return out
-
 qualif :: Parser Text -> Parser Text
 qualif p = lexeme $ do
-  header <- option "" (string "::")
-  ( header <> ) . Text.intercalate "::" <$> p `sepBy1` string "::"
+  header <- option "" (chunk "::")
+  ( header <> ) . Text.intercalate "::" <$> p `sepBy1` chunk "::"
 
 qualif1 :: Parser Text -> Parser Text
 qualif1 p = try $ do
   r <- qualif p
   unless ("::" `Text.isInfixOf` r) (fail "This parser is not qualified")
   pure r
+
+variable :: Parser Expression
+variable = Terminal . UVariableReference <$> variableReference
+
+variableReference :: Parser Text
+variableReference = char '$' *> variableName
+
+variableName :: Parser Text
+variableName = do
+  out <- qualif identifier
+  when (out == "string") (panic "The special variable $string should never be used")
+  return out
 
 className :: Parser Text
 className = qualif moduleName
@@ -190,8 +195,6 @@ genericModuleName isReference = do
 parameterName :: Parser Text
 parameterName = moduleName
 
-variableReference :: Parser Text
-variableReference = char '$' *> variableName
 
 interpolableString :: Parser (Vector Expression)
 interpolableString = V.fromList <$> between (char '"') (symbolic '"')
@@ -209,7 +212,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
     escaper x    = ['\\',x]
     -- this is specialized because we can't be "tokenized" here
     rvariableName = do
-      v <- Text.concat <$> some (string "::" <|> identifier)
+      v <- Text.concat <$> some (chunk "::" <|> identifier)
       when (v == "string") (fail "The special variable $string must not be used")
       pure v
     rvariable = Terminal . UVariableReference <$> rvariableName
@@ -532,7 +535,7 @@ mainFuncDecl = do
 hoLambdaDecl :: Parser HigherOrderLambdaDecl
 hoLambdaDecl = do
   p <- getSourcePos
-  fc <- try lambdaCall
+  fc <- lambdaCall
   pe <- getSourcePos
   return (HigherOrderLambdaDecl fc (p :!: pe))
 
@@ -647,7 +650,7 @@ statement =
     <|> (map ResourceOverrideDeclaration <$> try resOverrideDecl)
     <|> chainableResources
     <|> (pure . ClassDeclaration <$> classDecl)
-    <|> (pure . HigherOrderLambdaDeclaration <$> hoLambdaDecl)
+    <|> (pure . HigherOrderLambdaDeclaration <$> try hoLambdaDecl)
     <|> (pure . MainFunctionDeclaration <$> mainFuncDecl)
     <?> "Statement"
 
