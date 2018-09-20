@@ -7,17 +7,14 @@ image:https://travis-ci.org/bartavelle/language-puppet.svg?branch=master["Build 
 
 A library to work with Puppet manifests, test them and eventually replace everything ruby.
 
-.Basic usage:
-```
-puppetresources -p /where/your/puppet/files/are -o node.name.com
-```
+== Install
 
-.Quick install instruction with stack:
+.Install with stack:
 ```bash
 stack install language-puppet
 ```
 
-.Quick install instruction with nix:
+.Install with nix:
 ```bash
 nix-env -i -f https://github.com/bartavelle/language-puppet/tarball/1.4.1 <1>
 ```
@@ -35,6 +32,11 @@ stack build
 ```
 
 == Puppetresources
+
+.Basic usage:
+```
+puppetresources -p /where/your/puppet/files/are -o node.name.com
+```
 
 The `puppetresources` command is a command line utility that let you interactively compute catalogs on your local computer.
 It is much faster than its ruby counterpart, and has been designed for giving assistance to the Puppet catalog writer.
