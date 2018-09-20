@@ -433,7 +433,7 @@ ifCondition = do
 caseCondition :: Parser ConditionalDecl
 caseCondition = do
     let puppetRegexpCase = Terminal . URegexp <$> termRegexp
-        defaultCase = Terminal (UBoolean True) <$ try (reserved "default")
+        defaultCase = Terminal (UBoolean True) <$ reserved "default"
         matchesToExpression e (x, stmts) = f x :!: stmts
             where f = case x of
                           (Terminal (UBoolean _)) -> identity
