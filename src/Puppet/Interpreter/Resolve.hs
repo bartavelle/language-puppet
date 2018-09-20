@@ -195,6 +195,26 @@ puppetEquality ra rb =
       -- for case insensitive matching
       _                             -> ra == rb
 
+-- Match a left expression with a regex
+-- Return a contextual True/False or Error after executing against the regex
+matchExpression :: Expression -> (Regex, Expression) -> InterpreterMonad PValue
+matchExpression a (rv, rexpr) = do
+  ra <- Text.encodeUtf8 <$> resolveExpressionString a
+  case Regex.execute' rv ra of
+    Left (_,rr)    -> throwPosError ("Error when executing regex" <+> pretty rexpr <+> ":" <+> pretty rr)
+    Right Nothing  -> pure $ PBoolean False
+    Right (Just matches) -> do
+      -- A bit of logic to save the capture variables.
+      -- Note that this will pollute the namespace, as it should only
+      -- happen in conditional expressions ...
+      p <- use curPos
+      ctype <- view cctype <$> getCurContainer
+      let captures = zip (map (Text.pack . show) [(0 :: Int)..]) (map mkMatch (toList matches))
+          mkMatch (offset, len) = PString (Text.decodeUtf8 (BS.take len (BS.drop offset ra))) :!: p :!: ctype
+      scp <- getScopeName
+      scopes . ix scp . scopeVariables %= HM.union (HM.fromList captures)
+      pure $ PBoolean True
+
 -- | The main resolution function : turns an 'Expression' into a 'PValue',
 -- if possible.
 resolveExpression :: Expression -> InterpreterMonad PValue
@@ -219,22 +239,11 @@ resolveExpression (MoreThan a b) = numberCompare a b (>)
 resolveExpression (LessEqualThan a b) = numberCompare a b (<=)
 resolveExpression (MoreEqualThan a b) = numberCompare a b (>=)
 resolveExpression (RegexMatch a v@(Terminal (URegexp (CompRegex _ rv)))) = do
-  ra <- fmap Text.encodeUtf8 (resolveExpressionString a)
-  case Regex.execute' rv ra of
-    Left (_,rr)    -> throwPosError ("Error when evaluating" <+> pretty v <+> ":" <+> ppstring rr)
-    Right Nothing  -> pure $ PBoolean False
-    Right (Just matches) -> do
-      -- A bit of logic to save the capture variables.
-      -- Note that this will pollute the namespace, as it should only
-      -- happen in conditional expressions ...
-      p <- use curPos
-      ctype <- view cctype <$> getCurContainer
-      let captures = zip (map (Text.pack . show) [(0 :: Int)..]) (map mkMatch (toList matches))
-          mkMatch (offset, len) = PString (Text.decodeUtf8 (BS.take len (BS.drop offset ra))) :!: p :!: ctype
-      scp <- getScopeName
-      scopes . ix scp . scopeVariables %= HM.union (HM.fromList captures)
-      pure $ PBoolean True
-resolveExpression (RegexMatch _ t) = throwPosError ("The regexp matching operator expects a regular expression, not" <+> pretty t)
+  matchExpression a (rv, v)
+resolveExpression (RegexMatch a b) = do
+  resolveExpression b >>= \case
+    PRegexp (CompRegex _ rv) -> matchExpression a (rv, b)
+    _ -> throwPosError ("The regexp matching operator expects a regular expression, not" <+> pretty b)
 resolveExpression (NotRegexMatch a v) = resolveExpression (Not (RegexMatch a v))
 resolveExpression (Equal a b) = do
   ra <- resolveExpression a
@@ -333,7 +342,7 @@ resolveExpression (Negate x) = PNumber . negate <$> resolveExpressionNumber x
 -- a 'PValue'
 resolveValue :: UnresolvedValue -> InterpreterMonad PValue
 resolveValue (UNumber n) = pure (PNumber n)
-resolveValue n@(URegexp _) = throwPosError ("Regular expressions are not allowed in this context: " <+> pretty n)
+resolveValue (URegexp r) = pure (PRegexp r)
 resolveValue (UBoolean x) = pure (PBoolean x)
 resolveValue (UString x) = pure (PString x)
 resolveValue UUndef = pure PUndef
