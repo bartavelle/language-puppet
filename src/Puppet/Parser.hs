@@ -257,16 +257,20 @@ resourceReference = do
                [x] -> x
                _   -> Terminal $ UArray (V.fromList resnames)
 
+-- | Functions that have named that are not valid ...
+specialFunctions :: Parser Text
+specialFunctions = string "Integer"
+               <|> string "Numeric"
 
 -- The first argument defines if non-parenthesized arguments are acceptable
 genFunctionCall :: Bool -> Parser (Text, Vector Expression)
 genFunctionCall nonparens = do
-  fname <- moduleName <?> "Function name"
+  fname <- (specialFunctions <|> moduleName) <?> "Function name"
   -- this is a hack. Contrary to what the documentation says,
   -- a "bareword" can perfectly be a qualified name :
   -- include foo::bar
   let argsc sep e = (fmap (Terminal . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
-      terminalF = terminalG (fail "function hack")
+      terminalF = terminalG FunctionWithoutParens
       expressionF = makeExprParser (lexeme terminalF) expressionTable <?> "function expression"
       withparens = parens (argsc sepEndBy expression)
       withoutparens = argsc sepEndBy1 expressionF
@@ -284,9 +288,13 @@ literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|>
       Left x  -> return (fromIntegral x)
       Right y -> return (Scientific.fromFloatDigits y)
 
+data TerminalMode
+    = FunctionWithoutParens
+    | StandardMode
+
 -- this is a hack for functions :(
-terminalG :: Parser Expression -> Parser Expression
-terminalG g =
+terminalG :: TerminalMode -> Parser Expression
+terminalG mde =
       parens expression
   <|> fmap (Terminal . UInterpolable) interpolableString
   <|> (Terminal UUndef <$ reserved "undef")
@@ -295,10 +303,16 @@ terminalG g =
   <|> fmap Terminal puppetArray
   <|> fmap Terminal puppetHash
   <|> fmap (Terminal . UBoolean) puppetBool
-  <|> fmap (Terminal . UDataType) datatype
-  <|> fmap Terminal resourceReference
-  <|> g
-  <|> fmap Terminal literalValue
+  <|> case mde of
+        FunctionWithoutParens -> remaining
+        StandardMode -> lambda <|> remaining
+ where
+   lambda = fmap Terminal (fmap UHOLambdaCall (try lambdaCall) <|> try funcCall)
+   remaining = fmap (Terminal . UDataType) datatype
+           <|> fmap Terminal resourceReference
+           <|> fmap Terminal literalValue
+   funcCall :: Parser UnresolvedValue
+   funcCall = uncurry UFunctionCall <$> genFunctionCall False
 
 compileRegexp :: Text -> Parser CompRegex
 compileRegexp p = case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 p) of
@@ -309,12 +323,7 @@ termRegexp :: Parser CompRegex
 termRegexp = regexp >>= compileRegexp
 
 terminal :: Parser Expression
-terminal = terminalG (fmap Terminal (fmap UHOLambdaCall (try lambdaCall) <|> try funcCall))
-  where
-    funcCall :: Parser UnresolvedValue
-    funcCall = do
-      (fname, args) <- genFunctionCall False
-      pure $ UFunctionCall fname args
+terminal = terminalG StandardMode
 
 expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
