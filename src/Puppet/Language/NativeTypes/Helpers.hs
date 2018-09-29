@@ -19,10 +19,8 @@ module Puppet.Language.NativeTypes.Helpers
   , fullyQualifieds
   , values
   , defaultvalue
-  , concattype
   , nameval
   , defaultValidate
-  , parameterFunctions
   , integer
   , integers
   , mandatory
@@ -81,9 +79,6 @@ nativetypemethods def extraV =
 
 faketype :: NativeTypeName -> (NativeTypeName, NativeTypeMethods)
 faketype tname = (tname, NativeTypeMethods Right HS.empty)
-
-concattype :: NativeTypeName -> (NativeTypeName, NativeTypeMethods)
-concattype tname = (tname, NativeTypeMethods (defaultValidate HS.empty) HS.empty)
 
 defaulttype :: NativeTypeName -> (NativeTypeName, NativeTypeMethods)
 defaulttype tname = (tname, NativeTypeMethods (defaultValidate HS.empty) HS.empty)
@@ -146,8 +141,6 @@ string' param rev res = case rev of
   PNumber n      -> Right (res & rattributes . at param ?~ PString (scientific2text n))
   x              -> perror $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
 
-
-
 -- | Makes sure that the parameter, if defined, has a value among this list.
 values :: [Text] -> Text -> NativeTypeValidate
 values valuelist param res = case res ^. rattributes . at param of
@@ -203,7 +196,7 @@ mandatory param res = case res ^. rattributes . at param of
     Just _  -> Right res
     Nothing -> perror $ "Parameter" <+> paramname param <+> "should be set."
 
--- | Helper that takes a list of stuff and will generate a validator.
+-- Helper that takes a list of stuff and will generate a validator.
 parameterFunctions :: [(Text, [Text -> NativeTypeValidate])] -> NativeTypeValidate
 parameterFunctions argrules rs = foldM parameterFunctions' rs argrules
     where

@@ -1,6 +1,5 @@
 module Puppet.Interpreter.RubyRandom
-  ( rbGenrandInt32
-  , randInit
+  ( randInit
   , limitedRand
   ) where
 
@@ -99,20 +98,6 @@ randInit x = if x <= 0xffffffff
                  then initGenrand x
                  else initGenrandBigint x
 
-rbGenrandInt32 :: RandState -> (Int, RandState)
-rbGenrandInt32 st =
-    let rst = if _left st == 1
-                  then nextState st
-                  else st { _left = _left st - 1 }
-        next = _next rst
-        cv = _array rst V.! next
-        nst = rst { _next = next + 1 }
-        y1 = cv `xor` (cv `shiftR` 11)
-        y2 = y1 `xor` ((y1 `shiftL` 7) .&. 0x9d2c5680)
-        y3 = y2 `xor` ((y2 `shiftL` 15) .&. 0xefc60000)
-        y4 = y3 `xor` (y3 `shiftR` 18)
-    in (y4,nst)
-
 limitedRand :: RandState -> Int -> (Int, RandState)
 limitedRand s n | n <= 0 = (0, s)
                 | otherwise = limitedRand' s
@@ -124,3 +109,16 @@ limitedRand s n | n <= 0 = (0, s)
             in  if n <= val
                     then limitedRand' ns
                     else (val, ns)
+        rbGenrandInt32 :: RandState -> (Int, RandState)
+        rbGenrandInt32 st =
+            let rst = if _left st == 1
+                          then nextState st
+                          else st { _left = _left st - 1 }
+                next = _next rst
+                cv = _array rst V.! next
+                nst = rst { _next = next + 1 }
+                y1 = cv `xor` (cv `shiftR` 11)
+                y2 = y1 `xor` ((y1 `shiftL` 7) .&. 0x9d2c5680)
+                y3 = y2 `xor` ((y2 `shiftL` 15) .&. 0xefc60000)
+                y4 = y3 `xor` (y3 `shiftR` 18)
+            in (y4,nst)
