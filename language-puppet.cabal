@@ -16,7 +16,7 @@ build-type:          Simple
 cabal-version:       >=1.8
 bug-reports:         https://github.com/bartavelle/language-puppet/issues
 
-Tested-With:         GHC == 8.0.2, GHC == 8.2.2
+Tested-With:         GHC == 8.0.2, GHC == 8.2.2, GHC == 8.4.3
 
 extra-source-files:
     CHANGELOG
@@ -100,7 +100,7 @@ library
                      , base16-bytestring    == 0.1.*
                      , bytestring
                      , case-insensitive     == 1.2.*
-                     , containers           == 0.5.*
+                     , containers           >= 0.5     && < 0.7
                      , cryptonite           >= 0.6
                      , directory            >= 1.2     && < 1.4
                      , exceptions           >= 0.8     && < 0.11
