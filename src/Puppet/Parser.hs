@@ -149,7 +149,7 @@ reserved s =
     sc
 
 qualif :: Parser Text -> Parser Text
-qualif p = lexeme $ do
+qualif p =  do
   header <- option "" (chunk "::")
   ( header <> ) . Text.intercalate "::" <$> p `sepBy1` chunk "::"
 
@@ -166,13 +166,13 @@ variableReference :: Parser Text
 variableReference = char '$' *> variableName
 
 variableName :: Parser Text
-variableName = do
+variableName = lexeme $ do
   out <- qualif identifier
   when (out == "string") (panic "The special variable $string should never be used")
   return out
 
 className :: Parser Text
-className = qualif moduleName
+className = lexeme $ qualif moduleName
 
 -- yay with reserved words
 typeName :: Parser Text
@@ -246,9 +246,9 @@ puppetBool =
 
 resourceReferenceRaw :: Parser (Text, [Expression])
 resourceReferenceRaw = do
-  restype  <- resourceNameRef <?> "Resource reference type"
-  resnames <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
-  pure (restype, resnames)
+  let restype_parser = qualif (genericModuleName True)
+      resnames_parser = brackets (expression `sepBy1` comma)
+  (,) <$> restype_parser <*> resnames_parser -- <?> "Resource reference"
 
 resourceReference :: Parser UnresolvedValue
 resourceReference = do
@@ -269,7 +269,7 @@ genFunctionCall nonparens = do
   -- this is a hack. Contrary to what the documentation says,
   -- a "bareword" can perfectly be a qualified name :
   -- include foo::bar
-  let argsc sep e = (fmap (Terminal . UString) (qualif1 className) <|> e <?> "Function argument A") `sep` comma
+  let argsc sep e = (fmap (Terminal . UString) (lexeme (qualif1 moduleName)) <|> e <?> "Function argument A") `sep` comma
       terminalF = terminalG FunctionWithoutParens
       expressionF = makeExprParser (lexeme terminalF) expressionTable <?> "function expression"
       withparens = parens (argsc sepEndBy expression)
