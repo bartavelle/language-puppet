@@ -5,7 +5,7 @@ import           Test.Hspec
 import           Text.Megaparsec       (eof, parse)
 
 import           Puppet.Interpreter
-import           Puppet.Parser
+import           Puppet.Parser.Internal
 import           Puppet.Runner
 import           XPrelude
 

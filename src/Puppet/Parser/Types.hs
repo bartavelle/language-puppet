@@ -18,6 +18,9 @@ module Puppet.Parser.Types
    Virtuality(..),
    NodeDesc(..),
    LinkType(..),
+   -- ** Synonyms
+   Parser,
+   PuppetParseError,
    -- ** Datatypes
    UDataType(..),
    -- ** Search Expressions
@@ -48,10 +51,13 @@ import qualified Data.Text           as Text
 import qualified Data.Vector         as V
 import qualified GHC.Exts            as Exts
 import           GHC.Show            (Show (..))
+import           Text.Megaparsec
 
 import           Puppet.Language
 
 
+type PuppetParseError = ParseError Char Void
+type Parser = Parsec Void Text
 
 -- | /High Order lambdas/.
 newtype LambdaFunc = LambdaFunc Text deriving (Eq, Show)

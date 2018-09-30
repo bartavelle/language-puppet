@@ -1,14 +1,16 @@
 module LexerSpec(spec) where
 
+import           XPrelude
+
 import           System.FilePath.Glob
 import           Test.Hspec
 import           Text.Megaparsec      (eof, parse)
 import           Test.Hspec.Megaparsec
-import           XPrelude
 
 import           Puppet.Parser
+import           Puppet.Parser.Internal
 
-alltests = do
+validFiles = do
   files <- runIO $ globDir1 (compile "*.pp") "tests/lexer"
   mapM_ test files
 
@@ -19,4 +21,13 @@ alltests = do
     check i  =
       parse (puppetParser <* eof) empty `shouldSucceedOn` i
 
-spec = describe "Lexer" $ alltests
+invalidResourceReference =
+  invalidTest "should fail to parse resource reference with a space after the resource type" resourceReference  "File ['/test']"
+
+spec = describe "Lexer" $ do
+  describe "Valid lexer" $ validFiles
+  describe "Invalid lexer" $ do
+    invalidResourceReference
+
+-- Utils
+invalidTest msg p s = it msg $ parse (p <* eof) mempty `shouldFailOn` s

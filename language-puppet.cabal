@@ -41,6 +41,8 @@ library
                        , PuppetDB
                        , Puppet.Language
                        , Puppet.Parser
+                       -- exposed internal to ease testing
+                       , Puppet.Parser.Internal
                        , Puppet.Interpreter
                        , Puppet.Runner
   other-modules:         XPrelude.Extra

@@ -6,6 +6,8 @@ import           Test.Hspec.Megaparsec
 import           Text.Megaparsec (parse)
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
+import           Puppet.Parser.Internal
+
 spec :: Spec
 spec = do
   let parsed s r = it ("accepts " <> toS s) $ parse datatype "?" s `shouldParse` r
