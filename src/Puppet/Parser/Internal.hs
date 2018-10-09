@@ -771,5 +771,5 @@ lambdaCall = do
     lambParams = between (symbolic '|') (symbolic '|') hp
       where
         lambdaParameter :: Parser LambdaParameter
-        lambdaParameter = LambdaParam <$> optional datatype <*> (char '$' *> identifier)
+        lambdaParameter = LambdaParam <$> optional datatype <*> lexeme (char '$' *> identifier)
         hp = V.fromList <$> lambdaParameter `sepBy1` comma
