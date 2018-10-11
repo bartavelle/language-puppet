@@ -90,9 +90,16 @@ eval r s (a :>>= k) =
 -- query all hiera layers
 queryHiera :: Monad m =>  HieraQueryLayers m -> Container Text -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
 queryHiera layers scps q t = do
-  val <- (layers^.globalLayer) scps q t
-  case val of
+  val0 <- (layers^.globalLayer) scps q t
+  case val0 of
     S.Right Nothing -> do
+      val1 <- (layers ^.environmentLayer) scps q t
+      case val1 of
+        S.Right Nothing -> query_modlayer
+        _ -> pure val1
+    _ -> pure val0
+  where
+    query_modlayer = do
       let
         modname =
           case Text.splitOn "::" (Text.dropWhile (==':') q) of
@@ -100,5 +107,4 @@ queryHiera layers scps q t = do
             [_]   -> Nothing
             (m:_) -> Just m
         layer = modname >>= (\n -> layers ^.moduleLayer.at n)
-      maybe (pure val) (\hq -> hq scps q t) layer
-    _ -> pure val
+      maybe (pure $ S.Right Nothing) (\hq -> hq scps q t) layer

@@ -79,6 +79,7 @@ module Puppet.Interpreter.Types (
  -- * Hiera
  , HieraQueryLayers(..)
  , globalLayer
+ , environmentLayer
  , moduleLayer
  -- * Template
  , TemplateSource(..)
@@ -203,6 +204,7 @@ data IoMethods m = IoMethods
 -- The datatype belongs to the "Puppet.Interpreter" module because it serves to implement how Hiera is used within Puppet.
 data HieraQueryLayers m = HieraQueryLayers
   { _globalLayer :: HieraQueryFunc m
+  , _environmentLayer :: HieraQueryFunc m
   , _moduleLayer :: Container (HieraQueryFunc m)
   }
 
@@ -265,15 +267,15 @@ data InterpreterInstr a where
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
 
 instance MonadError PrettyError InterpreterMonad where
-    throwError = singleton . ErrorThrow
-    catchError a c = singleton (ErrorCatch a c)
+  throwError = singleton . ErrorThrow
+  catchError a c = singleton (ErrorCatch a c)
 
 -- | Log
 type InterpreterWriter = [Pair Log.Priority Doc]
 instance MonadWriter InterpreterWriter InterpreterMonad where
-    tell = singleton . WriterTell
-    pass = singleton . WriterPass
-    listen = singleton . WriterListen
+  tell = singleton . WriterTell
+  pass = singleton . WriterPass
+  listen = singleton . WriterListen
 
 
 data ResourceModifier = ResourceModifier

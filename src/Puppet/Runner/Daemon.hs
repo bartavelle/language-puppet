@@ -125,12 +125,18 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
 -- Build the 'HieraQueryLayers' needed by the interpreter to lookup hiera values.
 hieraQuery :: Preferences IO -> IO (HieraQueryLayers IO)
 hieraQuery pref = do
-  api0 <- case pref ^. prefHieraPath of
+  global_api <- case pref ^. prefHieraPath of
     Just p  -> startHiera p
     Nothing -> pure dummyHiera
-  modapis <- getModApis
-  pure (HieraQueryLayers api0 modapis)
+  env_api <- getEnvApi
+  mod_api <- getModApis
+  pure (HieraQueryLayers global_api env_api mod_api)
   where
+    getEnvApi :: IO (HieraQueryFunc IO)
+    getEnvApi = do
+      let f =  (pref ^. prefPuppetPaths . baseDir) <> "/hiera.yaml"
+      found <- Directory.doesFileExist f
+      if found then startHiera f else pure dummyHiera
     getModApis :: IO (Container (HieraQueryFunc IO))
     getModApis = do
       let ignored_modules = pref^.prefIgnoredmodules
