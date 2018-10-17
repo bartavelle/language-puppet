@@ -9,25 +9,42 @@ import           Puppet.Runner
 
 parsingtests :: [(String, [RubyStatement])]
 parsingtests =
-  [ ("port = 5432", [ Puts (Value (Literal "port = 5432" ))])
-  , ("mode = host=<% @var %>", [ Puts (Value (Literal "mode = host="))
-                               , Puts (Object (Value (Literal "@var")))
-                               , Puts (Value (Literal ""))])
-  , ("mode = host=<% var %>", [ Puts (Value (Literal "mode = host="))
-                              , Puts (Object (Value (Literal "var")))
-                              , Puts (Value (Literal ""))])
-  , ("<%= @os['architecture'] %>", [ Puts (Value (Literal ""))
-                                   , Puts (LookupOperation (Object (Value (Literal "@os"))) (Value (Literal "architecture")))
-                                   , Puts (Value (Literal ""))])
-  , ("<%= @os['release']['major'] %>", [ Puts (Value (Literal ""))
-                                       , Puts (LookupOperation (LookupOperation (Object (Value (Literal "@os"))) (Value (Literal "release"))) (Value (Literal "major")))
-                                       , Puts (Value (Literal ""))])
-  , ("<%= @processors['models'] %>", [ Puts (Value (Literal ""))
-                                     , Puts (LookupOperation (Object (Value (Literal "@processors"))) (Value (Literal "models")))
-                                     , Puts (Value (Literal ""))])
-  , ("<%= scope.lookupvar('::fqdn') %>", [ Puts (Value (Literal ""))
-                                         , Puts (ScopeObject (Value (Literal "::fqdn")))
-                                         ,  Puts(Value (Literal ""))])
+  [ ( "port = 5432", [ Puts (Value (Literal "port = 5432" ))])
+  , ( "mode = host=<% @var %>"
+    , [ Puts (Value (Literal "mode = host="))
+      , Eval (Object (Value (Literal "@var")))
+      , Puts (Value (Literal ""))
+      ])
+  , ( "mode = host=<% var %>"
+    , [ Puts (Value (Literal "mode = host="))
+      , Eval (Object (Value (Literal "var")))
+      , Puts (Value (Literal ""))
+      ])
+  , ( "<%= @os['architecture'] %>"
+    , [ Puts (Value (Literal ""))
+      , Puts (LookupOperation (Object (Value (Literal "@os"))) (Value (Literal "architecture")))
+      , Puts (Value (Literal ""))
+      ])
+  , ( "<%= @os['release']['major'] %>"
+    , [ Puts (Value (Literal ""))
+      , Puts (LookupOperation (LookupOperation (Object (Value (Literal "@os"))) (Value (Literal "release"))) (Value (Literal "major")))
+      , Puts (Value (Literal ""))
+      ])
+  , ( "<%= @processors['models'] %>"
+    , [ Puts (Value (Literal ""))
+      , Puts (LookupOperation (Object (Value (Literal "@processors"))) (Value (Literal "models")))
+      , Puts (Value (Literal ""))
+      ])
+  , ( "<%= scope.lookupvar('::fqdn') %>"
+    , [ Puts (Value (Literal ""))
+      , Puts (ScopeObject (Value (Literal "::fqdn")))
+      , Puts (Value (Literal ""))
+      ])
+  , ( "<% scope.lookupvar('::fqdn') %>"
+    , [ Puts (Value (Literal ""))
+      , Eval (ScopeObject (Value (Literal "::fqdn")))
+      , Puts (Value (Literal ""))
+      ])
   ]
 
 resolvetests :: [([RubyStatement], Text)]
