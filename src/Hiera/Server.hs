@@ -123,8 +123,14 @@ makeLenses ''QRead
 instance FromJSON HieraConfigFile where
   parseJSON =
     let
+      mkHiera5 :: Object -> Yaml.Parser HieraConfigFile
       mkHiera5 v = do
-        [hierarchy_value] <- v .: "hierarchy"
+        -- we currently only read the first hierarchy entry
+        -- TODO: parse the whole list of hierarchy and change
+        -- the definition of HieraConfigFile to be [(Backend, InterpolableHieraString)]
+        hierarchy_value <- case Object v ^? key "hierarchy" . nth 0 of
+          Just (Object h) -> pure h
+          _ -> fail "Hiera config should define at least one hierarchy"
         datadir <- case Object v ^? key "defaults" . key "datadir" of
           Just (String dir) -> pure dir
           Just _            -> fail "datadir should be a string"
