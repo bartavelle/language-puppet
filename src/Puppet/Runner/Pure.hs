@@ -59,6 +59,7 @@ pureReader sttmap =
     True
     (puppetPaths "/etc/puppet")
     Nothing
+    mempty
   where
     pure_hiera :: HieraQueryFunc Identity
     pure_hiera _ _ _ = pure (S.Right (Just "pure"))

@@ -42,7 +42,7 @@ data MultNodes
 
 readMultNodes:: String -> Maybe MultNodes
 readMultNodes "allnodes" = Just AllNodes
-readMultNodes n          =  Just (MultNodes (Text.splitOn "," (toS n)))
+readMultNodes n          = Just (MultNodes (Text.splitOn "," (toS n)))
 
 data Options = Options
   { _optShowjson     :: Bool

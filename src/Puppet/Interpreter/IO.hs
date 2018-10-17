@@ -60,6 +60,7 @@ eval r s (a :>>= k) =
             WriterPass _                 -> thpe "WriterPass"
             WriterListen _               -> thpe "WriterListen"
             PuppetPaths                  -> runInstr (r ^. readerPuppetPaths)
+            Facts                        -> runInstr (r ^. readerFacts)
             RebaseFile                   -> runInstr (r ^. readerRebaseFile)
             GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
             ErrorThrow d                 -> return (Left d, s, mempty)
@@ -69,7 +70,7 @@ eval r s (a :>>= k) =
             PDBReplaceCatalog w          -> canFailX (replaceCatalog pdb w)
             PDBReplaceFacts fcts         -> canFailX (replaceFacts pdb fcts)
             PDBDeactivateNode nn         -> canFailX (deactivateNode pdb nn)
-            PDBGetFacts q                -> canFailX (getFacts pdb q)
+            PDBGetFacts q                -> canFailX (getPDBFacts pdb q)
             PDBGetResources q            -> canFailX (getResources pdb q)
             PDBGetNodes q                -> canFailX (getNodes pdb q)
             PDBCommitDB                  -> canFailX (commitDB pdb)

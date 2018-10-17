@@ -51,6 +51,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "empty" _empty
                               -- ensure_packages (in main interpreter module)
                               -- ensure_resource (in main interpreter module)
+                              , singleArgument "fact" fact
                               , singleArgument "flatten" flatten
                               -- floor
                               -- fqdn_rand_string
@@ -302,10 +303,17 @@ deleteAt _ = throwPosError "delete_at(): expects 2 arguments"
 deleteUndefValues :: PValue -> InterpreterMonad PValue
 deleteUndefValues (PArray r) = return $ PArray $ V.filter (/= PUndef) r
 deleteUndefValues (PHash h) = return $ PHash $ HM.filter (/= PUndef) h
-deleteUndefValues x = throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
+deleteUndefValues x =  throwPosError ("delete_undef_values(): Expects an Array or a Hash, not" <+> pretty x)
 
 _empty :: PValue -> InterpreterMonad PValue
 _empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PArray V.empty, PHash HM.empty]
+
+fact :: PValue -> InterpreterMonad PValue
+fact (PString k) = do
+  readFact k >>= \case
+    Just r -> pure r
+    Nothing -> throwPosError ("fact(): Failed to retrieve fact" <+> ppline k)
+fact x = throwPosError ("fact(): Expects a String, not" <+> pretty x)
 
 flatten :: PValue -> InterpreterMonad PValue
 flatten r@(PArray _) = return $ PArray (flatten' r)

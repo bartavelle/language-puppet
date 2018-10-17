@@ -103,6 +103,11 @@ getPuppetPaths = singleton PuppetPaths
 getNodeName:: InterpreterMonad NodeName
 getNodeName = singleton GetNodeName
 
+readFact :: Text -> InterpreterMonad (Maybe PValue)
+readFact key = do
+  facts <- singleton Facts
+  pure $ Map.lookup key facts
+
 isIgnoredModule :: Text -> InterpreterMonad Bool
 isIgnoredModule m = singleton (IsIgnoredModule m)
 

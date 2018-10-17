@@ -8,6 +8,7 @@ module Puppet.Interpreter
        , initialState
        , extractFromState
        , containerModName
+       , readFact
        , module Puppet.Interpreter.Types
        , module Puppet.Interpreter.Resolve
        , module Puppet.Interpreter.IO

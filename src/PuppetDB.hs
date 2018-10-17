@@ -63,7 +63,7 @@ generateWireCatalog node cat edgemap = WireCatalog node "version" edges resource
 
 puppetDBFacts :: NodeName -> PuppetDBAPI IO -> IO (HashMap Text PValue)
 puppetDBFacts node pdbapi =
-  runExceptT (getFacts pdbapi (QEqual FCertname node)) >>= \case
+  runExceptT (getPDBFacts pdbapi (QEqual FCertname node)) >>= \case
     Right facts@(_:_) -> return (Map.fromList (map (\f -> (f ^. factInfoName, f ^. factInfoVal)) facts))
     _ -> do
         rawFacts <- fmap concat (sequence [factNET, factRAM, factOS, fversion, factMountPoints, factOS, factUser, factUName, fenv, factProcessor])

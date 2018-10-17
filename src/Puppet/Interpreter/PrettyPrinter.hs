@@ -68,6 +68,7 @@ instance Pretty (InterpreterInstr a) where
   pretty (TraceEvent e)              = pf "TraceEvent" [ppstring e]
   pretty (IsIgnoredModule m)         = pf "IsIgnoredModule" [ppline m]
   pretty (IsExternalModule m)        = pf "IsExternalModule" [ppline m]
+  pretty Facts                       = pf "Facts" []
 
 instance Pretty LinkInformation where
     pretty (LinkInformation lsrc ldst ltype lpos) = pretty lsrc <+> pretty ltype <+> pretty ldst <+> showPPos lpos

@@ -108,6 +108,7 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
                                                 (pref ^. prefStrictness == Strict)
                                                 (pref ^. prefPuppetPaths)
                                                 (pref ^. prefRebaseFile)
+                                                ((pref ^. prefFactsOverride) `HM.union` (pref ^. prefFactsDefault))
                                             )
                                             node
                                             facts

@@ -31,6 +31,7 @@ module Puppet.Interpreter.Types (
  , readerExternalModules
  , readerIsStrict
  , readerPuppetPaths
+ , readerFacts
  , readerRebaseFile
  -- * Interpreter monad
  , InterpreterMonad
@@ -212,56 +213,58 @@ data HieraQueryLayers m = HieraQueryLayers
 data  TemplateSource= Inline Text | Filename FilePath
 
 data InterpreterReader m = InterpreterReader
-  { _readerNativeTypes :: !(Container NativeTypeMethods)
-  , _readerGetStatement :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
-  , _readerGetTemplate ::  TemplateSource-> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
-  , _readerPdbApi :: PuppetDBAPI m
-  , _readerExternalFunc :: Container ([PValue] -> InterpreterMonad PValue) -- ^ External func such as stdlib or puppetlabs
-  , _readerNodename :: Text
-  , _readerHieraQuery :: HieraQueryLayers m
-  , _readerIoMethods :: IoMethods m
-  , _readerIgnoredModules :: HashSet Text
+  { _readerNativeTypes     :: !(Container NativeTypeMethods)
+  , _readerGetStatement    :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
+  , _readerGetTemplate     :: TemplateSource -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
+  , _readerPdbApi          :: PuppetDBAPI m
+  , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue) -- ^ External func such as stdlib or puppetlabs
+  , _readerNodename        :: Text
+  , _readerHieraQuery      :: HieraQueryLayers m
+  , _readerIoMethods       :: IoMethods m
+  , _readerIgnoredModules  :: HashSet Text
   , _readerExternalModules :: HashSet Text
-  , _readerIsStrict :: Bool
-  , _readerPuppetPaths :: PuppetDirPaths
-  , _readerRebaseFile :: Maybe FilePath
+  , _readerIsStrict        :: Bool
+  , _readerPuppetPaths     :: PuppetDirPaths
+  , _readerRebaseFile      :: Maybe FilePath
+  , _readerFacts           :: Container PValue
   }
 
 data InterpreterInstr a where
   -- Utility for using what's in 'InterpreterReader'
-  GetNativeTypes      :: InterpreterInstr (Container NativeTypeMethods)
-  GetStatement        :: TopLevelType -> Text -> InterpreterInstr Statement
-  ComputeTemplate     :: TemplateSource-> InterpreterState -> InterpreterInstr Text
-  ExternalFunction    :: Text -> [PValue] -> InterpreterInstr PValue
-  GetNodeName         :: InterpreterInstr Text
-  HieraQuery          :: Container Text -> Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
-  GetCurrentCallStack :: InterpreterInstr [String]
-  IsIgnoredModule     :: Text -> InterpreterInstr Bool
-  IsExternalModule    :: Text -> InterpreterInstr Bool
-  IsStrict            :: InterpreterInstr Bool
-  PuppetPaths         :: InterpreterInstr PuppetDirPaths
-  RebaseFile          :: InterpreterInstr (Maybe FilePath)
+  GetNativeTypes        :: InterpreterInstr (Container NativeTypeMethods)
+  GetStatement          :: TopLevelType -> Text -> InterpreterInstr Statement
+  ComputeTemplate       :: TemplateSource-> InterpreterState -> InterpreterInstr Text
+  ExternalFunction      :: Text -> [PValue] -> InterpreterInstr PValue
+  Facts                 :: InterpreterInstr (Container PValue)
+  GetNodeName           :: InterpreterInstr Text
+  HieraQuery            :: Container Text -> Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
+  GetCurrentCallStack   :: InterpreterInstr [String]
+  IsIgnoredModule       :: Text -> InterpreterInstr Bool
+  IsExternalModule      :: Text -> InterpreterInstr Bool
+  IsStrict              :: InterpreterInstr Bool
+  PuppetPaths           :: InterpreterInstr PuppetDirPaths
+  RebaseFile            :: InterpreterInstr (Maybe FilePath)
   -- error
-  ErrorThrow          :: PrettyError -> InterpreterInstr a
-  ErrorCatch          :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a
+  ErrorThrow            :: PrettyError -> InterpreterInstr a
+  ErrorCatch            :: InterpreterMonad a -> (PrettyError -> InterpreterMonad a) -> InterpreterInstr a
   -- writer
-  WriterTell          :: InterpreterWriter -> InterpreterInstr ()
-  WriterPass          :: InterpreterMonad (a, InterpreterWriter -> InterpreterWriter) -> InterpreterInstr a
-  WriterListen        :: InterpreterMonad a -> InterpreterInstr (a, InterpreterWriter)
-  -- puppetdb wrappers, see 'PuppetDBAPI' for details
-  PDBInformation      :: InterpreterInstr Doc
-  PDBReplaceCatalog   :: WireCatalog -> InterpreterInstr ()
-  PDBReplaceFacts     :: [(NodeName, Facts)] -> InterpreterInstr ()
-  PDBDeactivateNode   :: NodeName -> InterpreterInstr ()
-  PDBGetFacts         :: Query FactField -> InterpreterInstr [FactInfo]
-  PDBGetResources     :: Query ResourceField -> InterpreterInstr [Resource]
-  PDBGetNodes         :: Query NodeField -> InterpreterInstr [NodeInfo]
-  PDBCommitDB         :: InterpreterInstr ()
+  WriterTell            :: InterpreterWriter -> InterpreterInstr ()
+  WriterPass            :: InterpreterMonad (a, InterpreterWriter -> InterpreterWriter) -> InterpreterInstr a
+  WriterListen          :: InterpreterMonad a -> InterpreterInstr (a, InterpreterWriter)
+  -- puppetdb wrappers  , see 'PuppetDBAPI' for details
+  PDBInformation        :: InterpreterInstr Doc
+  PDBReplaceCatalog     :: WireCatalog -> InterpreterInstr ()
+  PDBReplaceFacts       :: [(NodeName, Facts)] -> InterpreterInstr ()
+  PDBDeactivateNode     :: NodeName -> InterpreterInstr ()
+  PDBGetFacts           :: Query FactField -> InterpreterInstr [FactInfo]
+  PDBGetResources       :: Query ResourceField -> InterpreterInstr [Resource]
+  PDBGetNodes           :: Query NodeField -> InterpreterInstr [NodeInfo]
+  PDBCommitDB           :: InterpreterInstr ()
   PDBGetResourcesOfNode :: NodeName -> Query ResourceField -> InterpreterInstr [Resource]
   -- Reading the first file that can be read in a list
-  ReadFile            :: [Text] -> InterpreterInstr Text
+  ReadFile              :: [Text] -> InterpreterInstr Text
   -- Tracing events
-  TraceEvent          :: String -> InterpreterInstr ()
+  TraceEvent            :: String -> InterpreterInstr ()
 
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)

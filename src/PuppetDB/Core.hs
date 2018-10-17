@@ -181,7 +181,7 @@ data PuppetDBAPI m = PuppetDBAPI
   , replaceCatalog     :: WireCatalog         -> ExceptT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-catalog-version-3>
   , replaceFacts       :: [(NodeName, Facts)] -> ExceptT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#replace-facts-version-1>
   , deactivateNode     :: NodeName            -> ExceptT PrettyError m () -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/commands.html#deactivate-node-version-1>
-  , getFacts           :: Query FactField     -> ExceptT PrettyError m [FactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
+  , getPDBFacts        :: Query FactField     -> ExceptT PrettyError m [FactInfo] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/facts.html#get-v3facts>
   , getResources       :: Query ResourceField -> ExceptT PrettyError m [Resource] -- ^ <http://docs.puppetlabs.com/puppetdb/1.5/api/query/v3/resources.html#get-v3resources>
   , getNodes           :: Query NodeField     -> ExceptT PrettyError m [NodeInfo]
   , commitDB           ::                        ExceptT PrettyError m () -- ^ This is only here to tell the test PuppetDB to save its content to disk.
