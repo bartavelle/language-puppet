@@ -51,7 +51,6 @@ instance Pretty Expression where
 
 data RubyStatement
     = Puts !Expression
-    | Eval !Expression
     | DropPrevSpace !RubyStatement
     | DropPrevSpace'
     | DropNextSpace !RubyStatement

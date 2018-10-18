@@ -132,7 +132,7 @@ variablereference :: Parser Expression
 variablereference = fmap (Object . Value . Literal . Text.pack) identifier
 
 rubystatement :: Parser RubyStatement
-rubystatement = fmap Eval rubyexpression
+rubystatement = fmap Puts rubyexpression
 
 textblockW :: Maybe Char ->  Parser [RubyStatement]
 textblockW c = do

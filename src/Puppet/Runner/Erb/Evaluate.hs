@@ -31,9 +31,8 @@ spaceNotCR :: Char -> Bool
 spaceNotCR c = Char.isSpace c && c /= '\n' && c /= '\r'
 
 evalruby :: Container ScopeInformation -> ScopeName -> Either Doc Text -> RubyStatement -> Either Doc Text
-evalruby _ _ (Left err) _ = Left err
+evalruby _  _   (Left err)     _        = Left err
 evalruby _ _  (Right _) (DropPrevSpace') = Left "Could not evaluate a non optimize DropPrevSpace'"
-evalruby _ _ _ (Eval _) = Left "Eval not implemented"
 evalruby mp ctx (Right curstr) (DropNextSpace x) =
   case evalruby mp ctx (Right curstr) x of
     Left err -> Left err
