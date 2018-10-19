@@ -10,10 +10,10 @@ import           Puppet.Runner
 parsingtests :: [(String, [RubyStatement])]
 parsingtests =
   [ ("port = 5432", [ Puts (Value (Literal "port = 5432" ))])
-  , ("mode = host=<% @var %>", [ Puts (Value (Literal "mode = host="))
+  , ("mode = host=<%= @var %>", [ Puts (Value (Literal "mode = host="))
                                , Puts (Object (Value (Literal "@var")))
                                , Puts (Value (Literal ""))])
-  , ("mode = host=<% var %>", [ Puts (Value (Literal "mode = host="))
+  , ("mode = host=<%= var %>", [ Puts (Value (Literal "mode = host="))
                               , Puts (Object (Value (Literal "var")))
                               , Puts (Value (Literal ""))])
   , ("<%= @os['architecture'] %>", [ Puts (Value (Literal ""))
@@ -27,7 +27,7 @@ parsingtests =
                                      , Puts (Value (Literal ""))])
   , ("<%= scope.lookupvar('::fqdn') %>", [ Puts (Value (Literal ""))
                                          , Puts (ScopeObject (Value (Literal "::fqdn")))
-                                         ,  Puts(Value (Literal ""))])
+                                         , Puts(Value (Literal ""))])
   ]
 
 resolvetests :: [([RubyStatement], Text)]
