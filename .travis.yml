@@ -33,8 +33,8 @@ matrix:
       env: HADDOCK=true
     # env: TEST=--disable-tests BENCH=--disable-benchmarks
       addons: {apt: {packages: [ghc-ppa-tools,cabal-install-2.0,ghc-8.2.2,ruby2.0-dev], sources: [hvr-ghc]}}
-    - compiler: "ghc-8.4.3"
-      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-2.2,ghc-8.4.3,ruby2.0-dev], sources: [hvr-ghc]}}
+    - compiler: "ghc-8.4.4"
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-2.2,ghc-8.4.4,ruby2.0-dev], sources: [hvr-ghc]}}
     - compiler: "ghc-8.6.1"
       addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.6.1,ruby2.0-dev], sources: [hvr-ghc]}}
   allow_failures:
