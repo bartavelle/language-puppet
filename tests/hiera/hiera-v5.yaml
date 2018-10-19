@@ -1,5 +1,7 @@
 ---
 version: 5
+default:
+  datadir: data
 hierarchy:
   - name: "hiera config for unit test"
     data_hash: yaml_data

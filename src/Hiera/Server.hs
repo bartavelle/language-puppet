@@ -131,10 +131,10 @@ instance FromJSON HieraConfigFile where
         hierarchy_value <- case Object v ^? key "hierarchy" . nth 0 of
           Just (Object h) -> pure h
           _ -> fail "Hiera config should define at least one hierarchy"
-        datadir <- case Object v ^? key "defaults" . key "datadir" of
+        datadir <- hierarchy_value .:? "datadir" >>= \case
           Just (String dir) -> pure dir
           Just _            -> fail "datadir should be a string"
-          Nothing           -> hierarchy_value .: "datadir" .!= "hieradata"
+          Nothing           -> pure $ Object v ^. key "defaults" . key "datadir" . _String
         HieraConfigFile
             <$> pure 5
             <*> pure [ YamlBackend (toS datadir) ] -- TODO: support other backends if needed
