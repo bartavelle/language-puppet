@@ -119,9 +119,9 @@ computeTemplate rubyintp srcinfo intpstate intpreader mstats filecache = do
     Inline s -> measure mstats ("parsing - " <> toS template_src) $ pure $ encapsulateError (runParser erbparser () "inline" (toS s))
   o <- case parsed of
     Left err -> do
-      let !msg = "Template '" <> template_src <> "' could not be parsed " <> show (tgetError err)
+      let !msg = "Template '" <> template_src <> "' could not be parsed" <> show (tgetError err)
       -- if the haskell parser fails the ruby one will fallback.
-      logInfoStr msg
+      logNoticeStr msg
       measure mstats ("ruby - " <> toS template_src) $ mkSafe $ computeTemplateWRuby srcinfo curcontext variables intpstate intpreader
     Right ast -> case rubyEvaluate variables curcontext ast of
       Right ev -> pure (S.Right ev)

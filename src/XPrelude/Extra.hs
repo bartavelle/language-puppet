@@ -17,6 +17,8 @@ module XPrelude.Extra (
     , logDebugStr
     , logInfo
     , logInfoStr
+    , logNotice
+    , logNoticeStr
     , logWarning
     , logWarningStr
     , logError
@@ -119,6 +121,12 @@ logInfo = Log.infoM "language-puppet" . toS
 
 logInfoStr :: String -> IO ()
 logInfoStr = Log.infoM "language-puppet"
+
+logNotice:: Text -> IO ()
+logNotice =  Log.noticeM "language-puppet" . toS
+
+logNoticeStr :: String -> IO ()
+logNoticeStr = Log.noticeM "language-puppet"
 
 logWarning :: Text -> IO ()
 logWarning = Log.warningM "language-puppet" . toS
