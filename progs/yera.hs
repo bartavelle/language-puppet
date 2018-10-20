@@ -41,7 +41,7 @@ configInfo = info (configParser <**> helper) mempty
 main :: IO ()
 main = do
   Config fp query qtype vars <- execParser configInfo
-  hiera <- startHiera fp
+  hiera <- startHiera "yera" fp
   hiera (Map.fromList vars) (toS query) qtype >>= \case
     S.Left rr -> panic (show rr)
     S.Right Nothing -> die "no match"

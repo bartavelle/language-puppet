@@ -127,7 +127,7 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
 hieraQuery :: Preferences IO -> IO (HieraQueryLayers IO)
 hieraQuery pref = do
   global_api <- case pref ^. prefHieraPath of
-    Just p  -> startHiera p
+    Just p  -> startHiera "global" p
     Nothing -> pure dummyHiera
   env_api <- getEnvApi
   mod_api <- getModApis
@@ -137,7 +137,7 @@ hieraQuery pref = do
     getEnvApi = do
       let f =  (pref ^. prefPuppetPaths . baseDir) <> "/hiera.yaml"
       found <- Directory.doesFileExist f
-      if found then startHiera f else pure dummyHiera
+      if found then startHiera "environment" f else pure dummyHiera
     getModApis :: IO (Container (HieraQueryFunc IO))
     getModApis = do
       let ignored_modules = pref^.prefIgnoredmodules
@@ -146,10 +146,10 @@ hieraQuery pref = do
       (HM.fromList . catMaybes) <$>
         for dirs (\dir -> runMaybeT $ do
           let modname = toS dir
-              path = modpath <> "/" <> dir <> "/hiera.yaml"
+              fp = modpath <> "/" <> dir <> "/hiera.yaml"
           guard (modname `notElem` ignored_modules)
-          guard =<< liftIO (Directory.doesFileExist path)
-          liftIO $ (modname, ) <$> startHiera path)
+          guard =<< liftIO (Directory.doesFileExist fp)
+          liftIO $ (modname, ) <$> startHiera "module" fp)
 
 
 defaultImpureMethods :: MonadIO m => IoMethods m

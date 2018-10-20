@@ -125,9 +125,11 @@ instance FromJSON HieraConfigFile where
     let
       mkHiera5 :: Object -> Yaml.Parser HieraConfigFile
       mkHiera5 v = do
-        -- we currently only read the first hierarchy entry
-        -- TODO: parse the whole list of hierarchy and change
-        -- the definition of HieraConfigFile to be [(Backend, InterpolableHieraString)]
+        -- we currently only read the first hierarchy entry to get the hiera path
+        -- TODO: change the definition of HieraConfigFile to be [(Backend, InterpolableHieraString)]
+        -- to allow defining a Backend per hierarchies
+        let paths = Object v ^.. key "hierarchy" . values . key "paths" . values
+            path = Object v ^.. key "hierarchy" .values .key "path"
         hierarchy_value <- case Object v ^? key "hierarchy" . nth 0 of
           Just (Object h) -> pure h
           _ -> fail "Hiera config should define at least one hierarchy"
@@ -138,7 +140,7 @@ instance FromJSON HieraConfigFile where
         HieraConfigFile
             <$> pure 5
             <*> pure [ YamlBackend (toS datadir) ] -- TODO: support other backends if needed
-            <*> (hierarchy_value .:? "paths" .!= [InterpolableHieraString [HPString "common.yaml"]])
+            <*> mapM parseJSON (paths <> path)
       mkHiera3 v =
         HieraConfigFile
             <$> pure 3
@@ -168,15 +170,15 @@ type Cache = Cache.FileCacheR String Value
 
 -- | The only method you'll ever need. It runs a Hiera server and gives you a querying function.
 -- | All IO exceptions are thrown directly including ParsingException.
-startHiera :: FilePath -> IO (HieraQueryFunc IO)
-startHiera fp =
+startHiera :: String -> FilePath -> IO (HieraQueryFunc IO)
+startHiera layer fp =
   Yaml.decodeFileEither fp >>= \case
     Left (Yaml.AesonException "Error in $: Hiera configuration version different than 5 is not supported.") -> do
       logInfoStr ("Detect a hiera configuration format in " <> fp <> " at version 4. This format is not recognized. Using a dummy hiera.")
       pure dummyHiera
     Left ex   -> panic (show ex)
     Right cfg@HieraConfigFile{..} -> do
-      logInfoStr ("Detect a hiera configuration format in " <> fp <> " at version " <> show _version)
+      logInfoStr ("Detect a hiera " <> layer <> " configuration format in " <> fp <> " at version " <> show _version)
       cache <- Cache.newFileCache
       pure (query cfg fp cache)
 
@@ -197,7 +199,7 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
               case backend of
                 JsonBackend dir -> (fmap (strictifyEither . Aeson.eitherDecode') . BS.readFile       , dir, ".json")
                 YamlBackend dir -> (fmap (strictifyEither . (_Left %~ show)) . Yaml.decodeFileEither, dir, ".yaml")
-        return (decodeInfo, Text.unpack h)
+        pure (decodeInfo, toS h)
   -- step 2, read all the files, returning a raw data structure
   mvals <- forM searchin $ \((decodefunction, datadir, extension), h) -> do
     let extension' = if snd (FilePath.splitExtension h) == ".yaml"
@@ -213,12 +215,14 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
             S.Left r -> do
               logWarningStr $ "Hiera: error when reading file " <> filename <> ": "<> r
               pure Nothing
-            S.Right val -> pure (Just val)
+            S.Right val -> do
+              pure (Just val)
     ifM (Directory.doesFileExist filename)
       querycache
       (pure Nothing)
   let vals = catMaybes mvals
   -- step 3, query through all the results
+  logDebugStr ("Looking up '" <> toS hquery <> "' with backends " <> List.unwords (fmap show _backends ))
   return (strictifyEither $ runReader (runExceptT (recursiveQuery hquery [])) (QRead vars qt vals))
 
 type QM a = ExceptT PrettyError (Reader QRead) a
@@ -240,7 +244,7 @@ recursiveQuery curquery prevqueries = do
       case Aeson.fromJSON <$> evalue of
         Left _ ->  return Nothing
         Right (Aeson.Success o) -> return o
-        Right (Aeson.Error rr) -> throwError ("Something horrible happened in recursiveQuery: " <> fromString (show rr))
+        Right (Aeson.Error rr) -> throwError ("Something horrible happened in recursiveQuery: " <> fromString rr)
 
 resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =

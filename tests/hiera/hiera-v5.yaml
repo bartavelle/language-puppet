@@ -9,7 +9,5 @@ hierarchy:
     paths:
       - "%{::fqdn}.yaml"
       - "%{::environment}.yaml"
-      - common.yaml
   - name: "Second hierarchy not used for now"
-    paths:
-      - common.yaml
+    path: 'common.yaml'

@@ -31,8 +31,8 @@ pusers = HM.fromList [ ("bob", PHash (HM.singleton "uid" (PNumber 100)))
 
 spec = do
   runIO $ Log.updateGlobalLogger loggerName (Log.setLevel Log.WARNING)
-  q3 <- runIO $ startHiera config_v3
-  q5 <- runIO $ startHiera config_v5
+  q3 <- runIO $ startHiera "test" config_v3
+  q5 <- runIO $ startHiera "test" config_v5
   describe "Hiera" $ do
   describe "v5 lookup hierarchy" $ do
     it "should override some values"  $ do
