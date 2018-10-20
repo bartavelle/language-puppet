@@ -8,3 +8,4 @@ users:
     uid: 2000
   tom:
     uid: 2001
+optional_value: ~

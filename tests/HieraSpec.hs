@@ -38,6 +38,9 @@ spec = do
     it "should override some values"  $ do
       q5 vars "http_port" QFirst >>= checkOutput (Just (PNumber 9090))
       q5 vars "global" QFirst >>= checkOutput (Just "glob")
+  describe "v5 ~" $ do
+    it "should read '~' as a Null/Nothing value"  $ do
+      q5 vars "optional_value" QFirst >>= checkOutput Nothing
   describe "v3 lookup with no context variables" $ do
     it "should return nothing when called with an empty string" $
       q3 mempty "" QFirst >>= checkOutput Nothing
