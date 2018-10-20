@@ -120,7 +120,7 @@ checkStrict wrn err = do
   extMod <- isExternalModule
   let priority =
         if extMod
-          then Log.NOTICE
+          then Log.INFO
           else Log.WARNING
   str <- singleton IsStrict
   if str && not extMod
