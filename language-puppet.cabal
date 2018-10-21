@@ -195,6 +195,7 @@ executable puppetresources
   build-depends:       base
                      , Glob
                      , aeson
+                     , async
                      , bytestring
                      , containers
                      , transformers
@@ -204,7 +205,6 @@ executable puppetresources
                      , language-puppet
                      , lens
                      , optparse-applicative
-                     , parallel-io
                      , regex-pcre-builtin
                      , text
                      , unordered-containers

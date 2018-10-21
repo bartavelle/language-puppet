@@ -8,7 +8,7 @@ module Main where
 
 import           XPrelude                      hiding (option, (<>))
 
-import           Control.Concurrent.ParallelIO (parallel)
+import qualified Control.Concurrent.Async      as Async
 import qualified Data.Aeson                    as Aeson
 import qualified Data.HashMap.Strict           as Map
 import qualified Data.HashSet                  as HS
@@ -239,7 +239,7 @@ findDeadCode puppetdir catalogs allfiles = do
         putText ""
     allparses <- do
      let parsefp fp = runPuppetParser fp <$> readFile fp
-     parallel (map parsefp (Set.toList usedfiles))
+     Async.mapConcurrently parsefp (Set.toList usedfiles)
     let (parseFailed, parseSucceeded) = partitionEithers allparses
     unless (null parseFailed) $ do
         putDoc ("The following" <+> pretty (length parseFailed) <+> "files could not be parsed:" <> softline <> indent 4 (vcat (map (ppstring . show) parseFailed)))
@@ -280,7 +280,7 @@ computeStats workingdir Options {..}
              queryfunc (parsingStats, catalogStats, templateStats)
              topnodes = do
   -- the parsing statistics, so that we known which files
-  (cats, Sum failures) <- catMaybesCount <$> parallel (map (compute queryfunc) topnodes)
+  (cats, Sum failures) <- catMaybesCount <$> Async.mapConcurrently (compute queryfunc) topnodes
   pStats <- getStats parsingStats
   cStats <- getStats catalogStats
   tStats <- getStats templateStats
