@@ -91,6 +91,7 @@ module Puppet.Interpreter.Types (
 import           XPrelude.Extra
 import           XPrelude.PP
 
+import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Operational
 import           Control.Monad.State.Strict
 import           Control.Monad.Writer.Class
@@ -269,6 +270,9 @@ data InterpreterInstr a where
 -- | The main monad
 type InterpreterMonad = ProgramT InterpreterInstr (State InterpreterState)
 
+instance Fail.MonadFail InterpreterMonad where
+    fail = throwError . PrettyError . ppstring
+
 instance MonadError PrettyError InterpreterMonad where
   throwError = singleton . ErrorThrow
   catchError a c = singleton (ErrorCatch a c)
@@ -279,7 +283,6 @@ instance MonadWriter InterpreterWriter InterpreterMonad where
   tell = singleton . WriterTell
   pass = singleton . WriterPass
   listen = singleton . WriterListen
-
 
 data ResourceModifier = ResourceModifier
   { _rmResType      :: !Text
