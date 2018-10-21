@@ -132,7 +132,7 @@ variablereference :: Parser Expression
 variablereference = fmap (Object . Value . Literal . Text.pack) identifier
 
 rubystatement :: Parser RubyStatement
-rubystatement = fail " -> statements not supported yet"
+rubystatement = fail "statements not supported yet"
 
 textblockW :: Maybe Char ->  Parser [RubyStatement]
 textblockW c = do
