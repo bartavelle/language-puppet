@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 -- | Contains an Haskell implementation (or mock implementation) of some ruby functions found in puppetlabs modules.
 module Puppet.Runner.Puppetlabs (extFunctions) where
 
@@ -7,7 +8,7 @@ import           Crypto.Hash         as Crypto
 import           Data.ByteString     (ByteString)
 import           Data.Char           (isDigit)
 import           Data.Foldable       (foldlM)
-import qualified Data.HashMap.Strict as HM
+import qualified Data.HashMap.Strict as Map
 import           Data.Scientific     as Sci
 import qualified Data.Text           as Text
 import qualified Data.Text.Encoding  as Text
@@ -30,6 +31,7 @@ extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
           , ("/jenkins", "jenkins_prefix", mockJenkinsPrefix)
           , ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
           , ("/postgresql", "postgresql_password", pgPassword)
+          , ("/puppetdb", "puppetdb_create_subsetting_resource_hash", puppetdb_create_subsetting_resource_hash)
           , ("/extlib", "random_password", randomPassword)
           , ("/extlib", "cache_data", mockCacheData)
           ]
@@ -38,19 +40,19 @@ extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
 --
 -- If the ruby file is not found on the local filesystem the record is ignored. This is to avoid potential namespace conflict.
 extFunctions :: FilePath -> IO (Container ( [PValue] -> InterpreterMonad PValue))
-extFunctions modpath = foldlM f HM.empty extFun
+extFunctions modpath = foldlM f Map.empty extFun
   where
     f acc (modname, fname, fn) = do
       test <- testFile modname fname
       if test
-         then return $ HM.insert fname fn acc
+         then return $ Map.insert fname fn acc
          else return acc
     testFile modname fname = Directory.doesFileExist (modpath <> modname <> "/lib/puppet/parser/functions/" <> Text.unpack fname <>".rb")
 
 apacheBool2httpd :: MonadThrowPos m => [PValue] -> m PValue
-apacheBool2httpd [PBoolean True]  = return $ PString "On"
-apacheBool2httpd [PString "true"] = return $ PString "On"
-apacheBool2httpd [_]              = return $ PString "Off"
+apacheBool2httpd [PBoolean True]  = pure $ PString "On"
+apacheBool2httpd [PString "true"] = pure $ PString "On"
+apacheBool2httpd [_]              = pure $ PString "Off"
 apacheBool2httpd arg@_            = throwPosError $ "expect one single argument" <+> pretty arg
 
 pgPassword :: MonadThrowPos m => [PValue] -> m PValue
@@ -90,14 +92,14 @@ pgAclsToHash [PArray as, PString ident, PNumber offset] = PHash <$> aclsToHash a
 pgAclsToHash _ = throwPosError "expects 3 arguments; one array one string and one number"
 
 aclsToHash :: MonadThrowPos m  => Vector PValue -> Text -> Scientific -> m (Container PValue)
-aclsToHash vec ident offset = ifoldlM f HM.empty vec
+aclsToHash vec ident offset = ifoldlM f Map.empty vec
   where
     f :: MonadThrowPos m => Int -> Container PValue -> PValue -> m (Container PValue)
     f idx acc (PString acl) = do
       let order = offset + scientific (toInteger idx) 0
           keymsg = sformat ("postgresql class generated rule " % FMT.stext % " " % FMT.int) ident idx
       x <- aclToHash (Text.words acl) order
-      return $ HM.insert keymsg x acc
+      return $ Map.insert keymsg x acc
     f _ _ pval = throwPosError $ "expect a string as acl but get" <+> pretty pval
 
 aclToHash :: (MonadThrowPos m) => [Text] -> Scientific -> m PValue
@@ -106,7 +108,7 @@ aclToHash acl@(typ : db : usr : remaining) order = analyze
     fin remn hs = return $ PHash $
         if null remn
           then hs
-          else HM.insert "auth_option" (PString (Text.unwords remn)) hs
+          else Map.insert "auth_option" (PString (Text.unwords remn)) hs
     analyze = case remaining of
                 method : remn | typ == "local" ->
                   fin remn $ baseHash & at "auth_method" ?~ PString method
@@ -117,12 +119,11 @@ aclToHash acl@(typ : db : usr : remaining) order = analyze
                   fin remn $ baseHash & at "address" ?~ PString addr
                                       & at "auth_method" ?~ PString method
                 _ -> throwPosError $ "Unable to parse acl line" <+> squotes (ppline (Text.unwords acl))
-    baseHash = HM.fromList
-                  [ ("type", PString "local")
-                  , ("database", PString db )
-                  , ("user", PString usr)
-                  , ("order", PString (sformat (FMT.left 3 '0' %. scifmt Sci.Fixed (Just 0))  order))
-                  ]
+    baseHash = [ ("type", PString "local")
+               , ("database", PString db )
+               , ("user", PString usr)
+               , ("order", PString (sformat (FMT.left 3 '0' %. scifmt Sci.Fixed (Just 0))  order))
+               ]
 aclToHash acl _ = throwPosError $ "Unable to parse acl line" <+> squotes (ppline (Text.unwords acl))
 
 -- faked implementation, replace by the correct one if you need so.
@@ -137,6 +138,16 @@ mockDockerSwarmJoinFlags  arg@_ = throwPosError $ "Expect an hash as argument bu
 
 -- utils
 scientificToInt :: MonadThrowPos m => Scientific -> m Int
-scientificToInt s = maybe (throwPosError $ "Unable to convert" <+> ppline (show s) <+> "into an int.")
-                          return
+scientificToInt s = maybe (throwPosError $ "Unable to convert" <+> pretty s <+> "into an int.")
+                          pure
                           (Sci.toBoundedInteger s)
+
+-- https://github.com/puppetlabs/puppetlabs-puppetdb/blob/master/lib/puppet/parser/functions/puppetdb_create_subsetting_resource_hash.rb
+puppetdb_create_subsetting_resource_hash :: MonadThrowPos m => [PValue] -> m PValue
+puppetdb_create_subsetting_resource_hash [PHash s, PHash args] = do
+  let res_hash = [ (k, PHash h)
+                 | (k,v) <- itoList s
+                 , let h = [ ( "subsetting", PString k) , ("value", v)] `Map.union` args
+                 ]
+  pure $ PHash (Map.fromList res_hash)
+puppetdb_create_subsetting_resource_hash arg@_ = throwPosError $ "Expect 2 hashes as arguments but was" <+> pretty arg
