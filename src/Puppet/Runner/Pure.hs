@@ -30,7 +30,7 @@ import           PuppetDB              (dummyPuppetDB)
 dummyTemplate :: Monad m => TemplateSource -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
 dummyTemplate (Filename _) _ _ = return (S.Left "Can't interpret files")
 dummyTemplate (Inline cnt) s _ =
-  return $ case extractFromState s of
+  return $ case extractScope s of
     Nothing -> S.Left "Context retrieval error (pureReader)"
     Just (ctx, scope) ->
       case parseErbString (toS cnt) of

@@ -310,7 +310,7 @@ _empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PAr
 
 fact :: PValue -> InterpreterMonad PValue
 fact (PString k) = do
-  readFact k >>= \case
+  askFact k >>= \case
     Just r -> pure r
     Nothing -> throwPosError ("fact(): Failed to retrieve fact" <+> ppline k)
 fact x = throwPosError ("fact(): Expects a String, not" <+> pretty x)

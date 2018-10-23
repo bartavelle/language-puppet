@@ -60,7 +60,7 @@ parsingspec =
 
 resolvespec =
   let state0 = initialState dummyFacts mempty
-      Just (scope_name, scope) = extractFromState state0
+      Just (scope_name, scope) = extractScope state0
   in
   for_ resolvetests $ \(s, e) ->
     let item = it ("should resolve " <> show s) in

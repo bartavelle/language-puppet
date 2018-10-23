@@ -581,10 +581,10 @@ pdbresourcequery q mkey = do
     Aeson.Success x -> pure x
     Aeson.Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> ppstring rr <+> pretty rrv)
   let extractSubHash :: Text -> PValue -> InterpreterMonad PValue
-      extractSubHash ky (PHash h) =
-        case h ^. at ky of
+      extractSubHash k (PHash h) =
+        case h ^. at k of
           Just val -> pure val
-          Nothing -> throwPosError ("pdbresourcequery strange error, could not find key" <+> ppline ky <+> "in" <+> pretty (PHash h))
+          Nothing -> throwPosError ("pdbresourcequery strange error, could not find key" <+> ppline k <+> "in" <+> pretty (PHash h))
       extractSubHash _ x = throwPosError ("pdbresourcequery strange error, expected a hash, had" <+> pretty x)
   case mkey of
     Nothing  -> pure (PArray rv)

@@ -102,7 +102,7 @@ templateDaemon rubyintp modpath templatepath qchan mvstats filecache = do
 computeTemplate :: RubyInterpreter -> TemplateSource -> InterpreterState -> InterpreterReader IO -> MStats -> Cache.FileCacheR TemplateParseError [RubyStatement] -> IO TemplateAnswer
 computeTemplate rubyintp srcinfo intpstate intpreader mstats filecache = do
   let (curcontext, fvariables) =
-        case extractFromState intpstate of
+        case extractScope intpstate of
           Nothing    -> (mempty, mempty)
           Just (c,v) -> (c,v)
       template_src = templateSrc srcinfo

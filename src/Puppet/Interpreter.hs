@@ -6,9 +6,9 @@ module Puppet.Interpreter
        , evaluateStatement
        -- * Utils
        , initialState
-       , extractFromState
+       , extractScope
        , containerModName
-       , readFact
+       , askFact
        , module Puppet.Interpreter.Types
        , module Puppet.Interpreter.Resolve
        , module Puppet.Interpreter.IO
@@ -62,11 +62,11 @@ isParent :: Text -> CurContainerDesc -> InterpreterMonad Bool
 isParent cur (ContClass possibleparent) =
   preuse (scopes . ix cur . scopeParent) >>= \case
     Nothing         -> throwPosError ("Internal error: could not find scope" <+> ppline cur <+> "possible parent" <+> ppline possibleparent)
-    Just S.Nothing  -> return False
+    Just S.Nothing  -> pure False
     Just (S.Just p) -> if p == possibleparent
-                           then return True
+                           then pure True
                            else isParent p (ContClass possibleparent)
-isParent _ _ = return False
+isParent _ _ = pure False
 
 -- | Apply resource defaults, references overrides and expand defines
 finalize :: [Resource] -> InterpreterMonad [Resource]
@@ -91,10 +91,10 @@ finalize rx = do
           overrideType <- case r ^. rscope of
             [] -> forb "Could not find the current resource context" -- we could not get the current resource context
             (x:_) -> if x == s
-                       then return CantOverride -- we are in the same context : can't replace, but add stuff
+                       then pure CantOverride -- we are in the same context : can't replace, but add stuff
                        else isParent (scopeName s) x >>= \i ->
                               if i || (r ^. rid . itype == "class")
-                                then return Replace -- we can override what's defined in a parent
+                                then pure Replace -- we can override what's defined in a parent
                                 else forb "Can't override something that was not defined in the parent."
           ifoldlM (addAttribute overrideType) r prms
   -- step 1, apply resDefaults and resRefOverride
@@ -107,17 +107,17 @@ finalize rx = do
         where
           appended = ResourceModifier (resid ^. itype) ModifierMustMatch DontRealize (REqualitySearch "title" (PString (resid ^. iname))) overrider ropos
           overrider r = do
-              -- we must define if we can override the value
-              let canOverride = CantOverride -- TODO check inheritance
-              ifoldlM (addAttribute canOverride) r resprms
+            -- we must define if we can override the value
+            let canOverride = CantOverride -- TODO check inheritance
+            ifoldlM (addAttribute canOverride) r resprms
   void $ getOver >>= mapM keepforlater
   let expandableDefine r = do
         n <- isNativeType (r ^. rid . itype)
         -- if we have a native type, or a virtual/exported resource it
         -- should not be expanded !
         if n || r ^. rvirtuality /= Normal
-            then return [r]
-            else expandDefine r
+          then pure [r]
+          else expandDefine r
   -- Now that all defaults / override have been applied, the defines can
   -- finally be expanded.
   -- The reason it has to be there is that parameters of the define could
@@ -127,42 +127,41 @@ finalize rx = do
     expandDefine :: Resource -> InterpreterMonad [Resource]
     expandDefine r =
       let modulename = getModulename (r ^. rid)
-      in  isIgnoredModule modulename >>= \i ->
-            if i
-              then return mempty
-              else do
-                let deftype = dropInitialColons (r ^. rid . itype)
-                    defname = r ^. rid . iname
-                    curContType = ContDefine deftype defname (r ^. rpos)
-                p <- use curPos
-                -- we add the relations of this define to the global list of relations
-                -- before dropping it, so that they are stored for the final
-                -- relationship resolving
-                let extr = do
-                        (dstid, linkset) <- itoList (r ^. rrelations)
-                        linktype <- toList linkset
-                        return (LinkInformation (r ^. rid) dstid linktype p)
-                extraRelations <>= extr
-                void $ enterScope SENormal curContType modulename p
-                (spurious, stmt) <- interpretTopLevel TopDefine deftype
-                DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
-                let isImported (ContImported _) = True
-                    isImported _                = False
-                isImportedDefine <- isImported <$> getScope
-                curPos .= r ^. rpos
-                curscp <- getScope
-                when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
-                pushScope curContType
-                loadVariable "title" (PString defname)
-                loadVariable "name" (PString defname)
-                -- not done through loadvariable because of override errors
-                loadParameters (r ^. rattributes) defineParams cp S.Nothing
-                curPos .= cp
-                res <- evaluateStatementsFoldable stmts
-                out <- finalize (spurious ++ res)
-                when isImportedDefine popScope
-                popScope
-                return out
+      in  isIgnoredModule modulename >>= \case
+            True -> pure mempty
+            False -> do
+              let deftype = dropInitialColons (r ^. rid . itype)
+                  defname = r ^. rid . iname
+                  curContType = ContDefine deftype defname (r ^. rpos)
+              p <- use curPos
+              -- we add the relations of this define to the global list of relations
+              -- before dropping it, so that they are stored for the final
+              -- relationship resolving
+              let extr = do
+                    (dstid, linkset) <- itoList (r ^. rrelations)
+                    linktype <- toList linkset
+                    pure (LinkInformation (r ^. rid) dstid linktype p)
+              extraRelations <>= extr
+              void $ enterScope SENormal curContType modulename p
+              (spurious, stmt) <- interpretTopLevel TopDefine deftype
+              DefineDecl _ defineParams stmts cp <- extractPrism "expandDefine" _DefineDecl stmt
+              let isImported (ContImported _) = True
+                  isImported _                = False
+              isImportedDefine <- isImported <$> getScope
+              curPos .= r ^. rpos
+              curscp <- getScope
+              when isImportedDefine (pushScope (ContImport (r ^. rnode) curscp ))
+              pushScope curContType
+              loadVariable "title" (PString defname)
+              loadVariable "name" (PString defname)
+              -- not done through loadvariable because of override errors
+              loadParameters (r ^. rattributes) defineParams cp Nothing
+              curPos .= cp
+              res <- evaluateStatementsFoldable stmts
+              out <- finalize (spurious <> res)
+              when isImportedDefine popScope
+              popScope
+              pure out
 
 -- | Given a toplevel (type, name),
 -- return the associated parsed statement together with its evaluated resources
@@ -170,7 +169,7 @@ interpretTopLevel :: TopLevelType -> Text -> InterpreterMonad ([Resource], State
 interpretTopLevel toptype topname =
   -- check if this is a known toplevel
   use (nestedDeclarations . at (toptype, topname)) >>= \case
-    Just x -> return ([], x) -- it is known !
+    Just x -> pure ([], x) -- it is known !
     Nothing -> singleton (GetStatement toptype topname) >>= evalTopLevel
   where
     evalTopLevel :: Statement -> InterpreterMonad ([Resource], Statement)
@@ -180,8 +179,8 @@ interpretTopLevel toptype topname =
       -- popScope
       (nr, ns) <- evalTopLevel s
       popScope
-      return (r <> nr, ns)
-    evalTopLevel x = return ([], x)
+      pure (r <> nr, ns)
+    evalTopLevel x = pure ([], x)
 
 -- | Main internal entry point, this function completes the interpretation
 -- TODO: add some doc here
@@ -189,7 +188,7 @@ computeCatalog :: NodeName -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCata
 computeCatalog nodename = do
   (topres, stmt) <- interpretTopLevel TopNode nodename
   nd <- extractPrism "computeCatalog" _NodeDecl stmt
-  let finalStep [] = return []
+  let finalStep [] = pure []
       finalStep allres = do
         -- collect stuff and apply thingies
         (realized :!: modified) <- realize allres
@@ -198,7 +197,7 @@ computeCatalog nodename = do
         refinalized <- finalize (toList modified) >>= finalStep
         -- replace the modified stuff
         let res = foldl' (\curm e -> curm & at (e ^. rid) ?~ e) realized refinalized
-        return (toList res)
+        pure (toList res)
 
       mainstage = Resource (RIdentifier "stage" "main") mempty mempty mempty [ContRoot] Normal mempty (initialPPos mempty) nodename
 
@@ -218,17 +217,17 @@ computeCatalog nodename = do
                -> Resource
                -> Pair (HashMap RIdentifier Resource) (HashMap RIdentifier Resource)
       classify (curr :!: cure) r =
-          let i curm = curm & at (r ^. rid) ?~ r
-          in  case r ^. rvirtuality of
-                  Normal           -> i curr :!: cure
-                  Exported         -> curr :!: i cure
-                  ExportedRealized -> i curr :!: i cure
-                  _                -> curr :!: cure
+        let i curm = curm & at (r ^. rid) ?~ r
+        in  case r ^. rvirtuality of
+                Normal           -> i curr :!: cure
+                Exported         -> curr :!: i cure
+                ExportedRealized -> i curr :!: i cure
+                _                -> curr :!: cure
   verified <- Map.fromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (Map.elems real)
   withResourceDependentRelations <- traverse getResourceDependentRelations verified
   edgemap <- makeEdgeMap withResourceDependentRelations
   definedRes <- use definedResources
-  return (withResourceDependentRelations, edgemap, exported, Map.elems definedRes)
+  pure (withResourceDependentRelations, edgemap, exported, Map.elems definedRes)
 
 -- | This extracts additional relationships between resources, that are
 -- dependent on whether some resources are defined. A canonical example is
@@ -248,18 +247,18 @@ getResourceDependentRelations res =
   where
     extract actions = do
       newrelations <- fmap (foldl' (Map.unionWith (<>)) (res ^. rrelations)) (sequence actions)
-      return (res & rrelations .~ newrelations)
+      pure (res & rrelations .~ newrelations)
     depOn :: Text -> Text -> InterpreterMonad (HashMap RIdentifier (HashSet LinkType))
     depOn resType attributeName =
       case res ^? rattributes . ix attributeName of
         Just (PString usr) -> do
           let targetResourceId = RIdentifier resType usr
           existing <- has (ix targetResourceId) <$> use definedResources
-          return $
+          pure $
             if existing
               then Map.singleton targetResourceId (Set.singleton RRequire)
               else Map.empty
-        _ -> return Map.empty
+        _ -> pure Map.empty
 
 makeEdgeMap :: FinalCatalog -> InterpreterMonad EdgeMap
 makeEdgeMap ct = do
@@ -272,10 +271,10 @@ makeEdgeMap ct = do
         aliases' = ifromList $ do
             r <- ct ^.. traversed :: [Resource]
             extraAliases <- r ^.. ralias . folded . filtered (/= r ^. rid . iname) :: [Text]
-            return (r ^. rid & iname .~ extraAliases, r ^. rpos)
+            pure (r ^. rid & iname .~ extraAliases, r ^. rpos)
         classes' = ifromList $ do
             (cn, _ :!: cp) <- itoList clss'
-            return (RIdentifier "class" cn, cp)
+            pure (RIdentifier "class" cn, cp)
     -- Preparation step : all relations to a container become relations to
     -- the stuff that's contained. We build a map of resources, stored by
     -- container.
@@ -295,7 +294,7 @@ makeEdgeMap ct = do
                    (rawdst, lts) <- itoList (r ^. rrelations)
                    lt <- toList lts
                    let (nsrc, ndst, nlt) = reorderlink (resid, rawdst, lt)
-                   return (nsrc, [LinkInformation nsrc ndst nlt respos])
+                   pure (nsrc, [LinkInformation nsrc ndst nlt respos])
         step1 :: HashMap RIdentifier [LinkInformation]
         step1 = foldl' addRR mempty ct
     -- step 2 - add other relations (mainly stuff made from the "->"
@@ -318,9 +317,9 @@ makeEdgeMap ct = do
                 genlnk lif = do
                     let d = lif ^. linkdst
                     checkExists d ("Unknown resource" <+> pretty d <+> "used in a relation at" <+> showPPos (lif ^. linkPos))
-                    return d
+                    pure d
             ds <- mapM genlnk lifs
-            return (ri, ri, ds)
+            pure (ri, ri, ds)
     edgeList <- mapM checkResDef (itoList step2)
     let (graph, gresolver) = Graph.graphFromEdges' edgeList
     -- now check for scc
@@ -337,7 +336,7 @@ makeEdgeMap ct = do
         throwPosError $ "Dependency error, the following resources are strongly connected!" </> trees
         -- let edgePairs = concatMap (\(_,k,ls) -> [(k,l) | l <- ls]) edgeList
         -- throwPosError (vcat (map (\(RIdentifier st sn, RIdentifier dt dn) -> "\"" <> pretty st <> ttext sn <> "\" -> \"" <> ttext dt <> ttext dn <> "\"") edgePairs))
-    return step2
+    pure step2
 
 -- | This functions performs all the actions triggered by calls to the
 -- realize function or other collectors. It returns a pair of
@@ -357,21 +356,21 @@ realize rs = do
         let filtrd = curmap ^.. folded . filtered fmod -- all the resources that match the selector/realize criteria
             vcheck f r = f (r ^. rvirtuality)
             (isGoodvirtuality, alterVirtuality) = case rmod ^. rmType of
-                RealizeVirtual   -> (vcheck (/= Exported), \r -> return (r & rvirtuality .~ Normal))
-                RealizeCollected -> (vcheck (`elem` [Exported, ExportedRealized]), \r -> return (r & rvirtuality .~ ExportedRealized))
-                DontRealize      -> (vcheck (`elem` [Normal, ExportedRealized]), return)
+                RealizeVirtual   -> (vcheck (/= Exported), \r -> pure (r & rvirtuality .~ Normal))
+                RealizeCollected -> (vcheck (`elem` [Exported, ExportedRealized]), \r -> pure (r & rvirtuality .~ ExportedRealized))
+                DontRealize      -> (vcheck (`elem` [Normal, ExportedRealized]), pure)
             fmod r = (r ^. rid . itype == rmod ^. rmResType) && checkSearchExpression (rmod ^. rmSearch) r && isGoodvirtuality r
             mutation = alterVirtuality >=> rmod ^. rmMutation
             applyModification :: Pair FinalCatalog FinalCatalog -> Resource -> InterpreterMonad (Pair FinalCatalog FinalCatalog)
             applyModification (cma :!: cmo) r = do
                 nr <- mutation r
                 let i m = m & at (nr ^. rid) ?~ nr
-                return $ if nr /= r
+                pure $ if nr /= r
                              then i cma :!: i cmo
                              else cma :!: cmo
         result <- foldM applyModification (curmap :!: modified) filtrd -- apply the modifiation to all the matching resources
         when (rmod ^. rmModifierType == ModifierMustMatch && null filtrd) (throwError (PrettyError ("Could not apply this resource override :" <+> pretty rmod <> ",no matching resource was found.")))
-        return result
+        pure result
       equalModifier (ResourceModifier a1 b1 c1 d1 _ e1) (ResourceModifier a2 b2 c2 d2 _ e2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
   result <- use resModifiers >>= foldM mutate (rma :!: mempty) . reverse . List.nubBy equalModifier
   resModifiers .= []
@@ -394,13 +393,13 @@ fromAttributeDecls =
     go acc k pv =
       case acc ^. at k of
         Just _ -> throwPosError ("Parameter" <+> dullyellow (ppline k) <+> "already defined!")
-        Nothing -> return (acc & at k ?~ pv)
+        Nothing -> pure (acc & at k ?~ pv)
 
 saveCaptureVariables :: InterpreterMonad (HashMap Text (Pair (Pair PValue PPosition) CurContainerDesc))
 saveCaptureVariables = do
   scp <- getScopeName
   vars <- use (scopes . ix scp . scopeVariables)
-  return $ Map.filterWithKey (\k _ -> Text.all Char.isDigit k) vars
+  pure $ Map.filterWithKey (\k _ -> Text.all Char.isDigit k) vars
 
 restoreCaptureVariables :: HashMap Text (Pair (Pair PValue PPosition) CurContainerDesc) -> InterpreterMonad ()
 restoreCaptureVariables vars = do
@@ -410,22 +409,22 @@ restoreCaptureVariables vars = do
 evaluateStatement :: Statement -> InterpreterMonad [Resource]
 evaluateStatement r@(ClassDeclaration (ClassDecl cname _ _ _ _)) =
   if "::" `Text.isInfixOf` cname
-   then nestedDeclarations . at (TopClass, cname) ?= r >> return []
+   then nestedDeclarations . at (TopClass, cname) ?= r >> pure []
    else do
      scp <- getScopeName
      let rcname = if scp == "::"
                     then cname
                     else scp <> "::" <> cname
      nestedDeclarations . at (TopClass, rcname) ?= r
-     return []
+     pure []
 evaluateStatement r@(DefineDeclaration (DefineDecl dname _ _ _)) =
   if "::" `Text.isInfixOf` dname
-    then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
+    then nestedDeclarations . at (TopDefine, dname) ?= r >> pure []
     else do
       scp <- getScopeName
       if scp == "::"
-        then nestedDeclarations . at (TopDefine, dname) ?= r >> return []
-        else nestedDeclarations . at (TopDefine, scp <> "::" <> dname) ?= r >> return []
+        then nestedDeclarations . at (TopDefine, dname) ?= r >> pure []
+        else nestedDeclarations . at (TopDefine, scp <> "::" <> dname) ?= r >> pure []
 evaluateStatement r@(ResourceCollectionDeclaration (ResCollDecl ct rtype searchexp mods p)) = do
   curPos .= p
   unless (isEmpty mods || ct == Collector)
@@ -452,14 +451,14 @@ evaluateStatement r@(ResourceCollectionDeclaration (ResCollDecl ct rtype searche
       pushScope scpdesc
       o <- finalize res
       popScope
-      return o
-    else return []
+      pure o
+    else pure []
 evaluateStatement (DependencyDeclaration (DepDecl (t1 :!: n1) (t2 :!: n2) lt p)) = do
   curPos .= p
   rn1 <- map (fixResourceName t1) <$> resolveExpressionStrings n1
   rn2 <- map (fixResourceName t2) <$> resolveExpressionStrings n2
   extraRelations <>= [ LinkInformation (normalizeRIdentifier t1 an1) (normalizeRIdentifier t2 an2) lt p | an1 <- rn1, an2 <- rn2 ]
-  return []
+  pure []
 evaluateStatement (ResourceDeclaration (ResDecl t ern eargs virt p)) = do
   curPos .= p
   resnames <- resolveExpressionStrings ern
@@ -473,10 +472,10 @@ evaluateStatement (VarAssignmentDeclaration (VarAssignDecl mt varname varexpr p)
   varval <- resolveExpression varexpr
   mapM_ (resolveDataType >=> (`checkMatch` varval)) mt
   loadVariable varname varval
-  return []
+  pure []
 evaluateStatement (ConditionalDeclaration (ConditionalDecl conds p)) = do
   curPos .= p
-  let checkCond [] = return []
+  let checkCond [] = pure []
       checkCond ((e :!: stmts) : xs) = do
         sv <- saveCaptureVariables
         result <- pValue2Bool <$> resolveExpression e
@@ -490,7 +489,7 @@ evaluateStatement (ResourceDefaultDeclaration (ResDefaultDecl rtype decls p)) = 
     scp <- getScopeName
     -- invariant that must be respected : the current scope must be created
     -- in "scopes", or nothing gets saved
-    preuse (scopes . ix scp) >>= maybe (throwPosError ("INTERNAL ERROR in evaluateStatement ResourceDefaultDeclaration: scope wasn't created - " <> ppline scp)) (const (return ()))
+    preuse (scopes . ix scp) >>= maybe (throwPosError ("INTERNAL ERROR in evaluateStatement ResourceDefaultDeclaration: scope wasn't created - " <> ppline scp)) (const (pure ()))
     let newDefaults = ResDefaults rtype scp rdecls p
         addDefaults x = scopes . ix scp . scopeResDefaults . at rtype ?= x
         -- default merging with parent
@@ -500,7 +499,7 @@ evaluateStatement (ResourceDefaultDeclaration (ResDefaultDecl rtype decls p)) = 
         Just d -> if d ^. resDefSrcScope == scp
                     then throwPosError ("Defaults for resource" <+> ppline rtype <+> "already declared at" <+> showPPos (d ^. resDefPos))
                     else addDefaults (mergedDefaults d)
-    return []
+    pure []
 evaluateStatement (ResourceOverrideDeclaration (ResOverrideDecl t urn eargs p)) = do
   curPos .= p
   raassignements <- fromAttributeDecls eargs
@@ -514,10 +513,10 @@ evaluateStatement (ResourceOverrideDeclaration (ResOverrideDecl t urn eargs p)) 
       let cm = prevass `Map.intersection` raassignements
       unless (isEmpty cm)
         (throwPosError ("The following parameters were already overriden at" <+> showPPos prevpos <+> ":" <+> pretty cm))
-      return (prevass <> raassignements)
-    Nothing -> return raassignements
+      pure (prevass <> raassignements)
+    Nothing -> pure raassignements
   scopes . ix scp . scopeOverrides . at rident ?= ResRefOverride rident withAssignements p
-  return []
+  pure []
 evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
   curPos .= p >> evaluateHFC c
   where
@@ -528,7 +527,7 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
             saved <- hfSetvars assocs
             res <- evaluateStatementsFoldable (hf ^. hoLambdaStatements)
             hfRestorevars  saved
-            return res
+            pure res
       in  case hf ^. hoLambdaFunc of
             LambdaFunc "each" -> do
               varassocs <- hfGenerateAssociations hf
@@ -553,7 +552,7 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
                   case mtp of
                     PType expectedType ->
                       if datatypeMatch expectedType val
-                        then return []
+                        then pure []
                         else runblock [(varexpected, PType expectedType), (varactual, PType (typeOf val))]
                     _ -> throwPosError ("The first argument to assert_type should be a data type, not" <+> pretty mtp)
                 _ -> throwPosError "assert_types requires two parameters, and two lambda parameters"
@@ -568,7 +567,7 @@ evaluateStatement (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) =
                 forM_ mt $ \ut -> do
                   t <- resolveDataType ut
                   checkMatch t val
-                return (name, val)
+                pure (name, val)
               runblock (V.toList assocs)
             fn -> throwPosError ("This lambda function is unknown:" </> pretty fn)
 evaluateStatement r = throwError (PrettyError ("Do not know how to evaluate this statement:" </> pretty r))
@@ -602,30 +601,33 @@ loadVariable varname varval = do
     _ -> scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
 
 -- | This function loads class and define parameters into scope. It checks
--- that all mandatory parameters are set, that no extra parameter is
--- declared.
+-- that all mandatory parameters are set, that no extra parameter is declared.
 --
--- It is able to fill unset parameters with values from Hiera (for classes
--- only) or default values.
-loadParameters :: Foldable f => Container PValue -> f (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)) -> PPosition -> S.Maybe Text -> InterpreterMonad ()
+-- It is able to fill unset parameters with values from Hiera (for classes only) or default values.
+loadParameters :: Foldable f
+               => Container PValue
+               -> f (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))
+               -> PPosition -- ^ Current position
+               -> Maybe Text
+               -> InterpreterMonad ()
 loadParameters params classParams defaultPos wHiera = do
   p <- use curPos
   curPos .= defaultPos
-  let classParamSet        = Set.fromList (classParams ^.. folded . _1 . _1)
-      spuriousParams       = ikeys params `Set.difference` classParamSet
-      mclassdesc           = S.maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ppline) wHiera
+  let classParamSet   = Set.fromList (classParams ^.. folded . _1 . _1)
+      spuriousParams  = ikeys params `Set.difference` classParamSet
+      mclassdesc      = maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ppline) wHiera
 
       -- the following functions `throwE (Max False)` when there is no value, and `throwE (Max True)` when this value
       -- in PUndef.
       checkUndef :: Maybe PValue -> ExceptT (Max Bool) InterpreterMonad PValue
       checkUndef Nothing       = throwE (Max False)
       checkUndef (Just PUndef) = throwE (Max True)
-      checkUndef (Just v)      = return v
+      checkUndef (Just v)      = pure v
 
       checkHiera :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
       checkHiera k = case wHiera of
-                         S.Nothing -> throwE (Max False)
-                         S.Just classname -> lift (runHiera (classname <> "::" <> k) QFirst) >>= checkUndef
+        Nothing -> throwE (Max False)
+        Just classname -> lift (runHiera (classname <> "::" <> k) QFirst) >>= checkUndef
 
       checkDef :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
       checkDef k = checkUndef (params ^. at k)
@@ -634,22 +636,25 @@ loadParameters params classParams defaultPos wHiera = do
       checkDefault S.Nothing     = throwE (Max False)
       checkDefault (S.Just expr) = lift (resolveExpression expr)
 
-  unless (isEmpty spuriousParams) $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ppline) $ toList spuriousParams) <> mclassdesc)
+  unless (isEmpty spuriousParams)
+    $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ppline) $ toList spuriousParams) <> mclassdesc)
 
   -- try to set a value to all parameters
   -- The order of evaluation is defined / hiera / default
   unsetParams <- fmap concat $ for (toList classParams) $ \(k :!: mtype :!: defValue) -> do
       ev <- runExceptT (checkDef k <|> checkHiera k <|> checkDefault defValue)
       case ev of
-          Right v          -> do
-            forM_ mtype $ \udt -> do
-              dt <- resolveDataType udt
-              unless (datatypeMatch dt v) (throwPosError ("Expected type" <+> pretty dt <+> "for parameter" <+> ppline k <+> "but its value was:" <+> pretty v))
-            loadVariable k v >> return []
-          Left (Max True)  -> loadVariable k PUndef >> return []
-          Left (Max False) -> return [k]
+        Right v          -> do
+          forM_ mtype $ \udt -> do
+            dt <- resolveDataType udt
+            unless (datatypeMatch dt v)
+              $ throwPosError ("Expected type" <+> pretty dt <+> "for parameter" <+> ppline k <+> "but its value was:" <+> pretty v)
+          loadVariable k v >> pure []
+        Left (Max True)  -> loadVariable k PUndef >> pure []
+        Left (Max False) -> pure [k]
   curPos .= p
-  unless (isEmpty unsetParams) $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ppline $ toList unsetParams) <> mclassdesc)
+  unless (isEmpty unsetParams)
+    $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ppline $ toList unsetParams) <> mclassdesc)
 
 -- | Enters a new scope, checks it is not already defined, and inherits the
 -- defaults from the current scope
@@ -667,7 +672,7 @@ enterScope secontext cont modulename p = do
   -- This is a special hack for inheritance, because at this time we
   -- have not properly stacked the scopes.
   curcaller <- case secontext of
-                   SEParent l -> return (PString $ Text.takeWhile (/=':') l)
+                   SEParent l -> pure (PString $ Text.takeWhile (/=':') l)
                    _          -> resolveVariable "module_name"
   scopeAlreadyDefined <- has (ix scopename) <$> use scopes
   let isImported = case cont of
@@ -683,16 +688,16 @@ enterScope secontext cont modulename p = do
             parentscope <- use (scopes . at prt)
             when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ppline prt))
             let Just psc = parentscope
-            return (psc & scopeParent .~ S.Just prt)
+            pure (psc & scopeParent .~ S.Just prt)
         _ -> do
             curdefs <- use (scopes . ix scp . scopeResDefaults)
-            return $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty S.Nothing
+            pure $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty S.Nothing
       scopes . at scopename ?= basescope
   scopes . ix scopename . scopeVariables . at "caller_module_name" ?= (curcaller          :!: p :!: cont)
   scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (curcaller          :!: p :!: cont)
   scopes . ix scopename . scopeVariables . at "module_name"        ?= (PString modulename :!: p :!: cont)
   debug ("enterScope, scopename=" <> ppline scopename <+> "caller_module_name=" <> pretty curcaller <+> "module_name=" <> ppline modulename)
-  return scopename
+  pure scopename
 
 loadClass :: Text
           -> S.Maybe Text -- ^ Set if this is an inheritance load, so that we can set calling module properly
@@ -701,14 +706,14 @@ loadClass :: Text
           -> InterpreterMonad [Resource]
 loadClass name loadedfrom params incltype = do
   let name' = dropInitialColons name
-  ndn <- getNodeName
-  singleton (TraceEvent ('[' : Text.unpack ndn ++ "] loadClass " ++ Text.unpack name'))
+  nodename <- getNodeName
+  singleton (TraceEvent ('[' : toS nodename <> "] loadClass " <> toS name'))
   p <- use curPos
   -- check if the class has already been loaded
   -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
   preuse (loadedClasses . ix name' . _2) >>= \case
     Just pp -> case incltype of
-      ClassIncludeLike -> return []
+      ClassIncludeLike -> pure []
       _ -> throwPosError
            $ "Can't include class" <+> ppline name' <+> "twice when using the resource-like syntax (first occurence at"
              <+> showPPos pp <> ")"
@@ -717,7 +722,7 @@ loadClass name loadedfrom params incltype = do
         let modulename = getModulename (RIdentifier "class" name')
         is_ignored <- isIgnoredModule modulename
         if is_ignored
-          then return mempty
+          then pure mempty
           else do
             -- load the actual class, note we are not changing the current position right now
             (spurious, stmt) <- interpretTopLevel TopClass name'
@@ -725,7 +730,7 @@ loadClass name loadedfrom params incltype = do
             -- check if we need to define a resource representing the class
             -- This will be the case for the first standard include
             inhstmts <- case inh of
-              S.Nothing     -> return []
+              S.Nothing     -> pure []
               S.Just ihname -> loadClass ihname (S.Just name') mempty ClassIncludeLike
             let !scopedesc = ContClass name'
                 secontext = case (inh, loadedfrom) of
@@ -737,28 +742,28 @@ loadClass name loadedfrom params incltype = do
                                then do
                                  scp <- use curScope
                                  fqdn <- getNodeName
-                                 return [Resource (RIdentifier "class" name') (Set.singleton name') mempty mempty scp Normal mempty p fqdn]
-                               else return []
+                                 pure [Resource (RIdentifier "class" name') (Set.singleton name') mempty mempty scp Normal mempty p fqdn]
+                               else pure []
             pushScope scopedesc
             loadVariable "title" (PString name')
             loadVariable "name" (PString name')
-            loadParameters params classParams cp (S.Just name')
+            loadParameters params classParams cp (Just name')
             curPos .= cp
             res <- evaluateStatementsFoldable stmts
             out <- finalize (classresource ++ spurious ++ inhstmts ++ res)
             popScope
-            return out
+            pure out
 
 -----------------------------------------------------------
 -- Resource stuff
 -----------------------------------------------------------
 
 addRelationship :: LinkType -> PValue -> Resource -> InterpreterMonad Resource
-addRelationship lt (PResourceReference dt dn) r = return (r & rrelations %~ insertLt)
+addRelationship lt (PResourceReference dt dn) r = pure (r & rrelations %~ insertLt)
   where
     insertLt = iinsertWith (<>) (normalizeRIdentifier dt dn) (Set.singleton lt)
 addRelationship lt (PArray vals) r = foldlM (flip (addRelationship lt)) r vals
-addRelationship _ PUndef r = return r
+addRelationship _ PUndef r = pure r
 addRelationship _ notrr _ = throwPosError ("Expected a resource reference, not:" <+> pretty notrr)
 
 addTagResource :: Resource -> Text -> Resource
@@ -766,10 +771,10 @@ addTagResource r rv = r & rtags . contains rv .~ True
 
 addAttribute :: OverrideType -> Text -> Resource -> PValue -> InterpreterMonad Resource
 addAttribute _ "alias"     r v = (\rv -> r & ralias . contains rv .~ True) <$> resolvePValueString v
-addAttribute _ "audit"     r _ = use curPos >>= \p -> warn ("Metaparameter audit ignored at" <+> showPPos p) >> return r
-addAttribute _ "loglevel"  r _ = use curPos >>= \p -> warn ("Metaparameter loglevel ignored at" <+> showPPos p) >> return r
-addAttribute _ "schedule"  r _ = use curPos >>= \p -> warn ("Metaparameter schedule ignored at" <+> showPPos p) >> return r
-addAttribute _ "stage"     r _ = use curPos >>= \p -> warn ("Metaparameter stage ignored at" <+> showPPos p) >> return r
+addAttribute _ "audit"     r _ = use curPos >>= \p -> warn ("Metaparameter audit ignored at" <+> showPPos p) >> pure r
+addAttribute _ "loglevel"  r _ = use curPos >>= \p -> warn ("Metaparameter loglevel ignored at" <+> showPPos p) >> pure r
+addAttribute _ "schedule"  r _ = use curPos >>= \p -> warn ("Metaparameter schedule ignored at" <+> showPPos p) >> pure r
+addAttribute _ "stage"     r _ = use curPos >>= \p -> warn ("Metaparameter stage ignored at" <+> showPPos p) >> pure r
 addAttribute _ "tag"       r (PArray v) = foldM (\cr cv -> addTagResource cr <$> resolvePValueString cv) r (toList v)
 addAttribute _ "tag"       r v = addTagResource r <$> resolvePValueString v
 addAttribute _ "before"    r d = addRelationship RBefore d r
@@ -778,23 +783,22 @@ addAttribute _ "require"   r d = addRelationship RRequire d r
 addAttribute _ "subscribe" r d = addRelationship RSubscribe d r
 addAttribute b t r v = go t r v
   where
-    go =
-      case b of
-        CantOverride    -> setAttribute
-        Replace         -> overrideAttribute
-        CantReplace     -> defaultAttribute
-        AppendAttribute -> appendAttribute
+    go = case b of
+      CantOverride    -> setAttribute
+      Replace         -> overrideAttribute
+      CantReplace     -> defaultAttribute
+      AppendAttribute -> appendAttribute
 
 setAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
 setAttribute attributename res value =
   case res ^. rattributes . at attributename of
-    Nothing -> return (res & rattributes . at attributename ?~ value)
+    Nothing -> pure (res & rattributes . at attributename ?~ value)
     Just curval -> do
       -- we must check if the resource scope is a parent of the current scope
       curscope <- getScopeName
       i <- isParent curscope (rcurcontainer res)
       if i -- TODO check why this is set
-        then return (res & rattributes . at attributename ?~ value)
+        then pure (res & rattributes . at attributename ?~ value)
         else do
           -- We will not bark if the same attribute is
           -- defined multiple times with identical values.
@@ -802,42 +806,42 @@ setAttribute attributename res value =
           if curval == value
             then checkStrict errmsg errmsg
             else throwPosError errmsg
-          return res
+          pure res
 
 overrideAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
-overrideAttribute attributename res value = return (res & rattributes . at attributename ?~ value)
+overrideAttribute attributename res value = pure (res & rattributes . at attributename ?~ value)
 
 appendAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
 appendAttribute attributename res value = do
   nvalue <- case (res ^. rattributes . at attributename, value) of
-    (Nothing, _)                -> return value
-    (Just (PArray a), PArray b) -> return (PArray (a <> b))
-    (Just (PArray a), b)        -> return (PArray (V.snoc a b))
-    (Just a, PArray b)          -> return (PArray (V.cons a b))
-    (Just a, b)                 -> return (PArray (V.fromList [a,b]))
-  return (res & rattributes . at attributename ?~ nvalue)
+    (Nothing, _)                -> pure value
+    (Just (PArray a), PArray b) -> pure (PArray (a <> b))
+    (Just (PArray a), b)        -> pure (PArray (V.snoc a b))
+    (Just a, PArray b)          -> pure (PArray (V.cons a b))
+    (Just a, b)                 -> pure (PArray (V.fromList [a,b]))
+  pure (res & rattributes . at attributename ?~ nvalue)
 
 defaultAttribute :: Text -> Resource -> PValue -> InterpreterMonad Resource
 defaultAttribute attributename res value =
-  return $ case res ^. rattributes . at attributename of
+  pure $ case res ^. rattributes . at attributename of
     Nothing -> res & rattributes . at attributename ?~ value
     Just _  -> res
 
 modifyCollectedAttribute :: Resource -> AttributeDecl -> InterpreterMonad Resource
-modifyCollectedAttribute res adecl
-  = case adecl of
-      AttributeDecl attributename arrowop expr -> do
-        value <- resolveExpression expr
-        let optype = case arrowop of
-              AppendArrow -> AppendAttribute
-              AssignArrow -> Replace
-        addAttribute optype attributename res value
-      AttributeWildcard expr -> do
-        resolved <- resolveExpression expr
-        case resolved of
-          PHash hash ->
-            foldM (\curres (attrname, attrval) -> addAttribute Replace attrname curres attrval) res (itoList hash)
-          _ -> throwPosError ("A hash was expected, not" <+> pretty resolved)
+modifyCollectedAttribute res attrdecl =
+  case attrdecl of
+    AttributeDecl attributename arrowop expr -> do
+      value <- resolveExpression expr
+      let optype = case arrowop of
+            AppendArrow -> AppendAttribute
+            AssignArrow -> Replace
+      addAttribute optype attributename res value
+    AttributeWildcard expr -> do
+      resolved <- resolveExpression expr
+      case resolved of
+        PHash hash ->
+          foldM (\curres (attrname, attrval) -> addAttribute Replace attrname curres attrval) res (itoList hash)
+        _ -> throwPosError ("A hash was expected, not" <+> pretty resolved)
 
 registerResource :: Text -> Text -> Container PValue -> Virtuality -> PPosition -> InterpreterMonad [Resource]
 registerResource "class" _ _ Virtual p  = curPos .= p >> throwPosError "Cannot declare a virtual class (or perhaps you can, but I do not know what this means)"
@@ -874,13 +878,13 @@ registerResource t rn arg vrt p = do
                           </> pretty r </> pretty otheres
         Nothing -> do
           definedResources . at resid ?= r
-          return [r]
+          pure [r]
 
 
 -- functions : this can't really be exported as it uses a lot of stuff from
 -- this module ...
 mainFunctionCall :: Text -> [PValue] -> InterpreterMonad [Resource]
-mainFunctionCall "showscope" _ = use curScope >>= warn . pretty >> return []
+mainFunctionCall "showscope" _ = use curScope >>= warn . pretty >> pure []
 -- The logging functions
 mainFunctionCall "alert"   a = logWithModifier Log.ALERT        red         a
 mainFunctionCall "crit"    a = logWithModifier Log.CRITICAL     red         a
@@ -897,7 +901,7 @@ mainFunctionCall "contain" includes =
       classname <- resolvePValueString e
       use (loadedClasses . at classname) >>= \case
         Nothing -> loadClass classname S.Nothing mempty ClassIncludeLike
-        Just _ -> return [] -- TODO check that this happened after class declaration
+        Just _ -> pure [] -- TODO check that this happened after class declaration
 mainFunctionCall "include" includes =
   concat <$> mapM doInclude includes
   where
@@ -908,9 +912,9 @@ mainFunctionCall "create_resources" [t, hs] = mainFunctionCall "create_resources
 mainFunctionCall "create_resources" [PString t, PHash hs, PHash defparams] = do
   let (ats, t') = Text.span (== '@') t
   virtuality <- case Text.length ats of
-    0 -> return Normal
-    1 -> return Virtual
-    2 -> return Exported
+    0 -> pure Normal
+    1 -> pure Virtual
+    2 -> pure Exported
     _ -> throwPosError "Too many @'s"
   p <- use curPos
   let genRes rname (PHash rargs) = registerResource t' rname (rargs <> defparams) virtuality p
@@ -922,15 +926,15 @@ mainFunctionCall "ensure_resource" args = ensureResource args
 mainFunctionCall "realize" args = do
   pos <- use curPos
   let updateMod (PResourceReference t rn) =
-        resModifiers %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) return pos : )
+        resModifiers %= (ResourceModifier t ModifierMustMatch RealizeVirtual (REqualitySearch "title" (PString rn)) pure pos : )
       updateMod x = throwPosError ("realize(): all arguments must be resource references, not" <+> pretty x)
   mapM_ updateMod args
-  return []
+  pure []
 mainFunctionCall "tag" args = do
   scp <- getScopeName
   let addTag x = scopes . ix scp . scopeExtraTags . contains x .= True
   mapM_ (resolvePValueString >=> addTag) args
-  return []
+  pure []
 mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ppline <$> resolvePValueString x >>= throwPosError
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
 -- hiera_include does a unique merge lookup for the requested key, then calls the include function on the resulting array.
@@ -941,7 +945,7 @@ mainFunctionCall "hiera_include" [x] = do
   curPos . _1 . _sourceName <>= " [hiera_include call]"
   o <- mainFunctionCall "include" classes
   curPos .= p
-  return o
+  pure o
 mainFunctionCall "hiera_include" _ = throwPosError "hiera_include(): This function takes a single argument"
 -- dumpinfos is a debugging function specific to language-puppet
 mainFunctionCall "dumpinfos" _ = do
@@ -964,7 +968,7 @@ mainFunctionCall fname args = do
   p <- use curPos
   let representation = MainFunctionDeclaration (MainFuncDecl fname mempty p)
   rs <- singleton (ExternalFunction fname args)
-  unless (rs == PUndef) $ throwPosError ("This function call should return" <+> pretty PUndef <+> "and not" <+> pretty rs </> pretty representation)
+  unless (rs == PUndef) $ throwPosError ("This function call should pure" <+> pretty PUndef <+> "and not" <+> pretty rs </> pretty representation)
   pure []
 
 ensurePackages :: [PValue] -> InterpreterMonad [Resource]
@@ -999,7 +1003,7 @@ ensureResource' :: Text -> HashMap Text PValue -> Text -> InterpreterMonad [Reso
 ensureResource' t params title = do
   isdefined <- has (ix (normalizeRIdentifier t title)) <$> use definedResources
   if isdefined
-    then return []
+    then pure []
     else use curPos >>= registerResource t title params Normal
 
 
@@ -1016,7 +1020,7 @@ logWithModifier prio m [v] = do
   p <- use curPos
   v' <- resolvePValueString v
   logWriter prio (m (ppline v') <+> showPPos p)
-  return []
+  pure []
 logWithModifier _ _ _ = throwPosError "This function takes a single argument"
 
 -- | Contrary to the previous iteration, this will let non native types pass.
@@ -1025,6 +1029,6 @@ validateNativeType r = do
   tps <- singleton GetNativeTypes
   case tps ^. at (r ^. rid . itype) of
     Just x -> case (x ^. puppetValidate) r of
-      Right nr -> return nr
+      Right nr -> pure nr
       Left err -> throwPosError ("Invalid resource" <+> pretty r </> getError err)
-    Nothing -> return r
+    Nothing -> pure r

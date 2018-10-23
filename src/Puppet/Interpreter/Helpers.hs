@@ -103,8 +103,10 @@ getPuppetPaths = singleton PuppetPaths
 getNodeName:: InterpreterMonad NodeName
 getNodeName = singleton GetNodeName
 
-readFact :: Text -> InterpreterMonad (Maybe PValue)
-readFact key = do
+-- | Ask the value of a fact given a specified key
+-- The fact set comes from the reader used by the interpreter monad.
+askFact :: Text -> InterpreterMonad (Maybe PValue)
+askFact key = do
   facts <- singleton Facts
   pure $ Map.lookup key facts
 
@@ -150,20 +152,19 @@ logWriter prio d = tell [prio :!: d]
 
 safeDecodeUtf8 :: ByteString -> InterpreterMonad Text
 {-# INLINABLE safeDecodeUtf8 #-}
-safeDecodeUtf8 i = return (Text.decodeUtf8 i)
+safeDecodeUtf8 i = pure (Text.decodeUtf8 i)
 
 normalizeRIdentifier :: Text -> Text -> RIdentifier
 normalizeRIdentifier = RIdentifier . dropInitialColons
 
-
-extractFromState :: InterpreterState -> Maybe (Text, Container ScopeInformation)
-extractFromState s =
-  let cscope = s ^. curScope
-  in if null cscope
-       then Nothing
-       else let scope_name = scopeName (List.head cscope)
-                classes = (PArray . Vector.fromList . map PString . Map.keys) (s ^. loadedClasses)
-                scps = s ^. scopes
-                container_desc = fromMaybe ContRoot (scps ^? ix scope_name . scopeContainer . cctype) -- get the current containder description
-                cscps = scps & ix scope_name . scopeVariables . at "classes" ?~ ( classes :!: (initialPPos mempty) :!: container_desc )
-            in  Just (scope_name, cscps)
+extractScope :: InterpreterState -> Maybe (Text, Container ScopeInformation)
+extractScope s =
+  let cscope = s ^. curScope in
+  if null cscope
+     then Nothing
+     else let scope_name = scopeName (List.head cscope)
+              classes = (PArray . Vector.fromList . map PString . Map.keys) (s ^. loadedClasses)
+              scps = s ^. scopes
+              container_desc = fromMaybe ContRoot (scps ^? ix scope_name . scopeContainer . cctype) -- get the current containder description
+              cscps = scps & ix scope_name . scopeVariables . at "classes" ?~ ( classes :!: (initialPPos mempty) :!: container_desc )
+          in  Just (scope_name, cscps)
