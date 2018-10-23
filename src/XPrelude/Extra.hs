@@ -5,7 +5,6 @@ module XPrelude.Extra (
     , String
     , Container
     , unwrapError
-    , isEmpty
     , dropInitialColons
     , strictifyEither
     , scientific2text
@@ -97,9 +96,6 @@ iinsertWith f k v m =
 iunionWith :: (Hashable k, Eq k) => (v -> v -> v) -> HashMap k v -> HashMap k v -> HashMap k v
 {-# INLINABLE iunionWith #-}
 iunionWith = Map.unionWith
-
-isEmpty :: (Eq x, Monoid x) => x -> Bool
-isEmpty = (== mempty)
 
 -- | Remove the '::' token from a text if any.
 dropInitialColons :: Text -> Text

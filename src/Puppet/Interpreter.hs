@@ -427,7 +427,7 @@ evaluateStatement r@(DefineDeclaration (DefineDecl dname _ _ _)) =
         else nestedDeclarations . at (TopDefine, scp <> "::" <> dname) ?= r >> pure []
 evaluateStatement r@(ResourceCollectionDeclaration (ResCollDecl ct rtype searchexp mods p)) = do
   curPos .= p
-  unless (isEmpty mods || ct == Collector)
+  unless (null mods || ct == Collector)
     (throwPosError ("It doesn't seem possible to amend attributes with an exported resource collector:" </> pretty r))
   when (rtype == "class") (throwPosError "Classes cannot be collected")
   rsearch <- resolveSearchExpression searchexp
@@ -511,7 +511,7 @@ evaluateStatement (ResourceOverrideDeclaration (ResOverrideDecl t urn eargs p)) 
   withAssignements <- case curoverrides ^. at rident of
     Just (ResRefOverride _ prevass prevpos) -> do
       let cm = prevass `Map.intersection` raassignements
-      unless (isEmpty cm)
+      unless (null cm)
         (throwPosError ("The following parameters were already overriden at" <+> showPPos prevpos <+> ":" <+> pretty cm))
       pure (prevass <> raassignements)
     Nothing -> pure raassignements
@@ -634,7 +634,7 @@ loadParameters params classParams defaultPos classname = do
       check_default S.Nothing     = throwE (Max False)
       check_default (S.Just expr) = lift (resolveExpression expr)
 
-  unless (isEmpty spurious_params)
+  unless (null spurious_params)
     $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ppline) $ toList spurious_params) <> pp_classdesc)
 
   -- try to set a value to all parameters
@@ -651,7 +651,7 @@ loadParameters params classParams defaultPos classname = do
         Left (Max True)  -> loadVariable k PUndef >> pure []
         Left (Max False) -> pure [k]
   curPos .= p
-  unless (isEmpty unsetParams)
+  unless (null unsetParams)
     $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ppline $ toList unsetParams) <> pp_classdesc)
 
 -- | Enters a new scope, checks it is not already defined, and inherits the
