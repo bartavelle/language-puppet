@@ -616,18 +616,19 @@ loadParameters attrs classParams defaultPos classname = do
       pp_classdesc   = maybe mempty (\x -> " when including class" <+> ppline x) classname
 
       -- the following functions `throwE (Max False)` when there is no value, and `throwE (Max True)` when this value in PUndef.
-      check_undef :: Maybe PValue -> ExceptT (Max Bool) InterpreterMonad PValue
-      check_undef Nothing       = throwE (Max False)
-      check_undef (Just PUndef) = throwE (Max True)
-      check_undef (Just v)      = pure v
+      check_undef :: S.Maybe UDataType -> Maybe PValue -> ExceptT (Max Bool) InterpreterMonad PValue
+      check_undef (S.Just (UDTOptional _)) Nothing = throwE (Max True)
+      check_undef _ Nothing = throwE (Max False)
+      check_undef _ (Just PUndef) = throwE (Max True)
+      check_undef _ (Just v)      = pure v
 
-      check_hiera :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
-      check_hiera k = case classname of
+      check_hiera :: Text -> S.Maybe UDataType -> ExceptT (Max Bool) InterpreterMonad PValue
+      check_hiera k dt  = case classname of
         Nothing -> throwE (Max False)
-        Just n -> lift (runHiera (n <> "::" <> k) QFirst) >>= check_undef
+        Just n -> lift (runHiera (n <> "::" <> k) QFirst) >>= check_undef dt
 
       check_def :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
-      check_def k = check_undef (attrs ^. at k)
+      check_def k = check_undef S.Nothing (attrs ^. at k)
 
       check_default :: S.Maybe Expression -> ExceptT (Max Bool) InterpreterMonad PValue
       check_default S.Nothing     = throwE (Max False)
@@ -639,7 +640,7 @@ loadParameters attrs classParams defaultPos classname = do
   -- try to set a value to all parameters
   -- The order of evaluation is defined / hiera / default
   unset_params <- fmap concat $ for classParams $ \(varname :!: vartype :!: valexpr) -> do
-      runExceptT (check_def varname <|> check_hiera varname <|> check_default valexpr) >>= \case
+      runExceptT (check_def varname <|> check_hiera varname vartype <|> check_default valexpr) >>= \case
         Right val       -> do
           forM_ vartype $ \utype -> do
             dt <- resolveDataType utype
