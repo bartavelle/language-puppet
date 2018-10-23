@@ -605,7 +605,7 @@ loadVariable varname varval = do
 --
 -- It is able to fill unset parameters with values from Hiera (for classes only) or default values.
 loadParameters :: Container PValue
-               -> Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))
+               -> Parameters
                -> PPosition -- ^ Current position
                -> Maybe Text -- ^ class name
                -> InterpreterMonad ()

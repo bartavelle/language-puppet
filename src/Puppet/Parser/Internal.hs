@@ -370,7 +370,7 @@ defineDecl = do
   pe <- getSourcePos
   pure (DefineDecl name params st (p :!: pe))
 
-puppetClassParameters :: Parser (Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression)))
+puppetClassParameters :: Parser Parameters
 puppetClassParameters = V.fromList <$> parens (sepComma var)
   where
     toStrictMaybe (Just x) = S.Just x
