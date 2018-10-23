@@ -183,7 +183,6 @@ interpretTopLevel toptype topname =
     evalTopLevel x = pure ([], x)
 
 -- | Main internal entry point, this function completes the interpretation
--- TODO: add some doc here
 computeCatalog :: NodeName -> InterpreterMonad (FinalCatalog, EdgeMap, FinalCatalog, [Resource])
 computeCatalog nodename = do
   (topres, stmt) <- interpretTopLevel TopNode nodename
@@ -219,17 +218,17 @@ computeCatalog nodename = do
       classify (curr :!: cure) r =
         let i curm = curm & at (r ^. rid) ?~ r
         in  case r ^. rvirtuality of
-                Normal           -> i curr :!: cure
-                Exported         -> curr :!: i cure
-                ExportedRealized -> i curr :!: i cure
-                _                -> curr :!: cure
+              Normal           -> i curr :!: cure
+              Exported         -> curr :!: i cure
+              ExportedRealized -> i curr :!: i cure
+              _                -> curr :!: cure
   verified <- Map.fromList . map (\r -> (r ^. rid, r)) <$> mapM validateNativeType (Map.elems real)
   withResourceDependentRelations <- traverse getResourceDependentRelations verified
   edgemap <- makeEdgeMap withResourceDependentRelations
   definedRes <- use definedResources
   pure (withResourceDependentRelations, edgemap, exported, Map.elems definedRes)
 
--- | This extracts additional relationships between resources, that are
+-- This extracts additional relationships between resources, that are
 -- dependent on whether some resources are defined. A canonical example is
 -- is the owner field in a File, that can create problems if it's
 -- defined!
@@ -338,7 +337,7 @@ makeEdgeMap ct = do
         -- throwPosError (vcat (map (\(RIdentifier st sn, RIdentifier dt dn) -> "\"" <> pretty st <> ttext sn <> "\" -> \"" <> ttext dt <> ttext dn <> "\"") edgePairs))
     pure step2
 
--- | This functions performs all the actions triggered by calls to the
+-- This functions performs all the actions triggered by calls to the
 -- realize function or other collectors. It returns a pair of
 -- 'FinalCatalog', where the first part is the new catalog, and the second
 -- part the map of all modified resources. The second part is needed so
@@ -376,7 +375,7 @@ realize rs = do
   resModifiers .= []
   pure result
 
--- | Fold all attribute declarations
+-- Fold all attribute declarations
 -- checking for duplicates key locally inside a same resource.
 fromAttributeDecls :: Vector AttributeDecl -> InterpreterMonad (Container PValue)
 fromAttributeDecls =
@@ -600,20 +599,20 @@ loadVariable varname varval = do
                   )
     _ -> scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
 
--- | This function loads class and define parameters into scope. It checks
+-- This function loads class and define parameters into scope. It checks
 -- that all mandatory parameters are set, that no extra parameter is declared.
 --
 -- It is able to fill unset parameters with values from Hiera (for classes only) or default values.
-loadParameters :: Container PValue
-               -> Parameters
-               -> PPosition -- ^ Current position
-               -> Maybe Text -- ^ class name
+loadParameters :: Container PValue -- Resource attributes (resolved)
+               -> Parameters -- List of parameters as declared (unresolved)
+               -> PPosition -- Current position
+               -> Maybe Text --  class name
                -> InterpreterMonad ()
-loadParameters params classParams defaultPos classname = do
+loadParameters attrs classParams defaultPos classname = do
   p <- use curPos
   curPos .= defaultPos
-  let classParamSet   = Set.fromList (classParams ^.. folded . _1 . _1)
-      spurious_params  = ikeys params `Set.difference` classParamSet
+  let class_params   = Set.fromList (classParams ^.. folded . _1 . _1)
+      spurious_params  = ikeys attrs `Set.difference` class_params
       pp_classdesc   = maybe mempty (\x -> " when including class" <+> ppline x) classname
 
       -- the following functions `throwE (Max False)` when there is no value, and `throwE (Max True)` when this value in PUndef.
@@ -628,7 +627,7 @@ loadParameters params classParams defaultPos classname = do
         Just n -> lift (runHiera (n <> "::" <> k) QFirst) >>= check_undef
 
       check_def :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
-      check_def k = check_undef (params ^. at k)
+      check_def k = check_undef (attrs ^. at k)
 
       check_default :: S.Maybe Expression -> ExceptT (Max Bool) InterpreterMonad PValue
       check_default S.Nothing     = throwE (Max False)
@@ -639,22 +638,21 @@ loadParameters params classParams defaultPos classname = do
 
   -- try to set a value to all parameters
   -- The order of evaluation is defined / hiera / default
-  unsetParams <- fmap concat $ for (toList classParams) $ \(k :!: mtype :!: defineValue) -> do
-      ev <- runExceptT (check_def k <|> check_hiera k <|> check_default defineValue)
-      case ev of
-        Right v          -> do
-          forM_ mtype $ \udt -> do
-            dt <- resolveDataType udt
-            unless (datatypeMatch dt v)
-              $ throwPosError ("Expected type" <+> pretty dt <+> "for parameter" <+> ppline k <+> "but its value was:" <+> pretty v)
-          loadVariable k v >> pure []
-        Left (Max True)  -> loadVariable k PUndef >> pure []
-        Left (Max False) -> pure [k]
+  unset_params <- fmap concat $ for classParams $ \(varname :!: vartype :!: valexpr) -> do
+      runExceptT (check_def varname <|> check_hiera varname <|> check_default valexpr) >>= \case
+        Right val       -> do
+          forM_ vartype $ \utype -> do
+            dt <- resolveDataType utype
+            unless (datatypeMatch dt val)
+              $ throwPosError ("Expected type" <+> pretty dt <+> "for parameter" <+> ppline varname <+> "but its value was:" <+> pretty val)
+          loadVariable varname val >> pure []
+        Left (Max True)  -> loadVariable varname PUndef >> pure []
+        Left (Max False) -> pure [varname]
   curPos .= p
-  unless (null unsetParams)
-    $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ppline $ toList unsetParams) <> pp_classdesc)
+  unless (null unset_params)
+    $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ppline $ toList unset_params) <> pp_classdesc)
 
--- | Enters a new scope, checks it is not already defined, and inherits the
+-- Enters a new scope, checks it is not already defined, and inherits the
 -- defaults from the current scope
 --
 -- Inheriting the defaults is necessary for non native types, because they
@@ -698,11 +696,11 @@ enterScope secontext cont modulename p = do
   pure scopename
 
 loadClass :: Text
-          -> S.Maybe Text -- ^ Set if this is an inheritance load, so that we can set calling module properly
-          -> Container PValue
+          -> S.Maybe Text -- Set if this is an inheritance load, so that we can set calling module properly
+          -> Container PValue -- Resource attributes
           -> ClassIncludeType
           -> InterpreterMonad [Resource]
-loadClass name loadedfrom params incltype = do
+loadClass name loadedfrom attrs incltype = do
   let name' = dropInitialColons name
   nodename <- getNodeName
   singleton (TraceEvent ('[' : toS nodename <> "] loadClass " <> toS name'))
@@ -745,7 +743,7 @@ loadClass name loadedfrom params incltype = do
             pushScope scopedesc
             loadVariable "title" (PString name')
             loadVariable "name" (PString name')
-            loadParameters params classParams cp (Just name')
+            loadParameters attrs classParams cp (Just name')
             curPos .= cp
             res <- evaluateStatementsFoldable stmts
             out <- finalize (classresource <> spurious <> inhstmts <> res)
@@ -980,7 +978,7 @@ ensurePackages [PArray _,_] = throwPosError "ensure_packages(): the second argum
 ensurePackages [_,_] = throwPosError "ensure_packages(): the first argument must be a string or an array of strings."
 ensurePackages _ = throwPosError "ensure_packages(): requires one or two arguments."
 
--- | Takes a resource type, title, and a hash of attributes that describe the resource.
+-- Takes a resource type, title, and a hash of attributes that describe the resource.
 -- Create the resource if it does not exist already.
 -- Takes a resource type, title, and a hash of attributes that describe the resource(s).
 ensureResource :: [PValue] -> InterpreterMonad [Resource]
@@ -1020,7 +1018,7 @@ logWithModifier prio m [v] = do
   pure []
 logWithModifier _ _ _ = throwPosError "This function takes a single argument"
 
--- | Contrary to the previous iteration, this will let non native types pass.
+-- Contrary to the previous iteration, this will let non native types pass.
 validateNativeType :: Resource -> InterpreterMonad Resource
 validateNativeType r = do
   tps <- singleton GetNativeTypes
