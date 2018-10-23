@@ -604,45 +604,43 @@ loadVariable varname varval = do
 -- that all mandatory parameters are set, that no extra parameter is declared.
 --
 -- It is able to fill unset parameters with values from Hiera (for classes only) or default values.
-loadParameters :: Foldable f
-               => Container PValue
-               -> f (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))
+loadParameters :: Container PValue
+               -> Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))
                -> PPosition -- ^ Current position
-               -> Maybe Text
+               -> Maybe Text -- ^ class name
                -> InterpreterMonad ()
-loadParameters params classParams defaultPos wHiera = do
+loadParameters params classParams defaultPos classname = do
   p <- use curPos
   curPos .= defaultPos
   let classParamSet   = Set.fromList (classParams ^.. folded . _1 . _1)
-      spuriousParams  = ikeys params `Set.difference` classParamSet
-      mclassdesc      = maybe mempty ((\x -> mempty <+> "when including class" <+> x) . ppline) wHiera
+      spurious_params  = ikeys params `Set.difference` classParamSet
+      pp_classdesc   = maybe mempty (\x -> " when including class" <+> ppline x) classname
 
-      -- the following functions `throwE (Max False)` when there is no value, and `throwE (Max True)` when this value
-      -- in PUndef.
-      checkUndef :: Maybe PValue -> ExceptT (Max Bool) InterpreterMonad PValue
-      checkUndef Nothing       = throwE (Max False)
-      checkUndef (Just PUndef) = throwE (Max True)
-      checkUndef (Just v)      = pure v
+      -- the following functions `throwE (Max False)` when there is no value, and `throwE (Max True)` when this value in PUndef.
+      check_undef :: Maybe PValue -> ExceptT (Max Bool) InterpreterMonad PValue
+      check_undef Nothing       = throwE (Max False)
+      check_undef (Just PUndef) = throwE (Max True)
+      check_undef (Just v)      = pure v
 
-      checkHiera :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
-      checkHiera k = case wHiera of
+      check_hiera :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
+      check_hiera k = case classname of
         Nothing -> throwE (Max False)
-        Just classname -> lift (runHiera (classname <> "::" <> k) QFirst) >>= checkUndef
+        Just n -> lift (runHiera (n <> "::" <> k) QFirst) >>= check_undef
 
-      checkDef :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
-      checkDef k = checkUndef (params ^. at k)
+      check_def :: Text -> ExceptT (Max Bool) InterpreterMonad PValue
+      check_def k = check_undef (params ^. at k)
 
-      checkDefault :: S.Maybe Expression -> ExceptT (Max Bool) InterpreterMonad PValue
-      checkDefault S.Nothing     = throwE (Max False)
-      checkDefault (S.Just expr) = lift (resolveExpression expr)
+      check_default :: S.Maybe Expression -> ExceptT (Max Bool) InterpreterMonad PValue
+      check_default S.Nothing     = throwE (Max False)
+      check_default (S.Just expr) = lift (resolveExpression expr)
 
-  unless (isEmpty spuriousParams)
-    $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ppline) $ toList spuriousParams) <> mclassdesc)
+  unless (isEmpty spurious_params)
+    $ throwPosError ("The following parameters are unknown:" <+> tupled (map (dullyellow . ppline) $ toList spurious_params) <> pp_classdesc)
 
   -- try to set a value to all parameters
   -- The order of evaluation is defined / hiera / default
-  unsetParams <- fmap concat $ for (toList classParams) $ \(k :!: mtype :!: defValue) -> do
-      ev <- runExceptT (checkDef k <|> checkHiera k <|> checkDefault defValue)
+  unsetParams <- fmap concat $ for (toList classParams) $ \(k :!: mtype :!: defineValue) -> do
+      ev <- runExceptT (check_def k <|> check_hiera k <|> check_default defineValue)
       case ev of
         Right v          -> do
           forM_ mtype $ \udt -> do
@@ -654,7 +652,7 @@ loadParameters params classParams defaultPos wHiera = do
         Left (Max False) -> pure [k]
   curPos .= p
   unless (isEmpty unsetParams)
-    $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ppline $ toList unsetParams) <> mclassdesc)
+    $ throwPosError ("The following mandatory parameters were not set:" <+> tupled (map ppline $ toList unsetParams) <> pp_classdesc)
 
 -- | Enters a new scope, checks it is not already defined, and inherits the
 -- defaults from the current scope
@@ -750,7 +748,7 @@ loadClass name loadedfrom params incltype = do
             loadParameters params classParams cp (Just name')
             curPos .= cp
             res <- evaluateStatementsFoldable stmts
-            out <- finalize (classresource ++ spurious ++ inhstmts ++ res)
+            out <- finalize (classresource <> spurious <> inhstmts <> res)
             popScope
             pure out
 
@@ -762,9 +760,9 @@ addRelationship :: LinkType -> PValue -> Resource -> InterpreterMonad Resource
 addRelationship lt (PResourceReference dt dn) r = pure (r & rrelations %~ insertLt)
   where
     insertLt = iinsertWith (<>) (normalizeRIdentifier dt dn) (Set.singleton lt)
-addRelationship lt (PArray vals) r = foldlM (flip (addRelationship lt)) r vals
+addRelationship lt (PArray xs) r = foldlM (flip (addRelationship lt)) r xs
 addRelationship _ PUndef r = pure r
-addRelationship _ notrr _ = throwPosError ("Expected a resource reference, not:" <+> pretty notrr)
+addRelationship _ s _ = throwPosError ("Expected a resource reference, not:" <+> pretty s)
 
 addTagResource :: Resource -> Text -> Resource
 addTagResource r rv = r & rtags . contains rv .~ True
@@ -869,8 +867,7 @@ registerResource t rn arg vrt p = do
   case t of
     "class" -> {-# SCC "rrClass" #-} do
       definedResources . at resid ?= r
-      let attrs = r ^. rattributes
-      (r:) <$> loadClass rn S.Nothing attrs ClassResourceLike
+      (r:) <$> loadClass rn S.Nothing (r^.rattributes) ClassResourceLike
     _       -> {-# SCC "rrGeneralCase" #-}
       use (definedResources . at resid) >>= \case
         Just otheres -> throwPosError
