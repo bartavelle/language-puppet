@@ -10,7 +10,7 @@ module XPrelude.Extra (
     , strictifyEither
     , scientific2text
     , text2Scientific
-    , ifromList, ikeys, isingleton, ifromListWith, iunionWith, iinsertWith
+    , ifromList, ikeys, ifromListWith, iunionWith, iinsertWith
     -- * Logger
     , loggerName
     , logDebug
@@ -77,13 +77,10 @@ ifromList :: (Monoid m, At m, Foldable f) => f (Index m, IxValue m) -> m
 {-# INLINABLE ifromList #-}
 ifromList = foldl' (\curm (k,v) -> curm & at k ?~ v) mempty
 
+-- | Return all the keys of a map in a set.
 ikeys :: (Eq k, Hashable k) => HashMap k v -> HS.HashSet k
 {-# INLINABLE ikeys #-}
 ikeys = HS.fromList . Map.keys
-
-isingleton :: (Monoid b, At b) => Index b -> IxValue b -> b
-{-# INLINABLE isingleton #-}
-isingleton k v = mempty & at k ?~ v
 
 ifromListWith :: (Monoid m, At m, Foldable f) => (IxValue m -> IxValue m -> IxValue m) -> f (Index m, IxValue m) -> m
 {-# INLINABLE ifromListWith #-}
