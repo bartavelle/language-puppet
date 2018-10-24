@@ -244,10 +244,12 @@ genFunctionCall nonparens = do
 literalValue :: Parser UnresolvedValue
 literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
   where
-    bareword = (Text.cons) <$> (satisfy Char.isAsciiLower) <*> takeWhileP Nothing isBarewordChar <?> "Bare word"
-    numericalvalue = integerOrDouble >>= \case
-      Left x  -> return (fromIntegral x)
-      Right y -> return (Scientific.fromFloatDigits y)
+    bareword = Text.cons <$> satisfy Char.isAsciiLower <*> takeWhileP Nothing isBarewordChar <?> "Bare word"
+    signed :: Num n => Parser (n -> n)
+    signed = (negate <$ char '-') <|> pure (\x -> x)
+    numericalvalue = ((,) <$> signed <*> integerOrDouble) >>= \case
+      (s, Left x)  -> return (s (fromIntegral x))
+      (s, Right y) -> return (s (Scientific.fromFloatDigits y))
 
 data TerminalMode
     = FunctionWithoutParens
