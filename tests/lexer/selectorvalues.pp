@@ -31,7 +31,8 @@ $mode5 = yay ? {
 }
 
 $mode6 = $mode5 ? {
-    755 => 755
+    755 => 755,
+    -2  =>  3
 }
 
 $mode7 = "test regex" ? {
