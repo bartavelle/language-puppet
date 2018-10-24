@@ -1,14 +1,18 @@
-{-# LANGUAGE OverloadedLists       #-}
-module InterpreterSpec (classIncludeSpec, main) where
+module Interpreter.ClassSpec (spec) where
+
+import           Test.Hspec
+
+import           Control.Lens
+import qualified Data.Text as Text
 
 import           Helpers
 
-import qualified Data.Text                as Text
-
-
-
-classIncludeSpec :: Spec
-classIncludeSpec = do
+spec = do
+  describe "Class" $ do
+    includeSpec
+  describe "Params" $ do
+    includeSpec
+includeSpec = do
   describe "Multiple loading" $ do
     it "should work when using several include statements" $
       pureCatalog (Text.unlines ["include foo", "include foo"]) `shouldSatisfy` (has _Right)
@@ -16,7 +20,3 @@ classIncludeSpec = do
       pureCatalog (Text.unlines [ "class { 'foo': }", "include foo"]) `shouldSatisfy` (has _Right)
     it "should fail when using include before class" $
       pureCatalog (Text.unlines [ "include foo", "class { 'foo': }" ]) `shouldSatisfy` (has _Left)
-
-main :: IO ()
-main = hspec $ do
-  describe "Class inclusion" classIncludeSpec

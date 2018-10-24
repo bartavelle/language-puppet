@@ -20,7 +20,7 @@ import qualified Function.SuffixSpec
 import qualified Function.PrefixSpec
 import qualified Interpreter.CollectorSpec
 import qualified Interpreter.IfSpec
-import qualified InterpreterSpec
+import qualified Interpreter.ClassSpec
 import qualified LexerSpec
 import qualified PuppetdbSpec
 import qualified HieraSpec
@@ -37,10 +37,9 @@ spec = do
   ErbSpec.spec
   LexerSpec.spec
   describe "Interpreter" $ do
-    describe "Collector" InterpreterSpec.collectorSpec
-    describe "Class include" InterpreterSpec.classIncludeSpec
-    describe "Collector (puppet tests)" Interpreter.CollectorSpec.spec
-    describe "If" Interpreter.IfSpec.spec
+    Interpreter.CollectorSpec.spec
+    Interpreter.ClassSpec.spec
+    Interpreter.IfSpec.spec
   describe "Puppet functions" $ do
     describe "The shellquote function" Function.ShellquoteSpec.spec
     describe "The sprintf function" Function.SprintfSpec.spec

@@ -4,7 +4,6 @@
 module XPrelude.PP (
   module Exports
   , PrettyError (..)
-  , prettyToShow
   , ppline
   , pplines
   , pptext
@@ -64,6 +63,3 @@ ppstring = string
 -- | pretty print one line of string
 pptext :: String -> Doc
 pptext = text
-
-prettyToShow :: Doc -> String
-prettyToShow d = displayS (renderCompact d) ""

@@ -1,17 +1,16 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists       #-}
 module Helpers ( module Exports
-               , compileCatalog
                , checkExprsSuccess
                , checkExprsError
-               , getCatalog
+               , pureCatalog
                , getResource
                , getAttribute
-               , spretty
+               , renderToString
                , withStdlibFunction
                ) where
 
-import           XPrelude     as Exports
+import           XPrelude            as Exports
 
 import           Control.Monad       as Exports (fail)
 import qualified Data.HashMap.Strict as HM
@@ -25,25 +24,24 @@ import           Puppet.Parser       as Exports
 import           Puppet.Runner       as Exports hiding (getCatalog)
 
 
-compileCatalog :: MonadError String m => Text -> m (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
-compileCatalog input = do
-  statements <- either (throwError . show) return (runPuppetParser mempty input)
-  let nodename = "node.fqdn"
-      sttmap =
-        [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos "dummy")))
-        ]
-      (res, finalState, _) = pureEval dummyFacts sttmap (computeCatalog nodename)
-  (catalog, em, exported, defResources) <- either (throwError . show) return res
-  return (catalog, em, exported, defResources, finalState)
-
-getCatalog :: MonadError String m => Text -> m FinalCatalog
-getCatalog = fmap (view _1) . compileCatalog
-
-spretty :: Pretty a => a -> String
-spretty = flip displayS "" . renderCompact . pretty
+-- | Given a raw text input to be parsed, compute the manifest in a pure setting.
+pureCatalog ::  Text -> Either String FinalCatalog
+pureCatalog  = runExcept . fmap (view _1) . compileCatalog
+  where
+  compileCatalog :: Text -> Except String (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
+  compileCatalog input = do
+    statements <- either (throwError . show) pure (runPuppetParser mempty input)
+    let nodename = "pure"
+        sttmap =
+          [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos "dummy")))
+          , ((TopClass, "foo"), ClassDeclaration $ ClassDecl mempty mempty mempty mempty (initialPPos mempty))
+          ]
+        (res, finalState, _) = pureEval dummyFacts sttmap (computeCatalog nodename)
+    (catalog, em, exported, defResources) <- either (throwError . show) return res
+    pure (catalog, em, exported, defResources, finalState)
 
 getResource :: (Monad m) => RIdentifier -> FinalCatalog -> m Resource
-getResource resid catalog = maybe (fail ("Unknown resource " ++ spretty resid)) return (HM.lookup resid catalog)
+getResource resid catalog = maybe (fail ("Unknown resource " <> (renderToString resid))) pure (HM.lookup resid catalog)
 
 getAttribute :: Monad m => Text -> Resource -> m PValue
 getAttribute att res =
@@ -74,4 +72,7 @@ evalExprs fname =
   dummyEval . resolveValue . UFunctionCall fname . Vector.fromList
   >=> \pv -> case pv of
                 PString s -> return s
-                _ -> Left ("Expected a string, not " <> PrettyError (pretty pv))
+                _         -> Left ("Expected a string, not " <> PrettyError (pretty pv))
+
+renderToString :: Pretty a => a -> String
+renderToString d = displayS (renderCompact (pretty d)) ""

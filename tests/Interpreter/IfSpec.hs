@@ -9,27 +9,19 @@ import qualified Data.Text as Text
 
 import           Helpers
 
-{-
-shouldReturn :: [Text] -> [PValue] -> Expectation
-shouldReturn content expectedMessages = do
-    cat <- case runExcept (getCatalog (T.unlines content)) of
-               Left rr -> fail rr
-               Right x -> return x
-    _foo cat
--}
-
 shouldFail :: [Text] -> Expectation
 shouldFail content = let cat :: Either String FinalCatalog
-                         cat = runExcept (getCatalog (Text.unlines content))
+                         cat = pureCatalog (Text.unlines content)
                      in  cat `shouldSatisfy` has _Left
 
 shouldNotFail :: [Text] -> Expectation
 shouldNotFail content = let cat :: Either String FinalCatalog
-                            cat = runExcept (getCatalog (Text.unlines content))
+                            cat = pureCatalog (Text.unlines content)
                         in  cat `shouldSatisfy` has _Right
 
 spec :: Spec
 spec = do
+  describe "If" $ do
     it "doesn't enter false conditions" $ shouldNotFail
         [ "if (false) { fail ':(' }" ]
     it "enters true conditions" $ shouldFail

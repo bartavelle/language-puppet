@@ -12,7 +12,7 @@ import           Helpers
 
 shouldNotify :: [Text] -> [PValue] -> Expectation
 shouldNotify content expectedMessages = do
-    catalog <- case runExcept (getCatalog (Text.unlines content)) of
+    catalog <- case pureCatalog (Text.unlines content) of
       Left rr -> fail rr
       Right x -> return x
     let messages = itoList catalog ^.. folded . filtered (\rp -> rp ^. _1 . itype == "notify") . _2 . rattributes . ix "message"
@@ -20,11 +20,16 @@ shouldNotify content expectedMessages = do
 
 shouldFail :: [Text] -> Expectation
 shouldFail content = let catalog :: Either String FinalCatalog
-                         catalog = runExcept (getCatalog (Text.unlines content))
+                         catalog = pureCatalog (Text.unlines content)
                      in  catalog `shouldSatisfy` has _Left
 
-spec :: Spec
-spec = do
+spec =
+  describe "Collectors" $ do
+    spec0
+    spec1
+
+spec0 :: Spec
+spec0 = do
     it "matches everything when no query given" $
         [ "@notify { 'testing': message => 'the message' }"
         , "@notify { 'other': message => 'the other message' }"
@@ -148,3 +153,31 @@ spec = do
         , "Notify <|  |> { message => 'overridden1' }"
         , "Notify <|  |> { message => 'overridden2' }"
         ] `shouldNotify` ["overridden2"]
+
+
+spec1 :: Spec
+spec1 = do
+  let computeWith = pureCatalog . arrowOperationInput
+  describe "Resource Collector" $
+    it "should append the new 'uid' attribute in the user resource" $
+      getResAttr (computeWith "=>") ^. at "uid" `shouldBe` Just (PNumber 1000)
+  describe "AppendArrow in AttributeDecl" $
+    it "should add 'docker' to the 'groups' attribute of the user resource" $ do
+      getResAttr (computeWith "+>") ^. at "groups" `shouldBe` Just (PArray $ ["ci", "docker"])
+  describe "AssignArrow in AttributeDecl" $
+    it "should override the 'groups' attributes from the user resource" $
+      getResAttr (computeWith "=>") ^. at "groups" `shouldBe` Just (PArray $ ["docker"])
+  where
+    getResAttr :: (Either String FinalCatalog) -> Container PValue
+    getResAttr s = s ^. _Right . at (RIdentifier "user" "jenkins")._Just.rattributes
+
+    arrowOperationInput :: Text -> Text
+    arrowOperationInput arr =
+      Text.unlines [ "user { 'jenkins':"
+                   , "  groups => 'ci'"
+                   , "}"
+                   , "User <| title == 'jenkins' |> {"
+                   , "groups " <> arr <> " 'docker',"
+                   , "uid => 1000}"
+                   , "}"
+                   ]
