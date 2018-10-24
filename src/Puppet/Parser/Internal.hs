@@ -58,35 +58,31 @@ sepComma p = p `sepEndBy` comma
 sepComma1 :: Parser a -> Parser [a]
 sepComma1 p = p `sepEndBy1` comma
 
--- | Parse an 'Expression'.
+-- | Parses an 'Expression'.
 expression :: Parser Expression
-expression =
-  condExpression
-  <|> makeExprParser (lexeme terminal) expressionTable
-  <?> "expression"
-  where
-    condExpression = do
-      selectedExpression <- try $ do
-        trm <- lexeme terminal
-        lookups <- optional indexLookupChain
-        symbolic '?'
-        return $ maybe trm ($ trm) lookups
-      let case_expr = do
-            c <-     SelectorDefault <$ symbol "default" -- default case
-                 <|> SelectorType <$> try datatype
-                 <|> fmap SelectorValue
-                       (   UVariableReference <$> variableReference
-                       <|> UBoolean <$> puppetBool
-                       <|> UUndef <$ symbol "undef"
-                       <|> literalValue
-                       <|> UInterpolable <$> interpolableString
-                       <|> URegexp <$> termRegexp
-                       )
-            symbol "=>"
-            e <- expression
-            pure (c :!: e)
-      cases <- braces (sepComma1 case_expr)
-      pure (ConditionalValue selectedExpression (V.fromList cases))
+expression = do
+  expr <- makeExprParser (lexeme terminal) expressionTable
+  ms <- optional $ do
+    symbolic '?'
+    let case_expr = do
+          c <-     SelectorDefault <$ symbol "default" -- default case
+               <|> SelectorType <$> try datatype
+               <|> fmap SelectorValue
+                     (   UVariableReference <$> variableReference
+                     <|> UBoolean <$> puppetBool
+                     <|> UUndef <$ symbol "undef"
+                     <|> literalValue
+                     <|> UInterpolable <$> interpolableString
+                     <|> URegexp <$> termRegexp
+                     )
+          symbol "=>"
+          e <- expression
+          pure (c :!: e)
+    cases <- braces (sepComma1 case_expr)
+    pure (ConditionalValue expr (V.fromList cases))
+  case ms of
+    Nothing -> pure expr
+    Just cv -> pure cv
 
 stringLiteral' :: Parser Text
 stringLiteral' = between (char '\'') (symbolic '\'') interior
