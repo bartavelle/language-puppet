@@ -4,6 +4,7 @@ module Helpers ( module Exports
                , checkExprsSuccess
                , checkExprsError
                , pureCatalog
+               , pureCatalog'
                , getResource
                , getAttribute
                , renderToString
@@ -26,17 +27,18 @@ import           Puppet.Runner       as Exports hiding (getCatalog)
 
 -- | Given a raw text input to be parsed, compute the manifest in a pure setting.
 pureCatalog ::  Text -> Either String FinalCatalog
-pureCatalog  = runExcept . fmap (view _1) . compileCatalog
+pureCatalog  = pureCatalog' mempty
+
+-- | A more flexible version of 'pureCatalog' where you can pass further top levels.
+pureCatalog' ::  HM.HashMap (TopLevelType, Text ) Statement -> Text -> Either String FinalCatalog
+pureCatalog'  tops = runExcept . fmap (view _1) . compileCatalog
   where
   compileCatalog :: Text -> Except String (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
   compileCatalog input = do
     statements <- either (throwError . show) pure (runPuppetParser mempty input)
-    let nodename = "pure"
-        sttmap =
-          [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos "dummy")))
-          , ((TopClass, "foo"), ClassDeclaration $ ClassDecl mempty mempty mempty mempty (initialPPos mempty))
-          ]
-        (res, finalState, _) = pureEval dummyFacts sttmap (computeCatalog nodename)
+    let nodename = "dummy"
+        top_node = [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos mempty)))]
+        (res, finalState, _) = pureEval dummyFacts ( top_node <> tops) (computeCatalog nodename)
     (catalog, em, exported, defResources) <- either (throwError . show) return res
     pure (catalog, em, exported, defResources, finalState)
 
