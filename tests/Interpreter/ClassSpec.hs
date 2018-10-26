@@ -5,13 +5,9 @@ module Interpreter.ClassSpec (spec) where
 import           Test.Hspec
 
 import           Control.Lens
-import qualified Data.Maybe.Strict as S
 import qualified Data.Text         as Text
 
 import           Helpers
-
--- params:: Parameters
--- params = [ "param0" :!: S.Nothing :!: S.Nothing ]
 
 spec = do
   describe "Class" $ do
@@ -28,6 +24,7 @@ spec = do
       pureCatalog (Text.unlines ["class foo ($param0){}", "class {'foo': param1 => 1 }"]) `shouldSatisfy` (has _Left)
     it "should succeed when declaring a class with a correct param" $
       pureCatalog (Text.unlines ["class foo ($param0){}", "class {'foo': param0 => 1 }"]) `shouldSatisfy` (has _Right)
+    it "should fail when the type of the attribute is wrong"  $ do
+      pureCatalog (Text.unlines ["class foo (String $param0){}", "class {'foo': param0 => 1 }"]) `shouldSatisfy` (has _Left)
     it "should fail when declaring with a missing param" $ do
-      pending
       pureCatalog (Text.unlines ["class foo ($param0){}", "class {'foo': }"]) `shouldSatisfy` (has _Left)

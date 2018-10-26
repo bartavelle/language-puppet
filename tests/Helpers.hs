@@ -1,6 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists       #-}
-{-# LANGUAGE TupleSections         #-}
 
 module Helpers ( module Exports
                , checkExprsSuccess
@@ -17,7 +16,6 @@ import           XPrelude            as Exports
 import           Control.Monad       as Exports (fail)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Maybe.Strict   as S
-import           Data.Text           as Text
 import qualified Data.Vector         as Vector
 import           Test.Hspec          as Exports
 
@@ -25,18 +23,17 @@ import           Puppet.Interpreter  as Exports
 import           Puppet.Parser       as Exports
 import           Puppet.Runner       as Exports hiding (getCatalog)
 
--- pureCatalog i = second fst (pureCatalog' dummyInitialState i)
-
 -- | Given a raw text input to be parsed, compute the manifest in a pure setting.
+-- The 'InterpreterWriter' might be useful for debugging purpose.
 pureCatalog ::  Text -> Either String (FinalCatalog, InterpreterWriter)
 pureCatalog = runExcept . fmap (\s -> (s^._1,s^._6)) . compileCatalog
   where
   compileCatalog :: Text -> Except String (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState, InterpreterWriter)
   compileCatalog input = do
     statements <- either (throwError . show) pure (runPuppetParser mempty input)
-    let nodename = "dummy"
+    let nodename = "pure"
         top_node = [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos mempty)))]
-        (res, finalState, logs) = pureEval' top_node dummyInitialState (computeCatalog nodename)
+        (res, finalState, logs) = pureEval top_node (computeCatalog nodename)
     (catalog, em, exported, defResources) <- either (throwError . show) pure res
     pure (catalog, em, exported, defResources, finalState, logs)
 
@@ -46,7 +43,7 @@ getResource resid catalog = maybe (fail ("Unknown resource " <> renderToString r
 getAttribute :: Monad m => Text -> Resource -> m PValue
 getAttribute att res =
   case res ^? rattributes . ix att of
-    Nothing -> fail ("Unknown attribute: " ++ Text.unpack att)
+    Nothing -> fail ("Unknown attribute: " <> toS att)
     Just x  -> return x
 
 withStdlibFunction :: Text -> ( ([PValue] -> InterpreterMonad PValue) -> Spec ) -> Spec
@@ -69,10 +66,9 @@ checkExprsError fname args msg =
 
 evalExprs :: Text -> [Expression] -> Either PrettyError Text
 evalExprs fname =
-  dummyEval . resolveValue . UFunctionCall fname . Vector.fromList
-  >=> \pv -> case pv of
-                PString s -> return s
-                _         -> Left ("Expected a string, not " <> PrettyError (pretty pv))
+  dummyEval . resolveValue . UFunctionCall fname . Vector.fromList >=> \case
+    PString s -> return s
+    v         -> Left ("Expected a string, not " <> PrettyError (pretty v))
 
 renderToString :: Pretty a => a -> String
 renderToString d = displayS (renderCompact (pretty d)) ""

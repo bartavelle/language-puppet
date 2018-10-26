@@ -7,7 +7,10 @@ main = hspec spec
 
 fname = "lookup"
 expectedErrMsg = "Wrong set of arguments"
-expectedValue = "pure"
+
+-- See dummyFacts defined in Pure.hs
+testkey = "foo"
+expectedValue = "dummy"
 
 checkSuccess :: [Expression] -> Text -> Expectation
 checkSuccess = checkExprsSuccess fname
@@ -21,9 +24,9 @@ stringDatatype = Terminal (UDataType (UDTString Nothing Nothing))
 spec :: Spec
 spec = do
     it "should fail with no argument" (checkError [] expectedErrMsg)
-    it "should succeed with one argument" (checkSuccess ["hostname"] expectedValue)
-    it "should succeed with 4 arguments" (checkSuccess ["hostname", stringDatatype, "unique", "default"] expectedValue)
-    it "should fail with an unknown merge strategy" (checkError ["hostname", stringDatatype, "joe", "default"] "Unknown merge strategy")
-    it "should succeed with two arguments, the second on being a datatype" (checkSuccess ["hostname", stringDatatype] expectedValue)
-    it "should fail when the type mismatched" (checkError ["hostname", boolDatatype] "Datatype mismatched")
-    it "should fail with two arguments both strings" (checkError ["hostname", "default"] expectedErrMsg)
+    it "should succeed with one argument" (checkSuccess [testkey] expectedValue)
+    it "should succeed with 4 arguments" (checkSuccess [testkey, stringDatatype, "unique", "default"] expectedValue)
+    it "should fail with an unknown merge strategy" (checkError [testkey, stringDatatype, "joe", "default"] "Unknown merge strategy")
+    it "should succeed with two arguments, the second one being a datatype" (checkSuccess [testkey, stringDatatype] expectedValue)
+    it "should fail when the type mismatched" (checkError [testkey, boolDatatype] "Datatype mismatched")
+    it "should fail with two arguments both strings" (checkError [testkey, "default"] expectedErrMsg)

@@ -101,7 +101,7 @@ runHiera q t = do
       vars = HM.fromList (toplevels <> locals)
   Operational.singleton (HieraQuery vars q t)
 
--- | The implementation of all hiera_* functions
+-- | The implementation of all lookup functions
 hieraCall :: HieraQueryType -> PValue -> Maybe PValue -> Maybe DataType -> Maybe PValue -> InterpreterMonad PValue
 hieraCall _ _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not supported (and deprecated in puppet)"
 hieraCall qt q df dt _ = do

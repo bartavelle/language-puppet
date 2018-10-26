@@ -14,9 +14,8 @@ evalWithScope :: ([PValue] -> InterpreterMonad PValue)
 evalWithScope apFunc callerScope moduleScope =
   (_Left %~ show) . view _1 . ctxEval . (mapM resolveExpression >=> apFunc)
   where
-      ctxEval = pureEval' mempty state0
-      state0 = initialState dummyFacts [("confdir", "/etc/puppet")] & curScope .~ [ContClass moduleScope, ContClass callerScope]
-
+      ctxEval = pureEval' mempty state0 Nothing
+      state0 = dummyInitialState & curScope .~ [ContClass moduleScope, ContClass callerScope]
 
 spec :: Spec
 spec = withStdlibFunction "assert_private" $ \apFunc -> do

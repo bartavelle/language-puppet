@@ -44,8 +44,9 @@ dummyTemplate (Inline cnt) s _ =
 -- | A pure 'InterpreterReader', that can only evaluate a subset of the
 -- templates, and that can include only the supplied top level statements.
 pureReader :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level statement map
+           -> Maybe PValue -- ^ What value a call to hiera should return
            -> InterpreterReader Identity
-pureReader sttmap =
+pureReader sttmap hiera =
   InterpreterReader
     baseNativeTypes
     getstatementdummy
@@ -63,7 +64,7 @@ pureReader sttmap =
     mempty
   where
     pure_hiera :: HieraQueryFunc Identity
-    pure_hiera _ _ _ = pure (S.Right (Just "pure"))
+    pure_hiera _ _ _ = pure (S.Right hiera)
     hieradummy = HieraQueryLayers pure_hiera pure_hiera mempty
     getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
       Just x  -> S.Right x
@@ -72,25 +73,26 @@ pureReader sttmap =
     iomethods_purestubs = IoMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ())
 
 -- | Evaluates an interpreter expression in a pure context.
-pureEval :: Facts -- ^ A list of facts that will be used during evaluation
-         ->  HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
+-- Unlike 'dummyEval', each hiera lookup is evaluated to return Nothing.
+pureEval :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
          -> InterpreterMonad a -- ^ The action to evaluate
          -> (Either PrettyError a, InterpreterState, InterpreterWriter)
-pureEval facts stmap action =
-  pureEval' stmap state0 action
-  where
-    state0 = initialState facts $ HM.fromList [("confdir", "/etc/puppet")]
+pureEval stmap action =
+  pureEval' stmap dummyInitialState Nothing action
 
--- | More general version of 'pureEval' where you pass the initial state directly
+-- | More general version of 'pureEval' where you pass:
+-- * the initial state directly
+-- * a value to be return by all hiera lookup
 pureEval' :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
           -> InterpreterState
+          -> Maybe PValue
           -> InterpreterMonad a -- ^ The action to evaluate
           -> (Either PrettyError a, InterpreterState, InterpreterWriter)
-pureEval' stmap s0 action =
-  runIdentity (interpretMonad (pureReader stmap) s0 action)
+pureEval' stmap s0 hiera action =
+  runIdentity (interpretMonad (pureReader stmap hiera) s0 action)
 
 dummyInitialState :: InterpreterState
-dummyInitialState = initialState dummyFacts mempty
+dummyInitialState = initialState dummyFacts [("confdir", "/etc/puppet")]
 
 -- | A bunch of facts that can be used for pure evaluation.
 dummyFacts :: Facts
@@ -181,5 +183,6 @@ dummyFacts = HM.fromList
         ]
 
 -- | A default evaluation function for arbitrary interpreter actions.
+-- Unlike 'pureEval', each hiera lookup is evaluated to return the  string 'dummy'.
 dummyEval :: InterpreterMonad a -> Either PrettyError a
-dummyEval action = pureEval dummyFacts mempty action ^. _1
+dummyEval action = pureEval' mempty dummyInitialState (Just "dummy") action ^. _1
