@@ -10,13 +10,11 @@ import qualified Data.Text as Text
 import           Helpers
 
 shouldFail :: [Text] -> Expectation
-shouldFail content = let cat :: Either String FinalCatalog
-                         cat = pureCatalog (Text.unlines content)
+shouldFail content = let cat = pureCatalog (Text.unlines content)
                      in  cat `shouldSatisfy` has _Left
 
 shouldNotFail :: [Text] -> Expectation
-shouldNotFail content = let cat :: Either String FinalCatalog
-                            cat = pureCatalog (Text.unlines content)
+shouldNotFail content = let cat = pureCatalog (Text.unlines content)
                         in  cat `shouldSatisfy` has _Right
 
 spec :: Spec

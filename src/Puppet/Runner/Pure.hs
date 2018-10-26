@@ -8,6 +8,7 @@
 module Puppet.Runner.Pure (
     dummyEval
   , dummyFacts
+  , dummyInitialState
   , pureEval
   , pureEval'
   , pureReader
@@ -88,6 +89,8 @@ pureEval' :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
 pureEval' stmap s0 action =
   runIdentity (interpretMonad (pureReader stmap) s0 action)
 
+dummyInitialState :: InterpreterState
+dummyInitialState = initialState dummyFacts mempty
 
 -- | A bunch of facts that can be used for pure evaluation.
 dummyFacts :: Facts

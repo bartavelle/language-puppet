@@ -76,12 +76,12 @@ initDaemon pref = do
   getTemplate <- initTemplateDaemon intr pref templStats
   catStats    <- newStats
   parseStats  <- newStats
-  return (Daemon
-            (getCatalog' pref (parseFunc (pref ^. prefPuppetPaths) fcache parseStats) getTemplate catStats hquery)
-            parseStats
-            catStats
-            templStats
-         )
+  pure (Daemon
+         (getCatalog' pref (parseFunc (pref ^. prefPuppetPaths) fcache parseStats) getTemplate catStats hquery)
+         parseStats
+         catStats
+         templStats
+       )
 
 getCatalog' :: Preferences IO
          -> ( TopLevelType -> Text -> IO (S.Either PrettyError Statement) )

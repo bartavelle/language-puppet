@@ -1,10 +1,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists       #-}
+{-# LANGUAGE TupleSections         #-}
+
 module Helpers ( module Exports
                , checkExprsSuccess
                , checkExprsError
                , pureCatalog
-               , pureCatalog'
                , getResource
                , getAttribute
                , renderToString
@@ -24,26 +25,23 @@ import           Puppet.Interpreter  as Exports
 import           Puppet.Parser       as Exports
 import           Puppet.Runner       as Exports hiding (getCatalog)
 
+-- pureCatalog i = second fst (pureCatalog' dummyInitialState i)
 
 -- | Given a raw text input to be parsed, compute the manifest in a pure setting.
-pureCatalog ::  Text -> Either String FinalCatalog
-pureCatalog  = pureCatalog' mempty
-
--- | A more flexible version of 'pureCatalog' where you can pass further top levels.
-pureCatalog' ::  HM.HashMap (TopLevelType, Text ) Statement -> Text -> Either String FinalCatalog
-pureCatalog'  tops = runExcept . fmap (view _1) . compileCatalog
+pureCatalog ::  Text -> Either String (FinalCatalog, InterpreterWriter)
+pureCatalog = runExcept . fmap (\s -> (s^._1,s^._6)) . compileCatalog
   where
-  compileCatalog :: Text -> Except String (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState)
+  compileCatalog :: Text -> Except String (FinalCatalog, EdgeMap, FinalCatalog, [Resource], InterpreterState, InterpreterWriter)
   compileCatalog input = do
     statements <- either (throwError . show) pure (runPuppetParser mempty input)
     let nodename = "dummy"
         top_node = [((TopNode, nodename), NodeDeclaration (NodeDecl (NodeName nodename) statements S.Nothing (initialPPos mempty)))]
-        (res, finalState, _) = pureEval dummyFacts ( top_node <> tops) (computeCatalog nodename)
-    (catalog, em, exported, defResources) <- either (throwError . show) return res
-    pure (catalog, em, exported, defResources, finalState)
+        (res, finalState, logs) = pureEval' top_node dummyInitialState (computeCatalog nodename)
+    (catalog, em, exported, defResources) <- either (throwError . show) pure res
+    pure (catalog, em, exported, defResources, finalState, logs)
 
 getResource :: (Monad m) => RIdentifier -> FinalCatalog -> m Resource
-getResource resid catalog = maybe (fail ("Unknown resource " <> (renderToString resid))) pure (HM.lookup resid catalog)
+getResource resid catalog = maybe (fail ("Unknown resource " <> renderToString resid)) pure (HM.lookup resid catalog)
 
 getAttribute :: Monad m => Text -> Resource -> m PValue
 getAttribute att res =

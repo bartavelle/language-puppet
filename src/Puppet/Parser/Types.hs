@@ -251,7 +251,19 @@ data ResOverrideDecl = ResOverrideDecl !Text !Expression !(V.Vector AttributeDec
 -- Interpreted as "if first cond is true, choose first statements, else take the next pair, check the condition ..."
 data ConditionalDecl = ConditionalDecl !(V.Vector (Pair Expression (V.Vector Statement))) !PPosition deriving (Eq, Show)
 
+-- | Declare a class with
+-- * a name
+-- * a list of parameters
+-- * an optional inherits
+-- * a list of statements
+-- * a position
 data ClassDecl  = ClassDecl !Text  !Parameters !(S.Maybe Text) !(V.Vector Statement) !PPosition deriving (Eq, Show)
+
+-- | Declare a define with
+-- * a name
+-- * a list of parameters
+-- * a list of statements
+-- * a position
 data DefineDecl = DefineDecl !Text !Parameters !(V.Vector Statement) !PPosition deriving (Eq, Show)
 
 type Parameters = V.Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expression))

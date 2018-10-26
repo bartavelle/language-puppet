@@ -10,7 +10,7 @@ spec :: Spec
 spec = do
     let getCatalog x = case pureCatalog x of
           Left rr -> fail rr
-          Right y -> return y
+          Right (y,_) -> pure y
     describe "should be callable as" $ do
       let checkEnsure f v c =
             getResource (RIdentifier "file" f) c >>= getAttribute "ensure" >>= \a -> a `shouldBe` v

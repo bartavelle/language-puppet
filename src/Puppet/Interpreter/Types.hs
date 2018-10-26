@@ -215,7 +215,7 @@ data  TemplateSource= Inline Text | Filename FilePath
 
 data InterpreterReader m = InterpreterReader
   { _readerNativeTypes     :: !(Container NativeTypeMethods)
-  , _readerGetStatement    :: TopLevelType -> Text -> m (S.Either PrettyError Statement)
+  , _readerGetStatement    :: TopLevelType -> Text -> m (S.Either PrettyError Statement) -- ^ Access to parsed statements
   , _readerGetTemplate     :: TemplateSource -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
   , _readerPdbApi          :: PuppetDBAPI m
   , _readerExternalFunc    :: Container ([PValue] -> InterpreterMonad PValue) -- ^ External func such as stdlib or puppetlabs
@@ -227,7 +227,7 @@ data InterpreterReader m = InterpreterReader
   , _readerIsStrict        :: Bool
   , _readerPuppetPaths     :: PuppetDirPaths
   , _readerRebaseFile      :: Maybe FilePath
-  , _readerFacts           :: Container PValue
+  , _readerFacts           :: Container PValue -- ^ Access to the list of facts that were given to the 'Preferences' module
   }
 
 data InterpreterInstr a where

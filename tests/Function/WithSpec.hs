@@ -10,7 +10,7 @@ spec :: Spec
 spec = do
   let getCatalog x = case pureCatalog x of
                         Left rr -> fail rr
-                        Right y -> return y
+                        Right (y,_) -> pure y
   describe "should run as" $ do
     it "should be callable with an argument" $
       getCatalog "with ( 12 ) |$x| { file {'/f': content => $x; } }"

@@ -609,6 +609,7 @@ loadParameters :: Container PValue -- Resource attributes (resolved)
                -> Maybe Text --  class name
                -> InterpreterMonad ()
 loadParameters attrs classParams defaultPos classname = do
+  warn $ "Loading " <> ppstring (show attrs)
   p <- use curPos
   curPos .= defaultPos
   let class_params   = Set.fromList (classParams ^.. folded . _1 . _1)
@@ -696,6 +697,7 @@ enterScope secontext cont modulename p = do
   debug ("enterScope, scopename=" <> ppline scopename <+> "caller_module_name=" <> pretty curcaller <+> "module_name=" <> ppline modulename)
   pure scopename
 
+-- Instantiate/declare a class
 loadClass :: Text
           -> S.Maybe Text -- Set if this is an inheritance load, so that we can set calling module properly
           -> Container PValue -- Resource attributes
@@ -705,7 +707,7 @@ loadClass name loadedfrom attrs incltype = do
   let name' = dropInitialColons name
   nodename <- getNodeName
   singleton (TraceEvent ('[' : toS nodename <> "] loadClass " <> toS name'))
-  p <- use curPos
+  pos <- use curPos
   -- check if the class has already been loaded
   -- http://docs.puppetlabs.com/puppet/3/reference/lang_classes.html#using-resource-like-declarations
   preuse (loadedClasses . ix name' . _2) >>= \case
@@ -715,7 +717,7 @@ loadClass name loadedfrom attrs incltype = do
            $ "Can't include class" <+> ppline name' <+> "twice when using the resource-like syntax (first occurence at"
              <+> showPPos pp <> ")"
     Nothing -> do
-        loadedClasses . at name' ?= (incltype :!: p)
+        loadedClasses . at name' ?= (incltype :!: pos) -- set the position of the loaded class
         let modulename = getModulename (RIdentifier "class" name')
         is_ignored <- isIgnoredModule modulename
         if is_ignored
@@ -723,7 +725,7 @@ loadClass name loadedfrom attrs incltype = do
           else do
             -- load the actual class, note we are not changing the current position right now
             (spurious, stmt) <- interpretTopLevel TopClass name'
-            ClassDecl _ classParams inh stmts cp <- extractPrism "loadClass" _ClassDecl stmt
+            ClassDecl _ params inh stmts curpos <- extractPrism "loadClass" _ClassDecl stmt
             -- check if we need to define a resource representing the class
             -- This will be the case for the first standard include
             inhstmts <- case inh of
@@ -734,18 +736,18 @@ loadClass name loadedfrom attrs incltype = do
                   (S.Just x,_) -> SEChild (dropInitialColons x)
                   (_,S.Just x) -> SEParent (dropInitialColons x)
                   _            -> SENormal
-            void $ enterScope secontext scopedesc modulename p
+            void $ enterScope secontext scopedesc modulename pos
             classresource <- if incltype == ClassIncludeLike
                                then do
                                  scp <- use curScope
                                  fqdn <- getNodeName
-                                 pure [Resource (RIdentifier "class" name') (Set.singleton name') mempty mempty scp Normal mempty p fqdn]
+                                 pure [Resource (RIdentifier "class" name') (Set.singleton name') mempty mempty scp Normal mempty pos fqdn]
                                else pure []
             pushScope scopedesc
             loadVariable "title" (PString name')
             loadVariable "name" (PString name')
-            loadParameters attrs classParams cp (Just name')
-            curPos .= cp
+            loadParameters attrs params curpos (Just name')
+            curPos .= curpos
             res <- evaluateStatementsFoldable stmts
             out <- finalize (classresource <> spurious <> inhstmts <> res)
             popScope

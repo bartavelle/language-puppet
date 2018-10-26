@@ -3,9 +3,6 @@ module Function.AssertPrivateSpec where
 
 import           Helpers
 
-import           Puppet.Interpreter (initialState)
-
-
 main :: IO ()
 main = hspec spec
 
@@ -14,10 +11,11 @@ evalWithScope :: ([PValue] -> InterpreterMonad PValue)
               -> Text -- ^ module scope
               -> [Expression]         -- ^ function args
               -> Either String PValue
-evalWithScope apFunc callerScope moduleScope = (_Left %~ show) . view _1 . ctxEval . (mapM resolveExpression >=> apFunc)
-    where
-        ctxEval = pureEval' mempty state0
-        state0 = initialState dummyFacts [("confdir", "/etc/puppet")] & curScope .~ [ContClass moduleScope, ContClass callerScope]
+evalWithScope apFunc callerScope moduleScope =
+  (_Left %~ show) . view _1 . ctxEval . (mapM resolveExpression >=> apFunc)
+  where
+      ctxEval = pureEval' mempty state0
+      state0 = initialState dummyFacts [("confdir", "/etc/puppet")] & curScope .~ [ContClass moduleScope, ContClass callerScope]
 
 
 spec :: Spec

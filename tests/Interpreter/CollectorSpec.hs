@@ -14,13 +14,12 @@ shouldNotify :: [Text] -> [PValue] -> Expectation
 shouldNotify content expectedMessages = do
     catalog <- case pureCatalog (Text.unlines content) of
       Left rr -> fail rr
-      Right x -> return x
+      Right (x,_) -> pure x
     let messages = itoList catalog ^.. folded . filtered (\rp -> rp ^. _1 . itype == "notify") . _2 . rattributes . ix "message"
     messages `shouldMatchList` expectedMessages
 
 shouldFail :: [Text] -> Expectation
-shouldFail content = let catalog :: Either String FinalCatalog
-                         catalog = pureCatalog (Text.unlines content)
+shouldFail content = let catalog = pureCatalog (Text.unlines content)
                      in  catalog `shouldSatisfy` has _Left
 
 spec =
@@ -168,8 +167,8 @@ spec1 = do
     it "should override the 'groups' attributes from the user resource" $
       getResAttr (computeWith "=>") ^. at "groups" `shouldBe` Just (PArray $ ["docker"])
   where
-    getResAttr :: (Either String FinalCatalog) -> Container PValue
-    getResAttr s = s ^. _Right . at (RIdentifier "user" "jenkins")._Just.rattributes
+    getResAttr :: Either String (FinalCatalog, InterpreterWriter) -> Container PValue
+    getResAttr s = s ^. _Right . _1 . at (RIdentifier "user" "jenkins")._Just.rattributes
 
     arrowOperationInput :: Text -> Text
     arrowOperationInput arr =
