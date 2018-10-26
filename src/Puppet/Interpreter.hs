@@ -609,7 +609,6 @@ loadParameters :: Container PValue -- Resource attributes (resolved)
                -> Maybe Text --  class name
                -> InterpreterMonad ()
 loadParameters attrs classParams defaultPos classname = do
-  warn $ "Loading " <> ppstring (show attrs)
   p <- use curPos
   curPos .= defaultPos
   let class_params   = Set.fromList (classParams ^.. folded . _1 . _1)
