@@ -22,6 +22,10 @@ evaluations = [ "4 + 2 == 6"
             -- string interpolation
             , "\"$kernel\" == 'Linux'"
             , "\"${kernel} box\" == 'Linux box'"
+            , "\"${os['architecture']}\" == 'amd64'"
+            -- PENDING : see #260
+            -- , "\"${os['release']['major']}\" == '7'"
+            --
             , "\"${facts['kernel']}\" == 'Linux'"
             -- PENDING : see #260
             -- , "\"${facts['os']['architecture']}\" == 'amd64'"

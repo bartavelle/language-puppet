@@ -284,7 +284,7 @@ resolveExpression (Lookup a idx) =
       if arl <= i
         then throwPosError ("Out of bound indexing, array size is" <+> pretty arl <+> "index is" <+> pretty i)
         else pure (ar V.! i)
-    src -> throwPosError ("This data can't be indexed:" <+> pretty src)
+    _ -> throwPosError ("Enable to resolve a 'Lookup' expression. Cannot index:" <+> pretty a <+> "at" <+> pretty idx)
 resolveExpression stmt@(ConditionalValue e conds) = do
   rese <- resolveExpression e
   let checkCond [] = throwPosError ("The selector didn't match anything for input" <+> pretty rese </> pretty stmt)
