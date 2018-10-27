@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.AssertPrivateSpec where
+module Interpreter.Function.AssertPrivateSpec where
 
 import           Helpers
 

@@ -1,4 +1,4 @@
-module DT.Parser (spec) where
+module Parser.DT (spec) where
 
 import           Helpers
 

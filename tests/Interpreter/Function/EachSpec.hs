@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.EachSpec (spec, main) where
+module Interpreter.Function.EachSpec (spec, main) where
 
 import           Helpers
 

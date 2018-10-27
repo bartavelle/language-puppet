@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.MergeSpec (spec, main) where
+module Interpreter.Function.MergeSpec (spec, main) where
 
 
 import           Helpers

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module ExprSpec (spec) where
+module Parser.ExprSpec (spec) where
 
 import           Test.Hspec
 import           Test.Hspec.Megaparsec

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.WithSpec where
+module Interpreter.Function.WithSpec where
 
 import           Helpers
 

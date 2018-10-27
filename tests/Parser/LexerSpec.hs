@@ -1,4 +1,4 @@
-module LexerSpec(spec) where
+module Parser.LexerSpec(spec) where
 
 import           XPrelude
 
@@ -11,7 +11,7 @@ import           Puppet.Parser
 import           Puppet.Parser.Internal
 
 validFiles = do
-  files <- runIO $ globDir1 (compile "*.pp") "tests/lexer"
+  files <- runIO $ globDir1 (compile "*.pp") "tests/Parser/lexer"
   mapM_ test files
 
   where

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.ShellquoteSpec (spec, main) where
+module Interpreter.Function.ShellquoteSpec (spec, main) where
 
 import           Helpers
 

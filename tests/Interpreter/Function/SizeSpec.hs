@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.SizeSpec (spec, main) where
+module Interpreter.Function.SizeSpec (spec, main) where
 
 import           Helpers
 

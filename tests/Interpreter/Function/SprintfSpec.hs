@@ -1,4 +1,4 @@
-module Function.SprintfSpec (spec, main) where
+module Interpreter.Function.SprintfSpec (spec, main) where
 
 import           Helpers
 

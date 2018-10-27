@@ -24,6 +24,7 @@ extra-source-files:
     HLint.hs
     tests/hiera/*.yaml
     tests/hiera/*.com.json
+    tests/Parser/lexer/*.pp
 
 Data-Files:
   ruby/hrubyerb.rb
@@ -160,29 +161,28 @@ Test-Suite spec
                   , unordered-containers
                   , vector
                   , pcre-utils
-  other-modules:  DT.Parser
-                  ErbSpec
-                  EvalSpec
-                  ExprSpec
-                  HieraSpec
-                  Function.ShellquoteSpec
-                  Function.SprintfSpec
-                  Function.SizeSpec
-                  Function.MergeSpec
-                  Function.EachSpec
-                  Function.WithSpec
-                  Function.DeleteAtSpec
-                  Function.AssertPrivateSpec
-                  Function.JoinKeysToValuesSpec
-                  Function.LookupSpec
-                  Function.SuffixSpec
-                  Function.PrefixSpec
-                  Helpers
-                  InterpreterSpec
+  other-modules:  Helpers
+                  Parser.DT
+                  Parser.ExprSpec
+                  Parser.LexerSpec
                   Interpreter.ClassSpec
                   Interpreter.CollectorSpec
                   Interpreter.IfSpec
-                  LexerSpec
+                  Interpreter.EvalSpec
+                  Interpreter.Function.ShellquoteSpec
+                  Interpreter.Function.SprintfSpec
+                  Interpreter.Function.SizeSpec
+                  Interpreter.Function.MergeSpec
+                  Interpreter.Function.EachSpec
+                  Interpreter.Function.WithSpec
+                  Interpreter.Function.DeleteAtSpec
+                  Interpreter.Function.AssertPrivateSpec
+                  Interpreter.Function.JoinKeysToValuesSpec
+                  Interpreter.Function.LookupSpec
+                  Interpreter.Function.SuffixSpec
+                  Interpreter.Function.PrefixSpec
+                  HieraSpec
+                  ErbSpec
                   PuppetdbSpec
   main-is:        Spec.hs
 

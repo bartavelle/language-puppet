@@ -1,4 +1,4 @@
-module EvalSpec (spec) where
+module Interpreter.EvalSpec (spec) where
 
 
 import           Test.Hspec

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.JoinKeysToValuesSpec (spec) where
+module Interpreter.Function.JoinKeysToValuesSpec (spec) where
 
 import           Test.Hspec
 

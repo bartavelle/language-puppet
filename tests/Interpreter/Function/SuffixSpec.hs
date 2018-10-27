@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
-module Function.PrefixSpec (spec, main) where
+module Interpreter.Function.SuffixSpec (spec, main) where
 
 import qualified Data.Text as T
 
@@ -9,7 +9,7 @@ main :: IO ()
 main = hspec spec
 
 fname :: Text
-fname = "prefix"
+fname = "suffix"
 
 spec :: Spec
 spec = withStdlibFunction fname $ \tester -> do
@@ -29,11 +29,11 @@ spec = withStdlibFunction fname $ \tester -> do
     it "should work with arrays" $ do
       checkSuccess [ PArray []] (PArray [])
       checkSuccess [ PArray [], ""] (PArray [])
-      checkSuccess [ PArray ["one"], "pre" ] (PArray ["preone"])
-      checkSuccess [ PArray ["one","two","three"], "pre" ] (PArray ["preone","pretwo","prethree"])
+      checkSuccess [ PArray ["one"], "post" ] (PArray ["onepost"])
+      checkSuccess [ PArray ["one","two","three"], "post" ] (PArray ["onepost","twopost","threepost"])
     it "should work with hashes" $ do
       checkSuccess [(PHash mempty)] (PHash mempty)
       checkSuccess [(PHash mempty), ""] (PHash mempty)
-      checkSuccess [(PHash [("one", PNumber 5)] ), "pre" ] (PHash [("preone", PNumber 5)])
-      checkSuccess [(PHash [("one", PNumber 5), ("two", "lol"), ("three", PNumber 7)]), "pre" ] (PHash [("preone", PNumber 5), ("pretwo", "lol"), ("prethree", PNumber 7)])
+      checkSuccess [(PHash [("one", PNumber 5)] ), "post" ] (PHash [("onepost", PNumber 5)])
+      checkSuccess [(PHash [("one", PNumber 5), ("two", "lol"), ("three", PNumber 7)]), "post" ] (PHash [("onepost", PNumber 5), ("twopost", "lol"), ("threepost", PNumber 7)])
 

@@ -1,4 +1,4 @@
-module Function.LookupSpec (spec, main) where
+module Interpreter.Function.LookupSpec (spec, main) where
 
 import           Helpers
 

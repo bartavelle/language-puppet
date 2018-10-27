@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 
-module Function.DeleteAtSpec (spec, main) where
+module Interpreter.Function.DeleteAtSpec (spec, main) where
 
 import           Helpers
 
