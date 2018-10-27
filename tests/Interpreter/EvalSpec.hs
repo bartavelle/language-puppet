@@ -2,7 +2,7 @@ module Interpreter.EvalSpec (spec) where
 
 
 import           Test.Hspec
-import           Text.Megaparsec       (eof, parse)
+import           Text.Megaparsec       (errorBundlePretty, eof, parse)
 
 import           Puppet.Interpreter
 import           Puppet.Parser.Internal
@@ -17,8 +17,15 @@ evaluations = [ "4 + 2 == 6"
             , "[1,2,3] << 10 == [1,2,3,10]"
             , "[1,2,3] << [4,5] == [1,2,3,[4,5]]"
             , "4 / 2.0 == 2"
-            , "$architecture == 'amd64'"
-            , "$facts['architecture'] == 'amd64'"
+            , "$kernel == 'Linux'"
+            , "$facts['os']['architecture'] == 'amd64'"
+            -- string interpolation
+            , "\"$kernel\" == 'Linux'"
+            , "\"${kernel} box\" == 'Linux box'"
+            , "\"${facts['kernel']}\" == 'Linux'"
+            -- PENDING : see #260
+            -- , "\"${facts['os']['architecture']}\" == 'amd64'"
+            --
             , "$settings::confdir == '/etc/puppet'"
             , "regsubst('127', '([0-9]+)', '<\\1>', 'G') == '<127>'"
             , "regsubst(['1','2','3'], '([0-9]+)', '<\\1>', 'G') == ['<1>','<2>','<3>']"
@@ -35,7 +42,7 @@ testEvaluation t =
 check :: Text -> Either String Bool
 check t =
   case parse (expression <* eof) "dummy" t of
-    Left _ -> Left $ "Parsing error: are you sure the evaluation is correct ?"
+    Left err -> Left $ "Parsing error. Are you sure the input is correct ?\n" <> errorBundlePretty err
     Right e -> case dummyEval (resolveExpression e) of
       Right (PBoolean True) -> Right True
       _                     -> Right False

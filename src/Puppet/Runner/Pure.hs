@@ -102,8 +102,7 @@ dummyTemplate (Inline cnt) s _ =
 -- | A bunch of facts that can be used for pure evaluation.
 dummyFacts :: Facts
 dummyFacts = HM.fromList
-        [ ("architecture", "amd64")
-        , ("augeasversion", "0.10.0")
+        [ ("augeasversion", "0.10.0")
         , ("bios_release_date", "07/06/2010")
         , ("bios_vendor", "Dell Inc.")
         , ("bios_version", "2.2.0")
