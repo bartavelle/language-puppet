@@ -28,3 +28,5 @@ spec = do
       pureCatalog (Text.unlines ["class foo (String $param0){}", "class {'foo': param0 => 1 }"]) `shouldSatisfy` (has _Left)
     it "should fail when declaring with a missing param" $ do
       pureCatalog (Text.unlines ["class foo ($param0){}", "class {'foo': }"]) `shouldSatisfy` (has _Left)
+    it "should succeed with missing param and an optional type" $ do
+      pureCatalog (Text.unlines ["class foo (Optional[String] $param0){}", "class {'foo': }"]) `shouldSatisfy` (has _Right)

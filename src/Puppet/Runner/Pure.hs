@@ -3,6 +3,8 @@
 -- functions that can be found in "Puppet.Interpreter" and
 -- "Puppet.Interpreter.Resolve".
 --
+-- This module is quite useful for quick testing in a repl or within the test suites.
+--
 -- >>> dummyEval (resolveExpression (Addition "1" "2"))
 -- Right (PString "3")
 module Puppet.Runner.Pure (
@@ -28,18 +30,30 @@ import           Puppet.Runner.Erb
 import           PuppetDB              (dummyPuppetDB)
 
 
-dummyTemplate :: Monad m => TemplateSource -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
-dummyTemplate (Filename _) _ _ = return (S.Left "Can't interpret files")
-dummyTemplate (Inline cnt) s _ =
-  return $ case extractScope s of
-    Nothing -> S.Left "Context retrieval error (pureReader)"
-    Just (ctx, scope) ->
-      case parseErbString (toS cnt) of
-        Left e -> S.Left (PrettyError (pplines (show e)))
-        Right stmts ->
-          case rubyEvaluate scope ctx stmts of
-            Right x -> S.Right x
-            Left e  -> S.Left (PrettyError e)
+-- | Evaluates with a map of statements in a pure context.
+-- Unlike 'dummyEval', each hiera lookup is evaluated to return Nothing.
+pureEval :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
+         -> InterpreterMonad a -- ^ The action to evaluate
+         -> (Either PrettyError a, InterpreterState, InterpreterWriter)
+pureEval stmap action =
+  pureEval' stmap dummyInitialState Nothing action
+
+-- | More flexible version of 'pureEval'
+pureEval' :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
+          -> InterpreterState -- ^ the initial state
+          -> Maybe PValue -- ^ a value to be return by all hiera lookup
+          -> InterpreterMonad a -- ^ The action to evaluate
+          -> (Either PrettyError a, InterpreterState, InterpreterWriter)
+pureEval' stmap s0 hiera action =
+  runIdentity (interpretMonad (pureReader stmap hiera) s0 action)
+
+-- | A default evaluation function for arbitrary interpreter actions.
+-- Unlike 'pureEval', each hiera lookup is evaluated to return the  string 'dummy'.
+dummyEval :: InterpreterMonad a -> Either PrettyError a
+dummyEval action = pureEval' mempty dummyInitialState (Just "dummy") action ^. _1
+
+dummyInitialState :: InterpreterState
+dummyInitialState = initialState dummyFacts [("confdir", "/etc/puppet")]
 
 -- | A pure 'InterpreterReader', that can only evaluate a subset of the
 -- templates, and that can include only the supplied top level statements.
@@ -72,27 +86,18 @@ pureReader sttmap hiera =
     iomethods_purestubs :: IoMethods Identity
     iomethods_purestubs = IoMethods (return []) (const (return (Left "Can't read file"))) (\_ -> return ())
 
--- | Evaluates an interpreter expression in a pure context.
--- Unlike 'dummyEval', each hiera lookup is evaluated to return Nothing.
-pureEval :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
-         -> InterpreterMonad a -- ^ The action to evaluate
-         -> (Either PrettyError a, InterpreterState, InterpreterWriter)
-pureEval stmap action =
-  pureEval' stmap dummyInitialState Nothing action
-
--- | More general version of 'pureEval' where you pass:
--- * the initial state directly
--- * a value to be return by all hiera lookup
-pureEval' :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
-          -> InterpreterState
-          -> Maybe PValue
-          -> InterpreterMonad a -- ^ The action to evaluate
-          -> (Either PrettyError a, InterpreterState, InterpreterWriter)
-pureEval' stmap s0 hiera action =
-  runIdentity (interpretMonad (pureReader stmap hiera) s0 action)
-
-dummyInitialState :: InterpreterState
-dummyInitialState = initialState dummyFacts [("confdir", "/etc/puppet")]
+dummyTemplate :: Monad m => TemplateSource -> InterpreterState -> InterpreterReader m -> m (S.Either PrettyError Text)
+dummyTemplate (Filename _) _ _ = return (S.Left "Can't interpret files")
+dummyTemplate (Inline cnt) s _ =
+  return $ case extractScope s of
+    Nothing -> S.Left "Context retrieval error (pureReader)"
+    Just (ctx, scope) ->
+      case parseErbString (toS cnt) of
+        Left e -> S.Left (PrettyError (pplines (show e)))
+        Right stmts ->
+          case rubyEvaluate scope ctx stmts of
+            Right x -> S.Right x
+            Left e  -> S.Left (PrettyError e)
 
 -- | A bunch of facts that can be used for pure evaluation.
 dummyFacts :: Facts
@@ -181,8 +186,3 @@ dummyFacts = HM.fromList
         , ("uuid", "97b75940-be55-11e3-b1b6-0800200c9a66")
         , ("virtual", "physical")
         ]
-
--- | A default evaluation function for arbitrary interpreter actions.
--- Unlike 'pureEval', each hiera lookup is evaluated to return the  string 'dummy'.
-dummyEval :: InterpreterMonad a -> Either PrettyError a
-dummyEval action = pureEval' mempty dummyInitialState (Just "dummy") action ^. _1

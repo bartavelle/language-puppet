@@ -8,6 +8,7 @@ language-puppet (1.4.1) UNRELEASED; urgency=medium
   * Fix regex variable resolution (See #248).
   * Fix missing fail on extra spaces (See #187)
   * Fix read multiple hierachies in hiera format v5
+  * Fix #261, #262, #263
 
  -- Simon Marechal <simon.marechal@edf.fr>  Thu, 13 Sep 2018 15:54:03 +0200
 
