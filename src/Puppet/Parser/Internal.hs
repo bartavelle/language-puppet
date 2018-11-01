@@ -124,10 +124,7 @@ variableReference :: Parser Text
 variableReference = char '$' *> lexeme variableName
 
 variableName :: Parser Text
-variableName = do
-  out <- qualif identifier
-  when (out == "string") (panic "The special variable $string should never be used")
-  pure out
+variableName = qualif identifier
 
 className :: Parser Text
 className = lexeme $ qualif moduleName
@@ -169,10 +166,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
     escaper '$'  = "$"
     escaper x    = ['\\',x]
     -- this is specialized because we can't be "tokenized" here
-    rvariableName = do
-      v <- Text.concat <$> some (chunk "::" <|> identifier)
-      when (v == "string") $ failure Nothing mempty --   "The special variable $string must not be used")
-      pure v
+    rvariableName = Text.concat <$> some (chunk "::" <|> identifier)
     rvariable = Terminal . UVariableReference <$> rvariableName
     indexchain =  makeExprParser rvariable [[Postfix indexLookupChain]] -- e.g: os['release']['major']
     interpolableVariableReference = do
