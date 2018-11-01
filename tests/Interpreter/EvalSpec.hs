@@ -23,12 +23,9 @@ evaluations = [ "4 + 2 == 6"
             , "\"$kernel\" == 'Linux'"
             , "\"${kernel} box\" == 'Linux box'"
             , "\"${os['architecture']}\" == 'amd64'"
-            -- PENDING : see #260
-            -- , "\"${os['release']['major']}\" == '7'"
-            --
+            , "\"${os['release']['major']}\" == '7'"
             , "\"${facts['kernel']}\" == 'Linux'"
-            -- PENDING : see #260
-            -- , "\"${facts['os']['architecture']}\" == 'amd64'"
+            , "\"${facts['os']['architecture']}\" == 'amd64'"
             --
             , "$settings::confdir == '/etc/puppet'"
             , "regsubst('127', '([0-9]+)', '<\\1>', 'G') == '<127>'"

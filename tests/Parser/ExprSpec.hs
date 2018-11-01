@@ -25,7 +25,7 @@ expressions =
     , ("\"${x}\"", Terminal (UInterpolable [Terminal (UVariableReference "x")]))
     , ("\"${x[3]}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "x")) 3]))
     , ("\"${os['architecture']}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "os")) (Terminal (UString "architecture"))]))
-    , ("\"${facts['os']['architecture']}\"", Terminal (UInterpolable [Lookup (Lookup (Terminal (UString "facts")) (Terminal (UString "os"))) (Terminal (UString "architecture"))]))
+    , ("\"${facts['os']['architecture']}\"", Terminal (UInterpolable [Lookup (Lookup (Terminal (UVariableReference "facts")) (Terminal (UString "os"))) (Terminal (UString "architecture"))]))
     , ("\"${x[$y]}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "x")) (Terminal (UVariableReference "y")) ]))
     , ("\"${x($y)}\"", Terminal (UInterpolable [ Terminal (UFunctionCall "x" [ Terminal (UVariableReference "y") ] ) ] ))
     , ("\"${x($y)}$'\"", Terminal (UInterpolable [ Terminal (UFunctionCall "x" [ Terminal (UVariableReference "y") ])

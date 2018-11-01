@@ -177,10 +177,10 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
       when (v == "string") (fail "The special variable $string must not be used")
       pure v
     rvariable = Terminal . UVariableReference <$> rvariableName
-    simpleIndexing = Lookup <$> rvariable <*> between (symbolic '[') (symbolic ']') expression
+    indexchain =  makeExprParser rvariable [[Postfix indexLookupChain]] -- e.g: os['release']['major']
     interpolableVariableReference = do
       void (char '$')
-      let fenced =    try (simpleIndexing <* char '}')
+      let fenced =    try (indexchain <* char '}')
                   <|> try (rvariable <* char '}')
                   <|> (expression <* char '}')
       (symbolic '{' *> fenced) <|> try rvariable <|> pure (Terminal (UString (Text.singleton '$')))
