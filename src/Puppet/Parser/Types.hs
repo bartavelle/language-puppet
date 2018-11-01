@@ -44,14 +44,15 @@ module Puppet.Parser.Types
    Parameters
    ) where
 
-import           XPrelude            hiding (show)
+import           XPrelude           hiding (show)
 
-import           Data.List.NonEmpty  (NonEmpty)
-import qualified Data.Maybe.Strict   as S
-import qualified Data.Text           as Text
-import qualified Data.Vector         as V
-import qualified GHC.Exts            as Exts
-import           GHC.Show            (Show (..))
+import           Data.List.NonEmpty (NonEmpty)
+import qualified Data.Maybe.Strict  as S
+import qualified Data.Text          as Text
+import           Data.Vector        (Vector)
+import qualified Data.Vector        as V
+import qualified GHC.Exts           as Exts
+import           GHC.Show           (Show (..))
 import           Text.Megaparsec
 
 import           Puppet.Language
@@ -64,7 +65,7 @@ type Parser = Parsec Void Text
 newtype LambdaFunc = LambdaFunc Text deriving (Eq, Show)
 
 -- | Lambda block parameters:
-type LambdaParameters = V.Vector LambdaParameter
+type LambdaParameters = Vector LambdaParameter
 
 data LambdaParameter
   = LambdaParam !(Maybe UDataType) !Text
@@ -90,6 +91,7 @@ data AttributeDecl
   = AttributeDecl !Text !ArrowOp !Expression
   | AttributeWildcard !Expression
   deriving (Show, Eq)
+
 data ArrowOp
   = AppendArrow -- ^ `+>`
   | AssignArrow -- ^ `=>`

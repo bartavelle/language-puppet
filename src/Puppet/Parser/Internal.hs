@@ -2,8 +2,9 @@
 module Puppet.Parser.Internal
 where
 
-import           XPrelude.Extra                   hiding (option, try, many, some)
+import           XPrelude.Extra                   hiding (many, option, some, try)
 
+import           Control.Monad.Combinators.Expr
 import qualified Data.Char                        as Char
 import qualified Data.List                        as List
 import qualified Data.List.NonEmpty               as NE
@@ -14,31 +15,26 @@ import qualified Data.Vector                      as V
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer       as Lexer
-import           Control.Monad.Combinators.Expr
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
 import           Puppet.Language
 import           Puppet.Parser.Types
 
--- space consumer
+-- | Space consumer
 sc :: Parser ()
 sc = Lexer.space space1 (Lexer.skipLineComment "#") (Lexer.skipBlockComment "/*" "*/")
 
--- lexeme consume spaces after the input parser
+-- | Lexeme consumes spaces after the input parser
 lexeme :: Parser a -> Parser a
 lexeme = Lexer.lexeme sc
 
--- consume its arguments then consume spaces
+-- | Consumes a text then consumes spaces
 symbol :: Text -> Parser ()
 symbol = void . Lexer.symbol sc
 
+-- | Consumes a character then consumes spaces
 symbolic :: Char -> Parser ()
 symbolic = lexeme . void . single
-
-integerOrDouble :: Parser (Either Integer Double)
-integerOrDouble = Left <$> hex <|> (either Right Left . Scientific.floatingOrInteger <$> Lexer.scientific)
-  where
-    hex = chunk "0x" *> Lexer.hexadecimal
 
 braces :: Parser a -> Parser a
 braces = between (symbolic '{') (symbolic '}')
@@ -94,11 +90,11 @@ stringLiteral' = between (char '\'') (symbolic '\'') interior
 identifier :: Parser (Tokens Text)
 identifier = takeWhile1P Nothing isIdentifierChar
 
--- Only Ascii, hyphens (-) are not allowed.
+-- | Only Ascii, hyphens (-) are not allowed.
 isIdentifierChar :: Char -> Bool
 isIdentifierChar x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
 
--- Like indentifiers but hyphens (-) are allowed.
+-- | Like 'isIndentifierChar' but hyphens (-) are allowed.
 isBarewordChar :: Char -> Bool
 isBarewordChar x = isIdentifierChar x || (x == '-')
 
@@ -123,14 +119,15 @@ qualif1 p = try $ do
 variable :: Parser Expression
 variable = Terminal . UVariableReference <$> variableReference
 
+-- | Consumes a var $foo and then spaces
 variableReference :: Parser Text
-variableReference = char '$' *> variableName
+variableReference = char '$' *> lexeme variableName
 
 variableName :: Parser Text
-variableName = lexeme $ do
+variableName = do
   out <- qualif identifier
   when (out == "string") (panic "The special variable $string should never be used")
-  return out
+  pure out
 
 className :: Parser Text
 className = lexeme $ qualif moduleName
@@ -156,7 +153,7 @@ genericModuleName isReference = do
 parameterName :: Parser Text
 parameterName = moduleName
 
-
+-- | String interpolation
 interpolableString :: Parser (Vector Expression)
 interpolableString = V.fromList <$> between (char '"') (symbolic '"')
  ( many (interpolableVariableReference <|> doubleQuotedStringContent <|> fmap (Terminal . UString . Text.singleton) (char '$')) )
@@ -174,7 +171,7 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
     -- this is specialized because we can't be "tokenized" here
     rvariableName = do
       v <- Text.concat <$> some (chunk "::" <|> identifier)
-      when (v == "string") (fail "The special variable $string must not be used")
+      when (v == "string") $ failure Nothing mempty --   "The special variable $string must not be used")
       pure v
     rvariable = Terminal . UVariableReference <$> rvariableName
     indexchain =  makeExprParser rvariable [[Postfix indexLookupChain]] -- e.g: os['release']['major']
@@ -191,6 +188,11 @@ regexp = do
   Text.pack . concat <$> many ( do { void (char '\\') ; x <- anySingle; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
       <* symbolic '/'
 
+integerOrDouble :: Parser (Either Integer Double)
+integerOrDouble = Left <$> hex <|> (either Right Left . Scientific.floatingOrInteger <$> Lexer.scientific)
+  where
+    hex = chunk "0x" *> Lexer.hexadecimal
+
 puppetArray :: Parser UnresolvedValue
 puppetArray = fmap (UArray . V.fromList) (brackets (sepComma expression)) <?> "Array"
 
@@ -201,8 +203,8 @@ puppetHash = fmap (UHash . V.fromList) (braces (sepComma hashPart)) <?> "Hash"
 
 puppetBool :: Parser Bool
 puppetBool =
-      (reserved "true" >> return True)
-  <|> (reserved "false" >> return False)
+      (reserved "true" >> pure True)
+  <|> (reserved "false" >> pure False)
   <?> "Boolean"
 
 resourceReferenceRaw :: Parser (Text, [Expression])
@@ -215,13 +217,14 @@ resourceReference :: Parser UnresolvedValue
 resourceReference = do
   (restype, resnames) <- resourceReferenceRaw
   pure $ UResourceReference restype $ case resnames of
-               [x] -> x
-               _   -> Terminal $ UArray (V.fromList resnames)
+           [x] -> x
+           _   -> Terminal $ UArray (V.fromList resnames)
 
 -- | Functions that have named that are not valid ...
 specialFunctions :: Parser Text
-specialFunctions = string "Integer"
-               <|> string "Numeric"
+specialFunctions =
+      chunk "Integer"
+  <|> chunk "Numeric"
 
 -- The first argument defines if non-parenthesized arguments are acceptable
 genFunctionCall :: Bool -> Parser (Text, Vector Expression)
@@ -248,16 +251,16 @@ literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|>
     signed :: Num n => Parser (n -> n)
     signed = (negate <$ char '-') <|> pure (\x -> x)
     numericalvalue = ((,) <$> signed <*> integerOrDouble) >>= \case
-      (s, Left x)  -> return (s (fromIntegral x))
-      (s, Right y) -> return (s (Scientific.fromFloatDigits y))
+      (s, Left x)  -> pure (s (fromIntegral x))
+      (s, Right y) -> pure (s (Scientific.fromFloatDigits y))
 
 data TerminalMode
-    = FunctionWithoutParens
-    | StandardMode
+  = FunctionWithoutParens
+  | StandardMode
 
 -- this is a hack for functions :(
 terminalG :: TerminalMode -> Parser Expression
-terminalG mde =
+terminalG mode =
       parens expression
   <|> fmap (Terminal . UInterpolable) interpolableString
   <|> (Terminal UUndef <$ reserved "undef")
@@ -266,9 +269,9 @@ terminalG mde =
   <|> fmap Terminal puppetArray
   <|> fmap Terminal puppetHash
   <|> fmap (Terminal . UBoolean) puppetBool
-  <|> case mde of
+  <|> case mode of
         FunctionWithoutParens -> remaining
-        StandardMode -> lambda <|> remaining
+        StandardMode          -> lambda <|> remaining
  where
    lambda = fmap Terminal (fmap UHOLambdaCall (try lambdaCall) <|> try funcCall)
    remaining = fmap (Terminal . UDataType) datatype
@@ -279,8 +282,8 @@ terminalG mde =
 
 compileRegexp :: Text -> Parser CompRegex
 compileRegexp p = case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 p) of
-    Right r -> return $ CompRegex p r
-    Left ms -> fail ("Can't parse regexp /" <> Text.unpack p <> "/ : " ++ show ms)
+  Right r -> pure $ CompRegex p r
+  Left ms -> fail ("Can't parse regexp /" <> Text.unpack p <> "/ : " ++ show ms)
 
 termRegexp :: Parser CompRegex
 termRegexp = regexp >>= compileRegexp
@@ -290,35 +293,36 @@ terminal = terminalG StandardMode
 
 expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
-                  , [ Prefix ( symbolic '-'   >> return Negate           ) ]
-                  , [ Prefix ( symbolic '!'   >> return Not              ) ]
-                  , [ InfixL  ( symbolic '.'   >> return FunctionApplication ) ]
-                  , [ InfixL  ( reserved "in"  >> return Contains         ) ]
-                  , [ InfixL  ( symbolic '/'   >> return Division         )
-                    , InfixL  ( symbolic '*'   >> return Multiplication   )
+                  , [ Prefix ( symbolic '-'   *> pure Negate           ) ]
+                  , [ Prefix ( symbolic '!'   *> pure Not              ) ]
+                  , [ InfixL ( symbolic '.'   *> pure FunctionApplication ) ]
+                  , [ InfixL ( reserved "in"  *> pure Contains         ) ]
+                  , [ InfixL ( symbolic '/'   *> pure Division         )
+                    , InfixL ( symbolic '*'   *> pure Multiplication   )
                     ]
-                  , [ InfixL  ( symbolic '+'   >> return Addition     )
-                    , InfixL  ( symbolic '-'   >> return Substraction )
+                  , [ InfixL ( symbolic '+'   *> pure Addition     )
+                    , InfixL ( symbolic '-'   *> pure Substraction )
                     ]
-                  , [ InfixL  ( symbol "<<"  >> return LeftShift  )
-                    , InfixL  ( symbol ">>"  >> return RightShift )
+                  , [ InfixL ( symbol "<<"    *> pure LeftShift  )
+                    , InfixL ( symbol ">>"    *> pure RightShift )
                     ]
-                  , [ InfixL  ( symbol "=="  >> return Equal     )
-                    , InfixL  ( symbol "!="  >> return Different )
+                  , [ InfixL ( symbol "=="    *> pure Equal     )
+                    , InfixL ( symbol "!="    *> pure Different )
                     ]
-                  , [ InfixL  ( symbol "=~"  >> return RegexMatch    )
-                    , InfixL  ( symbol "!~"  >> return NotRegexMatch )
+                  , [ InfixL ( symbol "=~"    *> pure RegexMatch    )
+                    , InfixL ( symbol "!~"    *> pure NotRegexMatch )
                     ]
-                  , [ InfixL  ( symbol ">="  >> return MoreEqualThan )
-                    , InfixL  ( symbol "<="  >> return LessEqualThan )
-                    , InfixL  ( symbol ">"   >> return MoreThan      )
-                    , InfixL  ( symbol "<"   >> return LessThan      )
+                  , [ InfixL ( symbol ">="    *> pure MoreEqualThan )
+                    , InfixL ( symbol "<="    *> pure LessEqualThan )
+                    , InfixL ( symbol ">"     *> pure MoreThan      )
+                    , InfixL ( symbol "<"     *> pure LessThan      )
                     ]
-                  , [ InfixL  ( reserved "and" >> return And )
-                    , InfixL  ( reserved "or"  >> return Or  )
+                  , [ InfixL ( reserved "and" *> pure And )
+                    , InfixL ( reserved "or"  *> pure Or  )
                     ]
                   ]
 
+-- | Postfix of a chain of lookup indexes such as "['release']['major']"
 indexLookupChain :: Parser (Expression -> Expression)
 indexLookupChain = List.foldr1 (flip (.)) <$> some checkLookup
   where
@@ -350,7 +354,7 @@ nodeDecl = do
   let toString (UString s) = s
       toString (UNumber n) = scientific2text n
       toString _           = panic "Can't happen at nodeDecl"
-      nodename = (reserved "default" >> return NodeDefault) <|> fmap (NodeName . toString) literalValue
+      nodename = (reserved "default" >> pure NodeDefault) <|> fmap (NodeName . toString) literalValue
   ns <- (fmap NodeMatch termRegexp <|> nodename) `sepBy1` comma
   inheritance <- option S.Nothing (fmap S.Just (reserved "inherits" *> nodename))
   st <- braces statementList
@@ -389,7 +393,7 @@ unlessCondition = do
   reserved "unless"
   (cond :!: stmts) <- puppetIfStyleCondition
   pe <- getSourcePos
-  return (ConditionalDecl (V.singleton (Not cond :!: stmts)) (p :!: pe))
+  pure (ConditionalDecl (V.singleton (Not cond :!: stmts)) (p :!: pe))
 
 ifCondition :: Parser ConditionalDecl
 ifCondition = do
@@ -417,13 +421,13 @@ caseCondition = do
         matches <- (puppetRegexpCase <|> defaultCase <|> expression) `sepBy1` comma
         void $ symbolic ':'
         stmts <- braces statementList
-        return $ map (,stmts) matches
+        pure $ map (,stmts) matches
   p <- getSourcePos
   reserved "case"
   expr1 <- expression
   condlist <- concat <$> braces (some cases)
   pe <- getSourcePos
-  return (ConditionalDecl (V.fromList (map (matchesToExpression expr1) condlist)) (p :!: pe) )
+  pure (ConditionalDecl (V.fromList (map (matchesToExpression expr1) condlist)) (p :!: pe) )
 
 data OperatorChain a
   = OperatorChain a LinkType (OperatorChain a)
@@ -439,7 +443,7 @@ operatorChainStatement (EndOfChain x)        = x
 
 zipChain :: OperatorChain a -> [ ( a, a, LinkType ) ]
 zipChain (OperatorChain a d nx) = (a, operatorChainStatement nx, d) : zipChain nx
-zipChain (EndOfChain _) = []
+zipChain (EndOfChain _)         = []
 
 depOperator :: Parser LinkType
 depOperator =
@@ -460,8 +464,8 @@ searchExpression :: Parser SearchExpression
 searchExpression = makeExprParser (lexeme searchterm) searchTable
   where
     searchTable :: [[Operator Parser SearchExpression]]
-    searchTable = [ [ InfixL ( reserved "and"   >> return AndSearch )
-                    , InfixL ( reserved "or"    >> return OrSearch  )
+    searchTable = [ [ InfixL ( reserved "and" *> pure AndSearch )
+                    , InfixL ( reserved "or"  *> pure OrSearch  )
                     ] ]
     searchterm = parens searchExpression <|> check
     check = do
@@ -485,7 +489,7 @@ resCollDecl p restype = do
                           then Collector
                           else ExportedCollector
   pe <- getSourcePos
-  return (ResCollDecl collectortype restype e (V.fromList overrides) (p :!: pe) )
+  pure (ResCollDecl collectortype restype e (V.fromList overrides) (p :!: pe) )
 
 classDecl :: Parser ClassDecl
 classDecl = do
@@ -502,14 +506,14 @@ mainFuncDecl = do
   p <- getSourcePos
   (fname, args) <- genFunctionCall True
   pe <- getSourcePos
-  return (MainFuncDecl fname args (p :!: pe))
+  pure (MainFuncDecl fname args (p :!: pe))
 
 hoLambdaDecl :: Parser HigherOrderLambdaDecl
 hoLambdaDecl = do
   p <- getSourcePos
   fc <- lambdaCall
   pe <- getSourcePos
-  return (HigherOrderLambdaDecl fc (p :!: pe))
+  pure (HigherOrderLambdaDecl fc (p :!: pe))
 
 dotLambdaDecl :: Parser HigherOrderLambdaDecl
 dotLambdaDecl = do
@@ -518,23 +522,23 @@ dotLambdaDecl = do
   pe <- getSourcePos
   hf <- case ex of
     FunctionApplication e (Terminal (UHOLambdaCall hf)) -> do
-        unless (null (hf ^. hoLambdaExpr)) (fail "Can't call a function with . and ()")
-        return (hf & hoLambdaExpr .~ V.singleton e)
+      unless (null (hf ^. hoLambdaExpr)) (fail "Can't call a function with . and ()")
+      pure (hf & hoLambdaExpr .~ V.singleton e)
     Terminal (UHOLambdaCall hf) -> do
-        when (null (hf ^. hoLambdaExpr)) (fail "This function needs data to operate on")
-        return hf
+      when (null (hf ^. hoLambdaExpr)) (fail "This function needs data to operate on")
+      pure hf
     _ -> fail "A method chained by dots."
-  return (HigherOrderLambdaDecl hf (p :!: pe))
+  pure (HigherOrderLambdaDecl hf (p :!: pe))
 
 
 resDefaultDecl :: Parser ResDefaultDecl
 resDefaultDecl = do
-    p <- getSourcePos
-    rnd  <- resourceNameRef
-    let assignmentList = V.fromList <$> sepComma1 assignment
-    asl <- braces assignmentList
-    pe <- getSourcePos
-    return (ResDefaultDecl rnd asl (p :!: pe))
+  p <- getSourcePos
+  rnd  <- resourceNameRef
+  let assignmentList = V.fromList <$> sepComma1 assignment
+  asl <- braces assignmentList
+  pe <- getSourcePos
+  pure (ResDefaultDecl rnd asl (p :!: pe))
 
 resOverrideDecl :: Parser [ResOverrideDecl]
 resOverrideDecl = do
@@ -543,7 +547,7 @@ resOverrideDecl = do
   names <- brackets (expression `sepBy1` comma) <?> "Resource reference values"
   assignments <- V.fromList <$> braces (sepComma assignment)
   pe <- getSourcePos
-  return [ ResOverrideDecl restype n assignments (p :!: pe) | n <- names ]
+  pure [ ResOverrideDecl restype n assignments (p :!: pe) | n <- names ]
 
 -- | Heterogeneous chain (interleaving resource declarations with
 -- resource references) needs to be supported:
@@ -553,26 +557,26 @@ resOverrideDecl = do
 chainableResources :: Parser [Statement]
 chainableResources = do
   let withresname = do
-          p <- getSourcePos
-          restype  <- resourceNameRef
-          lookAhead anySingle >>= \case
-              '[' -> do
-                  resnames <- brackets (expression `sepBy1` comma)
-                  pe <- getSourcePos
-                  pure (ChainResRefr restype resnames (p :!: pe))
-              _ -> ChainResColl <$> resCollDecl p restype
+        p <- getSourcePos
+        restype  <- resourceNameRef
+        lookAhead anySingle >>= \case
+          '[' -> do
+              resnames <- brackets (expression `sepBy1` comma)
+              pe <- getSourcePos
+              pure (ChainResRefr restype resnames (p :!: pe))
+          _ -> ChainResColl <$> resCollDecl p restype
   chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resDeclGroup
   let relations = do
         (g1, g2, lt) <- zipChain chain
         (rt1, rn1, _   :!: pe1) <- concatMap extractResRef g1
         (rt2, rn2, ps2 :!: _  ) <- concatMap extractResRef g2
-        return (DepDecl (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
-  return $ map DependencyDeclaration relations <> (chain ^.. folded . folded . to extractChainStatement . folded)
+        pure (DepDecl (rt1 :!: rn1) (rt2 :!: rn2) lt (pe1 :!: ps2))
+  pure $ map DependencyDeclaration relations <> (chain ^.. folded . folded . to extractChainStatement . folded)
   where
     extractResRef :: ChainableRes -> [(Text, Expression, PPosition)]
-    extractResRef (ChainResColl _) = []
+    extractResRef (ChainResColl _)                      = []
     extractResRef (ChainResDecl (ResDecl rt rn _ _ pp)) = [(rt,rn,pp)]
-    extractResRef (ChainResRefr rt rns pp) = [(rt,rn,pp) | rn <- rns]
+    extractResRef (ChainResRefr rt rns pp)              = [(rt,rn,pp) | rn <- rns]
 
     extractChainStatement :: ChainableRes -> [Statement]
     extractChainStatement (ChainResColl r) = [ResourceCollectionDeclaration r]
@@ -592,39 +596,39 @@ chainableResources = do
       let resourceName = expression
           resourceDeclaration = do
             p <- getSourcePos
-            names <- brackets (sepComma1 resourceName) <|> fmap return resourceName
+            names <- brackets (sepComma1 resourceName) <|> fmap pure resourceName
             void $ symbolic ':'
             vals  <- fmap V.fromList (sepComma assignment)
             pe <- getSourcePos
-            return [(n, vals, p :!: pe) | n <- names ]
+            pure [(n, vals, p :!: pe) | n <- names ]
           groupDeclaration = (,) <$> many (char '@') <*> typeName <* symbolic '{'
       (virts, rtype) <- try groupDeclaration -- for matching reasons, this gets a try until the opening brace
       let sep = symbolic ';' <|> comma
       x <- resourceDeclaration `sepEndBy1` sep
       void $ symbolic '}'
       virtuality <- case virts of
-        ""   -> return Normal
-        "@"  -> return Virtual
-        "@@" -> return Exported
+        ""   -> pure Normal
+        "@"  -> pure Virtual
+        "@@" -> pure Exported
         _    -> fail "Invalid virtuality"
       return [ ResDecl rtype rname conts virtuality pos | (rname, conts, pos) <- concat x ]
 
 statement :: Parser [Statement]
 statement =
-        (pure . HigherOrderLambdaDeclaration <$> try dotLambdaDecl)
-    <|> (pure . VarAssignmentDeclaration <$> varAssign)
-    <|> (map NodeDeclaration <$> nodeDecl)
-    <|> (pure . DefineDeclaration <$> defineDecl)
-    <|> (pure . ConditionalDeclaration <$> unlessCondition)
-    <|> (pure . ConditionalDeclaration <$> ifCondition)
-    <|> (pure . ConditionalDeclaration <$> caseCondition)
-    <|> (pure . ResourceDefaultDeclaration <$> try resDefaultDecl)
-    <|> (map ResourceOverrideDeclaration <$> try resOverrideDecl)
-    <|> chainableResources
-    <|> (pure . ClassDeclaration <$> classDecl)
-    <|> (pure . HigherOrderLambdaDeclaration <$> try hoLambdaDecl)
-    <|> (pure . MainFunctionDeclaration <$> mainFuncDecl)
-    <?> "Statement"
+      (pure . HigherOrderLambdaDeclaration <$> try dotLambdaDecl)
+  <|> (pure . VarAssignmentDeclaration <$> varAssign)
+  <|> (map NodeDeclaration <$> nodeDecl)
+  <|> (pure . DefineDeclaration <$> defineDecl)
+  <|> (pure . ConditionalDeclaration <$> unlessCondition)
+  <|> (pure . ConditionalDeclaration <$> ifCondition)
+  <|> (pure . ConditionalDeclaration <$> caseCondition)
+  <|> (pure . ResourceDefaultDeclaration <$> try resDefaultDecl)
+  <|> (map ResourceOverrideDeclaration <$> try resOverrideDecl)
+  <|> chainableResources
+  <|> (pure . ClassDeclaration <$> classDecl)
+  <|> (pure . HigherOrderLambdaDeclaration <$> try hoLambdaDecl)
+  <|> (pure . MainFunctionDeclaration <$> mainFuncDecl)
+  <?> "Statement"
 
 datatype :: Parser UDataType
 datatype =
@@ -665,9 +669,9 @@ datatype =
     dtbounded s constructor parser = dtArgs s (constructor Nothing Nothing) $ do
       lst <- parser `sepBy1` symbolic ','
       case lst of
-        [minlen] -> return $ constructor (Just minlen) Nothing
+        [minlen]        -> return $ constructor (Just minlen) Nothing
         [minlen,maxlen] -> return $ constructor (Just minlen) (Just maxlen)
-        _ -> fail ("Too many arguments to datatype " ++ Text.unpack s)
+        _               -> fail ("Too many arguments to datatype " ++ Text.unpack s)
     dtString = dtbounded "String" UDTString integer
     dtInteger = dtbounded "Integer" UDTInteger integer
     dtFloat = dtbounded "Float" UDTFloat float
@@ -679,11 +683,11 @@ datatype =
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tp, rst)
       case ml of
-        Nothing -> return (UDTArray UDTData 0 Nothing)
-        Just (t, Nothing) -> return (UDTArray t 0 Nothing)
-        Just (t, Just [mi]) -> return (UDTArray t mi Nothing)
+        Nothing                 -> return (UDTArray UDTData 0 Nothing)
+        Just (t, Nothing)       -> return (UDTArray t 0 Nothing)
+        Just (t, Just [mi])     -> return (UDTArray t mi Nothing)
         Just (t, Just [mi, mx]) -> return (UDTArray t mi (Just mx))
-        Just (_, Just _) -> fail "Too many arguments to datatype Array"
+        Just (_, Just _)        -> fail "Too many arguments to datatype Array"
     dtHash = do
       reserved "Hash"
       ml <- optional $ brackets $ do
@@ -693,60 +697,61 @@ datatype =
         rst <- optional (symbolic ',' *> integer `sepBy1` symbolic ',')
         return (tk, tv, rst)
       case ml of
-        Nothing -> return (UDTHash UDTScalar UDTData 0 Nothing)
-        Just (tk, tv, Nothing) -> return (UDTHash tk tv 0 Nothing)
-        Just (tk, tv, Just [mi]) -> return (UDTHash tk tv mi Nothing)
+        Nothing                      -> return (UDTHash UDTScalar UDTData 0 Nothing)
+        Just (tk, tv, Nothing)       -> return (UDTHash tk tv 0 Nothing)
+        Just (tk, tv, Just [mi])     -> return (UDTHash tk tv mi Nothing)
         Just (tk, tv, Just [mi, mx]) -> return (UDTHash tk tv mi (Just mx))
-        Just (_, _, Just _) -> fail "Too many arguments to datatype Hash"
+        Just (_, _, Just _)          -> fail "Too many arguments to datatype Hash"
     dtExternal =
-      reserved "Stdlib::Absolutepath" $> UDTData
-      <|> reserved "Stdlib::Base32" $> UDTData
-      <|> reserved "Stdlib::Base64" $> UDTData
-      <|> reserved "Stdlib::Compat::Absolute_path" $> UDTData
-      <|> reserved "Stdlib::Compat::Array" $> UDTData
-      <|> reserved "Stdlib::Compat::Bool" $> UDTData
-      <|> reserved "Stdlib::Compat::Float" $> UDTData
-      <|> reserved "Stdlib::Compat::Hash" $> UDTData
-      <|> reserved "Stdlib::Compat::Integer" $> UDTData
-      <|> reserved "Stdlib::Compat::Ip_address" $> UDTData
-      <|> reserved "Stdlib::Compat::Ipv4" $> UDTData
-      <|> reserved "Stdlib::Compat::Ipv6" $> UDTData
-      <|> reserved "Stdlib::Compat::Numeric" $> UDTData
-      <|> reserved "Stdlib::Compat::String" $> UDTData
-      <|> reserved "Stdlib::Ensure::Service" $> UDTData
-      <|> reserved "Stdlib::Filemode" $> UDTData
-      <|> reserved "Stdlib::Filesource" $> UDTData
-      <|> reserved "Stdlib::Fqdn" $> UDTData
-      <|> reserved "Stdlib::Host" $> UDTData
-      <|> reserved "Stdlib::HTTPSUrl" $> UDTData
-      <|> reserved "Stdlib::HTTPUrl" $> UDTData
-      <|> reserved "Stdlib::IP::Address::Nosubnet" $> UDTData
-      <|> reserved "Stdlib::Ip_address" $> UDTData
-      <|> reserved "Stdlib::IP::Address" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V4::CIDR" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V4::Nosubnet" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V4" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6::Alternative" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6::Compressed" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6::Full" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6::Nosubnet::Alternative" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6::Nosubnet::Compressed" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6::Nosubnet::Full" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6::Nosubnet" $> UDTData
-      <|> reserved "Stdlib::IP::Address::V6" $> UDTData
-      <|> reserved "Stdlib::Ipv4" $> UDTData
-      <|> reserved "Stdlib::Ipv6" $> UDTData
-      <|> reserved "Stdlib::MAC" $> UDTData
-      <|> reserved "Stdlib::Port::Privileged" $> UDTData
-      <|> reserved "Stdlib::Port" $> UDTData
-      <|> reserved "Stdlib::Port::Unprivileged" $> UDTData
-      <|> reserved "Stdlib::Unixpath" $> UDTData
-      <|> reserved "Stdlib::Windowspath" $> UDTData
-      <|> reserved "Nginx::ErrorLogSeverity" $> UDTData
-      <|> reserved "Jenkins::Tunnel" $> UDTData
-      <|> reserved "Systemd::Unit" $> UDTData
-      <|> reserved "Systemd::ServiceLimits" $> UDTData
-      <|> reserved "Systemd::Dropin" $> UDTData
+      choice [ reserved "Stdlib::Absolutepath" $> UDTData
+             , reserved "Stdlib::Base32" $> UDTData
+             , reserved "Stdlib::Base64" $> UDTData
+             , reserved "Stdlib::Compat::Absolute_path" $> UDTData
+             , reserved "Stdlib::Compat::Array" $> UDTData
+             , reserved "Stdlib::Compat::Bool" $> UDTData
+             , reserved "Stdlib::Compat::Float" $> UDTData
+             , reserved "Stdlib::Compat::Hash" $> UDTData
+             , reserved "Stdlib::Compat::Integer" $> UDTData
+             , reserved "Stdlib::Compat::Ip_address" $> UDTData
+             , reserved "Stdlib::Compat::Ipv4" $> UDTData
+             , reserved "Stdlib::Compat::Ipv6" $> UDTData
+             , reserved "Stdlib::Compat::Numeric" $> UDTData
+             , reserved "Stdlib::Compat::String" $> UDTData
+             , reserved "Stdlib::Ensure::Service" $> UDTData
+             , reserved "Stdlib::Filemode" $> UDTData
+             , reserved "Stdlib::Filesource" $> UDTData
+             , reserved "Stdlib::Fqdn" $> UDTData
+             , reserved "Stdlib::Host" $> UDTData
+             , reserved "Stdlib::HTTPSUrl" $> UDTData
+             , reserved "Stdlib::HTTPUrl" $> UDTData
+             , reserved "Stdlib::IP::Address::Nosubnet" $> UDTData
+             , reserved "Stdlib::Ip_address" $> UDTData
+             , reserved "Stdlib::IP::Address" $> UDTData
+             , reserved "Stdlib::IP::Address::V4::CIDR" $> UDTData
+             , reserved "Stdlib::IP::Address::V4::Nosubnet" $> UDTData
+             , reserved "Stdlib::IP::Address::V4" $> UDTData
+             , reserved "Stdlib::IP::Address::V6::Alternative" $> UDTData
+             , reserved "Stdlib::IP::Address::V6::Compressed" $> UDTData
+             , reserved "Stdlib::IP::Address::V6::Full" $> UDTData
+             , reserved "Stdlib::IP::Address::V6::Nosubnet::Alternative" $> UDTData
+             , reserved "Stdlib::IP::Address::V6::Nosubnet::Compressed" $> UDTData
+             , reserved "Stdlib::IP::Address::V6::Nosubnet::Full" $> UDTData
+             , reserved "Stdlib::IP::Address::V6::Nosubnet" $> UDTData
+             , reserved "Stdlib::IP::Address::V6" $> UDTData
+             , reserved "Stdlib::Ipv4" $> UDTData
+             , reserved "Stdlib::Ipv6" $> UDTData
+             , reserved "Stdlib::MAC" $> UDTData
+             , reserved "Stdlib::Port::Privileged" $> UDTData
+             , reserved "Stdlib::Port" $> UDTData
+             , reserved "Stdlib::Port::Unprivileged" $> UDTData
+             , reserved "Stdlib::Unixpath" $> UDTData
+             , reserved "Stdlib::Windowspath" $> UDTData
+             , reserved "Nginx::ErrorLogSeverity" $> UDTData
+             , reserved "Jenkins::Tunnel" $> UDTData
+             , reserved "Systemd::Unit" $> UDTData
+             , reserved "Systemd::ServiceLimits" $> UDTData
+             , reserved "Systemd::Dropin" $> UDTData
+             ]
 
 statementList :: Parser (Vector Statement)
 statementList = V.fromList . concat <$> many statement
