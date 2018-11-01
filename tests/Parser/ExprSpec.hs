@@ -23,8 +23,8 @@ expressions =
     , ("$x", Terminal (UVariableReference "x"))
     , ("x($y)", Terminal (UFunctionCall "x" [ Terminal (UVariableReference "y") ]))
     , ("\"${x}\"", Terminal (UInterpolable [Terminal (UVariableReference "x")]))
-    , ("\"${x[3]}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "x")) 3]))
-    , ("\"${os['architecture']}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "os")) (Terminal (UString "architecture"))]))
+    , ("$x[ 3 ]",  Lookup (Terminal (UVariableReference "x")) (Terminal (UNumber 3)))
+    , ("\"${ os[ 'architecture' ]}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "os")) (Terminal (UString "architecture"))]))
     , ("\"${facts['os']['architecture']}\"", Terminal (UInterpolable [Lookup (Lookup (Terminal (UVariableReference "facts")) (Terminal (UString "os"))) (Terminal (UString "architecture"))]))
     , ("\"${x[$y]}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "x")) (Terminal (UVariableReference "y")) ]))
     , ("\"${x($y)}\"", Terminal (UInterpolable [ Terminal (UFunctionCall "x" [ Terminal (UVariableReference "y") ] ) ] ))
@@ -32,7 +32,22 @@ expressions =
                                                  , Terminal (UString "$"),Terminal (UString "'")]))
     ]
 
-testExpression (t,e) = it ("should parse " ++ show t) $ parse (expression <* eof) "" t `shouldParse` e
+invalid :: [Text]
+invalid = [ "$os['name]"
+          -- pending
+          -- , "$os ['name']"
+           -- interpolation
+          , "\"${os['name]}\""
+          , "\"${os[name}\""
+          , "\"${os[name]\""
+          -- pending
+          -- , "\"${ os['name']}\""
+          ]
+
+testExpression (t,e) = it ("should parse " <> toS t) $ parse (expression <* eof) "" t `shouldParse` e
+
+testInvalid s = it ("rejects " <> toS s) $ shouldFailOn (parse (expression <* eof) "") s
 
 spec = do
   describe "Expression parser" $ mapM_ testExpression expressions
+  describe "Invalid expression" $ mapM_ testInvalid invalid
