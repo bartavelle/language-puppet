@@ -106,7 +106,7 @@ reserved s =
     sc
 
 qualif :: Parser Text -> Parser Text
-qualif p =  do
+qualif p = do
   header <- option "" (chunk "::")
   ( header <> ) . Text.intercalate "::" <$> p `sepBy1` chunk "::"
 
@@ -115,9 +115,6 @@ qualif1 p = try $ do
   r <- qualif p
   unless ("::" `Text.isInfixOf` r) (fail "This parser is not qualified")
   pure r
-
-variable :: Parser Expression
-variable = Terminal . UVariableReference <$> variableReference
 
 -- | Consumes a var $foo and then spaces
 variableReference :: Parser Text
@@ -150,6 +147,10 @@ genericModuleName isReference = do
 parameterName :: Parser Text
 parameterName = moduleName
 
+-- | Variable expression
+varExpression :: Parser Expression
+varExpression = Terminal . UVariableReference <$> variableReference
+
 -- | String interpolation
 interpolableString :: Parser (Vector Expression)
 interpolableString = V.fromList <$> between (char '"') (symbolic '"')
@@ -166,21 +167,15 @@ interpolableString = V.fromList <$> between (char '"') (symbolic '"')
     escaper '$'  = "$"
     escaper x    = ['\\',x]
     -- this is specialized because we can't be "tokenized" here
-    rvariableName = Text.concat <$> some (chunk "::" <|> identifier)
-    rvariable = Terminal . UVariableReference <$> rvariableName
-    indexchain =  makeExprParser rvariable [[Postfix indexLookupChain]] -- e.g: os['release']['major']
+    varname = Text.concat <$> some (chunk "::" <|> identifier)
+    varexpr = Terminal . UVariableReference <$> varname
+    indexchain =  makeExprParser varexpr [[Postfix indexLookupChain]] -- e.g: os['release']['major']
     interpolableVariableReference = do
       void (char '$')
       let fenced =    try (indexchain <* char '}')
-                  <|> try (rvariable <* char '}')
+                  <|> try (varexpr <* char '}')
                   <|> (expression <* char '}')
-      (symbolic '{' *> fenced) <|> try rvariable <|> pure (Terminal (UString (Text.singleton '$')))
-
-regexp :: Parser Text
-regexp = do
-  void (single '/')
-  Text.pack . concat <$> many ( do { void (char '\\') ; x <- anySingle; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
-      <* symbolic '/'
+      (symbolic '{' *> fenced) <|> try varexpr <|> pure (Terminal (UString (Text.singleton '$')))
 
 integerOrDouble :: Parser (Either Integer Double)
 integerOrDouble = Left <$> hex <|> (either Right Left . Scientific.floatingOrInteger <$> Lexer.scientific)
@@ -259,7 +254,7 @@ terminalG mode =
   <|> fmap (Terminal . UInterpolable) interpolableString
   <|> (Terminal UUndef <$ reserved "undef")
   <|> fmap (Terminal . URegexp) termRegexp
-  <|> variable
+  <|> varExpression
   <|> fmap Terminal puppetArray
   <|> fmap Terminal puppetHash
   <|> fmap (Terminal . UBoolean) puppetBool
@@ -273,6 +268,12 @@ terminalG mode =
            <|> fmap Terminal literalValue
    funcCall :: Parser UnresolvedValue
    funcCall = uncurry UFunctionCall <$> genFunctionCall False
+
+regexp :: Parser Text
+regexp = do
+  void (single '/')
+  Text.pack . concat <$> many ( do { void (char '\\') ; x <- anySingle; return ['\\', x] } <|> some (noneOf [ '/', '\\' ]) )
+      <* symbolic '/'
 
 compileRegexp :: Text -> Parser CompRegex
 compileRegexp p = case Regex.compile' Regex.compBlank Regex.execBlank (encodeUtf8 p) of
@@ -327,7 +328,7 @@ stringExpression =
       (Terminal . UInterpolable) <$> interpolableString
   <|> (reserved "undef" $> Terminal UUndef)
   <|> (Terminal . UBoolean) <$> puppetBool
-  <|> variable
+  <|> varExpression
   <|> Terminal <$> literalValue
 
 varAssign :: Parser VarAssignDecl
@@ -454,21 +455,7 @@ assignment =
           (AssignArrow <$ symbol "=>")
       <|> (AppendArrow <$ symbol "+>")
 
-searchExpression :: Parser SearchExpression
-searchExpression = makeExprParser (lexeme searchterm) searchTable
-  where
-    searchTable :: [[Operator Parser SearchExpression]]
-    searchTable = [ [ InfixL ( reserved "and" *> pure AndSearch )
-                    , InfixL ( reserved "or"  *> pure OrSearch  )
-                    ] ]
-    searchterm = parens searchExpression <|> check
-    check = do
-      attrib <- parameterName
-      opr    <- (EqualitySearch <$ symbol "==")
-            <|> (NonEqualitySearch <$ symbol "!=")
-      term   <- stringExpression
-      pure (opr attrib term)
-
+-- | Resource Collector
 resCollDecl :: Position -> Text -> Parser ResCollDecl
 resCollDecl p restype = do
   openchev <- some (char '<')
@@ -484,6 +471,21 @@ resCollDecl p restype = do
                           else ExportedCollector
   pe <- getSourcePos
   pure (ResCollDecl collectortype restype e (V.fromList overrides) (p :!: pe) )
+  where
+    searchExpression :: Parser SearchExpression
+    searchExpression =
+      let searchTable :: [[Operator Parser SearchExpression]]
+          searchTable = [ [ InfixL ( reserved "and" *> pure AndSearch )
+                          , InfixL ( reserved "or"  *> pure OrSearch  )
+                          ] ]
+          searchterm = parens searchExpression <|> check
+          check = do
+            attrib <- parameterName
+            opr    <- (EqualitySearch <$ symbol "==")
+                  <|> (NonEqualitySearch <$ symbol "!=")
+            term   <- stringExpression
+            pure (opr attrib term)
+      in makeExprParser (lexeme searchterm) searchTable
 
 classDecl :: Parser ClassDecl
 classDecl = do

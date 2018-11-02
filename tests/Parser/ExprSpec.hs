@@ -22,6 +22,7 @@ expressions =
            , SelectorDefault :!: Terminal (UString "default")])
     , ("$x", Terminal (UVariableReference "x"))
     , ("x($y)", Terminal (UFunctionCall "x" [ Terminal (UVariableReference "y") ]))
+    , ("\"$\"", Terminal (UInterpolable [Terminal (UString "$")]))
     , ("\"${x}\"", Terminal (UInterpolable [Terminal (UVariableReference "x")]))
     , ("$x[ 3 ]",  Lookup (Terminal (UVariableReference "x")) (Terminal (UNumber 3)))
     , ("\"${ os[ 'architecture' ]}\"", Terminal (UInterpolable [Lookup (Terminal (UVariableReference "os")) (Terminal (UString "architecture"))]))
