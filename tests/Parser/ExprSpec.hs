@@ -40,8 +40,6 @@ invalid = [ "$os['name]"
           , "\"${os['name]}\""
           , "\"${os[name}\""
           , "\"${os[name]\""
-          -- pending
-          -- , "\"${ os['name']}\""
           ]
 
 testExpression (t,e) = it ("should parse " <> toS t) $ parse (expression <* eof) "" t `shouldParse` e

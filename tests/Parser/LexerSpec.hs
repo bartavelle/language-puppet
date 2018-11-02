@@ -21,13 +21,11 @@ validFiles = do
     check i  =
       parse (puppetParser <* eof) empty `shouldSucceedOn` i
 
-invalidResourceReference =
-  invalidTest "should fail to parse resource reference with a space after the resource type" resourceReference  "File ['/test']"
-
 spec = describe "Lexer" $ do
   describe "Valid lexer" $ validFiles
   describe "Invalid lexer" $ do
-    invalidResourceReference
+    it "should fail to parse resource reference with a space after the resource type" $ invalid resourceReference  "File ['/test']"
+    xit "should fail if there is a space after the variable name" $ invalid interpolableString "\"${os ['name']}\""
 
 -- Utils
-invalidTest msg p s = it msg $ parse (p <* eof) mempty `shouldFailOn` s
+invalid p s = parse (p <* eof) mempty `shouldFailOn` s
