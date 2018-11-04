@@ -1,4 +1,4 @@
-language-puppet (1.4.1) UNRELEASED; urgency=medium
+language-puppet (1.4.1) artful; urgency=medium
 
   * Add the `with` function.
   * Add the `assert_type` function.
@@ -10,7 +10,7 @@ language-puppet (1.4.1) UNRELEASED; urgency=medium
   * Fix read multiple hierachies in hiera format v5
   * Fix #260, #261, #262, #263
 
- -- Simon Marechal <simon.marechal@edf.fr>  Thu, 13 Sep 2018 15:54:03 +0200
+ -- Bartavelle <bartavelle@gmail.com>  Sun, 04 Nov 2018 09:32:48 +0100
 
 language-puppet (1.4.0) xenial; urgency=medium
 
