@@ -1,8 +1,6 @@
 = Language-puppet
 
 image:https://img.shields.io/hackage/v/language-puppet.svg[link="http://hackage.haskell.org/package/language-puppet"]
-image:https://www.stackage.org/package/language-puppet/badge/lts[link="https://www.stackage.org/lts/package/language-puppet"]
-image:https://www.stackage.org/package/language-puppet/badge/nightly[link="https://www.stackage.org/nightly/package/language-puppet"]
 image:https://travis-ci.org/bartavelle/language-puppet.svg?branch=master["Build Status", link="https://travis-ci.org/bartavelle/language-puppet"]
 image:https://img.shields.io/badge/cachix-cachix-orange.svg[link="https://language-puppet.cachix.org"]
 
