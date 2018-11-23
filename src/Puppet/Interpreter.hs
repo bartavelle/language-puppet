@@ -110,7 +110,7 @@ finalize rx = do
             -- we must define if we can override the value
             let canOverride = CantOverride -- TODO check inheritance
             ifoldlM (addAttribute canOverride) r resprms
-  void $ getOver >>= mapM keepforlater
+  getOver >>= mapM_ keepforlater
   let expandableDefine r = do
         n <- isNativeType (r ^. rid . itype)
         -- if we have a native type, or a virtual/exported resource it
@@ -639,7 +639,7 @@ loadParameters attrs classParams defaultPos classname = do
 
   -- try to set a value to all parameters
   -- The order of evaluation is defined / hiera / default
-  unset_params <- fmap concat $ for classParams $ \(varname :!: vartype :!: valexpr) -> do
+  unset_params <- fmap concat $ for classParams $ \(varname :!: vartype :!: valexpr) ->
       runExceptT (check_def varname <|> check_hiera varname vartype <|> check_default valexpr) >>= \case
         Right val       -> do
           forM_ vartype $ \utype -> do
@@ -954,7 +954,7 @@ mainFunctionCall "dumpinfos" _ = do
   prntline "Variables in local scope :"
   scp <- getScopeName
   vars <- use (scopes . ix scp . scopeVariables)
-  forM_ (sortBy (comparing fst) (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ppline idx <> " -> " <> pretty pv
+  forM_ (sortOn fst (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ppline idx <> " -> " <> pretty pv
   pure []
 mainFunctionCall "assert_type" [PType dt, v] =
   if datatypeMatch dt v
