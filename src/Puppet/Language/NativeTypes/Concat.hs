@@ -18,6 +18,7 @@ concatparamfunctions =
     ,("path"                , [string])
     ,("owner"               , [string])
     ,("group"               , [string])
+    ,("validate_cmd"        , [string])
     ,("mode"                , [defaultvalue "0644", string])
     ,("warn"                , [defaultvalue "false", string, values ["false", "true"]])
     ,("force"               , [defaultvalue "false", string, values ["false", "true"]])
