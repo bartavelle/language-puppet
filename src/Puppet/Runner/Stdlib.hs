@@ -17,6 +17,7 @@ import           Data.Text.Lens                   (unpacked)
 import qualified Data.Vector                      as V
 import           Data.Vector.Lens                 (toVectorOf)
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
+import qualified System.FilePath                  as FilePath
 
 import           Puppet.Interpreter
 
@@ -45,7 +46,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "delete_undef_values" deleteUndefValues
                               -- delete_values
                               -- difference
-                              -- dirname
+                              , singleArgument "dirname" dirname
                               -- dos2unix
                               , ("downcase", stringArrayFunction Text.toLower)
                               , singleArgument "empty" _empty
@@ -440,6 +441,10 @@ unique :: PValue -> InterpreterMonad PValue
 unique (PString s) = return $ PString (s & unpacked %~ List.nub)
 unique (PArray v) = return $ PArray (V.fromList (List.nub (V.toList v))) -- :(
 unique x = throwPosError ("unique(): Expects an array or a string, not" <+> pretty x)
+
+dirname :: PValue -> InterpreterMonad PValue
+dirname (PString s) = pure $ PString (s & unpacked %~ FilePath.takeDirectory)
+dirname x = throwPosError ("dirname(): Expects a string, not" <+> pretty x)
 
 sort :: PValue -> InterpreterMonad PValue
 sort (PArray s) =
