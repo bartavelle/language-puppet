@@ -68,8 +68,8 @@ numeric modestr = do
                  else identity
 
 checkSource :: Text -> PValue -> NativeTypeValidate
-checkSource _ (PString x) res | any (`Text.isPrefixOf` x) ["puppet://", "file://", "/"] = Right res
-                              | otherwise = throwError "A source should start with either puppet:// or file:// or an absolute path"
+checkSource _ (PString x) res | any (`Text.isPrefixOf` x) ["puppet://", "file://", "/", "http://", "https://"] = Right res
+                              | otherwise = throwError "A source should start with either puppet://, http://, https:// or file:// or an absolute path"
 checkSource _ x _ = throwError $ PrettyError ("Expected a string, not" <+> pretty x)
 
 data PermParts = Special | User | Group | Other
