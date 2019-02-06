@@ -103,12 +103,23 @@ getPuppetPaths = singleton PuppetPaths
 getNodeName:: InterpreterMonad NodeName
 getNodeName = singleton GetNodeName
 
+-- | Give key such as "os.family"
+-- look an hash of facts to retrieve deepest PValue
+lookupFacts :: Text -> HashMap Text PValue -> Maybe PValue
+lookupFacts key facts =
+  let (k0:ks) = Text.splitOn "." key
+      f k = \case
+        Just (PHash h) -> Map.lookup k h
+        x -> x
+  in
+  List.foldr f (Map.lookup k0 facts) ks
+
 -- | Ask the value of a fact given a specified key
 -- The fact set comes from the reader used by the interpreter monad.
 askFact :: Text -> InterpreterMonad (Maybe PValue)
 askFact key = do
   facts <- singleton Facts
-  pure $ Map.lookup key facts
+  pure $ lookupFacts key facts
 
 isIgnoredModule :: Text -> InterpreterMonad Bool
 isIgnoredModule m = singleton (IsIgnoredModule m)
