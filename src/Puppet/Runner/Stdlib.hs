@@ -97,7 +97,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("pick_default", pickDefault)
                               , ("prefix", prefix)
                               -- private
-                              , ("pw_hash", pw_hash)
+                              , ("pw_hash", pwHash)
                               -- range
                               -- reject
                               -- reverse
@@ -186,10 +186,10 @@ prefix = foofix "prefix" (<>)
 
 -- Dummy mock implementation of pw_hash
 -- To be implemented if required
-pw_hash :: [PValue] -> InterpreterMonad PValue
-pw_hash [PString (pwd), PString(algo), PString(salt)] =
+pwHash :: [PValue] -> InterpreterMonad PValue
+pwHash [PString pwd, PString algo, PString salt] =
   pure (PString ("plain " <> pwd <> "(crypt with " <> algo <> " and " <> salt))
-pw_hash _ = throwPosError "pw_hash(): expects 3 string arguments"
+pwHash _ = throwPosError "pw_hash(): expects 3 string arguments"
 
 foofix :: Doc -> (Text -> Text -> Text) -> [PValue] -> InterpreterMonad PValue
 foofix nm f args =
@@ -233,7 +233,7 @@ any2array x = return (PArray (V.fromList x))
 
 base64 :: [PValue] -> InterpreterMonad PValue
 base64 [pa,pb] = do
-  b <- encodeUtf8 <$> (resolvePValueString pb)
+  b <- encodeUtf8 <$> resolvePValueString pb
   r <- resolvePValueString pa >>= \case
         "encode" -> return (B16.encode b)
         "decode" -> case B16.decode b of
@@ -311,9 +311,12 @@ _empty = return . PBoolean . flip elem [PUndef, PString "", PString "undef", PAr
 
 fact :: PValue -> InterpreterMonad PValue
 fact (PString k) = do
-  askFact k >>= \case
-    Just r -> pure r
-    Nothing -> throwPosError ("fact(): Failed to retrieve fact" <+> ppline k)
+  let ks = Text.splitOn "." k
+      unwrap x = x >>= \case
+        Just r -> pure r
+        Nothing -> throwPosError ("fact(): Failed to retrieve fact" <+> ppline k)
+      found = asum <$> mapM askFact ks
+  unwrap found
 fact x = throwPosError ("fact(): Expects a String, not" <+> pretty x)
 
 flatten :: PValue -> InterpreterMonad PValue
