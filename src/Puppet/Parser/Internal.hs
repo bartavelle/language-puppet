@@ -118,7 +118,10 @@ qualif1 p = try $ do
 
 -- | Consumes a var $foo and then spaces
 variableReference :: Parser Text
-variableReference = char '$' *> lexeme variableName
+variableReference = do
+  v <- char '$' *> lexeme variableName
+  when (Text.all Char.isDigit v) (fail "Can't assign fully numeric variables")
+  pure v
 
 variableName :: Parser Text
 variableName = qualif identifier
@@ -338,7 +341,6 @@ varAssign = do
   v <- variableReference
   void $ symbolic '='
   e <- expression
-  when (Text.all Char.isDigit v) (fail "Can't assign fully numeric variables")
   pe <- getSourcePos
   pure (VarAssignDecl mt v e (p :!: pe))
 
