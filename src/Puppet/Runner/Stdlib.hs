@@ -5,6 +5,7 @@ module Puppet.Runner.Stdlib (stdlibFunctions) where
 
 import           XPrelude                         hiding (sort)
 
+import qualified Data.Yaml            as Yaml
 import           Data.Aeson.Lens
 import qualified Data.ByteString.Base16           as B16
 import qualified Data.Char                        as Char
@@ -13,6 +14,7 @@ import qualified Data.List                        as List
 import qualified Data.List.Split                  as List (chunksOf)
 import qualified Data.Scientific                  as Scientific
 import qualified Data.Text                        as Text
+import qualified Data.Text.Encoding               as Text
 import           Data.Text.Lens                   (unpacked)
 import qualified Data.Vector                      as V
 import           Data.Vector.Lens                 (toVectorOf)
@@ -121,6 +123,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               -- union
                               , singleArgument "unique" unique
                               -- from puppetlabs-translate
+                              , singleArgument "to_yaml" toYaml
                               , ("translate", translate)
                               -- unix2dos
                               , ("upcase", stringArrayFunction Text.toUpper)
@@ -546,3 +549,6 @@ pvalues x         = throwPosError ("values(): expected a hash, not" <+> pretty x
 translate :: [PValue] -> InterpreterMonad PValue
 translate [v@(PString _)] = pure v
 translate x = throwPosError ("values(): expected a String, not" <+> pretty x)
+
+toYaml :: PValue -> InterpreterMonad PValue
+toYaml s = pure $ PString $ Text.decodeUtf8 (Yaml.encode s)
