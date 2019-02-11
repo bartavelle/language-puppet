@@ -7,6 +7,7 @@ import qualified HieraSpec
 import qualified Interpreter.ClassSpec
 import qualified Interpreter.CollectorSpec
 import qualified Interpreter.EvalSpec
+import qualified Interpreter.EvaluateStatementSpec
 import qualified Interpreter.Function.AssertPrivateSpec
 import qualified Interpreter.Function.DeleteAtSpec
 import qualified Interpreter.Function.EachSpec
@@ -40,6 +41,7 @@ spec = do
     Interpreter.ClassSpec.spec
     Interpreter.EvalSpec.spec
     Interpreter.IfSpec.spec
+    Interpreter.EvaluateStatementSpec.spec
     describe "stdlib functions" $ do
       describe "The assert_private function" Interpreter.Function.AssertPrivateSpec.spec
       describe "The join_keys_to_values function" Interpreter.Function.JoinKeysToValuesSpec.spec

@@ -94,7 +94,7 @@ library
                        , Puppet.Runner.Daemon.OptionalTests
                        , Puppet.Runner.Daemon
   extensions:          OverloadedStrings, BangPatterns, LambdaCase, NoImplicitPrelude, FlexibleContexts, FlexibleInstances
-  ghc-options:         -Wall -funbox-strict-fields 
+  ghc-options:         -Wall -funbox-strict-fields
   -- ghc-prof-options:    -auto-all -caf-all
   build-depends:       aeson                >= 0.8
                      , ansi-wl-pprint       >= 0.6.8
@@ -169,6 +169,7 @@ Test-Suite spec
                   Interpreter.CollectorSpec
                   Interpreter.IfSpec
                   Interpreter.EvalSpec
+                  Interpreter.EvaluateStatementSpec
                   Interpreter.Function.ShellquoteSpec
                   Interpreter.Function.SprintfSpec
                   Interpreter.Function.SizeSpec

@@ -277,7 +277,7 @@ data NodeDecl = NodeDecl !NodeDesc !(Vector Statement) !(S.Maybe NodeDesc) !PPos
 data VarAssignDecl
   = VarAssignDecl
   { _vadtype  :: Maybe UDataType
-  , _vadname  :: !Text
+  , _vadnames  :: [Text]
   , _vadvalue :: !Expression
   , _vadpos   :: !PPosition
   } deriving (Eq, Show)

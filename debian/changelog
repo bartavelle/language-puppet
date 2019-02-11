@@ -1,6 +1,7 @@
 language-puppet (1.4.3) artful; urgency=medium
   * Add the `dirname` stdlib function.
   * Add validate_cmd param to concat.
+  * Support double assignment: see #201
 
 language-puppet (1.4.2) artful; urgency=medium
   * Bump upper version bounds for some haskell packages
