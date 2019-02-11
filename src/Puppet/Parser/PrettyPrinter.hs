@@ -165,6 +165,10 @@ instance Pretty NodeDesc where
   pretty (NodeName n) = pretty (UString n)
   pretty (NodeMatch r) = pretty (URegexp r)
 
+instance Pretty VarAssignDecl where
+  pretty (VarAssignDecl mt vs expr p) =
+    foldMap (\t -> pretty t <+> mempty) mt <> dullblue (foldMap (\v -> pretty '$' <> ppline v) vs) <+> pretty '=' <+> pretty expr <+> showPPos p
+
 instance Pretty Statement where
     pretty (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) = pretty c <+> showPPos p
     pretty (ConditionalDeclaration (ConditionalDecl conds p))
@@ -194,7 +198,7 @@ instance Pretty Statement where
           inheritance = case inherit of
             S.Nothing -> mempty
             S.Just x -> mempty <+> "inherits" <+> ppline x
-    pretty (VarAssignmentDeclaration (VarAssignDecl mt a b p)) = foldMap (\t -> pretty t <+> mempty) mt <> dullblue (pretty '$' <> ppline a <+> pretty '=' <+> pretty b <+> showPPos p)
+    pretty (VarAssignmentDeclaration decl) = pretty decl
     pretty (NodeDeclaration (NodeDecl nodename stmts i p)) = dullyellow "node" <+> pretty nodename <> inheritance <+> showPPos p <$> braceStatements stmts
         where
           inheritance = case i of

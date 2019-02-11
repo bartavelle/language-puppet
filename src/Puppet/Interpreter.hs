@@ -466,7 +466,8 @@ evaluateStatement (ResourceDeclaration (ResDecl t ern eargs virt p)) = do
 evaluateStatement (MainFunctionDeclaration (MainFuncDecl funcname funcargs p)) = do
   curPos .= p
   mapM resolveExpression (toList funcargs) >>= mainFunctionCall funcname
-evaluateStatement (VarAssignmentDeclaration (VarAssignDecl mt varname varexpr p)) = do
+-- TODO Fix me
+evaluateStatement (VarAssignmentDeclaration (VarAssignDecl mt (varname:[]) varexpr p)) = do
   curPos .= p
   varval <- resolveExpression varexpr
   mapM_ (resolveDataType >=> (`checkMatch` varval)) mt

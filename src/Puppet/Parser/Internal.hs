@@ -334,15 +334,18 @@ stringExpression =
   <|> varExpression
   <|> Terminal <$> literalValue
 
+chainedVariableReferences :: Parser [Text]
+chainedVariableReferences =  variableReference `sepBy1` symbolic ','
+
 varAssign :: Parser VarAssignDecl
 varAssign = do
   p <- getSourcePos
   mt <- optional datatype
-  v <- variableReference
+  vs <- chainedVariableReferences
   void $ symbolic '='
-  e <- expression
+  expr <- expression
   pe <- getSourcePos
-  pure (VarAssignDecl mt v e (p :!: pe))
+  pure (VarAssignDecl mt vs expr (p :!: pe))
 
 nodeDecl :: Parser [NodeDecl]
 nodeDecl = do
