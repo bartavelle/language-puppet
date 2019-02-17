@@ -130,7 +130,7 @@ className :: Parser Text
 className = lexeme $ qualif moduleName
 
 funcName :: Parser Text
-funcName = moduleName
+funcName = lexeme $ qualif $ genericModuleName False
 
 -- yay with reserved words
 typeName :: Parser Text

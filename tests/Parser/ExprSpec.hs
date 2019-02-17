@@ -16,6 +16,7 @@ expressions =
     , ("include(foo::bar)",  Terminal (UFunctionCall "include" ["foo::bar"] ))
     , ("fail(('foo'))",  Terminal (UFunctionCall "fail" ["foo"] ))
     , ("test(foo,bar)",  Terminal (UFunctionCall "test" ["foo", "bar"] ))
+    , ("extlib::test()",  Terminal (UFunctionCall "extlib::test" [] ))
     , ("test(fail('foo'))",  Terminal (UFunctionCall "test" [Terminal (UFunctionCall "fail" [Terminal (UString "foo")])]))
     , ("test ( foo , bar )",  Terminal (UFunctionCall "test" ["foo", "bar"] ))
     , ("$y ? {\
