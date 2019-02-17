@@ -111,7 +111,7 @@ qualif p = do
   ( header <> ) . Text.intercalate "::" <$> p `sepBy1` chunk "::"
 
 qualif1 :: Parser Text -> Parser Text
-qualif1 p = try $ do
+qualif1 p = do
   r <- qualif p
   unless ("::" `Text.isInfixOf` r) (fail "This parser is not qualified")
   pure r
@@ -128,6 +128,9 @@ variableName = qualif identifier
 
 className :: Parser Text
 className = lexeme $ qualif moduleName
+
+funcName :: Parser Text
+funcName = moduleName
 
 -- yay with reserved words
 typeName :: Parser Text
@@ -221,18 +224,18 @@ specialFunctions =
 -- The first argument defines if non-parenthesized arguments are acceptable
 genFunctionCall :: Bool -> Parser (Text, Vector Expression)
 genFunctionCall nonparens = do
-  fname <- (specialFunctions <|> moduleName) <?> "Function name"
-  -- this is a hack. Contrary to what the documentation says,
-  -- a "bareword" can perfectly be a qualified name :
-  -- include foo::bar
-  let argsc sep e = (fmap (Terminal . UString) (lexeme (qualif1 moduleName)) <|> e <?> "Function argument A") `sep` comma
+  fname <- (specialFunctions <|> funcName) <?> "Function name"
+  let
+      -- first check if the function arg is not a qualified name (ex.: include foo::bar)
+      -- if it is not, then we expect an expression
+      func_arg expr =  (Terminal . UString) <$> (try $ qualif1 moduleName) <|> expr <?> "Function argument"
       terminalF = terminalG FunctionWithoutParens
-      expressionF = makeExprParser (lexeme terminalF) expressionTable <?> "function expression"
-      withparens = parens (argsc sepEndBy expression)
-      withoutparens = argsc sepEndBy1 expressionF
-  args  <- withparens <|> if nonparens
-                            then withoutparens <?> "Function arguments B"
-                            else fail "Function arguments C"
+      expressionF = makeExprParser (lexeme terminalF) expressionTable <?> "Function expression"
+      withparens = parens (func_arg expression `sepEndBy` comma)
+      withoutparens = if nonparens
+                      then func_arg expressionF `sepEndBy1` comma
+                      else fail "Not an argument list allowed with function without parentheses"
+  args  <- withparens <|> withoutparens
   pure (fname, V.fromList args)
 
 

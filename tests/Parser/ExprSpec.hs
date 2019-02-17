@@ -14,6 +14,10 @@ expressions =
     [ ("5 + 3 * 2", 5 + 3 * 2)
     , ("5+2 == 7", Equal (5 + 2) 7)
     , ("include(foo::bar)",  Terminal (UFunctionCall "include" ["foo::bar"] ))
+    , ("fail(('foo'))",  Terminal (UFunctionCall "fail" ["foo"] ))
+    , ("test(foo,bar)",  Terminal (UFunctionCall "test" ["foo", "bar"] ))
+    , ("test(fail('foo'))",  Terminal (UFunctionCall "test" [Terminal (UFunctionCall "fail" [Terminal (UString "foo")])]))
+    , ("test ( foo , bar )",  Terminal (UFunctionCall "test" ["foo", "bar"] ))
     , ("$y ? {\
      \ undef   => 'undef',\
      \ default => 'default',\
