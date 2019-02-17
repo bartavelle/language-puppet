@@ -17,9 +17,8 @@ expressions =
     , ("fail(('foo'))",  Terminal (UFunctionCall "fail" ["foo"] ))
     , ("test(foo,bar)",  Terminal (UFunctionCall "test" ["foo", "bar"] ))
     , ("extlib::test()",  Terminal (UFunctionCall "extlib::test" [] ))
-    , ("test(fail('foo'))",  Terminal (UFunctionCall "test" [Terminal (UFunctionCall "fail" [Terminal (UString "foo")])]))
-    -- TODO: fixme see #271
-    -- , ("test(extlib::test())",  Terminal (UFunctionCall "test" [Terminal (UFunctionCall "extlib::test" [])] ))
+    , ("extlib::test(fail('foo'))",  Terminal (UFunctionCall "extlib::test" [Terminal (UFunctionCall "fail" [Terminal (UString "foo")])]))
+    , ("test(extlib::test())",  Terminal (UFunctionCall "test" [Terminal (UFunctionCall "extlib::test" [])] ))
     , ("test ( foo , bar )",  Terminal (UFunctionCall "test" ["foo", "bar"] ))
     , ("$y ? {\
      \ undef   => 'undef',\

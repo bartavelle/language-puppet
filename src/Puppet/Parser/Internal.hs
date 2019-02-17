@@ -228,7 +228,8 @@ genFunctionCall nonparens = do
   let
       -- first check if the function arg is not a qualified name (ex.: include foo::bar)
       -- if it is not, then we expect an expression
-      func_arg expr =  (Terminal . UString) <$> (try $ qualif1 moduleName) <|> expr <?> "Function argument"
+      qualif_param = (Terminal . UString) <$> qualif1 moduleName <* notFollowedBy (single '(') -- <* lookAhead (anySingleBut '(')
+      func_arg expr =  try qualif_param <|> expr <?> "Function argument"
       terminalF = terminalG FunctionWithoutParens
       expressionF = makeExprParser (lexeme terminalF) expressionTable <?> "Function expression"
       withparens = parens (func_arg expression `sepEndBy` comma)
@@ -337,6 +338,7 @@ stringExpression =
   <|> varExpression
   <|> Terminal <$> literalValue
 
+-- | a = b = 0
 chainedVariableReferences :: Parser [Text]
 chainedVariableReferences = do
   h <- variableReference
