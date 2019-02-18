@@ -905,6 +905,11 @@ mainFunctionCall "include" includes =
     doInclude e = do
       classname <- resolvePValueString e
       loadClass classname S.Nothing mempty ClassIncludeLike
+mainFunctionCall "require" includes = do
+  checkStrict
+    "The require function is not supported ! Calling 'include' instead"
+    "The 'require' function is not supported in strict mode."
+  mainFunctionCall "include" includes
 mainFunctionCall "create_resources" [t, hs] = mainFunctionCall "create_resources" [t, hs, PHash mempty]
 mainFunctionCall "create_resources" [PString t, PHash hs, PHash defparams] = do
   let (ats, t') = Text.span (== '@') t
