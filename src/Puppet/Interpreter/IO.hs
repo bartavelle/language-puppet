@@ -48,44 +48,48 @@ eval r s (a :>>= k) =
             Left err -> thpe err
             Right x -> runInstr x
         logStuff x c = (_3 %~ (x <>)) <$> c
-    in  case a of
-            IsStrict                     -> runInstr (r ^. readerIsStrict)
-            ExternalFunction fname args  -> case r ^. readerExternalFunc . at fname of
-                                                Just fn -> interpretMonad r s ( fn args >>= k)
-                                                Nothing -> thpe (PrettyError ("Unknown function: " <> ppline fname))
-            GetStatement topleveltype toplevelname
-                                         -> canFail ((r ^. readerGetStatement) topleveltype toplevelname)
-            ComputeTemplate src st       -> canFail ((r ^. readerGetTemplate) src st r)
-            WriterTell t                 -> logStuff t (runInstr ())
-            WriterPass _                 -> thpe "WriterPass"
-            WriterListen _               -> thpe "WriterListen"
-            PuppetPaths                  -> runInstr (r ^. readerPuppetPaths)
-            Facts                        -> runInstr (r ^. readerFacts)
-            RebaseFile                   -> runInstr (r ^. readerRebaseFile)
-            GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
-            ErrorThrow d                 -> return (Left d, s, mempty)
-            GetNodeName                  -> runInstr (r ^. readerNodename)
-            HieraQuery scps q t          -> canFail (queryHiera (r ^. readerHieraQuery) scps q t)
-            PDBInformation               -> pdbInformation pdb >>= runInstr
-            PDBReplaceCatalog w          -> canFailX (replaceCatalog pdb w)
-            PDBReplaceFacts fcts         -> canFailX (replaceFacts pdb fcts)
-            PDBDeactivateNode nn         -> canFailX (deactivateNode pdb nn)
-            PDBGetFacts q                -> canFailX (getPDBFacts pdb q)
-            PDBGetResources q            -> canFailX (getResources pdb q)
-            PDBGetNodes q                -> canFailX (getNodes pdb q)
-            PDBCommitDB                  -> canFailX (commitDB pdb)
-            PDBGetResourcesOfNode nn q   -> canFailX (getResourcesOfNode pdb nn q)
-            GetCurrentCallStack          -> (r ^. readerIoMethods . ioGetCurrentCallStack) >>= runInstr
-            ReadFile fls                 -> strFail ((r ^. readerIoMethods . ioReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ppline fls)))
-            TraceEvent e                 -> (r ^. readerIoMethods . ioTraceEvent) e >>= runInstr
-            IsIgnoredModule m            -> runInstr (r ^. readerIgnoredModules . contains m)
-            IsExternalModule m           -> runInstr (r ^. readerExternalModules . contains m)
-            -- on error, the program state is RESET and the logged messages are dropped
-            ErrorCatch atry ahandle      -> do
-                (eres, s', w) <- interpretMonad r s atry
-                case eres of
-                    Left rr -> interpretMonad r s (ahandle rr >>= k)
-                    Right x -> logStuff w (interpretMonad r s' (k x))
+    in
+    case a of
+      IsStrict                     -> runInstr (r ^. readerIsStrict)
+      ExternalFunction name args  ->
+        -- #271: namespace is currently ignored when looking up puppetlabs functions
+        let (nsp, name') = Text.breakOnEnd "::" name
+        in
+        case r ^. readerExternalFunc . at name' of
+          Just fn -> interpretMonad r s ( fn args >>= k)
+          Nothing -> thpe (PrettyError ("Unknown function: (" <> ppline nsp <> ")" <> ppline name'))
+      GetStatement toptype topname -> canFail ((r ^. readerGetStatement) toptype topname)
+      ComputeTemplate src st       -> canFail ((r ^. readerGetTemplate) src st r)
+      WriterTell t                 -> logStuff t (runInstr ())
+      WriterPass _                 -> thpe "WriterPass"
+      WriterListen _               -> thpe "WriterListen"
+      PuppetPaths                  -> runInstr (r ^. readerPuppetPaths)
+      Facts                        -> runInstr (r ^. readerFacts)
+      RebaseFile                   -> runInstr (r ^. readerRebaseFile)
+      GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
+      ErrorThrow d                 -> return (Left d, s, mempty)
+      GetNodeName                  -> runInstr (r ^. readerNodename)
+      HieraQuery scps q t          -> canFail (queryHiera (r ^. readerHieraQuery) scps q t)
+      PDBInformation               -> pdbInformation pdb >>= runInstr
+      PDBReplaceCatalog w          -> canFailX (replaceCatalog pdb w)
+      PDBReplaceFacts fcts         -> canFailX (replaceFacts pdb fcts)
+      PDBDeactivateNode nn         -> canFailX (deactivateNode pdb nn)
+      PDBGetFacts q                -> canFailX (getPDBFacts pdb q)
+      PDBGetResources q            -> canFailX (getResources pdb q)
+      PDBGetNodes q                -> canFailX (getNodes pdb q)
+      PDBCommitDB                  -> canFailX (commitDB pdb)
+      PDBGetResourcesOfNode nn q   -> canFailX (getResourcesOfNode pdb nn q)
+      GetCurrentCallStack          -> (r ^. readerIoMethods . ioGetCurrentCallStack) >>= runInstr
+      ReadFile fls                 -> strFail ((r ^. readerIoMethods . ioReadFile) fls) (const $ PrettyError ("No file found in " <> list (map ppline fls)))
+      TraceEvent e                 -> (r ^. readerIoMethods . ioTraceEvent) e >>= runInstr
+      IsIgnoredModule m            -> runInstr (r ^. readerIgnoredModules . contains m)
+      IsExternalModule m           -> runInstr (r ^. readerExternalModules . contains m)
+      -- on error, the program state is RESET and the logged messages are dropped
+      ErrorCatch atry ahandle      -> do
+        (eres, s', w) <- interpretMonad r s atry
+        case eres of
+          Left rr -> interpretMonad r s (ahandle rr >>= k)
+          Right x -> logStuff w (interpretMonad r s' (k x))
 
 
 -- query all hiera layers

@@ -16,6 +16,7 @@ import           Data.Vector         (Vector)
 import           Formatting          (scifmt, sformat, (%), (%.))
 import qualified Formatting          as FMT
 import qualified System.Directory    as Directory
+import           System.FilePath     ((</>), (<.>))
 import           System.Random       (mkStdGen, randomRs)
 
 import           Puppet.Interpreter
@@ -23,20 +24,20 @@ import           Puppet.Interpreter
 md5 :: Text -> Text
 md5 = Text.pack . show . (Crypto.hash :: ByteString -> Digest MD5) . Text.encodeUtf8
 
-extFun :: [(FilePath, Text, [PValue] -> InterpreterMonad PValue)]
-extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
-          , ("/docker", "docker_swarm_join_flags", mockDockerSwarmJoinFlags)
-          , ("/docker", "docker_swarm_init_flags", mockDockerSwarmInitFlags)
-          , ("/docker", "docker_run_flags", mockDockerRunFlags)
-          , ("/docker", "docker_stack_flags", mockDockerStackFlags)
-          , ("/jenkins", "jenkins_port", mockJenkinsPort)
-          , ("/jenkins", "jenkins_prefix", mockJenkinsPrefix)
-          , ("/postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
-          , ("/postgresql", "postgresql_password", pgPassword)
-          , ("/puppetdb", "puppetdb_create_subsetting_resource_hash", puppetdb_create_subsetting_resource_hash)
-          , ("/extlib", "random_password", randomPassword)
-          , ("/extlib", "cache_data", mockCacheData)
-          , ("/kubernetes", "kubeadm_init_flags", mockKubernetesInitFlags)
+extFun :: [(Text, Text, [PValue] -> InterpreterMonad PValue)]
+extFun =  [ ("apache", "bool2httpd", apacheBool2httpd)
+          , ("docker", "docker_swarm_join_flags", mockDockerSwarmJoinFlags)
+          , ("docker", "docker_swarm_init_flags", mockDockerSwarmInitFlags)
+          , ("docker", "docker_run_flags", mockDockerRunFlags)
+          , ("docker", "docker_stack_flags", mockDockerStackFlags)
+          , ("jenkins", "jenkins_port", mockJenkinsPort)
+          , ("jenkins", "jenkins_prefix", mockJenkinsPrefix)
+          , ("postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
+          , ("postgresql", "postgresql_password", pgPassword)
+          , ("puppetdb", "puppetdb_create_subsetting_resource_hash", puppetdb_create_subsetting_resource_hash)
+          , ("extlib", "random_password", randomPassword)
+          , ("extlib", "cache_data", mockCacheData)
+          , ("kubernetes", "kubeadm_init_flags", mockKubernetesInitFlags)
           ]
 
 -- | Build the map of available external functions.
@@ -45,12 +46,21 @@ extFun =  [ ("/apache", "bool2httpd", apacheBool2httpd)
 extFunctions :: FilePath -> IO (Container ( [PValue] -> InterpreterMonad PValue))
 extFunctions modpath = foldlM f Map.empty extFun
   where
-    f acc (modname, fname, fn) = do
-      test <- testFile modname fname
+    f acc (nsp, name, fn) = do
+      test <- testFile (toS nsp) name
       if test
-         then return $ Map.insert fname fn acc
-         else return acc
-    testFile modname fname = Directory.doesFileExist (modpath <> modname <> "/lib/puppet/parser/functions/" <> Text.unpack fname <>".rb")
+         then pure $ Map.insert name fn acc
+         else pure acc
+    testFile nspath funcname = do
+      let funcpath0 = modpath </> nspath </> "lib/puppet"
+          funcpath1 = funcpath0 </> "parser/functions"
+          funcpath2 = funcpath0 </> "functions"
+          filename = toS funcname <.> "rb"
+      isJust <$> Directory.findFile [ funcpath1
+                                    , funcpath2
+                                    , funcpath1 </> nspath
+                                    , funcpath2 </> nspath
+                                    ] filename
 
 apacheBool2httpd :: MonadThrowPos m => [PValue] -> m PValue
 apacheBool2httpd [PBoolean True]  = pure $ PString "On"

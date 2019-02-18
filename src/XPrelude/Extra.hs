@@ -32,7 +32,7 @@ import           Protolude                         as Exports hiding (Down, Infi
                                                                unsnoc, withState, (%), (<&>), (<.>))
 
 import           Control.Exception.Lens            as Exports (catching)
-import           Control.Lens                      as Exports hiding (Strict, argument, noneOf, op)
+import           Control.Lens                      as Exports hiding (Strict, argument, noneOf, op, (<.>))
 import           Control.Monad                     as Exports (fail)
 import           Control.Monad.Trans.Except        as Exports (except, throwE, catchE)
 import           Control.Monad.Trans.Maybe         as Exports (runMaybeT)
