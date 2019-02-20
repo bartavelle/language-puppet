@@ -20,7 +20,7 @@ Tested-With:         GHC == 8.0.2, GHC == 8.2.2, GHC == 8.4.4
 
 extra-source-files:
     CHANGELOG
-    README.adoc
+    README.md
     HLint.hs
     tests/hiera/*.yaml
     tests/hiera/*.com.json
