@@ -111,7 +111,7 @@ library
                      , formatting
                      , hashable             == 1.2.*
                      , http-api-data        >= 0.2   && < 0.5
-                     , http-client          >= 0.4.30 && < 0.6
+                     , http-client          >= 0.4.30 && < 0.7
                      , hruby                >= 0.3.2 && < 0.4
                      , hslogger             == 1.2.*
                      , lens                 >= 4.12    && < 5
