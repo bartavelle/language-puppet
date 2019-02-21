@@ -45,7 +45,7 @@ spec = do
     describe "stdlib functions" $ do
       describe "The assert_private function" Interpreter.Function.AssertPrivateSpec.spec
       describe "The join_keys_to_values function" Interpreter.Function.JoinKeysToValuesSpec.spec
-      describe "The merge function" Interpreter.Function.MergeSpec.spec
+      describe "The function" Interpreter.Function.MergeSpec.spec
       describe "The size function" Interpreter.Function.SizeSpec.spec
       describe "The delete_at function" Interpreter.Function.DeleteAtSpec.spec
     describe "puppet functions" $ do

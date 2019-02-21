@@ -41,7 +41,7 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , ("concat", puppetConcat)
                               -- convert_base
                               , ("count", puppetCount)
-                              -- deep_merge
+                              , ("deep_merge", deepMerge)
                               , ("defined_with_params", const (throwPosError "defined_with_params can't be implemented with language-puppet"))
                               , ("delete", delete)
                               , ("delete_at", deleteAt)
@@ -414,11 +414,30 @@ hasKey [a, _] = throwPosError ("has_key(): expected a Hash, not" <+> pretty a)
 hasKey _ = throwPosError "has_key(): expected two arguments."
 
 merge :: [PValue] -> InterpreterMonad PValue
-merge xs | length xs < 2 = throwPosError "merge(): Expects at least two hashes"
-         | otherwise = let hashcontents = mapM (preview _PHash) xs
-                       in  case hashcontents of
-                               Nothing     -> throwPosError "merge(): Expects hashes"
-                               Just hashes -> return $ PHash (getDual $ foldMap Dual hashes)
+merge xs
+  | length xs < 2 = throwPosError "merge(): Expects at least two hashes"
+  | otherwise =
+    let hashcontents = mapM (preview _PHash) xs
+    in
+      case hashcontents of
+        Nothing     -> throwPosError "merge(): Expects hashes"
+        Just hashes -> return $ PHash (getDual $ foldMap Dual hashes)
+
+deepMerge :: [PValue] -> InterpreterMonad PValue
+deepMerge xs
+  | length xs < 2 = throwPosError "deep_merge(): Expects at least two hashes"
+  | otherwise =
+    let hashcontents = mapM (preview _PHash) xs
+    in
+      case hashcontents of
+        Nothing     -> throwPosError "deep_merge(): Expects hashes"
+        Just hashes -> pure $ PHash (List.foldr1 rec_merge hashes)
+  where
+    rec_merge :: Container PValue -> Container PValue -> Container PValue
+    rec_merge a b =  HM.unionWith f a b
+    f :: PValue -> PValue -> PValue
+    f (PHash a) (PHash b) = PHash $ rec_merge a b
+    f _ h = h
 
 pick :: [PValue] -> InterpreterMonad PValue
 pick [] = throwPosError "pick(): must receive at least one non empty value"

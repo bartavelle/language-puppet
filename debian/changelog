@@ -1,8 +1,13 @@
+language-puppet (1.4.4) artful; urgency=medium
+  * Add the `deep_merge` stdlib function.
+
 language-puppet (1.4.3) artful; urgency=medium
   * Add the `dirname` stdlib function.
   * Add validate_cmd param to concat.
   * Support double assignment: see #201
   * Support namespace in function name: see #271
+
+ -- Pierre Radermecker <pierrer@pi3r.be>  Wed, 20 Feb 2019 21:32:48 +0100
 
 language-puppet (1.4.2) artful; urgency=medium
   * Bump upper version bounds for some haskell packages
