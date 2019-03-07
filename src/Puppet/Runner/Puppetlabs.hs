@@ -38,6 +38,7 @@ extFun =  [ ("apache", "bool2httpd", apacheBool2httpd)
           , ("extlib", "random_password", randomPassword)
           , ("extlib", "cache_data", mockCacheData)
           , ("kubernetes", "kubeadm_init_flags", mockKubernetesInitFlags)
+          , ("kubernetes", "kubeadm_join_flags", mockKubernetesJoinFlags)
           ]
 
 -- | Build the map of available external functions.
@@ -163,6 +164,11 @@ mockDockerSwarmInitFlags  arg@_ = throwPosError $ "Expect an hash as argument bu
 mockKubernetesInitFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockKubernetesInitFlags arg@[PHash _]= (pure . PString . show . head) arg
 mockKubernetesInitFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+
+-- faked implementation, replace by the correct one if you need so.
+mockKubernetesJoinFlags :: MonadThrowPos m => [PValue] -> m PValue
+mockKubernetesJoinFlags arg@[PHash _]= (pure . PString . show . head) arg
+mockKubernetesJoinFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- utils
 scientificToInt :: MonadThrowPos m => Scientific -> m Int
