@@ -94,9 +94,12 @@ identifier = takeWhile1P Nothing isIdentifierChar
 isIdentifierChar :: Char -> Bool
 isIdentifierChar x = Char.isAsciiLower x || Char.isAsciiUpper x || Char.isDigit x || (x == '_')
 
--- | Like 'isIndentifierChar' but hyphens (-) are allowed.
-isBarewordChar :: Char -> Bool
-isBarewordChar x = isIdentifierChar x || (x == '-')
+-- | Like 'indentifier' but hyphens (-) are allowed.
+bareword :: Parser Text
+bareword = Text.cons <$> satisfy Char.isAsciiLower <*> takeWhileP Nothing isBarewordChar
+  where
+    isBarewordChar :: Char -> Bool
+    isBarewordChar x = isIdentifierChar x || (x == '-')
 
 reserved :: Text -> Parser ()
 reserved s =
@@ -126,18 +129,21 @@ variableReference = do
 variableName :: Parser Text
 variableName = qualif identifier
 
-className :: Parser Text
-className = lexeme $ qualif moduleName
-
-funcName :: Parser Text
-funcName = lexeme $ qualif $ genericModuleName False
-
 -- yay with reserved words
 typeName :: Parser Text
 typeName = className
 
+className :: Parser Text
+className = lexeme $ qualif $ genericModuleName False
+
+funcName :: Parser Text
+funcName = lexeme $ qualif $ genericModuleName False
+
 moduleName :: Parser Text
 moduleName = lexeme $ genericModuleName False
+
+parameterName :: Parser Text
+parameterName = moduleName
 
 resourceNameRef :: Parser Text
 resourceNameRef = lexeme $ qualif (genericModuleName True)
@@ -149,9 +155,6 @@ genericModuleName isReference = do
                       then fmap Char.toLower (satisfy Char.isAsciiUpper)
                       else satisfy Char.isAsciiLower
   (Text.cons) <$> firstletter <*> takeWhileP Nothing acceptable
-
-parameterName :: Parser Text
-parameterName = moduleName
 
 -- | Variable expression
 varExpression :: Parser Expression
@@ -239,11 +242,9 @@ genFunctionCall nonparens = do
   args  <- withparens <|> withoutparens
   pure (fname, V.fromList args)
 
-
 literalValue :: Parser UnresolvedValue
 literalValue = lexeme (fmap UString stringLiteral' <|> fmap UString bareword <|> fmap UNumber numericalvalue <?> "Literal Value")
   where
-    bareword = Text.cons <$> satisfy Char.isAsciiLower <*> takeWhileP Nothing isBarewordChar <?> "Bare word"
     signed :: Num n => Parser (n -> n)
     signed = (negate <$ char '-') <|> pure (\x -> x)
     numericalvalue = ((,) <$> signed <*> integerOrDouble) >>= \case
@@ -465,7 +466,7 @@ assignment =
       (AttributeDecl <$> lexeme key <*> arrowOp  <*> expression)
   <|> (AttributeWildcard <$> (symbolic '*' *> symbol "=>" *> expression))
   where
-    key = (Text.cons) <$> (satisfy Char.isAsciiLower) <*> takeWhileP Nothing isBarewordChar <?> "Assignment key"
+    key = bareword <?> "Assignment key"
     arrowOp =
           (AssignArrow <$ symbol "=>")
       <|> (AppendArrow <$ symbol "+>")
