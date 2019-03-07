@@ -763,6 +763,7 @@ datatype =
              , reserved "Systemd::Unit" $> UDTData
              , reserved "Systemd::ServiceLimits" $> UDTData
              , reserved "Systemd::Dropin" $> UDTData
+             , reserved "Systemd::JournaldSettings" $> UDTData
              ]
 
 statementList :: Parser (Vector Statement)
