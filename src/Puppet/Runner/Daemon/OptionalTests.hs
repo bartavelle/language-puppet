@@ -58,20 +58,21 @@ testFileSources basedir c = do
         presentFile r = r ^. rid . itype == "file"
                         && (r ^. rattributes . at "ensure") `elem` [Nothing, Just "present"]
                         && r ^. rattributes . at "source" /= Just PUndef
-        getsource = mapMaybe (\r -> (,) <$> pure r <*> r ^. rattributes . at "source")
+        recurse r = r ^? rattributes . ix "recurse" . _PBoolean == Just True
+        getsource = mapMaybe (\r -> (,,) <$> pure r <*> r ^. rattributes . at "source" <*> pure (recurse r))
     checkAllSources basedir $ (getsource . getfiles) c
 
 -- | Check source for all file resources and append failures along.
-checkAllSources :: FilePath -> [(Resource, PValue)] -> ExceptT PrettyError IO ()
+checkAllSources :: FilePath -> [(Resource, PValue, Bool)] -> ExceptT PrettyError IO ()
 checkAllSources fp fs =
   -- we could just do :
   -- traverse_ (\(res, src) -> catchE (checkFile fp src) (throwE ...)) fs
   -- but that would print the first encountered failure.
   go fs []
   where
-    go :: [(Resource, PValue)] -> [PrettyError] -> ExceptT PrettyError IO ()
-    go ((res, filesrc):xs) es = ExceptT $ do
-      runExceptT (checkFile fp filesrc) >>= \case
+    go :: [(Resource, PValue, Bool)] -> [PrettyError] -> ExceptT PrettyError IO ()
+    go ((res, filesrc, recurse):xs) es = ExceptT $ do
+      runExceptT (checkFile fp filesrc recurse) >>= \case
         Right () -> runExceptT $ go xs es
         Left err ->
           runExceptT
@@ -82,22 +83,25 @@ checkAllSources fp fs =
     go [] [] = pure ()
     go [] es = throwE (mconcat es)
 
-testFile :: FilePath -> ExceptT PrettyError IO ()
-testFile fp = do
+testFile :: Bool -> FilePath -> ExceptT PrettyError IO ()
+testFile recurse fp = do
     p <-  liftIO (Directory.doesFileExist fp)
-    unless p (throwE $ PrettyError $ "searched in" <+> squotes (pptext fp))
+    p' <- if recurse && not p
+            then liftIO (Directory.doesDirectoryExist fp)
+            else return p
+    unless p' (throwE $ PrettyError $ "searched in" <+> squotes (pptext fp))
 
 -- | Only test the `puppet:///` protocol (files managed by the puppet server)
 --   we don't test absolute path (puppet client files)
-checkFile :: FilePath -> PValue -> ExceptT PrettyError IO ()
-checkFile basedir (PString f)  =
+checkFile :: FilePath -> PValue -> Bool -> ExceptT PrettyError IO ()
+checkFile basedir (PString f) recurse =
   case Text.stripPrefix "puppet:///" f of
     Just stringdir -> case Text.splitOn "/" stringdir of
-        ("modules":modname:rest) -> testFile (basedir <> "/modules/" <> toS modname <> "/files/" <> toS (Text.intercalate "/" rest))
-        ("files":rest)           -> testFile (basedir <> "/files/" <> toS (Text.intercalate "/" rest))
+        ("modules":modname:rest) -> testFile recurse (basedir <> "/modules/" <> toS modname <> "/files/" <> toS (Text.intercalate "/" rest))
+        ("files":rest)           -> testFile recurse (basedir <> "/files/" <> toS (Text.intercalate "/" rest))
         ("private":_)            -> pure ()
         _                        -> throwE (PrettyError $ "Invalid file source:" <+> ppline f)
     Nothing        -> return ()
 -- source is always an array of possible paths. We only fails if none of them check.
-checkFile basedir (PArray xs)  = asum [checkFile basedir x | x <- toList xs]
-checkFile _ x = throwE (PrettyError $ "Source was not a string, but" <+> pretty x)
+checkFile basedir (PArray xs) recurse  = asum [checkFile basedir x recurse | x <- toList xs]
+checkFile _ x _ = throwE (PrettyError $ "Source was not a string, but" <+> pretty x)
