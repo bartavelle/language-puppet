@@ -54,6 +54,7 @@ loadTestDB fp =
                                                       then newFile
                                                       else baseError (ppstring s)
     Left (InvalidYaml (Just (YamlParseException pb ctx (YamlMark _ l c)))) -> baseError $ red (ppstring pb <+> ppstring ctx) <+> "at line" <+> pretty l <> ", column" <+> pretty c
+    Left (AesonException e) -> baseError (fromString e)
     Left _ -> newFile
     Right x -> fmap Right (genDBAPI (x & backingFile ?~ fp ))
   where
