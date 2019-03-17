@@ -58,8 +58,11 @@ testFileSources basedir c = do
         presentFile r = r ^. rid . itype == "file"
                         && (r ^. rattributes . at "ensure") `elem` [Nothing, Just "present"]
                         && r ^. rattributes . at "source" /= Just PUndef
-        recurse r = r ^? rattributes . ix "recurse" . _PBoolean == Just True
-        getsource = mapMaybe (\r -> (,,) <$> pure r <*> r ^. rattributes . at "recurse" <*> pure (recurse r))
+        recurse r = case r ^? rattributes . ix "recurse" of
+                      Just (PString "true") -> True
+                      Just (PBoolean b) -> b
+                      _ -> False
+        getsource = mapMaybe (\r -> (,,) <$> pure r <*> r ^. rattributes . at "source" <*> pure (recurse r))
     checkAllSources basedir $ (getsource . getfiles) c
 
 -- | Check source for all file resources and append failures along.
