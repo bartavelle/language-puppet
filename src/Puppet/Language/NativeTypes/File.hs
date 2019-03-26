@@ -34,6 +34,7 @@ parameterfunctions =
     ,("recurse"              , [string, values ["inf","true","false","remote"]])
     ,("recurselimit"         , [integer])
     ,("replace"              , [string, values ["true","false","yes","no"]])
+    ,("show_diff"            , [string, values ["true","false"]])
     ,("sourceselect"         , [values ["first","all"]])
     ,("seltype"              , [string])
     ,("selrange"             , [string])
