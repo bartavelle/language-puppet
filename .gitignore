@@ -11,7 +11,9 @@
 TAGS
 .stack-work/
 result
+*.el
 *.orig
+hackage-doc.sh
 stack.yaml
 debian/debhelper-build-stamp
 debian/language-puppet.debhelper.log
