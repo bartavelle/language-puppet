@@ -30,11 +30,12 @@ extFun =  [ ("apache", "bool2httpd", apacheBool2httpd)
           , ("docker", "docker_swarm_init_flags", mockDockerSwarmInitFlags)
           , ("docker", "docker_run_flags", mockDockerRunFlags)
           , ("docker", "docker_stack_flags", mockDockerStackFlags)
+          , ("docker", "sanitised_name", dockerSanitisedName)
           , ("jenkins", "jenkins_port", mockJenkinsPort)
           , ("jenkins", "jenkins_prefix", mockJenkinsPrefix)
           , ("postgresql", "postgresql_acls_to_resources_hash", pgAclsToHash)
           , ("postgresql", "postgresql_password", pgPassword)
-          , ("puppetdb", "puppetdb_create_subsetting_resource_hash", puppetdb_create_subsetting_resource_hash)
+          , ("puppetdb", "puppetdb_create_subsetting_resource_hash", puppetdbCreateSubsettingResourceHash)
           , ("extlib", "random_password", randomPassword)
           , ("extlib", "cache_data", mockCacheData)
           , ("kubernetes", "kubeadm_init_flags", mockKubernetesInitFlags)
@@ -43,7 +44,7 @@ extFun =  [ ("apache", "bool2httpd", apacheBool2httpd)
 
 -- | Build the map of available external functions.
 --
--- If the ruby file is not found on the local filesystem the record is ignored. This is to avoid potential namespace conflict.
+-- If the ruby/puppet file is not found on the local filesystem the record is ignored. This is to avoid potential namespace conflict.
 extFunctions :: FilePath -> IO (Container ( [PValue] -> InterpreterMonad PValue))
 extFunctions modpath = foldlM f Map.empty extFun
   where
@@ -52,16 +53,19 @@ extFunctions modpath = foldlM f Map.empty extFun
       if test
          then pure $ Map.insert name fn acc
          else pure acc
-    testFile nspath funcname = do
-      let funcpath0 = modpath </> nspath </> "lib/puppet"
-          funcpath1 = funcpath0 </> "parser/functions"
-          funcpath2 = funcpath0 </> "functions"
-          filename = toS funcname <.> "rb"
-      isJust <$> Directory.findFile [ funcpath1
-                                    , funcpath2
-                                    , funcpath1 </> nspath
+    testFile nspath funcname =
+      let funcpath0 = modpath </> nspath
+          funcpath1 = funcpath0 </> "lib/puppet"
+          funcpath2 = funcpath1 </> "parser/functions"
+          funcpath3 = funcpath1 </> "functions"
+      in
+      isJust <$> Directory.findFile [ funcpath0 </> "functions"] (toS funcname <.> "pp")
+      ||^
+      isJust <$> Directory.findFile [ funcpath2
+                                    , funcpath3
                                     , funcpath2 </> nspath
-                                    ] filename
+                                    , funcpath3 </> nspath
+                                    ] (toS funcname <.> "rb")
 
 apacheBool2httpd :: MonadThrowPos m => [PValue] -> m PValue
 apacheBool2httpd [PBoolean True]  = pure $ PString "On"
@@ -177,11 +181,18 @@ scientificToInt s = maybe (throwPosError $ "Unable to convert" <+> pretty s <+> 
                           (Sci.toBoundedInteger s)
 
 -- https://github.com/puppetlabs/puppetlabs-puppetdb/blob/master/lib/puppet/parser/functions/puppetdb_create_subsetting_resource_hash.rb
-puppetdb_create_subsetting_resource_hash :: MonadThrowPos m => [PValue] -> m PValue
-puppetdb_create_subsetting_resource_hash [PHash s, PHash args] = do
+puppetdbCreateSubsettingResourceHash :: MonadThrowPos m => [PValue] -> m PValue
+puppetdbCreateSubsettingResourceHash [PHash s, PHash args] = do
   let res_hash = [ (k, PHash h)
                  | (k,v) <- itoList s
                  , let h = [ ( "subsetting", PString k) , ("value", v)] `Map.union` args
                  ]
   pure $ PHash (Map.fromList res_hash)
-puppetdb_create_subsetting_resource_hash arg@_ = throwPosError $ "Expect 2 hashes as arguments but was" <+> pretty arg
+puppetdbCreateSubsettingResourceHash arg@_ = throwPosError $ "Expect 2 hashes as arguments but was" <+> pretty arg
+
+-- To be implemented if needed.
+dockerSanitisedName :: MonadThrowPos m => [PValue] -> m PValue
+dockerSanitisedName [PString s] =
+  -- ruby implementation: regsubst($name, '[^0-9A-Za-z.\-_]', '-', 'G')
+  pure $ PString s
+dockerSanitisedName arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
