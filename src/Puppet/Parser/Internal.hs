@@ -561,6 +561,9 @@ resOverrideDecl = do
   pe <- getSourcePos
   pure [ ResOverrideDecl restype n assignments (p :!: pe) | n <- names ]
 
+arrayof :: Parser p -> Parser [p]
+arrayof p = symbolic '[' *> sepBy p comma <* symbolic ']'
+
 -- | Heterogeneous chain (interleaving resource declarations with
 -- resource references) needs to be supported:
 --
@@ -577,7 +580,8 @@ chainableResources = do
               pe <- getSourcePos
               pure (ChainResRefr restype resnames (p :!: pe))
           _ -> ChainResColl <$> resCollDecl p restype
-  chain <- parseRelationships $ pure <$> try withresname <|> map ChainResDecl <$> resDeclGroup
+  let oneresource = pure <$> try withresname <|> map ChainResDecl <$> resDeclGroup
+  chain <- parseRelationships (oneresource <|> concat <$> arrayof oneresource)
   let relations = do
         (g1, g2, lt) <- zipChain chain
         (rt1, rn1, _   :!: pe1) <- concatMap extractResRef g1
