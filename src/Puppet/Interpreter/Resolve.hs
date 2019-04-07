@@ -526,6 +526,9 @@ resolveFunction' "tagged" ptags = do
   scp <- getScopeName
   scpset <- use (scopes . ix scp . scopeExtraTags)
   pure (PBoolean (scpset `HS.intersection` tags == tags))
+resolveFunction' "epp" [] = throwPosError "epp(): Expects at least one argument"
+-- TODO Epp not yet implemented see #251
+resolveFunction' "epp" _ = pure $ PString "<< -- EPP templates are not supported yet -- >>"
 resolveFunction' "template" [] = throwPosError "template(): Expects at least one argument"
 resolveFunction' "template" templates =
   let compute = fmap (Filename . Text.unpack) . resolvePValueString >=> calcTemplate
@@ -592,9 +595,9 @@ pdbresourcequery q mkey = do
 
 
 calcTemplate :: TemplateSource -> InterpreterMonad Text
-calcTemplate templatetype = do
-  intpstate <- use identity
-  Operational.singleton (ComputeTemplate templatetype intpstate)
+calcTemplate tplsrc = do
+  interp_state <- use identity
+  Operational.singleton (ComputeTemplate tplsrc interp_state)
 
 resolveExpressionSE :: Expression -> InterpreterMonad PValue
 resolveExpressionSE e =
