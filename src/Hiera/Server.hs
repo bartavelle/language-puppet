@@ -275,7 +275,9 @@ resolveStringPart prevqueries sp =
         Nothing -> varsolve
       case r of
         Just (PString v) -> return v
-        _                -> return mempty
+        Just (PNumber s) -> pure (scientific2text s)
+        Just pvalue      -> throwError (PrettyError ("Variable lookup for " <> fromString (Text.unpack varname) <> " did not return a string, but " <> pretty pvalue))
+        _                -> throwError ("Could not lookup variable " <> fromString (Text.unpack varname))
 
 mergeWith :: HieraQueryType -> Value -> Value -> Either PrettyError Value
 mergeWith qt cur new =

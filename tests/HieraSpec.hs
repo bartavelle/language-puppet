@@ -72,6 +72,9 @@ spec = do
       q3 vars "arraytest" QFirst >>= checkOutput (Just (PArray (Vector.fromList [PString "a", PString fqdn, PString "c"])))
     it "resolves aliases" $
       q3 vars "aliased" QFirst >>= checkOutput (Just (PArray (Vector.fromList [PString "a", PString "b"])))
+    it "resolves integers to strings" $
+      q3 vars "server" QFirst >>= checkOutput (Just (PString "127.0.0.1:9090"))
+      
   describe "v3 other merge modes" $ do
     it "catenates arrays" $
       q3 vars "ntp_servers" QUnique >>= checkOutput (Just (PArray (Vector.fromList ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))

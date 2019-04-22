@@ -11,3 +11,4 @@ original:
   - a
   - b
 aliased: "%{alias('original')}"
+server: "127.0.0.1:%{lookup('http_port')}"
