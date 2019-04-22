@@ -1,6 +1,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE NamedFieldPuns         #-}
+{-# LANGUAGE PatternGuards          #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
@@ -179,8 +180,7 @@ startHiera layer fp =
     Left ex   -> panic (show ex)
     Right cfg@HieraConfigFile{..} -> do
       logInfoStr ("Detect a hiera " <> layer <> " configuration format in " <> fp <> " at version " <> show _version)
-      cache <- Cache.newFileCache
-      pure (query cfg fp cache)
+      query cfg fp <$> Cache.newFileCache
 
 -- | A dummy hiera function that will be used when hiera is not detected.
 dummyHiera :: Monad m => HieraQueryFunc m
@@ -215,8 +215,7 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
             S.Left r -> do
               logWarningStr $ "Hiera: error when reading file " <> filename <> ": "<> r
               pure Nothing
-            S.Right val -> do
-              pure (Just val)
+            S.Right val -> pure (Just val)
     ifM (Directory.doesFileExist filename)
       querycache
       (pure Nothing)
@@ -249,6 +248,11 @@ recursiveQuery curquery prevqueries = do
 resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =
   case value of
+    String t | Just alias <- Text.stripPrefix "%{alias('" t >>= Text.stripSuffix "')}" -> do
+      mr <- recursiveQuery alias (("alias:" <> alias) : prevqueries)
+      case mr of
+        Nothing -> throwError ("Could not alias " <> fromString (Text.unpack alias))
+        Just r -> pure (toJSON r)
     String t  -> String <$> resolveText prevqueries t
     Array arr -> Array <$> mapM (resolveValue prevqueries) arr
     Object hh -> Object <$> mapM (resolveValue prevqueries) hh

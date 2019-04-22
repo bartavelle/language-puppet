@@ -1,4 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
 module HieraSpec(spec) where
 
 import           XPrelude
@@ -34,12 +33,12 @@ spec = do
   q3 <- runIO $ startHiera "test" config_v3
   q5 <- runIO $ startHiera "test" config_v5
   describe "Hiera" $ do
-  describe "v5 lookup hierarchy" $ do
+  describe "v5 lookup hierarchy" $
     it "should override some values"  $ do
       q5 vars "http_port" QFirst >>= checkOutput (Just (PNumber 9090))
       q5 vars "global" QFirst >>= checkOutput (Just "glob")
-  describe "v5 ~" $ do
-    it "should read '~' as a Null/Nothing value"  $ do
+  describe "v5 ~" $
+    it "should read '~' as a Null/Nothing value"  $
       q5 vars "optional_value" QFirst >>= checkOutput Nothing
   describe "v3 lookup with no context variables" $ do
     it "should return nothing when called with an empty string" $
@@ -71,6 +70,8 @@ spec = do
       q3 vars "testnode" QFirst >>= checkOutput (Just (PHash (HM.fromList [("1",PString ("**" <> fqdn <> "**")),("2",PString "nothing special")])))
     it "resolves in arrays" $
       q3 vars "arraytest" QFirst >>= checkOutput (Just (PArray (Vector.fromList [PString "a", PString fqdn, PString "c"])))
+    it "resolves aliases" $
+      q3 vars "aliased" QFirst >>= checkOutput (Just (PArray (Vector.fromList [PString "a", PString "b"])))
   describe "v3 other merge modes" $ do
     it "catenates arrays" $
       q3 vars "ntp_servers" QUnique >>= checkOutput (Just (PArray (Vector.fromList ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"])))

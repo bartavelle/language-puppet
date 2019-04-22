@@ -7,3 +7,7 @@ users:
     uid: 100
   tom:
     uid: 12
+original:
+  - a
+  - b
+aliased: "%{alias('original')}"
