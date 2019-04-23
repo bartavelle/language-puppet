@@ -12,3 +12,4 @@ original:
   - b
 aliased: "%{alias('original')}"
 server: "127.0.0.1:%{lookup('http_port')}"
+aliased_lookup: "%{alias('users.bob.uid')}"

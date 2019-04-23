@@ -249,10 +249,23 @@ resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =
   case value of
     String t | Just alias <- Text.stripPrefix "%{alias('" t >>= Text.stripSuffix "')}" -> do
-      mr <- recursiveQuery alias (("alias:" <> alias) : prevqueries)
-      case mr of
-        Nothing -> throwError ("Could not alias " <> fromString (Text.unpack alias))
-        Just r -> pure (toJSON r)
+      let splitted = Text.split (== '.') alias
+          lookupKey keys v =
+            case keys of
+              [] -> pure v
+              k:ks ->
+                case v of
+                  PHash hs -> case hs ^? ix k of
+                                Nothing -> throwError ("Could not find key " <> fromString (Text.unpack k) <> " in " <> fromString (Text.unpack alias))
+                                Just v' -> lookupKey ks v'
+                  _ -> throwError ("Tried indexing into something that is not a hash with " <> fromString (Text.unpack alias))
+      case splitted of
+        [] -> throwError "Got an empty list after split, should never happen"
+        varname:keys -> do
+          mr <- recursiveQuery varname (("alias:" <> varname) : prevqueries)
+          case mr of
+            Nothing -> throwError ("Could not alias " <> fromString (Text.unpack varname))
+            Just r -> toJSON <$> lookupKey keys r
     String t  -> String <$> resolveText prevqueries t
     Array arr -> Array <$> mapM (resolveValue prevqueries) arr
     Object hh -> Object <$> mapM (resolveValue prevqueries) hh
