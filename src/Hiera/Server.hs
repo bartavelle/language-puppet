@@ -23,20 +23,21 @@ module Hiera.Server (
 import           XPrelude
 
 import           Data.Aeson
-import qualified Data.Aeson           as Aeson
+import qualified Data.Aeson                 as Aeson
 import           Data.Aeson.Lens
-import qualified Data.Attoparsec.Text as AT
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Either.Strict   as S
-import qualified Data.FileCache       as Cache
-import qualified Data.List            as List
-import           Data.String          (fromString)
-import qualified Data.Text            as Text
-import qualified Data.Vector          as Vector
-import qualified Data.Yaml            as Yaml
-import qualified System.Directory     as Directory
-import qualified System.FilePath      as FilePath
-import           System.FilePath.Lens (directory)
+import qualified Data.Attoparsec.Text       as AT
+import qualified Data.ByteString.Lazy       as BS
+import qualified Data.ByteString.Lazy.Char8 as BS8
+import qualified Data.Either.Strict         as S
+import qualified Data.FileCache             as Cache
+import qualified Data.List                  as List
+import           Data.String                (fromString)
+import qualified Data.Text                  as Text
+import qualified Data.Vector                as Vector
+import qualified Data.Yaml                  as Yaml
+import qualified System.Directory           as Directory
+import qualified System.FilePath            as FilePath
+import           System.FilePath.Lens       (directory)
 
 import           Puppet.Language
 
@@ -232,11 +233,25 @@ checkLoop x xs =
 
 recursiveQuery :: Text -> [Text] -> QM (Maybe PValue)
 recursiveQuery curquery prevqueries = do
-  checkLoop curquery prevqueries
-  rawlookups <- mapMaybe (preview (key curquery)) <$> view qhier
-  lookups <- mapM (resolveValue (curquery : prevqueries)) rawlookups
+  let (varname:allkeys) = Text.split (== '.') curquery -- can't fail, split always returns a nonempty list
+  checkLoop varname prevqueries
+  rawlookups <- mapMaybe (preview (key varname)) <$> view qhier
+  let lookupKeys keys v =
+        case keys of
+          [] -> pure v
+          k:ks ->
+            case v of
+              Object hs ->
+                case hs ^? ix k of
+                  Nothing -> Nothing
+                  Just v' -> lookupKeys ks v'
+              _ -> Nothing
+  rlookups <- mapM (resolveValue (varname : prevqueries)) rawlookups
+  let lookups = mapMaybe (lookupKeys allkeys) rlookups
   case lookups of
-    [] -> return Nothing
+    [] -> if null rlookups
+            then return Nothing
+            else throwError ("Could not lookup " <> fromString (Text.unpack curquery) <> " in " <> PrettyError (list (map (fromString . BS8.unpack . encode) rlookups)) )
     (x:xs) -> do
       qt <- view qtype
       let evalue = foldM (mergeWith qt) x xs
@@ -249,23 +264,10 @@ resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =
   case value of
     String t | Just alias <- Text.stripPrefix "%{alias('" t >>= Text.stripSuffix "')}" -> do
-      let splitted = Text.split (== '.') alias
-          lookupKey keys v =
-            case keys of
-              [] -> pure v
-              k:ks ->
-                case v of
-                  PHash hs -> case hs ^? ix k of
-                                Nothing -> throwError ("Could not find key " <> fromString (Text.unpack k) <> " in " <> fromString (Text.unpack alias))
-                                Just v' -> lookupKey ks v'
-                  _ -> throwError ("Tried indexing into something that is not a hash with " <> fromString (Text.unpack alias))
-      case splitted of
-        [] -> throwError "Got an empty list after split, should never happen"
-        varname:keys -> do
-          mr <- recursiveQuery varname (("alias:" <> varname) : prevqueries)
+          mr <- recursiveQuery alias (("alias:" <> alias) : prevqueries)
           case mr of
-            Nothing -> throwError ("Could not alias " <> fromString (Text.unpack varname))
-            Just r -> toJSON <$> lookupKey keys r
+            Nothing -> throwError ("Could not alias " <> fromString (Text.unpack alias))
+            Just r -> pure (toJSON r)
     String t  -> String <$> resolveText prevqueries t
     Array arr -> Array <$> mapM (resolveValue prevqueries) arr
     Object hh -> Object <$> mapM (resolveValue prevqueries) hh
