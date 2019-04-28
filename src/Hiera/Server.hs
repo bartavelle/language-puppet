@@ -62,7 +62,7 @@ readQueryType s =
     _        -> Nothing
 
 -- | The type of the Hiera API function associated to given hierarchy.
-type HieraQueryFunc m = Container Text -- ^ Scope: all variables that Hiera can interpolate (the top level ones are prefixed with '::')
+type HieraQueryFunc m = Container PValue -- ^ Scope: all variables that Hiera can interpolate (the top level ones are prefixed with '::')
                      -> Text -- ^ The query
                      -> HieraQueryType
                      -> m (S.Either PrettyError (Maybe PValue))
@@ -86,11 +86,11 @@ newtype InterpolableHieraString = InterpolableHieraString
   { getInterpolableHieraString :: [HieraStringPart]
   } deriving (Show)
 
-resolveString :: Container Text -> InterpolableHieraString -> Maybe Text
+resolveString :: Container PValue -> InterpolableHieraString -> Maybe Text
 resolveString vars = fmap Text.concat . mapM resolve . getInterpolableHieraString
   where
     resolve (HPString x)   = Just x
-    resolve (HPVariable v) = vars ^? ix v
+    resolve (HPVariable v) = vars ^? ix v . _PString
 
 instance FromJSON InterpolableHieraString where
   parseJSON (String s) = case parseInterpolableString s of
@@ -103,7 +103,7 @@ interpolableString :: AT.Parser [HieraStringPart]
 interpolableString = AT.many1 (fmap HPString rawPart <|> fmap HPVariable interpPart)
   where
     rawPart = AT.takeWhile1 (/= '%')
-    interpPart = AT.string "%{" *> AT.takeWhile1 (/= '}') <* AT.char '}'
+    interpPart = AT.string "%{" *> AT.takeWhile (/= '}') <* AT.char '}'
 
 parseInterpolableString :: Text -> Either String [HieraStringPart]
 parseInterpolableString = AT.parseOnly interpolableString
@@ -115,7 +115,7 @@ data HieraConfigFile = HieraConfigFile
   } deriving (Show)
 
 data QRead = QRead
-  { _qvars :: Container Text
+  { _qvars :: Container PValue
   , _qtype :: HieraQueryType
   , _qhier :: [Value]
   }
@@ -283,9 +283,12 @@ resolveStringPart :: [Text] -> HieraStringPart -> QM Text
 resolveStringPart prevqueries sp =
   case sp of
     HPString s -> return s
+    HPVariable "" -> return ""
     HPVariable varname -> do
-      let varsolve = fmap PString . preview (ix varname) <$> view qvars
-      r <- case Text.stripPrefix "lookup('" varname >>= Text.stripSuffix "')" of
+      let varsolve = preview (ix varname) <$> view qvars
+          extractFunction txt = (Text.stripPrefix (txt <> "('") varname >>= Text.stripSuffix "')")
+                            <|> (Text.stripPrefix (txt <> "(\"") varname >>= Text.stripSuffix "\")")
+      r <- case extractFunction "lookup" <|> extractFunction "alias" of
         Just lk -> recursiveQuery lk prevqueries
         Nothing -> varsolve
       case r of

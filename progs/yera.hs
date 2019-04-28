@@ -11,6 +11,7 @@ import qualified Data.List           as List
 import           Options.Applicative
 
 import           Hiera.Server
+import           Puppet.Language (PValue(..))
 
 data Config
   = Config
@@ -42,7 +43,7 @@ main :: IO ()
 main = do
   Config fp query qtype vars <- execParser configInfo
   hiera <- startHiera "yera" fp
-  hiera (Map.fromList vars) (toS query) qtype >>= \case
+  hiera (PString <$> Map.fromList vars) (toS query) qtype >>= \case
     S.Left rr -> panic (show rr)
     S.Right Nothing -> die "no match"
     S.Right (Just res) -> print (pretty res)

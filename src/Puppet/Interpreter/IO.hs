@@ -93,7 +93,7 @@ eval r s (a :>>= k) =
 
 
 -- query all hiera layers
-queryHiera :: Monad m =>  HieraQueryLayers m -> Container Text -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
+queryHiera :: Monad m =>  HieraQueryLayers m -> Container PValue -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
 queryHiera layers scps q t = do
   val0 <- (layers^.globalLayer) scps q t
   case val0 of

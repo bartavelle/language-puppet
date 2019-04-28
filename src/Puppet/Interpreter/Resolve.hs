@@ -94,8 +94,7 @@ runHiera q t = do
   -- We need to merge the current scope with the top level scope
   scps <- use scopes
   ctx  <- getScopeName
-  let getV scp = mapMaybe toStr $ HM.toList $ fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
-      toStr (k,v) = fmap (k,) (preview _PString v)
+  let getV scp = HM.toList $ fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
       toplevels = map (_1 %~ ("::" <>)) $ getV "::"
       locals = getV ctx
       vars = HM.fromList (toplevels <> locals)

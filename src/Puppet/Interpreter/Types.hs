@@ -238,7 +238,7 @@ data InterpreterInstr a where
   ExternalFunction      :: Text -> [PValue] -> InterpreterInstr PValue
   Facts                 :: InterpreterInstr (Container PValue)
   GetNodeName           :: InterpreterInstr Text
-  HieraQuery            :: Container Text -> Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
+  HieraQuery            :: Container PValue -> Text -> HieraQueryType -> InterpreterInstr (Maybe PValue)
   GetCurrentCallStack   :: InterpreterInstr [String]
   IsIgnoredModule       :: Text -> InterpreterInstr Bool
   IsExternalModule      :: Text -> InterpreterInstr Bool
