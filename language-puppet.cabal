@@ -23,6 +23,8 @@ extra-source-files:
     README.md
     HLint.hs
     tests/hiera/*.yaml
+    tests/hiera/interpolate/config/*.yaml
+    tests/hiera/interpolate/data/*.yaml
     tests/hiera/*.com.json
     tests/Parser/lexer/*.pp
 
