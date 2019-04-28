@@ -1,0 +1,14 @@
+:backends:
+  - yaml
+
+:hierarchy:
+  - recursive
+  - niltest
+  - complex
+  - empty_%{}inter%{::}polation
+  - dotted_keys
+  - weird_keys
+  - bad_interpolation
+
+:yaml:
+  :datadir: '../data'
