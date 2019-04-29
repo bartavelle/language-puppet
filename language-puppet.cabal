@@ -98,49 +98,49 @@ library
   extensions:          OverloadedStrings, BangPatterns, LambdaCase, NoImplicitPrelude, FlexibleContexts, FlexibleInstances
   ghc-options:         -Wall -funbox-strict-fields
   -- ghc-prof-options:    -auto-all -caf-all
-  build-depends:       aeson                >= 0.8
+  build-depends:       aeson                >= 1.0.0.0 && < 1.5
                      , ansi-wl-pprint       >= 0.6.8
                      , attoparsec           >= 0.12
-                     , base >=4.9 && < 5
+                     , base                 >=4.9      && < 5
                      , base16-bytestring    == 0.1.*
-                     , bytestring
+                     , bytestring                         < 0.11
                      , case-insensitive     == 1.2.*
                      , containers           >= 0.5     && < 0.7
                      , cryptonite           >= 0.6
                      , directory            >= 1.2     && < 1.4
                      , filecache            >= 0.2.9   && < 0.5
                      , filepath             >= 1.4
-                     , formatting
+                     , formatting                         < 7
                      , hashable             == 1.2.*
-                     , http-api-data        >= 0.2   && < 0.5
-                     , http-client          >= 0.4.30 && < 0.7
-                     , hruby                >= 0.3.2 && < 0.4
+                     , http-api-data        >= 0.2     && < 0.5
+                     , http-client          >= 0.4.30  && < 0.7
+                     , hruby                >= 0.3.2   && < 0.4
                      , hslogger             == 1.2.*
                      , lens                 >= 4.12    && < 5
                      , lens-aeson           >= 1.0
                      , megaparsec           >= 7       && < 8
-                     , memory               >= 0.7
+                     , memory               >= 0.14    && < 0.15
                      , mtl                  >= 2.2.1   && < 2.3
                      , operational          >= 0.2.3   && < 0.3
                      , parsec               == 3.1.*
                      , parser-combinators   == 1.*
                      , pcre-utils           >= 0.1.7   && < 0.2
-                     , protolude            >= 0.2
+                     , protolude            >= 0.2     && < 0.3
                      , random
                      , regex-pcre-builtin   >= 0.94.4
-                     , scientific           >= 0.2 && < 0.4
-                     , servant              >= 0.9 && < 0.16
-                     , servant-client       >= 0.9 && < 0.16
+                     , scientific           >= 0.2     && < 0.4
+                     , servant              >= 0.9     && < 0.16
+                     , servant-client       >= 0.9     && < 0.16
                      , split                == 0.2.*
-                     , stm                  >= 2.4 && < 2.6
+                     , stm                  >= 2.4     && < 2.6
                      , strict-base-types    >= 0.3
-                     , text                 >= 0.11
-                     , time                 >= 1.5  && < 2
-                     , transformers         >= 0.4  && < 0.6
-                     , unix                 >= 2.7  && < 2.8
+                     , text                 >= 0.11    && < 1.3
+                     , time                 >= 1.5     && < 2
+                     , transformers         >= 0.4     && < 0.6
+                     , unix                 >= 2.7     && < 2.8
                      , unordered-containers == 0.2.*
-                     , vector               >= 0.10
-                     , yaml                 >= 0.8.31   && < 0.12
+                     , vector               >= 0.10    && < 0.13
+                     , yaml                 >= 0.8.31  && < 0.12
 Test-Suite spec
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
@@ -149,13 +149,13 @@ Test-Suite spec
   build-depends:    base
                   , Glob
                   , hslogger
-                  , hspec
+                  , hspec                   >= 2.0 && < 3.0
                   , hspec-megaparsec
                   , megaparsec
                   , language-puppet
-                  , lens
-                  , mtl
-                  , scientific
+                  , lens                    >= 4.12  && < 5
+                  , mtl                     >= 2.2.1 && < 2.3
+                  , scientific              >= 0.2   && < 0.4
                   , strict-base-types
                   , text
                   , temporary
