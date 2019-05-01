@@ -18,6 +18,7 @@ module Hiera.Server (
   , HieraQueryType (..)
   , readQueryType
   , HieraQueryFunc
+  , varSplitter
 ) where
 
 import           XPrelude
@@ -38,6 +39,8 @@ import qualified Data.Yaml                  as Yaml
 import qualified System.Directory           as Directory
 import qualified System.FilePath            as FilePath
 import           System.FilePath.Lens       (directory)
+import           Text.Megaparsec            (parse, sepBy1, Parsec, satisfy)
+import           Text.Megaparsec.Char       (char)
 
 import           Puppet.Language
 
@@ -85,6 +88,18 @@ instance Pretty HieraStringPart where
 newtype InterpolableHieraString = InterpolableHieraString
   { getInterpolableHieraString :: [HieraStringPart]
   } deriving (Show)
+
+varSplitter :: Text -> [Text]
+varSplitter v =
+   case parse (vpart `sepBy1` char '.' :: Parsec Void Text [Text]) "dummy" v of
+     Left _ -> [v]
+     Right lst -> lst
+   where
+     vpart = squotev <|> dquotev <|> rawv
+     rawv = Text.pack <$> some (satisfy (/= '.'))
+     -- TODO, escapes
+     squotev = Text.pack <$> (char '\'' *> some (satisfy (/= '\'')) <* char '\'')
+     dquotev = Text.pack <$> (char '"' *> some (satisfy (/= '"')) <* char '"')
 
 resolveString :: Container PValue -> InterpolableHieraString -> Maybe Text
 resolveString vars = fmap Text.concat . mapM resolve . getInterpolableHieraString
@@ -187,7 +202,6 @@ startHiera layer fp =
 dummyHiera :: Monad m => HieraQueryFunc m
 dummyHiera _ _ _ = return $ S.Right Nothing
 
-
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
 query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt = do
   -- step 1, resolve hierarchies
@@ -195,11 +209,11 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
         mhierarchy <- resolveString vars <$> _hierarchy
         Just h  <- [mhierarchy]
         backend    <- _backends
-        let decodeInfo :: (FilePath -> IO (S.Either String Value), String, String)
+        let decodeInfo :: (FilePath -> IO (Either String Value), String, String)
             decodeInfo =
               case backend of
-                JsonBackend dir -> (fmap (strictifyEither . Aeson.eitherDecode') . BS.readFile       , dir, ".json")
-                YamlBackend dir -> (fmap (strictifyEither . (_Left %~ show)) . Yaml.decodeFileEither, dir, ".yaml")
+                JsonBackend dir -> (fmap Aeson.eitherDecode' . BS.readFile       , dir, ".json")
+                YamlBackend dir -> (fmap (_Left %~ show) . Yaml.decodeFileEither, dir, ".yaml")
         pure (decodeInfo, toS h)
   -- step 2, read all the files, returning a raw data structure
   mvals <- forM searchin $ \((decodefunction, datadir, extension), h) -> do
@@ -211,7 +225,7 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
           '/' : _ -> mempty
           _       -> fp ^. directory <> "/"
         querycache = do
-          efilecontent <- Cache.query cache filename (decodefunction filename)
+          efilecontent <- Cache.query cache filename (strictifyEither <$> decodefunction filename)
           case efilecontent of
             S.Left r -> do
               logWarningStr $ "Hiera: error when reading file " <> filename <> ": "<> r
@@ -231,9 +245,16 @@ checkLoop :: Text -> [Text] -> QM ()
 checkLoop x xs =
     when (x `elem` xs) (throwError ("Loop in hiera: " <> fromString (Text.unpack (Text.intercalate ", " (x:xs)))))
 
+-- a helper function that removes prefix and suffix
+textBetween :: Text -- ^ prefix
+            -> Text -- ^ suffix
+            -> Text
+            -> Maybe Text
+textBetween pr su = Text.stripPrefix pr >=> Text.stripSuffix su
+
 recursiveQuery :: Text -> [Text] -> QM (Maybe PValue)
 recursiveQuery curquery prevqueries = do
-  let (varname:allkeys) = Text.split (== '.') curquery -- can't fail, split always returns a nonempty list
+  let (varname:allkeys) = varSplitter curquery
   checkLoop varname prevqueries
   rawlookups <- mapMaybe (preview (key varname)) <$> view qhier
   let lookupKeys keys v =
@@ -285,12 +306,20 @@ resolveStringPart prevqueries sp =
     HPString s -> return s
     HPVariable "" -> return ""
     HPVariable varname -> do
-      let varsolve = preview (ix varname) <$> view qvars
-          extractFunction txt = (Text.stripPrefix (txt <> "('") varname >>= Text.stripSuffix "')")
-                            <|> (Text.stripPrefix (txt <> "(\"") varname >>= Text.stripSuffix "\")")
-      r <- case extractFunction "lookup" <|> extractFunction "alias" of
+      let rc vars val =
+            case vars of
+              [] -> pure val
+              v:vs -> case val of
+                        PHash m -> m ^? ix v >>= rc vs
+                        _ -> Nothing
+          extractFunction txt = textBetween (txt <> "('") "')" varname
+                            <|> textBetween (txt <> "(\"") "\")" varname
+      r <- case extractFunction "lookup" <|> extractFunction "hiera" <|> extractFunction "alias" of
         Just lk -> recursiveQuery lk prevqueries
-        Nothing -> varsolve
+        Nothing -> do
+            vmap <- view qvars
+            let mvar:svars = varSplitter varname
+            pure (vmap ^? ix mvar >>= rc svars)
       case r of
         Just (PString v) -> return v
         Just (PNumber s) -> pure (scientific2text s)

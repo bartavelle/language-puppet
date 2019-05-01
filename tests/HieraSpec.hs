@@ -125,9 +125,8 @@ interpolationSpec =
         q mempty "angry" QFirst >>= checkOutput (Just "not happy")
 
     describe "when not finding value for interpolated key" $
-      it "should resolve the interpolation to an empty string" $ do
-        pendingWith "need to support nested hiera() calls"
-        q mempty "niltest" QFirst >>= checkOutput (Just "Missing key ##. Key with nil ##")
+      it "should resolve the interpolation to an empty string" $
+        q mempty "niltest" QFirst >>= checkFail -- puppet behavior: checkOutput (Just "Missing key ##. Key with nil ##")
 
     describe "when there are empty interpolations %{} in data" $ do
       it "should should produce an empty string for the interpolation" $ do
@@ -169,60 +168,57 @@ interpolationSpec =
         pendingWith "Support empty interpolation"
         q mempty "quoted_whitespace2" QFirst >>= checkOutput (Just "")
 
+    describe "varsplitter" $ do
+      it "no splitting" $ varSplitter "abcd" `shouldBe` ["abcd"]
+      it "split 2" $ varSplitter "ab.cd" `shouldBe` ["ab", "cd"]
+      it "split 3" $ varSplitter "ab.cd.ef" `shouldBe` ["ab", "cd", "ef"]
+      it "split dq" $ varSplitter "\"ab\"" `shouldBe` ["ab"]
+      it "split dq 2" $ varSplitter "\"ab.cd\"" `shouldBe` ["ab.cd"]
+      it "split dq 2 mixed" $ varSplitter "\"ab.cd\".ef" `shouldBe` ["ab.cd", "ef"]
+      it "split dq 2 mixed 4" $ varSplitter "\"ab.cd\".ef.\"lol.cat\".bar" `shouldBe` ["ab.cd", "ef", "lol.cat", "bar"]
+      it "split sq" $ varSplitter "'ab'" `shouldBe` ["ab"]
+      it "split sq 2" $ varSplitter "'ab.cd'" `shouldBe` ["ab.cd"]
+      it "split sq 2 mixed" $ varSplitter "'ab.cd'.ef" `shouldBe` ["ab.cd", "ef"]
+      it "split sq 2 mixed 4" $ varSplitter "'ab.cd'.ef.'lol.cat'.bar" `shouldBe` ["ab.cd", "ef", "lol.cat", "bar"]
+      it "split all mixed" $ varSplitter "'a.b'.\"c.d\".e.f" `shouldBe` ["a.b", "c.d", "e", "f"]
+
     describe "when using dotted keys" $ do
-      it "should find an entry using a quoted interpolation" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a.b", "(scope) a dot b")]) "a.c.scope" QFirst >>= checkOutput (Just "a dot c: (scope) a dot b")
-      it "should find an entry using a quoted interpolation with method hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a.b", "(scope) a dot b")]) "a.c.hiera" QFirst >>= checkOutput (Just "a dot c: (hiera) a dot b")
-      it "should find an entry using a quoted interpolation with method alias" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a.b", "(scope) a dot b")]) "a.c.alias" QFirst >>= checkOutput (Just "(hiera) a dot b")
-      it "should use a dotted key to navigate into a structure when it is not quoted" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("d", "(scope) a dot d is a hash entry")])]) "a.e.scope" QFirst >>= checkOutput (Just "a dot e: (scope) a dot d is a hash entry")
-      it "should use a dotted key to navigate into a structure when when it is not quoted with method hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("d", "(scope) a dot d is a hash entry")])]) "a.e.hiera" QFirst >>= checkOutput (Just "a dot e: (hiera) a dot d is a hash entry")
-      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is last" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("d.x", "(scope) a dot d.x is a hash entry")])]) "a.ex.scope" QFirst >>= checkOutput (Just "a dot ex: (scope) a dot d.x is a hash entry")
-      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is last and method is hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("d.x", "(scope) a dot d.x is a hash entry")])]) "a.ex.hiera" QFirst >>= checkOutput (Just "a dot ex: (hiera) a dot d.x is a hash entry")
-      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is first" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a.x", hash [("d", "(scope) a.x dot d is a hash entry")])]) "a.xe.scope" QFirst >>= checkOutput (Just "a dot xe: (scope) a.x dot d is a hash entry")
-      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is first and method is hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a.x", hash [("d", "(scope) a.x dot d is a hash entry")])]) "a.xe.hiera" QFirst >>= checkOutput (Just "a dot xe: (hiera) a.x dot d is a hash entry")
-      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("d.z", hash [("g", "(scope) a dot d.z dot g is a hash entry")])])]) "a.xm.scope" QFirst >>= checkOutput (Just "a dot xm: (scope) a dot d.z dot g is a hash entry")
-      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle and method is hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("d.z", hash [("g", "(scope) a dot d.z dot g is a hash entry")])])]) "a.xm.hiera" QFirst >>= checkOutput (Just "a dot xm: (hiera) a dot d.z dot g is a hash entry")
-      it "should use a mix of several quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a.x", hash [("d.z", hash [("g", "(scope) a.x dot d.z dot g is a hash entry")])])]) "a.xx.scope" QFirst >>= checkOutput (Just "a dot xx: (scope) a.x dot d.z dot g is a hash entry")
-      it "should use a mix of several quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle and method is hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a.x", hash [("d.z", hash [("g", "(scope) a.x dot d.z dot g is a hash entry")])])]) "a.xx.hiera" QFirst >>= checkOutput (Just "a dot xx: (hiera) a.x dot d.z dot g is a hash entry")
-      it "should find an entry using using a quoted interpolation on dotted key containing numbers" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("x.1", "(scope) x dot 1")]) "x.2.scope" QFirst >>= checkOutput (Just "x dot 2: (scope) x dot 1")
-      it "should find an entry using using a quoted interpolation on dotted key containing numbers using method hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("x.1", "(scope) x dot 1")]) "x.2.hiera" QFirst >>= checkOutput (Just "x dot 2: (hiera) x dot 1")
+      it "should find an entry using a quoted interpolation" $
+        q (HM.fromList [("a.b", "(scope) a dot b")]) "\"a.c.scope\"" QFirst >>= checkOutput (Just "a dot c: (scope) a dot b")
+      it "should find an entry using a quoted interpolation with method hiera" $
+        q (HM.fromList [("a.b", "(scope) a dot b")]) "\"a.c.hiera\"" QFirst >>= checkOutput (Just "a dot c: (hiera) a dot b")
+      it "should find an entry using a quoted interpolation with method alias" $
+        q (HM.fromList [("a.b", "(scope) a dot b")]) "\"a.c.alias\"" QFirst >>= checkOutput (Just "(hiera) a dot b")
+      it "should use a dotted key to navigate into a structure when it is not quoted" $
+        q (HM.fromList [("a", hash [("d", "(scope) a dot d is a hash entry")])]) "\"a.e.scope\"" QFirst >>= checkOutput (Just "a dot e: (scope) a dot d is a hash entry")
+      it "should use a dotted key to navigate into a structure when when it is not quoted with method hiera" $
+        q (HM.fromList [("a", hash [("d", "(scope) a dot d is a hash entry")])]) "\"a.e.hiera\"" QFirst >>= checkOutput (Just "a dot e: (hiera) a dot d is a hash entry")
+      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is last" $
+        q (HM.fromList [("a", hash [("d.x", "(scope) a dot d.x is a hash entry")])]) "\"a.ex.scope\"" QFirst >>= checkOutput (Just "a dot ex: (scope) a dot d.x is a hash entry")
+      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is last and method is hiera" $
+        q (HM.fromList [("a", hash [("d.x", "(scope) a dot d.x is a hash entry")])]) "\"a.ex.hiera\"" QFirst >>= checkOutput (Just "a dot ex: (hiera) a dot d.x is a hash entry")
+      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is first" $
+        q (HM.fromList [("a.x", hash [("d", "(scope) a.x dot d is a hash entry")])]) "\"a.xe.scope\"" QFirst >>= checkOutput (Just "a dot xe: (scope) a.x dot d is a hash entry")
+      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is first and method is hiera" $
+        q (HM.fromList [("a.x", hash [("d", "(scope) a.x dot d is a hash entry")])]) "\"a.xe.hiera\"" QFirst >>= checkOutput (Just "a dot xe: (hiera) a.x dot d is a hash entry")
+      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle" $
+        q (HM.fromList [("a", hash [("d.z", hash [("g", "(scope) a dot d.z dot g is a hash entry")])])]) "\"a.xm.scope\"" QFirst >>= checkOutput (Just "a dot xm: (scope) a dot d.z dot g is a hash entry")
+      it "should use a mix of quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle and method is hiera" $
+        q (HM.fromList [("a", hash [("d.z", hash [("g", "(scope) a dot d.z dot g is a hash entry")])])]) "\"a.xm.hiera\"" QFirst >>= checkOutput (Just "a dot xm: (hiera) a dot d.z dot g is a hash entry")
+      it "should use a mix of several quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle" $
+        q (HM.fromList [("a.x", hash [("d.z", hash [("g", "(scope) a.x dot d.z dot g is a hash entry")])])]) "\"a.xx.scope\"" QFirst >>= checkOutput (Just "a dot xx: (scope) a.x dot d.z dot g is a hash entry")
+      it "should use a mix of several quoted and dotted keys to navigate into a structure containing dotted keys and quoted key is in the middle and method is hiera" $
+        q (HM.fromList [("a.x", hash [("d.z", hash [("g", "(scope) a.x dot d.z dot g is a hash entry")])])]) "\"a.xx.hiera\"" QFirst >>= checkOutput (Just "a dot xx: (hiera) a.x dot d.z dot g is a hash entry")
+      it "should find an entry using using a quoted interpolation on dotted key containing numbers" $
+        q (HM.fromList [("x.1", "(scope) x dot 1")]) "\"x.2.scope\"" QFirst >>= checkOutput (Just "x dot 2: (scope) x dot 1")
+      it "should find an entry using using a quoted interpolation on dotted key containing numbers using method hiera" $
+        q (HM.fromList [("x.1", "(scope) x dot 1")]) "\"x.2.hiera\"" QFirst >>= checkOutput (Just "x dot 2: (hiera) x dot 1")
       it "will allow strange characters in the key" $
         q mempty "very_angry" QFirst >>= checkOutput (Just "not happy at all")
-      it "should not find a subkey when the dotted key is quoted" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("f", "(scope) a dot f is a hash entry")])]) "a.f.scope" QFirst >>= checkOutput (Just "a dot f: ")
-      it "should not find a subkey when the dotted key is quoted with method hiera" $ do
-        pendingWith "Proper implementation of dotted keys"
-        q (HM.fromList [("a", hash [("f", "(scope) a dot f is a hash entry")])]) "a.f.hiera" QFirst >>= checkOutput (Just "a dot f: ")
+      it "should not find a subkey when the dotted key is quoted" $
+        q (HM.fromList [("a", hash [("f", "(scope) a dot f is a hash entry")])]) "\"a.f.scope\"" QFirst >>= checkFail -- real hiera : checkOutput (Just "a dot f: ")
+      it "should not find a subkey when the dotted key is quoted with method hiera" $
+        q (HM.fromList [("a", hash [("f", "(scope) a dot f is a hash entry")])]) "\"a.f.hiera\"" QFirst >>= checkFail -- real hiera : checkOutput (Just "a dot f: ")
       it "should not find a subkey that is matched within a string" $
         q mempty "ipl_key" QFirst >>= checkFail
       it "should not find a subkey that is matched within a string" $
