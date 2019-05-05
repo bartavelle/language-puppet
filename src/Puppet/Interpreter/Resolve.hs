@@ -93,12 +93,17 @@ runHiera :: Text -> HieraQueryType -> InterpreterMonad (Maybe PValue)
 runHiera q t = do
   -- We need to merge the current scope with the top level scope
   scps <- use scopes
-  curscopes <- map scopeName <$> use curScope
+  curscopes <- use curScope
   let getV scp = HM.toList $ fmap (view (_1 . _1)) (scps ^. ix scp . scopeVariables)
-      scopeVars = map getV curscopes
       vars = HM.unions $ do
-        curv <- scopeVars
-        [HM.fromList curv, HM.fromList (map (_1 %~ ("::"<>)) curv)]
+        curscp <- curscopes
+        let sname = scopeName curscp
+            curv = getV sname
+            prefixVarname vname =
+              case curscp of
+                ContRoot -> "::" <> vname
+                _ -> sname <> "::" <> vname
+        [HM.fromList curv, HM.fromList (map (_1 %~ prefixVarname) curv)]
   Operational.singleton (HieraQuery vars q t)
 
 -- | The implementation of all lookup functions
