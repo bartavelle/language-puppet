@@ -1,4 +1,8 @@
-language-puppet (1.4.5) artful; urgency=medium
+language-puppet (1.4.5) UNRELEASED; urgency=medium
+
+  * Add the `reduce` function.
+
+ -- Bartavelle <bartavelle@gmail.com>  Wed, 15 May 2019 08:28:52 +0200
 
 language-puppet (1.4.4) artful; urgency=medium
 
@@ -22,6 +26,8 @@ language-puppet (1.4.3) artful; urgency=medium
 language-puppet (1.4.2) artful; urgency=medium
 
   * Bump upper version bounds for some haskell packages
+
+ -- Pierre Radermecker <pierrer@pi3r.be>  Wed, 20 Feb 2019 21:32:48 +0100
 
 language-puppet (1.4.1) artful; urgency=medium
 

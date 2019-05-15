@@ -336,10 +336,8 @@ resolveExpression (LeftShift a b) = do
   case (ra, rb) of
       (PArray ha, v) -> pure (PArray (V.snoc ha v))
       _              -> integerOperation a b (\x -> shiftL x . fromIntegral)
-resolveExpression a@(FunctionApplication e (Terminal (UHOLambdaCall hol))) = do
-  unless (null (hol ^. hoLambdaExpr))
-    (throwPosError ("You can't combine chains of higher order functions (with .) and giving them parameters, in:" <+> pretty a))
-  resolveValue (UHOLambdaCall (hol & hoLambdaExpr .~ V.singleton e))
+resolveExpression (FunctionApplication e (Terminal (UHOLambdaCall hol))) =
+    resolveValue (UHOLambdaCall (hol & hoLambdaExpr <>~ V.singleton e))
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
 resolveExpression (Negate x) = PNumber . negate <$> resolveExpressionNumber x
 
@@ -802,6 +800,30 @@ evaluateHFCPure hol' = do
         PArray ar -> pure $ PArray $ V.map fst $ V.filter snd $ V.zip ar (V.fromList res)
         PHash  hh -> pure $ PHash  $ HM.fromList $ map fst $ filter snd $ zip (HM.toList hh) res
         x         -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
+    LambdaFunc "reduce" ->
+      case hol ^.. hoLambdaExpr . folded of
+        [zero', foldable'] -> do
+          zero'' <- resolveExpression zero'
+          foldable'' <- resolveExpression foldable'
+          (accname, curname) <- case hol ^.. hoLambdaParams . folded of
+                                  [an, cn] -> pure (an, cn)
+                                  _ -> throwPosError ("Reduce requires two parameters in its block expression, in" <+> pretty hol)
+          let runStep acc cur = do
+                accName <- mCheckType acc accname
+                curName <- mCheckType cur curname
+                runblock [(accName, acc), (curName, cur)]
+              mCheckType vl (LambdaParam mt nm) = do
+                forM_ mt $ \ut -> do
+                  t <- resolveDataType ut
+                  checkMatch t vl
+                pure nm
+          case foldable'' of
+            PArray ar -> foldM runStep zero'' ar
+            PHash hs -> foldM runStep zero'' $ do
+              (k,v) <- HM.toList hs
+              return (PArray (V.fromList [PString k, v]))
+            x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
+        _ -> throwPosError ("Reduce requires two arguments and a lambda block, in" <+> pretty hol)
     x -> throwPosError ("This type of lambda function is not supported yet by language-puppet!" <+> pretty x)
 
 -- | Checks that a value matches a puppet datatype
