@@ -19,6 +19,7 @@ module Hiera.Server (
   , readQueryType
   , HieraQueryFunc
   , varSplitter
+  , mergeWith
 ) where
 
 import           XPrelude
@@ -68,7 +69,7 @@ readQueryType s =
 type HieraQueryFunc m = Container PValue -- ^ Scope: all variables that Hiera can interpolate (the top level ones are prefixed with '::')
                      -> Text -- ^ The query
                      -> HieraQueryType
-                     -> m (S.Either PrettyError (Maybe PValue))
+                     -> ExceptT PrettyError m (Maybe PValue)
 
 data Backend
   = YamlBackend FilePath
@@ -200,7 +201,10 @@ startHiera layer fp =
 
 -- | A dummy hiera function that will be used when hiera is not detected.
 dummyHiera :: Monad m => HieraQueryFunc m
-dummyHiera _ _ _ = return $ S.Right Nothing
+dummyHiera _ _ _ = pure Nothing
+
+exceptt :: Applicative m => Except r a -> ExceptT r m a
+exceptt = ExceptT . pure . runExcept
 
 query :: HieraConfigFile -> FilePath -> Cache -> HieraQueryFunc IO
 query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt = do
@@ -216,7 +220,7 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
                 YamlBackend dir -> (fmap (_Left %~ show) . Yaml.decodeFileEither, dir, ".yaml")
         pure (decodeInfo, toS h)
   -- step 2, read all the files, returning a raw data structure
-  mvals <- forM searchin $ \((decodefunction, datadir, extension), h) -> do
+  mvals <- liftIO $ forM searchin $ \((decodefunction, datadir, extension), h) -> do
     let extension' = if snd (FilePath.splitExtension h) == ".yaml"
                        then ""
                        else extension
@@ -236,10 +240,10 @@ query HieraConfigFile {_version, _backends, _hierarchy} fp cache vars hquery qt 
       (pure Nothing)
   let vals = catMaybes mvals
   -- step 3, query through all the results
-  logDebugStr ("Looking up '" <> toS hquery <> "' with backends " <> List.unwords (fmap show _backends ))
-  return (strictifyEither $ runReader (runExceptT (recursiveQuery hquery [])) (QRead vars qt vals))
+  liftIO $ logDebugStr ("Looking up '" <> toS hquery <> "' with backends " <> List.unwords (fmap show _backends ))
+  exceptt $ runReaderT (recursiveQuery hquery []) (QRead vars qt vals)
 
-type QM a = ExceptT PrettyError (Reader QRead) a
+type QM a = ReaderT QRead (Except PrettyError) a
 
 checkLoop :: Text -> [Text] -> QM ()
 checkLoop x xs =
@@ -269,17 +273,15 @@ recursiveQuery curquery prevqueries = do
               _ -> Nothing
   rlookups <- mapM (resolveValue (varname : prevqueries)) rawlookups
   let lookups = mapMaybe (lookupKeys allkeys) rlookups
-  case lookups of
-    [] -> if null rlookups
-            then return Nothing
-            else throwError ("Could not lookup " <> fromString (Text.unpack curquery) <> " in " <> PrettyError (list (map (fromString . BS8.unpack . encode) rlookups)) )
-    (x:xs) -> do
+  case traverse Aeson.fromJSON lookups of
+    Aeson.Error rr -> throwError ("Something horrible happened in recursiveQuery: " <> fromString rr)
+    Aeson.Success [] ->
+      if null rlookups
+        then return Nothing
+        else throwError ("Could not lookup " <> fromString (Text.unpack curquery) <> " in " <> PrettyError (list (map (fromString . BS8.unpack . encode) rlookups)) )
+    Aeson.Success (x:xs) -> do
       qt <- view qtype
-      let evalue = foldM (mergeWith qt) x xs
-      case Aeson.fromJSON <$> evalue of
-        Left _ ->  return Nothing
-        Right (Aeson.Success o) -> return o
-        Right (Aeson.Error rr) -> throwError ("Something horrible happened in recursiveQuery: " <> fromString rr)
+      Just <$> foldM (mergeWith qt) x xs
 
 resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =
@@ -326,20 +328,20 @@ resolveStringPart prevqueries sp =
         Just pvalue      -> throwError (PrettyError ("Variable lookup for " <> fromString (Text.unpack varname) <> " did not return a string, but " <> pretty pvalue))
         _                -> throwError ("Could not lookup variable " <> fromString (Text.unpack varname))
 
-mergeWith :: HieraQueryType -> Value -> Value -> Either PrettyError Value
+mergeWith :: MonadError PrettyError m => HieraQueryType -> PValue -> PValue -> m PValue
 mergeWith qt cur new =
   case qt of
     QFirst -> return cur
     QUnique ->
       let getArray x = case x of
-              Array array -> Vector.toList array
+              PArray array -> Vector.toList array
               _           -> [x]
           curarray = getArray cur
           newarray = getArray new
       in  case new of
-              Object _ -> throwError "Tried to merge a hash"
-              _        -> return (Array (Vector.fromList (List.nub (curarray ++ newarray))))
+              PHash _  -> throwError "Tried to merge a hash"
+              _        -> return (PArray (Vector.fromList (List.nub (curarray ++ newarray))))
     QHash -> case (cur, new) of
-      (Object curh, Object newh) -> return (Object (curh <> newh))
+      (PHash curh, PHash newh) -> return (PHash (curh <> newh))
       _ -> throwError (PrettyError ("Tried to merge things that are not hashes: " <> ppline (show cur) <+> ppline (show new)))
     QDeep{} -> throwError "deep queries not supported"

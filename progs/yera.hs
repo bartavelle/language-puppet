@@ -5,7 +5,6 @@ module Main (main) where
 
 import           XPrelude            hiding (option)
 
-import qualified Data.Either.Strict  as S
 import qualified Data.HashMap.Strict as Map
 import qualified Data.List           as List
 import           Options.Applicative
@@ -43,7 +42,7 @@ main :: IO ()
 main = do
   Config fp query qtype vars <- execParser configInfo
   hiera <- startHiera "yera" fp
-  hiera (PString <$> Map.fromList vars) (toS query) qtype >>= \case
-    S.Left rr -> panic (show rr)
-    S.Right Nothing -> die "no match"
-    S.Right (Just res) -> print (pretty res)
+  runExceptT (hiera (PString <$> Map.fromList vars) (toS query) qtype) >>= \case
+    Left rr -> panic (show rr)
+    Right Nothing -> die "no match"
+    Right (Just res) -> print (pretty res)

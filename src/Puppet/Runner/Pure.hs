@@ -78,7 +78,7 @@ pureReader sttmap hiera =
     mempty
   where
     pure_hiera :: HieraQueryFunc Identity
-    pure_hiera _ _ _ = pure (S.Right hiera)
+    pure_hiera _ _ _ = pure hiera
     hieradummy = HieraQueryLayers pure_hiera pure_hiera mempty
     getstatementdummy tlt n = return $ case HM.lookup (tlt,n) sttmap of
       Just x  -> S.Right x

@@ -69,7 +69,8 @@ eval r s (a :>>= k) =
       GetNativeTypes               -> runInstr (r ^. readerNativeTypes)
       ErrorThrow d                 -> return (Left d, s, mempty)
       GetNodeName                  -> runInstr (r ^. readerNodename)
-      HieraQuery scps q t          -> canFail (queryHiera (r ^. readerHieraQuery) scps q t)
+      HieraQuery scps q t          ->
+        runExceptT (queryHiera (r ^. readerHieraQuery) scps q t) >>= either thpe runInstr
       PDBInformation               -> pdbInformation pdb >>= runInstr
       PDBReplaceCatalog w          -> canFailX (replaceCatalog pdb w)
       PDBReplaceFacts fcts         -> canFailX (replaceFacts pdb fcts)
@@ -91,25 +92,24 @@ eval r s (a :>>= k) =
           Left rr -> interpretMonad r s (ahandle rr >>= k)
           Right x -> logStuff w (interpretMonad r s' (k x))
 
-
 -- query all hiera layers
-queryHiera :: Monad m =>  HieraQueryLayers m -> Container PValue -> Text -> HieraQueryType -> m (S.Either PrettyError (Maybe PValue))
+queryHiera :: Monad m
+           => HieraQueryLayers m
+           -> Container PValue
+           -> Text
+           -> HieraQueryType
+           -> ExceptT PrettyError m (Maybe PValue)
 queryHiera layers scps q t = do
-  val0 <- (layers^.globalLayer) scps q t
-  case val0 of
-    S.Right Nothing -> do
-      val1 <- (layers ^.environmentLayer) scps q t
-      case val1 of
-        S.Right Nothing -> query_modlayer
-        _ -> pure val1
-    _ -> pure val0
-  where
-    query_modlayer = do
-      let
-        modname =
-          case Text.splitOn "::" (Text.dropWhile (==':') q) of
-            []    -> Nothing
-            [_]   -> Nothing
-            (m:_) -> Just m
-        layer = modname >>= (\n -> layers ^.moduleLayer.at n)
-      maybe (pure $ S.Right Nothing) (\hq -> hq scps q t) layer
+  eglobal <- (layers^.globalLayer) scps q t
+  eenvironment <- (layers ^.environmentLayer) scps q t
+  let modname =
+        case Text.splitOn "::" (Text.dropWhile (==':') q) of
+          []    -> Nothing
+          [_]   -> Nothing
+          (m:_) -> Just m
+      layer = modname >>= (\n -> layers ^.moduleLayer.at n)
+  emodle <- maybe (pure Nothing) (\hq -> hq scps q t) layer
+  case catMaybes [eglobal, eenvironment, emodle] of
+    [] -> pure Nothing
+    x:xs -> Just <$> foldM (mergeWith t) x xs
+
