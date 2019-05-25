@@ -2,7 +2,6 @@ module HieraSpec(spec) where
 
 import           XPrelude
 
-import qualified Data.Either.Strict  as S
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector         as Vector
 import qualified System.Log.Logger   as Log
@@ -11,12 +10,12 @@ import           Test.Hspec
 import           Hiera.Server
 import           Puppet.Language
 
-checkOutput :: (Eq a, Show rr, Show a) => a -> S.Either rr a -> Expectation
-checkOutput v (S.Right x) = x `shouldBe` v
-checkOutput _ (S.Left rr) = expectationFailure (show rr)
+checkOutput :: (Eq a, Show rr, Show a) => a -> Either rr a -> Expectation
+checkOutput v (Right x) = x `shouldBe` v
+checkOutput _ (Left rr) = expectationFailure (show rr)
 
-checkFail :: (Show a) => S.Either rr a -> Expectation
-checkFail (S.Right v) = expectationFailure ("Should have failed, but returned: " ++ show v)
+checkFail :: (Show a) => Either rr a -> Expectation
+checkFail (Right v) = expectationFailure ("Should have failed, but returned: " ++ show v)
 checkFail _ = return ()
 
 fqdn :: Text
@@ -55,8 +54,10 @@ array = PArray . Vector.fromList
 spec :: Spec
 spec = do
   runIO $ Log.updateGlobalLogger loggerName (Log.setLevel Log.WARNING)
-  q3 <- runIO $ startHiera "test" config_v3
-  q5 <- runIO $ startHiera "test" config_v5
+  q3_ <- runIO $ startHiera "test" config_v3
+  q5_ <- runIO $ startHiera "test" config_v5
+  let q5 vrs var t = runExceptT (q5_ vrs var t)
+      q3 vrs var t = runExceptT (q3_ vrs var t)
   describe "Hiera" $ do
     interpolationSpec
     describe "v5 lookup hierarchy" $
@@ -65,7 +66,7 @@ spec = do
         q5 vars "global" QFirst >>= checkOutput (Just "glob")
     describe "v5 ~" $
       it "should read '~' as a Null/Nothing value"  $
-        q5 vars "optional_value" QFirst >>= checkOutput Nothing
+        q5 vars "optional_value" QFirst >>= checkOutput (Just PUndef)
     describe "v3 lookup with no context variables" $ do
       it "should return nothing when called with an empty string" $
         q3 mempty "" QFirst >>= checkOutput Nothing
@@ -113,7 +114,8 @@ spec = do
 interpolationSpec :: Spec
 interpolationSpec =
   describe "interpolation" $ do
-    q <- runIO $ startHiera "test" configInterpolate
+    q_ <- runIO $ startHiera "test" configInterpolate
+    let q vrs var t = runExceptT (q_ vrs var t)
     describe "when doing interpolation" $ do
       it "should prevent endless recursion" $
         q mempty "foo" QFirst >>= checkFail

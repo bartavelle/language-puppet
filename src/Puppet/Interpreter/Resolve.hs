@@ -113,7 +113,7 @@ hieraCall qt q df dt _ = do
   qs <- resolvePValueString q
   runHiera qs qt >>= \case
     Just p  -> case dt of
-      Just dt' | not (datatypeMatch dt' p) -> throwPosError "Datatype mismatched"
+      Just dt' | not (datatypeMatch dt' p) -> throwPosError ("Datatype mismatched :" <+> pretty dt' <+> "/" <+> pretty p)
       _        -> pure p
     Nothing -> case df of
       Just d  -> pure d
@@ -569,7 +569,7 @@ resolveFunction' "hiera_hash"  [q,d]   = hieraCall QHash  q (Just d) Nothing Not
 resolveFunction' "hiera_hash"  [q,d,o] = hieraCall QHash  q (Just d) Nothing (Just o)
 resolveFunction' "lookup"      [q]                        = hieraCall QFirst   q Nothing  Nothing Nothing
 resolveFunction' "lookup"      [q, PType dt]              = hieraCall QFirst   q Nothing (Just dt) Nothing
-resolveFunction' "lookup"      [q, PType dt, PString qt, def] = do
+resolveFunction' "lookup"      [q, PType dt, PString qt, def] =
   case readQueryType qt of
     Nothing -> throwPosError ("Unknown merge strategy " <> ppline qt)
     Just qt' -> hieraCall qt' q (Just def) (Just dt) Nothing

@@ -5,11 +5,15 @@ import           Helpers
 main :: IO ()
 main = hspec spec
 
+fname :: Text
 fname = "lookup"
+expectedErrMsg :: String
 expectedErrMsg = "Wrong set of arguments"
 
 -- See dummyFacts defined in Pure.hs
+testkey :: Expression
 testkey = "foo"
+expectedValue :: Text
 expectedValue = "dummy"
 
 checkSuccess :: [Expression] -> Text -> Expectation
@@ -18,6 +22,7 @@ checkSuccess = checkExprsSuccess fname
 checkError :: [Expression] -> String -> Expectation
 checkError = checkExprsError fname
 
+boolDatatype, stringDatatype :: Expression
 boolDatatype = Terminal (UDataType UDTBoolean)
 stringDatatype = Terminal (UDataType (UDTString Nothing Nothing))
 
