@@ -22,6 +22,7 @@ import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 import qualified System.FilePath                  as FilePath
 
 import           Puppet.Interpreter
+import           Puppet.Interpreter.Helpers
 
 -- | Contains the implementation of the StdLib functions.
 stdlibFunctions :: Container ( [PValue] -> InterpreterMonad PValue )
@@ -241,7 +242,7 @@ base64 [pa,pb] = do
         "encode" -> return (B16.encode b)
         "decode" -> case B16.decode b of
                       (x, "") -> return x
-                      _       -> throwPosError ("base64(): could not decode" <+> pretty pb)
+                      _       -> critical ("base64(): could not decode" <+> pretty pb) *> pure mempty
         a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ppline a)
   pure $ PString (decodeUtf8 r)
 base64 _ = throwPosError "base64(): Expects 2 arguments"
