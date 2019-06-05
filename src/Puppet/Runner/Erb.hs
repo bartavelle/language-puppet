@@ -128,7 +128,7 @@ computeTemplate rubyintp srcinfo intpstate intpreader mstats filecache = do
       Left err -> do
         let !msg = "At " <> showPPos'(intpstate^.curPos) <> " the evaluation of template '" <> template_src <> "' failed. " <> show err
       -- if the haskell evaluation fails the ruby one will fallback. It is likely that the reason for the failure is a real template issue.
-        logCriticalStr msg
+        logErrorStr msg
         measure mstats ("ruby efail - " <> toS template_src) $ mkSafe $ computeTemplateWRuby srcinfo curcontext variables intpstate intpreader
   traceEventIO ("STOP template " <> template_src)
   pure o
