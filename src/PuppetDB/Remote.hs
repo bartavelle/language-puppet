@@ -16,7 +16,6 @@ import           Facter
 import           Puppet.Language
 import           PuppetDB.Core
 
-
 type PDBAPIv3 =    "nodes"     :> QueryParam "query" (Query NodeField)       :> Get '[JSON] [NodeInfo]
               :<|> "nodes"     :> Capture "resourcename" Text :> "resources" :> QueryParam "query" (Query ResourceField) :> Get '[JSON] [Resource]
               :<|> "facts"     :> QueryParam "query" (Query FactField)       :> Get '[JSON] [FactInfo]
@@ -30,6 +29,10 @@ api = Proxy
 #if !MIN_VERSION_servant(0,13,0)
 mkClientEnv :: Manager -> BaseUrl -> ClientEnv
 mkClientEnv = ClientEnv
+#endif
+
+#if !MIN_VERSION_servant_client(0,16,0)
+#define ClientError ServantError
 #endif
 
 -- | Given an URL (ie. @http://localhost:8080@), will return an incomplete 'PuppetDBAPI'.
@@ -54,5 +57,5 @@ pdbConnect mgr url = do
    sgetResources :: Maybe (Query ResourceField) -> ClientM [Resource]
    (sgetNodes :<|> sgetNodeResources :<|> sgetFacts :<|> sgetResources) = client api
 
-   prettyError :: IO (Either ServantError b)  -> ExceptT PrettyError IO b
+   prettyError :: IO (Either ClientError b)  -> ExceptT PrettyError IO b
    prettyError = ExceptT . fmap (_Left %~ PrettyError . pplines . show)
