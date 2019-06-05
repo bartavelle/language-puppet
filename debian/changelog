@@ -1,6 +1,10 @@
 language-puppet (1.4.5) UNRELEASED; urgency=medium
 
   * Add the `reduce` function.
+  * Change A hiera lookup using an unknown key will throw an error.
+  * Implement `alias` in hiera files.
+  * Fix #277 (hiera lookup in multiple layers)
+  * Allow servant 0.16
 
  -- Bartavelle <bartavelle@gmail.com>  Wed, 15 May 2019 08:28:52 +0200
 
