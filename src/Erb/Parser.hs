@@ -101,8 +101,10 @@ stringLiteral :: Parser Expression
 stringLiteral = Value `fmap` (doubleQuoted <|> singleQuoted)
 
 doubleQuoted :: Parser Value
-doubleQuoted = Interpolable <$> between (char '"') (char '"') quoteInternal
+doubleQuoted = simplify <$> between (char '"') (char '"') quoteInternal
   where
+    simplify [Value x] = x
+    simplify x = Interpolable x
     quoteInternal = many (basicContent <|> interpvar <|> escaped)
     escaped = char '\\' >> (Value . Literal . Text.singleton) `fmap` anyChar
     basicContent = (Value . Literal . Text.pack) `fmap` many1 (noneOf "\"\\#")

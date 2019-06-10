@@ -28,6 +28,9 @@ parsingtests =
   , ("<%= scope.lookupvar('::fqdn') %>", [ Puts (Value (Literal ""))
                                          , Puts (ScopeObject (Value (Literal "::fqdn")))
                                          , Puts(Value (Literal ""))])
+  , ("<%= scope.lookupvar(\"::fqdn\") %>", [ Puts (Value (Literal ""))
+                                           , Puts (ScopeObject (Value (Literal "::fqdn")))
+                                           , Puts(Value (Literal ""))])
   ]
 
 resolvetests :: [([RubyStatement], Text)]

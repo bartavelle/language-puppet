@@ -136,7 +136,7 @@ computeTemplate rubyintp srcinfo intpstate intpreader mstats filecache = do
 getRubyScriptPath :: String -> IO String
 getRubyScriptPath rubybin = do
   let checkpath :: FilePath -> IO FilePath -> IO FilePath
-      checkpath fp nxt = do
+      checkpath fp nxt =
         ifM (fileExist fp)
           (pure fp)
           nxt
@@ -200,7 +200,7 @@ computeTemplateWRuby fileinfo curcontext variables stt rdr = FR.freezeGC $ eithe
   contentinfo <- case fileinfo of
     Filename fname -> FR.toRuby (Text.pack fname)
     Inline _      -> FR.toRuby ("-" :: Text)
-  let withBinding f = do
+  let withBinding f =
         FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables,rstt,rrdr,contentinfo] >>= \case
           Left x -> pure (Left x)
           Right v -> do
