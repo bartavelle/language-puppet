@@ -242,7 +242,7 @@ base64 [pa,pb] = do
         "encode" -> return (B16.encode b)
         "decode" -> case B16.decode b of
                       (x, "") -> return x
-                      _       -> critical ("base64(): could not decode" <+> pretty pb) *> pure mempty
+                      _       -> error ("base64(): could not decode" <+> pretty pb) *> pure mempty
         a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ppline a)
   pure $ PString (decodeUtf8 r)
 base64 _ = throwPosError "base64(): Expects 2 arguments"

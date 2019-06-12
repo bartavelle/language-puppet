@@ -12,6 +12,7 @@ TAGS
 .stack-work/
 result
 *.el
+.envrc
 *.orig
 hackage-doc.sh
 stack.yaml

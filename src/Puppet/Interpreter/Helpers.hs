@@ -152,6 +152,9 @@ isExternalModule =
     isExternal = singleton . IsExternalModule . List.head . Text.splitOn "::"
 
 -- Logging --
+error :: MonadWriter InterpreterWriter m => Doc -> m ()
+error d = tell [Log.ERROR :!: d]
+
 critical :: MonadWriter InterpreterWriter m => Doc -> m ()
 critical d = tell [Log.CRITICAL :!: d]
 
