@@ -9,4 +9,5 @@ in
   && baseName != "stack.yaml"
   && baseName != ".git"
   && baseName != "default.nix"
+  && baseName != ".envrc"
   && baseName != "README.adoc"
