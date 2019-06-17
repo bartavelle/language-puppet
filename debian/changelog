@@ -1,4 +1,4 @@
-language-puppet (1.4.5) UNRELEASED; urgency=medium
+language-puppet (1.4.5) artful; urgency=medium
 
   * Add the `reduce` function.
   * Change A hiera lookup using an unknown key will throw an error.
@@ -6,7 +6,7 @@ language-puppet (1.4.5) UNRELEASED; urgency=medium
   * Fix #277 (hiera lookup in multiple layers)
   * Allow servant 0.16
 
- -- Bartavelle <bartavelle@gmail.com>  Wed, 15 May 2019 08:28:52 +0200
+ -- Pierre Radermecker <pierrer@pi3r.be>  Mo, 17 June 2019 16:12:48 +0100
 
 language-puppet (1.4.4) artful; urgency=medium
 

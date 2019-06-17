@@ -15,7 +15,7 @@ stack install language-puppet
 
 **Install with nix:**
 ```
-nix-env -i -f https://github.com/bartavelle/language-puppet/tarball/v1.4.3
+nix-env -i -f https://github.com/bartavelle/language-puppet/tarball/v1.4.5
 ```
 (replace `1.4.3` with any commit ref or tag).
 
