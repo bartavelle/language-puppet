@@ -30,6 +30,7 @@ extFun =  [ ("apache", "bool2httpd", apacheBool2httpd)
           , ("docker", "docker_swarm_init_flags", mockDockerSwarmInitFlags)
           , ("docker", "docker_run_flags", mockDockerRunFlags)
           , ("docker", "docker_stack_flags", mockDockerStackFlags)
+          , ("docker", "docker_secrets_flags", mockDockerSecretsFlags)
           , ("docker", "sanitised_name", dockerSanitisedName)
           , ("jenkins", "jenkins_port", mockJenkinsPort)
           , ("jenkins", "jenkins_prefix", mockJenkinsPrefix)
@@ -153,6 +154,11 @@ mockDockerRunFlags  arg@_ = throwPosError $ "Expect an hash as argument but was"
 mockDockerStackFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerStackFlags arg@[PHash _]= (pure . PString . show . head) arg
 mockDockerStackFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+
+-- faked implementation, replace by the correct one if you need so.
+mockDockerSecretsFlags :: MonadThrowPos m => [PValue] -> m PValue
+mockDockerSecretsFlags arg@[PHash _]= (pure . PString . show . head) arg
+mockDockerSecretsFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- faked implementation, replace by the correct one if you need so.
 mockDockerSwarmJoinFlags :: MonadThrowPos m => [PValue] -> m PValue
