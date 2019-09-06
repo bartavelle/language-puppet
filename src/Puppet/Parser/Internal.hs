@@ -403,8 +403,12 @@ unlessCondition = do
   p <- getSourcePos
   reserved "unless"
   (cond :!: stmts) <- puppetIfStyleCondition
+  elsecond <- option V.empty (reserved "else" *> braces statementList)
+  let ec = if V.null elsecond
+               then []
+               else [Terminal (UBoolean True) :!: elsecond]
   pe <- getSourcePos
-  pure (ConditionalDecl (V.singleton (Not cond :!: stmts)) (p :!: pe))
+  pure (ConditionalDecl (V.fromList ((Not cond :!: stmts) : ec )) (p :!: pe))
 
 ifCondition :: Parser ConditionalDecl
 ifCondition = do
