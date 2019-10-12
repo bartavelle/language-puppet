@@ -119,7 +119,7 @@ library
                      , lens                 >= 4.12    && < 5
                      , lens-aeson           >= 1.0
                      , megaparsec           >= 7       && < 8
-                     , memory               >= 0.14    && < 0.15
+                     , memory               >= 0.14    && < 0.16
                      , mtl                  >= 2.2.1   && < 2.3
                      , operational          >= 0.2.3   && < 0.3
                      , parsec               == 3.1.*
