@@ -16,6 +16,7 @@ result
 *.orig
 hackage-doc.sh
 stack.yaml
+stack.yaml.lock
 debian/debhelper-build-stamp
 debian/language-puppet.debhelper.log
 debian/language-puppet.substvars
