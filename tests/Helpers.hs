@@ -13,7 +13,7 @@ module Helpers ( module Exports
 
 import           XPrelude            as Exports
 
-import           Control.Monad       as Exports (fail)
+import           Control.Monad.Fail  as Exports (MonadFail)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Maybe.Strict   as S
 import qualified Data.Vector         as Vector
@@ -37,10 +37,10 @@ pureCatalog = runExcept . fmap (\s -> (s^._1,s^._6)) . compileCatalog
     (catalog, em, exported, defResources) <- either (throwError . show) pure res
     pure (catalog, em, exported, defResources, finalState, logs)
 
-getResource :: (Monad m) => RIdentifier -> FinalCatalog -> m Resource
+getResource :: (MonadFail m) => RIdentifier -> FinalCatalog -> m Resource
 getResource resid catalog = maybe (fail ("Unknown resource " <> renderToString resid)) pure (HM.lookup resid catalog)
 
-getAttribute :: Monad m => Text -> Resource -> m PValue
+getAttribute :: MonadFail m => Text -> Resource -> m PValue
 getAttribute att res =
   case res ^? rattributes . ix att of
     Nothing -> fail ("Unknown attribute: " <> toS att)
