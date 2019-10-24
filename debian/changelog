@@ -1,3 +1,11 @@
+language-puppet (1.4.6) artful; urgency=medium
+
+  * Support GHC 8.8
+  * Add mock for docker_secrets_flags
+  * Enable else after unless keyword
+
+ -- Pierre Radermecker <pierrer@pi3r.be>  Thu, 24 October 2019 21:12:48 +0100
+
 language-puppet (1.4.5) artful; urgency=medium
 
   * Add the `reduce` function.
