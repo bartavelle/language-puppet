@@ -7,6 +7,7 @@ in
   && baseName != "dist"
   && baseName != "dist-newstyle"
   && baseName != "stack.yaml"
+  && baseName != "stack.yaml.lock"
   && baseName != ".git"
   && baseName != "default.nix"
   && baseName != ".envrc"
