@@ -1,13 +1,12 @@
 # You can build this repository by running:
 #   $ nix-build
 {
-  nixpkgs ? (import ./nix/sources.nix).nixpkgs
+  pkgs ? (import (import ./nix/sources.nix).nixpkgs {})
 , compiler ? "default"
 }:
 
 
 let
-  pkgs = import nixpkgs {};
   filter = import ./nix/filter.nix;
   hpkgs = import ./nix/hpkgs.nix {inherit pkgs compiler;};
   haskellPackages = hpkgs.override {
