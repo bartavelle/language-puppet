@@ -118,7 +118,7 @@ library
                      , hslogger             >= 1.2     && < 1.4
                      , lens                 >= 4.12    && < 5
                      , lens-aeson           >= 1.0
-                     , megaparsec           >= 7       && < 8
+                     , megaparsec           >= 7       && < 9
                      , memory               >= 0.14    && < 0.16
                      , mtl                  >= 2.2.1   && < 2.3
                      , operational          >= 0.2.3   && < 0.3
