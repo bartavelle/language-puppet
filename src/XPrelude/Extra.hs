@@ -1,5 +1,5 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
-{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE RankNTypes #-}
 module XPrelude.Extra (
       module Exports
     , String
@@ -24,37 +24,39 @@ module XPrelude.Extra (
     , logCriticalStr
 ) where
 
-import           Protolude                         as Exports hiding (Down, Infix, Prefix, Selector,
-                                                               State, StateT, Strict, break, check,
-                                                               evalState, evalStateT, execState,
-                                                               execStateT, from, hash, list,
-                                                               moduleName, runState, runStateT,
-                                                               sourceColumn, sourceLine, to, uncons,
-                                                               unsnoc, withState, (%), (<&>), (<.>))
+import           Protolude                        as Exports hiding (Down, Infix, Prefix, Selector,
+                                                              State, StateT, Strict, break, check,
+                                                              evalState, evalStateT, execState,
+                                                              execStateT, from, hash, list,
+                                                              moduleName, runState, runStateT,
+                                                              sourceColumn, sourceLine, to, typeOf,
+                                                              uncons, unsnoc, withState, (%), (<&>),
+                                                              (<.>))
 
-import           Control.Exception.Lens            as Exports (catching)
-import           Control.Lens                      as Exports hiding (Strict, argument, noneOf, op, (<.>))
-import           Control.Monad                     as Exports (fail)
-import           Control.Monad.Trans.Except        as Exports (except, throwE, catchE)
-import           Control.Monad.Trans.Maybe         as Exports (runMaybeT)
-import           Data.Aeson                        as Exports (FromJSON, ToJSON, fromJSON, toJSON)
-import           Data.HashMap.Strict               as Exports (HashMap)
-import           Data.HashSet                      as Exports (HashSet)
-import           Data.Scientific                   as Exports (Scientific)
-import           Data.Set                          as Exports (Set)
-import           Data.String                       as Exports (IsString (..))
-import           Data.Tuple.Strict                 as Exports (Pair (..))
-import           Data.Vector                       as Exports (Vector)
-import           Text.Regex.PCRE.ByteString.Utils  as Exports (Regex)
+import           Control.Exception.Lens           as Exports (catching)
+import           Control.Lens                     as Exports hiding (Strict, argument, noneOf, op,
+                                                              (<.>))
+import           Control.Monad                    as Exports (fail)
+import           Control.Monad.Trans.Except       as Exports (catchE, except, throwE)
+import           Control.Monad.Trans.Maybe        as Exports (runMaybeT)
+import           Data.Aeson                       as Exports (FromJSON, ToJSON, fromJSON, toJSON)
+import           Data.HashMap.Strict              as Exports (HashMap)
+import           Data.HashSet                     as Exports (HashSet)
+import           Data.Scientific                  as Exports (Scientific)
+import           Data.Set                         as Exports (Set)
+import           Data.String                      as Exports (IsString (..))
+import           Data.Tuple.Strict                as Exports (Pair (..))
+import           Data.Vector                      as Exports (Vector)
+import           Text.Regex.PCRE.ByteString.Utils as Exports (Regex)
 
-import           Data.Attoparsec.Text              (parseOnly, rational)
-import qualified Data.Either.Strict                as S
-import qualified Data.HashMap.Strict               as Map
-import qualified Data.HashSet                      as HS
-import qualified Data.Scientific                   as Scientific
-import           Data.String                       (String)
-import qualified Data.Text                         as Text
-import qualified System.Log.Logger                 as Log
+import           Data.Attoparsec.Text             (parseOnly, rational)
+import qualified Data.Either.Strict               as S
+import qualified Data.HashMap.Strict              as Map
+import qualified Data.HashSet                     as HS
+import qualified Data.Scientific                  as Scientific
+import           Data.String                      (String)
+import qualified Data.Text                        as Text
+import qualified System.Log.Logger                as Log
 import           XPrelude.PP
 
 type Container = Map.HashMap Text
