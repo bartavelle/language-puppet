@@ -27,6 +27,9 @@ config_v3 = "./tests/hiera/hiera-v3.yaml"
 config_v5 :: FilePath
 config_v5 = "./tests/hiera/hiera-v5.yaml"
 
+configMisc :: FilePath
+configMisc = "./tests/hiera/misc/config/hiera.yaml"
+
 configInterpolate :: FilePath
 configInterpolate = "./tests/hiera/interpolate/config/hiera.yaml"
 
@@ -60,6 +63,7 @@ spec = do
       q3 vrs var t = runExceptT (q3_ vrs var t)
   describe "Hiera" $ do
     interpolationSpec
+    miscSpec
     describe "v5 lookup hierarchy" $
       it "should override some values"  $ do
         q5 vars "http_port" QFirst >>= checkOutput (Just (PNumber 9090))
@@ -110,6 +114,15 @@ spec = do
         q3 vars "http_port" QUnique >>= checkOutput (Just (array [PNumber 9090, PNumber 8080]))
       it "merges hashes" $
         q3 vars "users" QHash >>= checkOutput (Just (PHash (pusers <> users)))
+
+miscSpec :: Spec
+miscSpec = describe "misc" $ do
+  q_ <- runIO $ startHiera "test" configMisc
+  let q vrs var t = runExceptT (q_ vrs var t)
+  it "should return bar on the basic test" $
+    q mempty "foo" QFirst >>= checkOutput (Just "bar")
+  it "should work with the literal function" $
+    q mempty "literal" QFirst >>= checkOutput (Just "%{SERVER_NAME}")
 
 interpolationSpec :: Spec
 interpolationSpec =
@@ -171,18 +184,27 @@ interpolationSpec =
         q mempty "quoted_whitespace2" QFirst >>= checkOutput (Just "")
 
     describe "varsplitter" $ do
-      it "no splitting" $ varSplitter "abcd" `shouldBe` ["abcd"]
-      it "split 2" $ varSplitter "ab.cd" `shouldBe` ["ab", "cd"]
-      it "split 3" $ varSplitter "ab.cd.ef" `shouldBe` ["ab", "cd", "ef"]
-      it "split dq" $ varSplitter "\"ab\"" `shouldBe` ["ab"]
-      it "split dq 2" $ varSplitter "\"ab.cd\"" `shouldBe` ["ab.cd"]
-      it "split dq 2 mixed" $ varSplitter "\"ab.cd\".ef" `shouldBe` ["ab.cd", "ef"]
-      it "split dq 2 mixed 4" $ varSplitter "\"ab.cd\".ef.\"lol.cat\".bar" `shouldBe` ["ab.cd", "ef", "lol.cat", "bar"]
-      it "split sq" $ varSplitter "'ab'" `shouldBe` ["ab"]
-      it "split sq 2" $ varSplitter "'ab.cd'" `shouldBe` ["ab.cd"]
-      it "split sq 2 mixed" $ varSplitter "'ab.cd'.ef" `shouldBe` ["ab.cd", "ef"]
-      it "split sq 2 mixed 4" $ varSplitter "'ab.cd'.ef.'lol.cat'.bar" `shouldBe` ["ab.cd", "ef", "lol.cat", "bar"]
-      it "split all mixed" $ varSplitter "'a.b'.\"c.d\".e.f" `shouldBe` ["a.b", "c.d", "e", "f"]
+      it "no splitting" $ varSplitter "abcd" `shouldBe` HieraVar ("abcd" :| [])
+      it "split 2" $ varSplitter "ab.cd" `shouldBe` HieraVar ("ab" :| ["cd"])
+      it "split 3" $ varSplitter "ab.cd.ef" `shouldBe` HieraVar ("ab" :| ["cd", "ef"])
+      it "split dq" $ varSplitter "\"ab\"" `shouldBe` HieraVar ("ab" :| [])
+      it "split dq 2" $ varSplitter "\"ab.cd\"" `shouldBe` HieraVar ("ab.cd" :| [])
+      it "split dq 2 mixed" $ varSplitter "\"ab.cd\".ef" `shouldBe` HieraVar ("ab.cd" :| ["ef"])
+      it "split dq 2 mixed 4" $ varSplitter "\"ab.cd\".ef.\"lol.cat\".bar" `shouldBe`
+            HieraVar ("ab.cd" :| ["ef", "lol.cat", "bar"])
+      it "split sq" $ varSplitter "'ab'" `shouldBe` HieraVar ("ab" :| [])
+      it "split sq 2" $ varSplitter "'ab.cd'" `shouldBe` HieraVar ("ab.cd" :| [])
+      it "split sq 2 mixed" $ varSplitter "'ab.cd'.ef" `shouldBe` HieraVar ("ab.cd" :| ["ef"])
+      it "split sq 2 mixed 4" $ varSplitter "'ab.cd'.ef.'lol.cat'.bar" `shouldBe` 
+            HieraVar ("ab.cd" :| ["ef", "lol.cat", "bar"])
+      it "split all mixed" $ varSplitter "'a.b'.\"c.d\".e.f" `shouldBe`
+            HieraVar ("a.b" :| ["c.d", "e", "f"])
+      it "function f()" $ varSplitter "f()" `shouldBe`
+            HieraFunction ("f" :| []) []
+      it "function f('a')" $ varSplitter "f('a')" `shouldBe`
+            HieraFunction ("f" :| []) ["a"]
+      it "function f('a', 'b', 'c')" $ varSplitter "f('a', 'b', 'c')" `shouldBe`
+            HieraFunction ("f" :| []) ["a", "b", "c"]
 
     describe "when using dotted keys" $ do
       it "should find an entry using a quoted interpolation" $

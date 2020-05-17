@@ -19,10 +19,11 @@ module Hiera.Server (
   , readQueryType
   , HieraQueryFunc
   , varSplitter
+  , HieraVar(..)
   , mergeWith
 ) where
 
-import           XPrelude
+import           XPrelude hiding (space)
 
 import           Data.Aeson
 import qualified Data.Aeson                 as Aeson
@@ -40,8 +41,8 @@ import qualified Data.Yaml                  as Yaml
 import qualified System.Directory           as Directory
 import qualified System.FilePath            as FilePath
 import           System.FilePath.Lens       (directory)
-import           Text.Megaparsec            (parse, sepBy1, Parsec, satisfy)
-import           Text.Megaparsec.Char       (char)
+import           Text.Megaparsec            (parse, sepBy, sepBy1, Parsec, satisfy)
+import           Text.Megaparsec.Char       (char, space)
 
 import           Puppet.Language
 
@@ -90,14 +91,32 @@ newtype InterpolableHieraString = InterpolableHieraString
   { getInterpolableHieraString :: [HieraStringPart]
   } deriving (Show)
 
-varSplitter :: Text -> [Text]
+data HieraVar
+    = HieraVar (NonEmpty Text)
+    | HieraFunction (NonEmpty Text) [Text]
+    deriving (Show, Eq)
+
+varSplitter :: Text -> HieraVar -- ^ returns variable parts, function arguments
 varSplitter v =
-   case parse (vpart `sepBy1` char '.' :: Parsec Void Text [Text]) "dummy" v of
-     Left _ -> [v]
-     Right lst -> lst
+   case parse parser "dummy" v of
+     Left _ -> HieraVar (v :| [])
+     Right hv -> hv
    where
+     parser :: Parsec Void Text HieraVar
+     parser = do
+       x:xs <- vpart `sepBy1` char '.'
+       let nms = x :| xs
+       margs <- optional (
+         char '(' *> space *>
+           (arg `sepBy` (space *> char ',' *> space))
+         <* space <* char ')'
+         )
+       pure $ case margs of
+                Nothing -> HieraVar nms
+                Just args -> HieraFunction nms args
+     arg = squotev <|> dquotev
      vpart = squotev <|> dquotev <|> rawv
-     rawv = Text.pack <$> some (satisfy (/= '.'))
+     rawv = Text.pack <$> some (satisfy (\c -> c /= '.' && c /= '('))
      -- TODO, escapes
      squotev = Text.pack <$> (char '\'' *> some (satisfy (/= '\'')) <* char '\'')
      dquotev = Text.pack <$> (char '"' *> some (satisfy (/= '"')) <* char '"')
@@ -257,31 +276,33 @@ textBetween :: Text -- ^ prefix
 textBetween pr su = Text.stripPrefix pr >=> Text.stripSuffix su
 
 recursiveQuery :: Text -> [Text] -> QM (Maybe PValue)
-recursiveQuery curquery prevqueries = do
-  let (varname:allkeys) = varSplitter curquery
-  checkLoop varname prevqueries
-  rawlookups <- mapMaybe (preview (key varname)) <$> view qhier
-  let lookupKeys keys v =
-        case keys of
-          [] -> pure v
-          k:ks ->
-            case v of
-              Object hs ->
-                case hs ^? ix k of
-                  Nothing -> Nothing
-                  Just v' -> lookupKeys ks v'
-              _ -> Nothing
-  rlookups <- mapM (resolveValue (varname : prevqueries)) rawlookups
-  let lookups = mapMaybe (lookupKeys allkeys) rlookups
-  case traverse Aeson.fromJSON lookups of
-    Aeson.Error rr -> throwError ("Something horrible happened in recursiveQuery: " <> fromString rr)
-    Aeson.Success [] ->
-      if null rlookups
-        then return Nothing
-        else throwError ("Could not lookup " <> fromString (Text.unpack curquery) <> " in " <> PrettyError (list (map (fromString . BS8.unpack . encode) rlookups)) )
-    Aeson.Success (x:xs) -> do
-      qt <- view qtype
-      Just <$> foldM (mergeWith qt) x xs
+recursiveQuery curquery prevqueries =
+  case varSplitter curquery of
+    HieraFunction _ _ -> throwError "Hiera functions not yet handled here (A)"
+    HieraVar (varname :| allkeys) -> do
+      checkLoop varname prevqueries
+      rawlookups <- mapMaybe (preview (key varname)) <$> view qhier
+      let lookupKeys keys v =
+            case keys of
+              [] -> pure v
+              k:ks ->
+                case v of
+                  Object hs ->
+                    case hs ^? ix k of
+                      Nothing -> Nothing
+                      Just v' -> lookupKeys ks v'
+                  _ -> Nothing
+      rlookups <- mapM (resolveValue (varname : prevqueries)) rawlookups
+      let lookups = mapMaybe (lookupKeys allkeys) rlookups
+      case traverse Aeson.fromJSON lookups of
+        Aeson.Error rr -> throwError ("Something horrible happened in recursiveQuery: " <> fromString rr)
+        Aeson.Success [] ->
+          if null rlookups
+            then return Nothing
+            else throwError ("Could not lookup " <> fromString (Text.unpack curquery) <> " in " <> PrettyError (list (map (fromString . BS8.unpack . encode) rlookups)) )
+        Aeson.Success (x:xs) -> do
+          qt <- view qtype
+          Just <$> foldM (mergeWith qt) x xs
 
 resolveValue :: [Text] -> Value -> QM Value
 resolveValue prevqueries value =
@@ -320,8 +341,19 @@ resolveStringPart prevqueries sp =
         Just lk -> recursiveQuery lk prevqueries
         Nothing -> do
             vmap <- view qvars
-            let mvar:svars = varSplitter varname
-            pure (vmap ^? ix mvar >>= rc svars)
+            case varSplitter varname of
+              HieraVar (mvar :| svars) -> pure (vmap ^? ix mvar >>= rc svars)
+              HieraFunction (fname :| []) args ->
+                case fname of
+                  "literal" ->
+                    case args of
+                      [x] -> pure (Just (PString x))
+                      _ -> throwError "The literal function expects a single argument"
+                  _ -> throwError ("Unknown function " <> fromString (Text.unpack fname))
+              HieraFunction (fname :| xs) _ ->
+                throwError ("Malformed function name: "
+                  <> fromString (Text.unpack (Text.intercalate "." (fname:xs))))
+
       case r of
         Just (PString v) -> return v
         Just (PNumber s) -> pure (scientific2text s)

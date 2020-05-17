@@ -1,0 +1,4 @@
+---
+
+foo: bar
+literal: "%{literal('%')}{SERVER_NAME}"
