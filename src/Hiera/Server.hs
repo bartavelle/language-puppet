@@ -1,5 +1,4 @@
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE NamedFieldPuns         #-}
 {-# LANGUAGE PatternGuards          #-}
 {-# LANGUAGE RecordWildCards        #-}
@@ -27,7 +26,6 @@ import           XPrelude hiding (space)
 
 import           Data.Aeson
 import qualified Data.Aeson                 as Aeson
-import           Data.Aeson.Lens
 import qualified Data.Attoparsec.Text       as AT
 import qualified Data.ByteString.Lazy       as BS
 import qualified Data.ByteString.Lazy.Char8 as BS8
@@ -165,8 +163,8 @@ instance FromJSON HieraConfigFile where
         -- we currently only read the first hierarchy entry to get the hiera path
         -- TODO: change the definition of HieraConfigFile to be [(Backend, InterpolableHieraString)]
         -- to allow defining a Backend per hierarchies
-        let paths = Object v ^.. key "hierarchy" . values . key "paths" . values
-            path = Object v ^.. key "hierarchy" .values .key "path"
+        let paths = Object v ^.. key "hierarchy" . avalues . key "paths" . avalues
+            path = Object v ^.. key "hierarchy" .avalues .key "path"
         hierarchy_value <- case Object v ^? key "hierarchy" . nth 0 of
           Just (Object h) -> pure h
           _ -> fail "Hiera config should define at least one hierarchy"

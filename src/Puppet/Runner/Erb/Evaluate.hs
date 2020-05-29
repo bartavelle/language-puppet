@@ -5,7 +5,6 @@ module Puppet.Runner.Erb.Evaluate (
 
 import           XPrelude
 
-import           Data.Aeson.Lens
 import qualified Data.Char           as Char
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text           as Text
@@ -52,12 +51,12 @@ evalExpression mp ctx (LookupOperation expvar expidx) = do
   idx <- evalExpression mp ctx expidx
   case val of
     PArray arr ->
-      case idx ^? _Integer of
+      case idx ^? _PValueInteger of
         Nothing -> Left $ "Can't convert index to integer when resolving" <+> pretty val <> brackets (pretty idx)
         Just i  ->
           if fromIntegral (V.length arr) <= i
           then Left $ "Array out of bound" <+> pretty val <> brackets (pretty idx)
-          else Right (arr V.! (fromIntegral i))
+          else Right (arr V.! fromIntegral i)
     PHash hs ->
       case idx of
         PString idx' ->

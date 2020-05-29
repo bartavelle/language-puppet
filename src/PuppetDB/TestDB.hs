@@ -12,7 +12,6 @@ import           XPrelude
 
 import           Control.Concurrent.STM
 import           Data.Aeson
-import           Data.Aeson.Lens        (_Integer)
 import qualified Data.CaseInsensitive   as CaseInsensitive
 import qualified Data.HashMap.Strict    as HM
 import qualified Data.HashSet           as HS
@@ -113,7 +112,7 @@ dbapiInfo db = do
 ncompare :: (Integer -> Integer -> Bool) ->  (a -> b -> Extracted) -> a -> Integer -> b -> Bool
 ncompare operation f a i v =
   case f a v of
-    EText tt -> case PString tt ^? _Integer of
+    EText tt -> case PString tt ^? _PValueInteger of
                     Just ii -> operation i ii
                     _       -> False
     _ -> False

@@ -6,7 +6,6 @@ module Puppet.Runner.Stdlib (stdlibFunctions) where
 import           XPrelude                         hiding (sort)
 
 import qualified Data.Yaml            as Yaml
-import           Data.Aeson.Lens
 import qualified Data.ByteString.Base16           as B16
 import qualified Data.Char                        as Char
 import qualified Data.HashMap.Strict              as HM
@@ -178,8 +177,8 @@ matchRE r t =
     Right m -> return (has _Just m)
 
 puppetAbs :: PValue -> InterpreterMonad PValue
-puppetAbs y = case y ^? _Number of
-                  Just x  -> return $ _Number # abs x
+puppetAbs y = case y ^? _PValueNumber of
+                  Just x  -> return $ _PValueNumber # abs x
                   Nothing -> throwPosError ("abs(): Expects a number, not" <+> pretty y)
 
 suffix :: [PValue] -> InterpreterMonad PValue
@@ -271,12 +270,12 @@ puppetConcat = return . PArray . V.concat . map toArr
     toArr x          = V.singleton x
 
 puppetCount :: [PValue] -> InterpreterMonad PValue
-puppetCount [PArray x] = return (_Integer # V.foldl' cnt 0 x)
+puppetCount [PArray x] = return (_PValueInteger # V.foldl' cnt 0 x)
   where
     cnt cur (PString "") = cur
     cnt cur PUndef       = cur
     cnt cur _            = cur + 1
-puppetCount [PArray x, y] = return (_Integer # V.foldl' cnt 0 x)
+puppetCount [PArray x, y] = return (_PValueInteger # V.foldl' cnt 0 x)
   where
     cnt cur z | y == z = cur + 1
               | otherwise = cur
@@ -292,7 +291,7 @@ delete [a,_] = throwPosError ("delete(): First argument must be an Array, String
 delete _ = throwPosError "delete(): expects 2 arguments"
 
 deleteAt :: [PValue] -> InterpreterMonad PValue
-deleteAt [PArray r, z] = case z ^? _Integer of
+deleteAt [PArray r, z] = case z ^? _PValueInteger of
   Just gn ->
     let n = fromInteger gn
         lr = V.length r
@@ -368,13 +367,13 @@ isDomainName s = do
   return $ PBoolean $ not (Text.null rs) && Text.length rs <= 255 && all checkPart prts
 
 isInteger :: PValue -> InterpreterMonad PValue
-isInteger = return . PBoolean . has _Integer
+isInteger = return . PBoolean . has _PValueInteger
 
 isHash :: PValue -> InterpreterMonad PValue
 isHash = return . PBoolean . has _PHash
 
 isString :: PValue -> InterpreterMonad PValue
-isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _Number) of
+isString pv = return $ PBoolean $ case (pv ^? _PString, pv ^? _PValueNumber) of
                                      (_, Just _) -> False
                                      (Just _, _) -> True
                                      _           -> False
@@ -455,9 +454,9 @@ pickDefault xs =
     (x:_) -> return x
 
 size :: PValue -> InterpreterMonad PValue
-size (PHash h) = return (_Integer # fromIntegral (HM.size h))
-size (PArray v) = return (_Integer # fromIntegral (V.length v))
-size (PString s) = return (_Integer # fromIntegral (Text.length s))
+size (PHash h) = return (_PValueInteger # fromIntegral (HM.size h))
+size (PArray v) = return (_PValueInteger # fromIntegral (V.length v))
+size (PString s) = return (_PValueInteger # fromIntegral (Text.length s))
 size x = throwPosError ("size(): Expects a hash, and array or a string, not" <+> pretty x)
 
 unique :: PValue -> InterpreterMonad PValue

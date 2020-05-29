@@ -35,7 +35,6 @@ module Puppet.Language.NativeTypes.Helpers
 
 import           XPrelude                 as Exports
 
-import           Data.Aeson.Lens          (_Integer, _Number)
 import           Data.Char                (isDigit)
 import qualified Data.HashMap.Strict      as Map
 import qualified Data.HashSet             as HS
@@ -167,7 +166,7 @@ integers :: Text -> NativeTypeValidate
 integers param = runarray param integer''
 
 integer'' :: Text -> PValue -> NativeTypeValidate
-integer'' param val res = case val ^? _Integer of
+integer'' param val res = case val ^? _PValueInteger of
   Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
   _ -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
 
@@ -261,7 +260,7 @@ checkipv4 ip v =
 inrange :: Integer -> Integer -> Text -> NativeTypeValidate
 inrange mi ma param res =
     let va = res ^. rattributes . at param
-        na = va ^? traverse . _Number
+        na = va ^? traverse . _PValueNumber
     in case (va,na) of
         (Nothing, _) -> Right res
         (_,Just v)   -> if (v >= fromIntegral mi) && (v <= fromIntegral ma)

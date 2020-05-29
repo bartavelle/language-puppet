@@ -42,7 +42,6 @@ import           XPrelude.PP
 import qualified Control.Monad.Operational          as Operational
 import           "cryptonite" Crypto.Hash
 import qualified Data.Aeson                         as Aeson
-import           Data.Aeson.Lens                    (_Integer, _Number)
 import qualified Data.ByteArray                     as ByteArray
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Base16             as B16
@@ -145,7 +144,7 @@ integerOperation :: Expression -> Expression -> (Integer -> Integer -> Integer) 
 integerOperation a b opr = do
   ra <- resolveExpressionNumber a
   rb <- resolveExpressionNumber b
-  case (preview _Integer ra, preview _Integer rb) of
+  case (preview _ScientificInteger ra, preview _ScientificInteger rb) of
     (Just na, Just nb) -> pure (PNumber $ fromIntegral (opr na nb))
     _ -> throwPosError ("Expected integer values, not" <+> pretty ra <+> "or" <+> pretty rb)
 
@@ -282,7 +281,7 @@ resolveExpression (Lookup a idx) =
           pure PUndef
     PArray ar -> do
       ridx <- resolveExpression idx
-      i <- case ridx ^? _Integer of
+      i <- case ridx ^? _PValueInteger of
         Just n -> pure (fromIntegral n)
         _ -> throwPosError ("Need an integral number for indexing an array, not" <+> pretty ridx)
       let arl = V.length ar
@@ -324,7 +323,7 @@ resolveExpression (Division a b)       = do
   rb <- resolveExpressionNumber b
   case rb of
       0 -> throwPosError "Division by 0"
-      _ -> case (,) `fmap` preview _Integer ra <*> preview _Integer rb of
+      _ -> case (,) `fmap` preview _ScientificInteger ra <*> preview _ScientificInteger rb of
              Just (ia, ib) -> pure $ PNumber $ fromIntegral (ia `div` ib)
              _             -> pure $ PNumber $ ra / rb
 resolveExpression (Multiplication a b) = binaryOperation a b (*)
@@ -381,7 +380,7 @@ resolvePValueString x = throwPosError ("Don't know how to convert this to a stri
 -- | Turns everything it can into a number, or throws an error
 resolvePValueNumber :: PValue -> InterpreterMonad Scientific
 resolvePValueNumber x =
-  case x ^? _Number of
+  case x ^? _PValueNumber of
     Just n  -> pure n
     Nothing -> throwPosError ("Don't know how to convert this to a number:" <> line <> pretty x)
 
@@ -414,7 +413,7 @@ resolveFunction "fqdn_rand" args = do
   when (nbargs < 1 || nbargs > 2) (throwPosError "fqdn_rand(): Expects one or two arguments")
   fqdn <- resolveVariable "::fqdn" >>= resolvePValueString
   (mx:targs) <- mapM resolveExpressionString (V.toList args)
-  curmax <- case PString mx ^? _Integer of
+  curmax <- case PString mx ^? _PValueInteger of
     Just x -> pure x
     _ -> throwPosError ("fqdn_rand(): the first argument must be an integer, not" <+> ppline mx)
   let rargs = if null targs
@@ -424,7 +423,7 @@ resolveFunction "fqdn_rand" args = do
       myhash = toint (md5 (Text.encodeUtf8 fullstring)) :: Integer
       toint = BS.foldl' (\c nx -> c*256 + fromIntegral nx) 0
       fullstring = Text.intercalate ":" rargs
-  pure (_Integer # val)
+  pure (_PValueInteger # val)
 resolveFunction fname args =
   mapM resolveExpression (V.toList args) >>= resolveFunction' fname . map undefEmptyString
   where

@@ -7,7 +7,6 @@ module Puppet.Runner.Erb (
 
 import           XPrelude
 
-import           Data.Aeson.Lens            (_Number)
 import qualified Data.Either.Strict         as S
 import qualified Data.FileCache             as Cache
 import qualified Data.List                  as List
@@ -183,7 +182,7 @@ hrcallfunction _ rfname rargs rstt rrdr = do
             _              -> varray
       (x,_,_) <- interpretMonad rdr stt (resolveFunction' fname args)
       case x of
-        Right o -> case o ^? _Number of
+        Right o -> case o ^? _PValueNumber of
           Just n  -> FR.toRuby n
           Nothing -> FR.toRuby o
         Left err -> rubyerr (show err)

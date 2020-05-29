@@ -6,9 +6,9 @@ where
 import           XPrelude
 
 import           Data.Aeson
-import           Data.Aeson.Lens
 import           Data.Aeson.TH
 import qualified Data.HashMap.Strict as HM
+import           Data.Scientific (isInteger)
 import           Foreign.Ruby.Helpers
 
 import           Puppet.Language.Core
@@ -96,17 +96,26 @@ instance IsString PValue where
 instance Pretty (HashMap Text PValue) where
   pretty = containerComma
 
-instance AsNumber PValue where
-  _Number = prism num2PValue toNumber
-    where
-      num2PValue :: Scientific -> PValue
-      num2PValue = PNumber
-      toNumber :: PValue -> Either PValue Scientific
-      toNumber (PNumber n) = Right n
-      toNumber p@(PString x) = case text2Scientific x of
-        Just o -> Right o
-        _ -> Left p
-      toNumber p = Left p
+_PValueNumber :: Prism' PValue Scientific
+_PValueNumber = prism num2PValue toNumber
+  where
+    num2PValue :: Scientific -> PValue
+    num2PValue = PNumber
+    toNumber :: PValue -> Either PValue Scientific
+    toNumber (PNumber n) = Right n
+    toNumber p@(PString x) = case text2Scientific x of
+      Just o -> Right o
+      _ -> Left p
+    toNumber p = Left p
+
+_ScientificInteger :: Prism' Scientific Integer
+_ScientificInteger = prism fromIntegral $ \n ->
+    if isInteger n
+      then Right (truncate n)
+      else Left n
+
+_PValueInteger :: Prism' PValue Integer
+_PValueInteger = _PValueNumber . _ScientificInteger
 
 instance FromJSON PValue where
   parseJSON Null = return PUndef
