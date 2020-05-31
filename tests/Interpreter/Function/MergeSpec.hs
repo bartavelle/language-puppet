@@ -45,8 +45,8 @@ spec0 = do
         check [ [("key", "value1")], [("key", "value2")] ] [("key","value2")]
 
 spec1 :: Spec
-spec1 = do
-  describe "deep_merge" $ do
+spec1 =
+ describe "deep_merge" $
   withStdlibFunction "deep_merge" $ \mergeFunc -> do
     let evalArgs' = evalArgs . mergeFunc
     let check args res = case evalArgs' (map PHash args) of

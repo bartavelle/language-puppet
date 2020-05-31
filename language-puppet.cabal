@@ -13,7 +13,7 @@ maintainer:          bartavelle@gmail.com
 -- copyright:
 category:            System
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.10
 bug-reports:         https://github.com/bartavelle/language-puppet/issues
 
 Tested-With:         GHC == 8.0.2, GHC == 8.2.2, GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.1
@@ -37,6 +37,7 @@ source-repository head
 
 library
   hs-source-dirs: src
+  default-language:      Haskell2010
   exposed-modules:       XPrelude
                        , Erb
                        , Facter
@@ -95,7 +96,7 @@ library
                        , Puppet.Runner.Daemon.FileParser
                        , Puppet.Runner.Daemon.OptionalTests
                        , Puppet.Runner.Daemon
-  extensions:          OverloadedStrings, BangPatterns, LambdaCase, NoImplicitPrelude, FlexibleContexts, FlexibleInstances
+  default-extensions:    OverloadedStrings, BangPatterns, LambdaCase, NoImplicitPrelude, FlexibleContexts, FlexibleInstances
   ghc-options:         -Wall -funbox-strict-fields
   -- ghc-prof-options:    -auto-all -caf-all
   build-depends:       aeson                >= 1.0.0.0 && < 1.6
@@ -144,7 +145,8 @@ Test-Suite spec
   hs-source-dirs: tests
   type:           exitcode-stdio-1.0
   ghc-options:    -Wall -Wno-missing-signatures -rtsopts -threaded
-  extensions:     OverloadedStrings, NoImplicitPrelude, FlexibleContexts, LambdaCase
+  default-extensions: OverloadedStrings, NoImplicitPrelude, FlexibleContexts, LambdaCase
+  default-language: Haskell2010
   build-depends:    base
                   , Glob
                   , hslogger
@@ -191,7 +193,8 @@ Test-Suite spec
 
 executable puppetresources
   hs-source-dirs:      progs
-  extensions:          BangPatterns, OverloadedStrings
+  default-extensions:  BangPatterns, OverloadedStrings
+  default-language:    Haskell2010
   ghc-options:         -Wall -rtsopts -funbox-strict-fields -threaded -with-rtsopts "-A2M" -eventlog
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   other-modules:       Paths_language_puppet
@@ -216,7 +219,8 @@ executable puppetresources
 
 executable yera
   hs-source-dirs:      progs
-  extensions:          BangPatterns, OverloadedStrings
+  default-extensions:  BangPatterns, OverloadedStrings
+  default-language:    Haskell2010
   ghc-options:         -Wall -rtsopts -threaded
   build-depends:       base
                      , language-puppet
@@ -229,7 +233,8 @@ executable yera
 
 executable pdbquery
   hs-source-dirs:      progs
-  extensions:          BangPatterns, OverloadedStrings
+  default-extensions:  BangPatterns, OverloadedStrings
+  default-language:    Haskell2010
   ghc-options:         -Wall -rtsopts -threaded
   -- ghc-prof-options:    -auto-all -caf-all -fprof-auto
   other-modules:       Paths_language_puppet
