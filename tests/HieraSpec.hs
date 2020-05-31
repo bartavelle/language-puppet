@@ -16,7 +16,7 @@ checkOutput _ (Left rr) = expectationFailure (show rr)
 
 checkFail :: (Show a) => Either rr a -> Expectation
 checkFail (Right v) = expectationFailure ("Should have failed, but returned: " ++ show v)
-checkFail _ = return ()
+checkFail _         = return ()
 
 fqdn :: Text
 fqdn = "node.com"
@@ -195,7 +195,7 @@ interpolationSpec =
       it "split sq" $ varSplitter "'ab'" `shouldBe` HieraVar ("ab" :| [])
       it "split sq 2" $ varSplitter "'ab.cd'" `shouldBe` HieraVar ("ab.cd" :| [])
       it "split sq 2 mixed" $ varSplitter "'ab.cd'.ef" `shouldBe` HieraVar ("ab.cd" :| ["ef"])
-      it "split sq 2 mixed 4" $ varSplitter "'ab.cd'.ef.'lol.cat'.bar" `shouldBe` 
+      it "split sq 2 mixed 4" $ varSplitter "'ab.cd'.ef.'lol.cat'.bar" `shouldBe`
             HieraVar ("ab.cd" :| ["ef", "lol.cat", "bar"])
       it "split all mixed" $ varSplitter "'a.b'.\"c.d\".e.f" `shouldBe`
             HieraVar ("a.b" :| ["c.d", "e", "f"])
@@ -247,4 +247,3 @@ interpolationSpec =
         q mempty "ipl_key" QFirst >>= checkFail
       it "should not find a subkey that is matched within a string" $
         q mempty "key.subkey" QFirst >>= checkFail
-

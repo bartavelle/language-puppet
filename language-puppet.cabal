@@ -26,6 +26,9 @@ extra-source-files:
     tests/hiera/interpolate/config/*.yaml
     tests/hiera/interpolate/data/*.yaml
     tests/hiera/*.com.json
+    tests/hiera/misc/*.yaml
+    tests/hiera/misc/config/*.yaml
+    tests/hiera/misc/data/*.yaml
     tests/Parser/lexer/*.pp
 
 Data-Files:
@@ -148,6 +151,7 @@ Test-Suite spec
   default-extensions: OverloadedStrings, NoImplicitPrelude, FlexibleContexts, LambdaCase
   default-language: Haskell2010
   build-depends:    base
+                  , directory
                   , Glob
                   , hslogger
                   , hspec                   >= 2.0 && < 3.0
