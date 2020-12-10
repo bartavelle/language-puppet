@@ -5,14 +5,11 @@ module Puppet.Runner.Puppetlabs (extFunctions) where
 import           XPrelude
 
 import           Crypto.Hash         as Crypto
-import           Data.ByteString     (ByteString)
 import           Data.Char           (isDigit)
-import           Data.Foldable       (foldlM)
 import qualified Data.HashMap.Strict as Map
 import           Data.Scientific     as Sci
 import qualified Data.Text           as Text
 import qualified Data.Text.Encoding  as Text
-import           Data.Vector         (Vector)
 import           Formatting          (scifmt, sformat, (%), (%.))
 import qualified Formatting          as FMT
 import qualified System.Directory    as Directory
