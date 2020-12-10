@@ -34,7 +34,7 @@ import           Protolude                        as Exports hiding (Down, Infix
                                                               evalState, evalStateT, execState,
                                                               execStateT, from, hash, list,
                                                               moduleName, runState, runStateT,
-                                                              sourceColumn, sourceLine, to, typeOf,
+                                                              sourceColumn, sourceLine, to,
                                                               uncons, unsnoc, withState, (%), (<&>),
                                                               (<.>))
 
@@ -49,7 +49,6 @@ import           Data.Aeson                       (Value (..))
 import           Data.HashMap.Strict              as Exports (HashMap)
 import           Data.HashSet                     as Exports (HashSet)
 import           Data.Scientific                  as Exports (Scientific)
-import           Data.Set                         as Exports (Set)
 import           Data.String                      as Exports (IsString (..))
 import           Data.Tuple.Strict                as Exports (Pair (..))
 import           Data.Vector                      as Exports (Vector)

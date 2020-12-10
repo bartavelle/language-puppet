@@ -2,7 +2,6 @@ module Erb.Parser where
 
 import           XPrelude.Extra         hiding (option, try)
 
-import           Control.Exception      (catch)
 import qualified Data.Text              as Text
 import           Text.Parsec.Char
 import           Text.Parsec.Combinator hiding (optional)

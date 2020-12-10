@@ -1,4 +1,3 @@
-{-# LANGUAGE AutoDeriveTypeable     #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs                  #-}

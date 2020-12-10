@@ -46,7 +46,6 @@ module Puppet.Parser.Types
 
 import           XPrelude           hiding (show)
 
-import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.Maybe.Strict  as S
 import qualified Data.Text          as Text
 import qualified Data.Vector        as V

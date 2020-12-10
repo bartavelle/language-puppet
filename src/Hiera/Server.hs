@@ -32,7 +32,6 @@ import qualified Data.ByteString.Lazy.Char8 as BS8
 import qualified Data.Either.Strict         as S
 import qualified Data.FileCache             as Cache
 import qualified Data.List                  as List
-import           Data.String                (fromString)
 import qualified Data.Text                  as Text
 import qualified Data.Vector                as Vector
 import qualified Data.Yaml                  as Yaml
