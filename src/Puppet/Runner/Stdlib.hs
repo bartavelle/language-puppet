@@ -7,6 +7,8 @@ import           XPrelude                         hiding (sort)
 
 import qualified Data.Yaml            as Yaml
 import qualified Data.ByteString.Base16           as B16
+import qualified Data.ByteString.Lazy             as LByteString
+import qualified Data.Aeson                       as Aeson
 import qualified Data.Char                        as Char
 import qualified Data.HashMap.Strict              as HM
 import qualified Data.List                        as List
@@ -124,6 +126,8 @@ stdlibFunctions = HM.fromList [ singleArgument "abs" puppetAbs
                               , singleArgument "unique" unique
                               -- from puppetlabs-translate
                               , singleArgument "to_yaml" toYaml
+                              , singleArgument "to_json" toJson
+                              , singleArgument "to_json_pretty" toJson
                               , ("translate", translate)
                               -- unix2dos
                               , ("upcase", stringArrayFunction Text.toUpper)
@@ -571,3 +575,6 @@ translate x = throwPosError ("values(): expected a String, not" <+> pretty x)
 
 toYaml :: PValue -> InterpreterMonad PValue
 toYaml s = pure $ PString $ Text.decodeUtf8 (Yaml.encode s)
+
+toJson :: PValue -> InterpreterMonad PValue
+toJson s = pure $ PString $ Text.decodeUtf8 (LByteString.toStrict (Aeson.encode s))
