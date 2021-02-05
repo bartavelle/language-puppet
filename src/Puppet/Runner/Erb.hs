@@ -203,7 +203,7 @@ computeTemplateWRuby fileinfo curcontext variables stt rdr = FR.freezeGC $ eithe
         FR.safeMethodCall "ErbBinding" "new" [rscp,rvariables,rstt,rrdr,contentinfo] >>= \case
           Left x -> pure (Left x)
           Right v -> do
-           forM_ (itoList varlist) $ \(varname, varval :!: _ :!: _) -> FR.toRuby varval >>= FR.rb_iv_set v (toS varname)
+           forM_ (itoList varlist) $ \(varname, (varval :!: _) :!: _) -> FR.toRuby varval >>= FR.rb_iv_set v (toS varname)
            f v
   o <- case fileinfo of
     Filename fname  -> do

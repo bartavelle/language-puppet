@@ -584,20 +584,20 @@ loadVariable varname varval = do
   variableDefined <- preuse (scopes . ix scp . scopeVariables . ix varname)
   case (scopeDefined, variableDefined) of
     (False, _) -> throwPosError ("Internal error: trying to save a variable in unknown scope" <+> ppline scp)
-    (_, Just (_ :!: pp :!: ctx)) -> isParent scp (curcont ^. cctype) >>= \case
+    (_, Just ((_ :!: pp) :!: ctx)) -> isParent scp (curcont ^. cctype) >>= \case
       True -> do
           debug("The variable"
                <+> pretty (UVariableReference varname)
                <+> "had been overriden because of some arbitrary inheritance rule that was set up to emulate puppet behaviour. It was defined at"
                <+> showPPos pp
                )
-          scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
+          scopes . ix scp . scopeVariables . at varname ?= ((varval :!: p) :!: curcont ^. cctype)
       False -> throwPosError ("Variable" <+> pretty (UVariableReference varname) <+> "already defined at" <+> showPPos pp
                   </> "Context:" <+> pretty ctx
                   </> "Value:" <+> pretty varval
                   </> "Current scope:" <+> ppline scp
                   )
-    _ -> scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: curcont ^. cctype)
+    _ -> scopes . ix scp . scopeVariables . at varname ?= ((varval :!: p) :!: curcont ^. cctype)
 
 -- This function loads class and define parameters into scope. It checks
 -- that all mandatory parameters are set, that no extra parameter is declared.
@@ -639,7 +639,7 @@ loadParameters attrs classParams defaultPos classname = do
 
   -- try to set a value to all parameters
   -- The order of evaluation is defined / hiera / default
-  unset_params <- fmap concat $ for classParams $ \(varname :!: vartype :!: valexpr) ->
+  unset_params <- fmap concat $ for classParams $ \((varname :!: vartype) :!: valexpr) ->
       runExceptT (check_def varname <|> check_hiera varname vartype <|> check_default valexpr) >>= \case
         Right val       -> do
           forM_ vartype $ \utype -> do
@@ -690,9 +690,9 @@ enterScope secontext cont modulename p = do
             curdefs <- use (scopes . ix scp . scopeResDefaults)
             pure $ ScopeInformation mempty curdefs mempty (CurContainer cont mempty) mempty S.Nothing
       scopes . at scopename ?= basescope
-  scopes . ix scopename . scopeVariables . at "caller_module_name" ?= (curcaller          :!: p :!: cont)
-  scopes . ix "::"      . scopeVariables . at "calling_module"     ?= (curcaller          :!: p :!: cont)
-  scopes . ix scopename . scopeVariables . at "module_name"        ?= (PString modulename :!: p :!: cont)
+  scopes . ix scopename . scopeVariables . at "caller_module_name" ?= ((curcaller          :!: p) :!: cont)
+  scopes . ix "::"      . scopeVariables . at "calling_module"     ?= ((curcaller          :!: p) :!: cont)
+  scopes . ix scopename . scopeVariables . at "module_name"        ?= ((PString modulename :!: p) :!: cont)
   debug ("enterScope, scopename=" <> ppline scopename <+> "caller_module_name=" <> pretty curcaller <+> "module_name=" <> ppline modulename)
   pure scopename
 
@@ -959,7 +959,7 @@ mainFunctionCall "dumpinfos" _ = do
   prntline "Variables in local scope :"
   scp <- getScopeName
   vars <- use (scopes . ix scp . scopeVariables)
-  forM_ (sortOn fst (itoList vars)) $ \(idx, pv :!: _ :!: _) -> prntline $ indentln $ ppline idx <> " -> " <> pretty pv
+  forM_ (sortOn fst (itoList vars)) $ \(idx, (pv :!: _) :!: _) -> prntline $ indentln $ ppline idx <> " -> " <> pretty pv
   pure []
 mainFunctionCall "assert_type" [PType dt, v] =
   if datatypeMatch dt v

@@ -149,7 +149,7 @@ showArgs vec = tupled (map ra lst)
   where
     lst = V.toList vec
     maxlen = maximum (map (Text.length . Tuple.fst . Tuple.fst) lst)
-    ra (argname :!: mtype :!: rval) =
+    ra ((argname :!: mtype) :!: rval) =
       dullblue (pretty '$' <> foldMap (\t -> pretty t <+> mempty) mtype
                            <> fill maxlen (ppline argname))
                            <> foldMap (\v -> mempty <+> pretty '=' <+> pretty v) rval

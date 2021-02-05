@@ -36,7 +36,7 @@ import           Protolude                        as Exports hiding (Down, Infix
                                                               moduleName, runState, runStateT,
                                                               sourceColumn, sourceLine, to,
                                                               uncons, unsnoc, withState, (%), (<&>),
-                                                              (<.>))
+                                                              (<.>), typeOf)
 
 import           Control.Exception.Lens           as Exports (catching)
 import           Control.Lens                     as Exports hiding (Strict, argument, noneOf, op,

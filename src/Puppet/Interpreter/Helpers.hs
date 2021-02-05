@@ -26,12 +26,12 @@ initialState :: Facts
 initialState facts settings =
   InterpreterState baseVars initialclass mempty [ContRoot] (initialPPos mempty) mempty [] []
   where
-    callervars = Map.fromList [("caller_module_name", PString "::" :!: (initialPPos mempty) :!: ContRoot), ("module_name", PString "::" :!: (initialPPos mempty) :!: ContRoot)]
+    callervars = Map.fromList [("caller_module_name", (PString "::" :!: (initialPPos mempty)) :!: ContRoot), ("module_name", (PString "::" :!: (initialPPos mempty)) :!: ContRoot)]
     factvars =
       -- add the `facts` key: https://docs.puppet.com/puppet/4.10/lang_facts_and_builtin_vars.html#accessing-facts-from-puppet-code
       let facts' = Map.insert "facts" (PHash facts) facts
-      in fmap (\x -> x :!: initialPPos "facts" :!: ContRoot) facts'
-    settingvars = fmap (\x -> PString x :!: initialPPos "settings" :!: ContClass "settings") settings
+      in fmap (\x -> (x :!: initialPPos "facts") :!: ContRoot) facts'
+    settingvars = fmap (\x ->( PString x :!: initialPPos "settings") :!: ContClass "settings") settings
     baseVars = Map.fromList [ ("::", ScopeInformation (factvars `mappend` callervars) mempty mempty (CurContainer ContRoot mempty) mempty S.Nothing)
                            , ("settings", ScopeInformation settingvars mempty mempty (CurContainer (ContClass "settings") mempty) mempty S.Nothing)
                            ]
@@ -183,5 +183,5 @@ extractScope s =
               classes = (PArray . Vector.fromList . map PString . Map.keys) (s ^. loadedClasses)
               scps = s ^. scopes
               container_desc = fromMaybe ContRoot (scps ^? ix scope_name . scopeContainer . cctype) -- get the current containder description
-              cscps = scps & ix scope_name . scopeVariables . at "classes" ?~ ( classes :!: (initialPPos mempty) :!: container_desc )
+              cscps = scps & ix scope_name . scopeVariables . at "classes" ?~ ( (classes :!: (initialPPos mempty)) :!: container_desc )
           in  Just (scope_name, cscps)

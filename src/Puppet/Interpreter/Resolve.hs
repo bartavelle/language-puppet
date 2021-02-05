@@ -171,7 +171,7 @@ getVariable scps scp fullvar = do
     [] -> Left "This doesn't make any sense in resolveVariable"
     [vn] -> pure (scp, vn) -- Non qualified variables
     rst -> pure (Text.intercalate "::" (filter (not . Text.null) (List.init rst)), List.last rst) -- qualified variables
-  let extractVariable (varval :!: _ :!: _) = pure varval
+  let extractVariable ((varval :!: _) :!: _) = pure varval
   case scps ^? ix varscope . scopeVariables . ix varname of
     Just pp -> extractVariable pp
     Nothing -> -- check top level scope
@@ -214,7 +214,7 @@ matchExpression a (rv, rexpr) = do
       p <- use curPos
       ctype <- view cctype <$> getCurContainer
       let captures = zip (map (Text.pack . show) [(0 :: Int)..]) (map mkMatch (toList matches))
-          mkMatch (offset, len) = PString (Text.decodeUtf8 (BS.take len (BS.drop offset ra))) :!: p :!: ctype
+          mkMatch (offset, len) = (PString (Text.decodeUtf8 (BS.take len (BS.drop offset ra))) :!: p) :!: ctype
       scp <- getScopeName
       scopes . ix scp . scopeVariables %= HM.union (HM.fromList captures)
       pure $ PBoolean True
@@ -726,7 +726,7 @@ hfSetvars vals = do
   p <- use curPos
   container <- getCurContainer
   save <- use (scopes . ix scp . scopeVariables)
-  let hfSetvar (varname, varval) = scopes . ix scp . scopeVariables . at varname ?= (varval :!: p :!: (container ^. cctype))
+  let hfSetvar (varname, varval) = scopes . ix scp . scopeVariables . at varname ?= ((varval :!: p) :!: (container ^. cctype))
   mapM_ hfSetvar vals
   pure save
 

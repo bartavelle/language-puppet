@@ -121,7 +121,7 @@ library
                      , hruby                >= 0.3.5   && < 0.4
                      , hslogger             >= 1.2     && < 1.4
                      , lens                 >= 4.12    && < 5
-                     , megaparsec           >= 7       && < 9
+                     , megaparsec           >= 7       && < 10
                      , memory               >= 0.14    && < 0.16
                      , mtl                  >= 2.2.1   && < 2.3
                      , operational          >= 0.2.3   && < 0.3
@@ -132,8 +132,8 @@ library
                      , random
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2     && < 0.4
-                     , servant              >= 0.9     && < 0.18
-                     , servant-client       >= 0.9     && < 0.18
+                     , servant              >= 0.9     && < 0.19
+                     , servant-client       >= 0.9     && < 0.19
                      , split                == 0.2.*
                      , stm                  >= 2.4     && < 2.6
                      , strict-base-types    >= 0.3

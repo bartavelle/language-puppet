@@ -393,7 +393,7 @@ puppetClassParameters = V.fromList <$> parens (sepComma var)
       tp <- toStrictMaybe <$> optional datatype
       n  <- variableReference
       df <- toStrictMaybe <$> optional (symbolic '=' *> expression)
-      pure (n :!: tp :!: df)
+      pure ((n :!: tp) :!: df)
 
 puppetIfStyleCondition :: Parser (Pair Expression (Vector Statement))
 puppetIfStyleCondition = (:!:) <$> expression <*> braces statementList
