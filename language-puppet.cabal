@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                language-puppet
-version:             1.4.6.5
+version:             1.4.6.6
 synopsis:            Tools to parse and evaluate the Puppet DSL.
 description:         This is a set of tools that is supposed to fill all your Puppet needs : syntax checks, catalog compilation, PuppetDB queries, simulation of complex interactions between nodes, Puppet master replacement, and more !
 homepage:            http://lpuppet.banquise.net/
@@ -16,7 +16,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 bug-reports:         https://github.com/bartavelle/language-puppet/issues
 
-Tested-With:         GHC == 8.2.2, GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4
+Tested-With:         GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4
 
 extra-source-files:
     CHANGELOG
@@ -106,7 +106,7 @@ library
                      , ansi-wl-pprint       >= 0.6.8
                      , attoparsec           >= 0.12
                      , base                 >= 4.9     && < 5
-                     , base16-bytestring    == 0.1.*
+                     , base16-bytestring    == 1.0.*
                      , bytestring                         < 0.11
                      , case-insensitive     == 1.2.*
                      , containers           >= 0.5     && < 0.7
@@ -128,7 +128,7 @@ library
                      , parsec               == 3.1.*
                      , parser-combinators   == 1.*
                      , pcre-utils           >= 0.1.7   && < 0.2
-                     , protolude            >= 0.2     && < 0.4
+                     , protolude            >= 0.3     && < 0.4
                      , random
                      , regex-pcre-builtin   >= 0.94.4
                      , scientific           >= 0.2     && < 0.4

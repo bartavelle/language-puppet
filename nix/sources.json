@@ -11,16 +11,16 @@
         "url": "https://github.com/nmattia/niv/archive/v0.2.16.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
-     "nixpkgs": {
-        "branch": "release-20.09",
+    "nixpkgs": {
+        "branch": "release-21.05",
         "description": "Nix Packages collection",
         "homepage": null,
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "14cf906f33c",
-        "sha256": "1fmjn8ps072kqm9jm3bpcxjj2h6a3f25rh2bcj62ml1a1m397nkb",
+        "rev": "5237039cc1e",
+        "sha256": "1i1rgqcjxbl968b0m3fi4w0c0vnq9qiivagnpsz3y9sp2mws0d9q",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/14cf906f33c.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/5237039cc1e.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

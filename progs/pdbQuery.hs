@@ -92,12 +92,12 @@ runCheck s = runExceptT >=> unwrapError s
 
 showHelpText :: ParserPrefs -> ParserInfo a -> IO ()
 showHelpText pprefs pinfo = handleParseResult . Failure $
-  parserFailure pprefs pinfo ShowHelpText mempty
+  parserFailure pprefs pinfo (ShowHelpText Nothing) mempty
 
 run :: Options -> IO ()
 run Options {_pdbversion = False, _pdbcmd = Nothing} =
   putText "Please provide one of the available command (see --help for more information) " *> exitFailure
-run Options {_pdbversion = True, ..} = putStrLn ("language-puppet " ++ Meta.showVersion Meta.version)
+run Options {_pdbversion = True} = putStrLn ("language-puppet " ++ Meta.showVersion Meta.version)
 
 run Options{_pdbcmd = Just pdbcmd, ..} = do
   mgr <- Http.newManager Http.defaultManagerSettings
