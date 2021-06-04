@@ -13,7 +13,7 @@ let
     overrides = self: super: rec {
       language-puppet = with pkgs.haskell.lib;
         disableLibraryProfiling
-        ( super.callCabal2nix
+        ( self.callCabal2nix
             "language-puppet"
             (builtins.path { name = "language-puppet"; inherit filter; path = ./.; } )
             { }
