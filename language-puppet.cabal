@@ -114,7 +114,7 @@ library
                      , directory            >= 1.2     && < 1.4
                      , filecache            >= 0.2.9   && < 0.5
                      , filepath             >= 1.4
-                     , formatting                         < 7
+                     , formatting                         < 8
                      , hashable             >= 1.2     && < 1.4
                      , http-api-data        >= 0.2     && < 0.5
                      , http-client          >= 0.4.30  && < 0.8
