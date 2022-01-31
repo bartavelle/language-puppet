@@ -46,6 +46,7 @@ instance Pretty UDataType where
     UDTCollection        -> "Collection"
     UDTRegexp mr         -> "Regexp" <> foldMap (brackets . pretty) mr
     UDTDeferred          -> "Deferred"
+    UDTSensitive o       -> "Sensitive" <> brackets (pretty o)
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
       bounded s ma mb = s <> case (ma, mb) of

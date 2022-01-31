@@ -367,7 +367,7 @@ filterCatalog typeFilter nameFilter =
 
 
 run :: Options -> IO ()
-run Options {_optVersion = True, ..} = putStrLn ("language-puppet " ++ Data.Version.showVersion Meta.version)
+run Options {_optVersion = True} = putStrLn ("language-puppet " ++ Data.Version.showVersion Meta.version)
 
 -- Parse mode
 run Options {_optParse = Just fp, ..} = do

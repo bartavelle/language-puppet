@@ -685,6 +685,7 @@ resolveDataType ud
       UDTCollection       -> pure DTCollection
       UDTRegexp mr        -> pure (DTRegexp mr)
       UDTDeferred         -> pure DTDeferred
+      UDTSensitive dt     -> DTOptional <$> resolveDataType dt
 
 -- | Generates variable associations for evaluation of blocks.
 -- Each item corresponds to an iteration in the calling block.
@@ -850,6 +851,8 @@ datatypeMatch dt v =
     DTRegexp mr          -> case v ^? _PRegexp of
                               Nothing -> False
                               Just cr -> maybe True (== cr) mr
+    DTDeferred           -> True
+    DTSensitive sdt      -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
   where
     checkPattern str (CompRegex _ ptrn) =
       case Regex.execute' ptrn str of
