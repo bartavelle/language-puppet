@@ -35,7 +35,7 @@ module Puppet.Language.NativeTypes.Helpers
 
 import           XPrelude                 as Exports
 
-import           Data.Char                (isDigit)
+import           Data.Char                as Char
 import qualified Data.HashMap.Strict      as Map
 import qualified Data.HashSet             as HS
 import qualified Data.Text                as Text
@@ -254,7 +254,7 @@ checkipv4 ip v =
         nextfunc = if Text.null nxt
             then v == 3
             else checkipv4 (Text.tail nxt) (v+1)
-        goodcur = not (Text.null cur) && Text.all isDigit cur && (let rcur = Text.Read.read (Text.unpack cur) :: Int in (rcur >= 0) && (rcur <= 255))
+        goodcur = not (Text.null cur) && Text.all Char.isDigit cur && (let rcur = Text.Read.read (Text.unpack cur) :: Int in (rcur >= 0) && (rcur <= 255))
     in goodcur && nextfunc
 
 inrange :: Integer -> Integer -> Text -> NativeTypeValidate
