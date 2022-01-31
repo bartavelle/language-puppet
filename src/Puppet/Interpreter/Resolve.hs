@@ -684,6 +684,7 @@ resolveDataType ud
       UDTAny              -> pure DTAny
       UDTCollection       -> pure DTCollection
       UDTRegexp mr        -> pure (DTRegexp mr)
+      UDTDeferred         -> pure DTDeferred
 
 -- | Generates variable associations for evaluation of blocks.
 -- Each item corresponds to an iteration in the calling block.

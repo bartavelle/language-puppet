@@ -668,6 +668,7 @@ datatype =
   <|> (UNotUndef <$ reserved "NotUndef")
   <|> (reserved "Variant" *> (UDTVariant . NE.fromList <$> brackets (datatype `sepBy1` symbolic ',')))
   <|> (reserved "Regexp" *> (UDTRegexp <$> optional (brackets termRegexp)))
+  <|> (UDTDeferred <$ reserved "Deferred")
   -- while all the other cases are straightforward, it seems that the
   -- following syntax is a valid regexp for puppet:
   --   '^dqsqsdqs$'

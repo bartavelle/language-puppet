@@ -175,6 +175,7 @@ data UDataType
   | UDTAny
   | UDTCollection
   | UDTRegexp (Maybe CompRegex)
+  | UDTDeferred
   -- Tuple (NonEmpty DataType) Integer Integer
   -- DTDefault
   -- Struct TODO

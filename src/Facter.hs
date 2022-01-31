@@ -11,7 +11,6 @@ import qualified Data.HashSet        as HS
 import qualified Data.List           as List
 import qualified Data.List.Split     as List
 import           Data.Maybe          (mapMaybe)
-import           Data.Semigroup
 import qualified Data.Text           as T
 import qualified System.Directory    as Directory
 import           System.Environment
