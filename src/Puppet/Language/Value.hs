@@ -33,6 +33,7 @@ data DataType
     | DTCollection
     | DTRegexp (Maybe CompRegex)
     | DTDeferred
+    | DTSensitive DataType
     deriving (Show, Eq)
 
 instance Pretty DataType where
@@ -56,6 +57,7 @@ instance Pretty DataType where
     DTCollection        -> "Collection"
     DTRegexp mr         -> "Regex" <> foldMap (brackets . pretty) mr
     DTDeferred          -> "Deferred"
+    DTSensitive o       -> "Sensitive" <> brackets (pretty o)
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
       bounded s ma mb = s <> case (ma, mb) of
