@@ -777,6 +777,7 @@ datatype =
              , reserved "Systemd::JournaldSettings::Ensure" $> UDTData
              , reserved "Systemd::LogindSettings" $> UDTData
              , reserved "Systemd::LogindSettings::Ensure" $> UDTData
+             , reserved "Systemd::CoredumpSettings" $> UDTData
              ]
 
 statementList :: Parser (Vector Statement)
