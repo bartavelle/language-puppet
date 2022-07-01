@@ -9,8 +9,18 @@
 let
   filter = import ./nix/filter.nix;
   hpkgs = import ./nix/hpkgs.nix {inherit pkgs compiler;};
+  hrubySrc = pkgs.fetchFromGitHub {                                                                                                                                                                                                     
+    owner = "bartavelle";                                                                                                                                                                                                            
+    repo = "hruby";                                                                                                                                                                                                                     
+    rev = "v0.3.8.1";                                                                                                                                                                                     
+    sha256 = "tXzcqwL9NugpkVd0qxq3B/MB6sKnWDj4uAlC6E2pO7Y=";   
+  };
   haskellPackages = hpkgs.override {
     overrides = self: super: rec {
+      hruby = (self.callCabal2nix
+        "hruby"
+        hrubySrc { }
+      );
       language-puppet = with pkgs.haskell.lib;
         disableLibraryProfiling
         ( self.callCabal2nix
