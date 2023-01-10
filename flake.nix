@@ -15,19 +15,19 @@
     {
       overlays.default = final: prev: {
         haskellPackages = prev.haskellPackages.override {
-          overrides = self: super: {
-            hruby = (self.callCabal2nix
-              "hruby"
-              hrubySrc
-              { }
-            );
-            language-puppet = with prev.haskell.lib;
-              dontCheck (disableLibraryProfiling
-                (self.callCabal2nix
-                  "language-puppet"
-                  (prev.lib.cleanSource ./.)
-                  { }
-                ));
+          overrides = self: super: with prev.haskell.lib; {
+            hruby = dontCheck (dontHaddock (disableLibraryProfiling (
+              self.callCabal2nix
+                "hruby"
+                hrubySrc
+                { }
+            )));
+            language-puppet = dontCheck (dontHaddock (disableLibraryProfiling (
+              self.callCabal2nix
+                "language-puppet"
+                (prev.lib.cleanSource ./.)
+                { }
+            )));
           };
         };
       };
