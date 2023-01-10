@@ -21,3 +21,4 @@ debian/debhelper-build-stamp
 debian/language-puppet.debhelper.log
 debian/language-puppet.substvars
 debian/language-puppet/
+.direnv/
