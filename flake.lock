@@ -1,0 +1,45 @@
+{
+  "nodes": {
+    "hrubySrc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1616484344,
+        "narHash": "sha256-tXzcqwL9NugpkVd0qxq3B/MB6sKnWDj4uAlC6E2pO7Y=",
+        "owner": "bartavelle",
+        "repo": "hruby",
+        "rev": "1b1ed097c4fbd0aba8f5a6e30a284d8fcee3a12b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "bartavelle",
+        "ref": "v0.3.8.1",
+        "repo": "hruby",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1651662302,
+        "narHash": "sha256-utlTjLa1s4ezdQIUvnBtmA9TBYFrPlXpAJnCXEiZFZI=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "dff5496b12817e3d019983827c4b7ba7beb96580",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "dff5496b12817e3d019983827c4b7ba7beb96580",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "hrubySrc": "hrubySrc",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
