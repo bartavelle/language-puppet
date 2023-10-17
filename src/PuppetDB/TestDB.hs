@@ -11,7 +11,7 @@ module PuppetDB.TestDB
 import           XPrelude
 
 import           Control.Concurrent.STM
-import           Data.Aeson
+import           Data.Aeson             hiding (AesonException)
 import qualified Data.CaseInsensitive   as CaseInsensitive
 import qualified Data.HashMap.Strict    as HM
 import qualified Data.HashSet           as HS

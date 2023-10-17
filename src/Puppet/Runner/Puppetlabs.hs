@@ -5,7 +5,6 @@ module Puppet.Runner.Puppetlabs (extFunctions) where
 import           XPrelude
 
 import           Crypto.Hash         as Crypto
-import           Data.Char           (isDigit)
 import qualified Data.HashMap.Strict as Map
 import           Data.Scientific     as Sci
 import qualified Data.Text           as Text

@@ -27,6 +27,7 @@ import qualified Text.Megaparsec.Pos   as Pos
 
 import           Puppet.Language.Core
 import           Puppet.Language.Value
+import qualified Data.Aeson.KeyMap as KM
 
 
 rel2text :: LinkType -> Text
@@ -170,7 +171,7 @@ instance ToJSON Resource where
            , ("aliases", toJSON $ r ^. ralias)
            , ("exported", Bool $ r ^. rvirtuality == Exported)
            , ("tags", toJSON $ r ^. rtags)
-           , ("parameters", Object ( fmap toJSON (r ^. rattributes) `Map.union` relations ))
+           , ("parameters", Object $ KM.fromHashMapText ( fmap toJSON (r ^. rattributes) `Map.union` relations ))
            , ("sourceline", r ^. rpos . _1 . _sourceLine . to (toJSON . Pos.unPos))
            , ("sourcefile", r ^. rpos . _1 . _sourceName . to toJSON)
            ]

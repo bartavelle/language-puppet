@@ -1,19 +1,18 @@
 {-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE StrictData        #-}
 {-# LANGUAGE CPP               #-}
 module Main where
 
-import           XPrelude                      hiding (option, (<>))
+import           XPrelude                      hiding ((<>))
 
 import qualified Control.Concurrent.Async      as Async
 import qualified Data.Aeson                    as Aeson
 import qualified Data.HashMap.Strict           as Map
 import qualified Data.HashSet                  as HS
 import qualified Data.List                     as List
-import           Data.Semigroup                as Sem   hiding (option)
+import           Data.Semigroup                as Sem
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Data.Text.Strict.Lens         (unpacked)
@@ -163,15 +162,15 @@ initializedaemonWithPuppet workingdir Options {..} = do
                 (Just _, Just _)   -> panic "You must choose between a testing PuppetDB and a remote one"
                 (Just url, _)      -> pdbConnect mgr url >>= unwrapError "Error when connecting to the remote PuppetDB"
                 (_, Just file)     -> PuppetDB.loadTestDB file >>= unwrapError "Error when initializing the PuppetDB API"
-    pref <- dfPreferences workingdir <&> prefPDB .~ pdbapi
-                                     <&> prefHieraPath .~ _optHieraFile
-                                     <&> prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods)
-                                     <&> (if _optStrictMode then prefStrictness .~ Strict else identity)
-                                     <&> (if _optNoExtraTests then prefExtraTests .~ False else identity)
-                                     <&> prefLogLevel .~ _optLoglevel
-                                     <&> prefRebaseFile .~ _optRebaseFile
+    pref <- dfPreferences workingdir <&> (prefPDB .~ pdbapi)
+                                       . (prefHieraPath .~ _optHieraFile)
+                                       . (prefIgnoredmodules %~ (`fromMaybe` _optIgnoredMods))
+                                       . (if _optStrictMode then prefStrictness .~ Strict else identity)
+                                       . (if _optNoExtraTests then prefExtraTests .~ False else identity)
+                                       . (prefLogLevel .~ _optLoglevel)
+                                       . (prefRebaseFile .~ _optRebaseFile)
     d <- initDaemon pref
-    let queryfunc = \node -> fmap (unifyFacts (pref ^. prefFactsDefault) (pref ^. prefFactsOverride)) (puppetDBFacts node pdbapi) >>= getCatalog d node
+    let queryfunc node = puppetDBFacts node pdbapi >>= getCatalog d node . unifyFacts (pref ^. prefFactsDefault) (pref ^. prefFactsOverride)
     pure (queryfunc, pdbapi, parserStats d, catalogStats d, templateStats d)
     where
       -- merge 3 sets of facts : some defaults, the original set and some override

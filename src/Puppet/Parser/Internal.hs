@@ -2,7 +2,7 @@
 module Puppet.Parser.Internal
 where
 
-import           XPrelude.Extra                   hiding (many, option, some, try)
+import           XPrelude.Extra                   hiding (key, many, some, try)
 
 import           Control.Monad.Combinators.Expr
 import qualified Data.Char                        as Char

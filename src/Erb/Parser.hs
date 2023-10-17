@@ -1,6 +1,6 @@
 module Erb.Parser where
 
-import           XPrelude.Extra         hiding (option, try)
+import           XPrelude.Extra         hiding (try)
 
 import qualified Data.Text              as Text
 import           Text.Parsec.Char

@@ -23,14 +23,12 @@ module XPrelude.Extra (
     , logCritical
     , logCriticalStr
     -- * Lenses for json
-    , key
-    , _String
     , avalues
     , nth
 ) where
 
 import           Protolude                        as Exports hiding (Down, Infix, Prefix, Selector,
-                                                              State, StateT, Strict, break, check,
+                                                              State, StateT, break, check,
                                                               evalState, evalStateT, execState,
                                                               execStateT, from, hash, list,
                                                               moduleName, runState, runStateT,
@@ -42,10 +40,11 @@ import           Control.Exception.Lens           as Exports (catching)
 import           Control.Lens                     as Exports hiding (Strict, argument, noneOf, op,
                                                               (<.>))
 import           Control.Monad                    as Exports (fail)
-import           Control.Monad.Trans.Except       as Exports (catchE, except, throwE)
+import           Control.Monad.Trans.Except       as Exports (except)
 import           Control.Monad.Trans.Maybe        as Exports (runMaybeT)
 import           Data.Aeson                       as Exports (FromJSON, ToJSON, fromJSON, toJSON)
 import           Data.Aeson                       (Value (..))
+import           Data.Aeson.Lens                  as Exports (_Array, _Object, _String, key)
 import           Data.HashMap.Strict              as Exports (HashMap)
 import           Data.HashSet                     as Exports (HashSet)
 import           Data.Scientific                  as Exports (Scientific)
@@ -57,12 +56,10 @@ import           Text.Regex.PCRE.ByteString.Utils as Exports (Regex)
 import           Data.Attoparsec.Text             (parseOnly, rational)
 import qualified Data.Either.Strict               as S
 import qualified Data.HashMap.Strict              as Map
-import qualified Data.HashMap.Strict              as HM
 import qualified Data.HashSet                     as HS
 import qualified Data.Scientific                  as Scientific
 import           Data.String                      (String)
 import qualified Data.Text                        as Text
-import qualified Data.Vector                      as V
 import qualified System.Log.Logger                as Log
 import           XPrelude.PP
 
@@ -150,25 +147,6 @@ unwrapError desc = either exit pure
     where
       exit = \err -> putDoc (display err) >> exitFailure
       display err = red desc <> ":" <+> getError err
-
-key :: Text -> Traversal' Value Value
-key k f v =
-    case v of
-      Object o ->
-        fmap Object (HM.alterF (traverse f) k o)
-      _ -> pure v
-
-_String :: Prism' Value Text
-_String = prism String $
-  \v -> case v of
-          String x -> Right x
-          _ -> Left v
-
-_Array :: Prism' Value (V.Vector Value)
-_Array = prism Array $
-  \v -> case v of
-          Array x -> Right x
-          _ -> Left v
 
 avalues :: IndexedTraversal' Int Value Value
 avalues = _Array . traversed

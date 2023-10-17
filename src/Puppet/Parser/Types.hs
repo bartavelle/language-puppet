@@ -50,7 +50,6 @@ import qualified Data.Maybe.Strict  as S
 import qualified Data.Text          as Text
 import qualified Data.Vector        as V
 import qualified GHC.Exts           as Exts
-import           GHC.Show           (Show (..))
 import           Text.Megaparsec
 
 import           Puppet.Language

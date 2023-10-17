@@ -245,7 +245,7 @@ base64 [pa,pb] = do
         "encode" -> return (B16.encode b)
         "decode" -> case B16.decode b of
                       Right x -> return x
-                      Left msg -> error ("base64(): could not decode" <+> pretty pb <+> ppstring msg) *> pure mempty
+                      Left msg -> mempty <$ error ("base64(): could not decode" <+> pretty pb <+> ppstring msg)
         a        -> throwPosError ("base64(): the first argument must be either 'encode' or 'decode', not" <+> ppline a)
   pure $ PString (decodeUtf8 r)
 base64 _ = throwPosError "base64(): Expects 2 arguments"
@@ -438,7 +438,7 @@ deepMerge xs
         Just hashes -> pure $ PHash (List.foldr1 rec_merge hashes)
   where
     rec_merge :: Container PValue -> Container PValue -> Container PValue
-    rec_merge a b =  HM.unionWith f a b
+    rec_merge = HM.unionWith f
     f :: PValue -> PValue -> PValue
     f (PHash a) (PHash b) = PHash $ rec_merge a b
     f _ h = h

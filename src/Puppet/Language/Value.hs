@@ -6,8 +6,8 @@ where
 import           XPrelude
 
 import           Data.Aeson
+import qualified Data.Aeson.KeyMap                as KM
 import           Data.Aeson.TH
-import qualified Data.HashMap.Strict as HM
 import           Data.Scientific (isInteger)
 import           Foreign.Ruby.Helpers
 
@@ -127,8 +127,8 @@ instance FromJSON PValue where
   parseJSON (String s) = return (PString s)
   parseJSON (Bool b) = return (PBoolean b)
   parseJSON (Array v) = fmap PArray (mapM parseJSON v)
-  parseJSON (Object o) | HM.size o == 1 && HM.keys o == ["regexp"] = o .: "regexp"
-  parseJSON (Object o) = fmap PHash (mapM parseJSON o)
+  parseJSON (Object o) | KM.size o == 1 && KM.keys o == ["regexp"] = o .: "regexp"
+  parseJSON (Object o) = fmap (PHash . KM.toHashMapText) (traverse parseJSON o)
 
 instance ToJSON PValue where
   toJSON (PType t) = toJSON t
@@ -137,7 +137,7 @@ instance ToJSON PValue where
   toJSON (PString s) = String s
   toJSON (PResourceReference _ _) = Null -- TODO
   toJSON (PArray r) = Array (fmap toJSON r)
-  toJSON (PHash x) = Object (fmap toJSON x)
+  toJSON (PHash x) = Object (KM.fromHashMapText (fmap toJSON x))
   toJSON (PNumber n) = Number n
   toJSON (PRegexp r) = object [("regexp", toJSON r)]
 

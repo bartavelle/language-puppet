@@ -4,7 +4,7 @@
 -- | Internal helpers module.
 module Puppet.Interpreter.Helpers where
 
-import           XPrelude
+import           XPrelude                   hiding (key)
 
 import           Control.Monad.Operational
 import           Control.Monad.Writer.Class
@@ -17,6 +17,7 @@ import qualified Data.Text.Encoding         as Text
 import qualified System.Log.Logger          as Log
 
 import           Facter
+import           GHC.Err                    as Err
 import           Puppet.Interpreter.Types
 
 
@@ -107,7 +108,9 @@ getNodeName = singleton GetNodeName
 -- look an hash of facts to retrieve deepest PValue
 lookupFacts :: Text -> HashMap Text PValue -> Maybe PValue
 lookupFacts key facts =
-  let (k0:ks) = Text.splitOn "." key
+  let (k0,ks) = case Text.splitOn "." key of
+                  a:b -> (a, b)
+                  _ -> Err.error "should not happen"
       f k = \case
         Just (PHash h) -> Map.lookup k h
         x -> x

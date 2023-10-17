@@ -26,6 +26,7 @@ import           XPrelude hiding (space)
 
 import           Data.Aeson
 import qualified Data.Aeson                 as Aeson
+import           Data.Aeson.Lens            (_Key)
 import qualified Data.Attoparsec.Text       as AT
 import qualified Data.ByteString.Lazy       as BS
 import qualified Data.ByteString.Lazy.Char8 as BS8
@@ -278,7 +279,7 @@ recursiveQuery curquery prevqueries =
     HieraFunction _ _ -> throwError "Hiera functions not yet handled here (A)"
     HieraVar (varname :| allkeys) -> do
       checkLoop varname prevqueries
-      rawlookups <- mapMaybe (preview (key varname)) <$> view qhier
+      rawlookups <- mapMaybe (preview (key (varname ^. _Key))) <$> view qhier
       let lookupKeys keys v =
             case keys of
               [] -> pure v
@@ -290,7 +291,7 @@ recursiveQuery curquery prevqueries =
                       Just v' -> lookupKeys ks v'
                   _ -> Nothing
       rlookups <- mapM (resolveValue (varname : prevqueries)) rawlookups
-      let lookups = mapMaybe (lookupKeys allkeys) rlookups
+      let lookups = mapMaybe (lookupKeys (allkeys ^.. traversed . _Key)) rlookups
       case traverse Aeson.fromJSON lookups of
         Aeson.Error rr -> throwError ("Something horrible happened in recursiveQuery: " <> fromString rr)
         Aeson.Success [] ->
