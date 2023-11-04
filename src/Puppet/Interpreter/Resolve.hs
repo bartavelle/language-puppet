@@ -370,6 +370,7 @@ resolvePValueString (PString x) = pure x
 resolvePValueString (PBoolean True) = pure "true"
 resolvePValueString (PBoolean False) = pure "false"
 resolvePValueString (PNumber x) = pure (scientific2text x)
+resolvePValueString (PRegexp (CompRegex e _)) = pure e
 resolvePValueString PUndef = do
   checkStrict
     "Resolving the keyword `undef` to the string \"undef\""
