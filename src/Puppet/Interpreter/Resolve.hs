@@ -875,6 +875,7 @@ checkMatch dt pv = unless (datatypeMatch dt pv) (throwPosError (pretty pv <+> "d
 typeOf :: PValue -> DataType
 typeOf pv =
     case pv of
+      PSensitive x           -> typeOf x
       PBoolean _             -> DTBoolean
       PUndef                 -> DTUndef
       PString _              -> DTString Nothing Nothing

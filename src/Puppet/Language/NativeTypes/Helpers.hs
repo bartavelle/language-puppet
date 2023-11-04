@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use camelCase" #-}
 --  Private modules.
 --  Function and data types that are used to define the native types.
 module Puppet.Language.NativeTypes.Helpers
@@ -159,7 +161,7 @@ integer :: Text -> NativeTypeValidate
 integer prm res = string prm res >>= integer' prm
   where
     integer' pr rs = case rs ^. rattributes . at pr of
-      Just x -> integer'' prm x res
+      Just x  -> integer'' prm x res
       Nothing -> Right rs
 
 integers :: Text -> NativeTypeValidate
@@ -168,7 +170,7 @@ integers param = runarray param integer''
 integer'' :: Text -> PValue -> NativeTypeValidate
 integer'' param val res = case val ^? _PValueInteger of
   Just v -> Right (res & rattributes . at param ?~ PNumber (fromIntegral v))
-  _ -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
+  _      -> perror $ "Parameter" <+> paramname param <+> "must be an integer"
 
 -- | Copies the "name" value into the parameter if this is not set.
 -- It implies the `string` validator.
@@ -177,8 +179,8 @@ nameval prm res =
   string prm res >>= \r ->
     case r ^. rattributes . at prm of
       Just (PString al) -> Right (res & rid . iname .~ al)
-      Just x -> perror ("The alias must be a string, not" <+> pretty x)
-      Nothing -> Right (r & rattributes . at prm ?~ PString (r ^. rid . iname))
+      Just x            -> perror ("The alias must be a string, not" <+> pretty x)
+      Nothing           -> Right (r & rattributes . at prm ?~ PString (r ^. rid . iname))
 
 -- | Checks that a given parameter is set unless the resources "ensure" is set to absent
 mandatoryIfNotAbsent :: Text -> NativeTypeValidate
@@ -187,7 +189,7 @@ mandatoryIfNotAbsent param res =
     Just _  -> Right res
     Nothing -> case res ^. rattributes . at "ensure" of
       Just "absent" -> Right res
-      _ -> perror $ "Parameter" <+> paramname param <+> "should be set."
+      _             -> perror $ "Parameter" <+> paramname param <+> "should be set."
 
 -- | Checks that a given parameter is set.
 mandatory :: Text -> NativeTypeValidate

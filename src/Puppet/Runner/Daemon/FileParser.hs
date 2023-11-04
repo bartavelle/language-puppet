@@ -22,23 +22,23 @@ import           Puppet.Runner.Stats
 -- The toplevel is defined by the tuple (type, name)
 -- The result of the parsing is a single Statement (which recursively contains others statements)
 parseFunc :: PuppetDirPaths -> FileCacheR PrettyError (V.Vector Statement) -> MStats -> TopLevelType -> Text -> IO (S.Either PrettyError Statement)
-parseFunc ppath filecache stats = \toptype topname ->
-  let nameparts = Text.splitOn "::" topname in
-  let topLevelFilePath :: TopLevelType -> Text -> Either PrettyError Text
-      topLevelFilePath TopNode _ = Right $ Text.pack (ppath^.manifestPath <> "/site.pp")
-      topLevelFilePath  _ name
-          | length nameparts == 1 = Right $ Text.pack (ppath^.modulesPath) <> "/" <> name <> "/manifests/init.pp"
-          | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ppline name))
-          | otherwise             = Right $ Text.pack (ppath^.modulesPath) <> "/" <> List.head nameparts <> "/manifests/" <> Text.intercalate "/" (List.tail nameparts) <> ".pp"
-  in
-  case topLevelFilePath toptype topname of
-      Left rr     -> return (S.Left rr)
-      Right fname -> do
-          let sfname = Text.unpack fname
-          x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname))
-          case x of
-            S.Right stmts -> filterStatements toptype topname stmts
-            S.Left rr     -> return (S.Left rr)
+parseFunc ppath filecache stats toptype topname =
+    let nameparts = Text.splitOn "::" topname
+        topLevelFilePath :: TopLevelType -> Text -> Either PrettyError Text
+        topLevelFilePath TopNode _ = Right $ Text.pack (ppath^.manifestPath <> "/site.pp")
+        topLevelFilePath  _ name
+            | length nameparts == 1 = Right $ Text.pack (ppath^.modulesPath) <> "/" <> name <> "/manifests/init.pp"
+            | null nameparts        = Left $ PrettyError ("Invalid toplevel" <+> squotes (ppline name))
+            | otherwise             = Right $ Text.pack (ppath^.modulesPath) <> "/" <> List.head nameparts <> "/manifests/" <> Text.intercalate "/" (List.tail nameparts) <> ".pp"
+    in
+    case topLevelFilePath toptype topname of
+        Left rr     -> return (S.Left rr)
+        Right fname -> do
+            let sfname = Text.unpack fname
+            x <- measure stats fname (FileCache.query filecache sfname (parseFile sfname))
+            case x of
+              S.Right stmts -> filterStatements toptype topname stmts
+              S.Left rr     -> return (S.Left rr)
 
 parseFile :: FilePath -> IO (S.Either PrettyError (V.Vector Statement))
 parseFile fname = do
@@ -83,12 +83,11 @@ filterStatements x ndename stmts =
   let (!spurious, !defines, !classes) = V.foldl' triage (V.empty, Map.empty, Map.empty) stmts
       triage curstuff n@(ClassDeclaration (ClassDecl cname _ _ _ _)) = curstuff & _3 . at cname ?~ n
       triage curstuff n@(DefineDeclaration (DefineDecl cname _ _ _)) = curstuff & _2 . at cname ?~ n
-      triage curstuff n = curstuff & _1 %~ (|> n)
+      triage curstuff n                                              = curstuff & _1 %~ (|> n)
       tc n = if V.null spurious
                then n
                else TopContainer spurious n
   in  case x of
-        TopNode -> return (S.Left "Case already covered, shoudln't happen in Puppet.Manifests")
         TopDefine -> case defines ^. at ndename of
           Just n  -> return (S.Right (tc n))
           Nothing -> return (S.Left (PrettyError ("Couldn't find define " <+> ppline ndename)))

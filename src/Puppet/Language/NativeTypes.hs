@@ -7,24 +7,26 @@ module Puppet.Language.NativeTypes (
   , HasNativeTypeMethods(..)
 ) where
 
-import qualified Data.HashMap.Strict                       as HM
+import qualified Data.HashMap.Strict                    as HM
 
-import           Puppet.Language.NativeTypes.Concat
-import           Puppet.Language.NativeTypes.Cron
-import           Puppet.Language.NativeTypes.Exec
-import           Puppet.Language.NativeTypes.File
-import           Puppet.Language.NativeTypes.Group
-import           Puppet.Language.NativeTypes.Helpers
-import           Puppet.Language.NativeTypes.Host
-import           Puppet.Language.NativeTypes.Mount
-import           Puppet.Language.NativeTypes.Notify
-import           Puppet.Language.NativeTypes.Package
-import           Puppet.Language.NativeTypes.SshSecure
-import           Puppet.Language.NativeTypes.User
-import           Puppet.Language.NativeTypes.ZoneRecord
+import           Puppet.Language.NativeTypes.Concat     (nativeConcat, nativeConcatFragment)
+import           Puppet.Language.NativeTypes.Cron       (nativeCron)
+import           Puppet.Language.NativeTypes.Exec       (nativeExec)
+import           Puppet.Language.NativeTypes.File       (nativeFile)
+import           Puppet.Language.NativeTypes.Group      (nativeGroup)
+import           Puppet.Language.NativeTypes.Helpers    (Container, HasNativeTypeMethods (..),
+                                                         NativeTypeMethods, NativeTypeName,
+                                                         defaulttype, faketype, map, (++))
+import           Puppet.Language.NativeTypes.Host       (nativeHost)
+import           Puppet.Language.NativeTypes.Mount      (nativeMount)
+import           Puppet.Language.NativeTypes.Notify     (nativeNotify)
+import           Puppet.Language.NativeTypes.Package    (nativePackage)
+import           Puppet.Language.NativeTypes.SshSecure  (nativeSshSecure)
+import           Puppet.Language.NativeTypes.User       (nativeUser)
+import           Puppet.Language.NativeTypes.ZoneRecord (nativeZoneRecord)
 
 fakeTypes :: [(NativeTypeName, NativeTypeMethods)]
-fakeTypes = map faketype ["class"]
+fakeTypes = [faketype "class"]
 
 defaultTypes :: [(NativeTypeName, NativeTypeMethods)]
 defaultTypes = map defaulttype ["augeas","computer","filebucket","interface","k5login","macauthorization","mailalias","maillist","mcx","nagios_command","nagios_contact","nagios_contactgroup","nagios_host","nagios_hostdependency","nagios_hostescalation","nagios_hostextinfo","nagios_hostgroup","nagios_service","nagios_servicedependency","nagios_serviceescalation","nagios_serviceextinfo","nagios_servicegroup","nagios_timeperiod","resources","router","schedule","scheduledtask","selboolean","selmodule","service","ssh_authorized_key","sshkey","stage","tidy","vlan","yumrepo","zfs","zone","zpool"]

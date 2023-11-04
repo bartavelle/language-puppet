@@ -31,6 +31,7 @@ import           Puppet.Runner
 import           PuppetDB                      (PuppetDBAPI, dummyPuppetDB, pdbConnect,
                                                 puppetDBFacts)
 import qualified PuppetDB
+import Data.Maybe (fromJust)
 
 type QueryFunc = NodeName -> IO (Either PrettyError (FinalCatalog, EdgeMap, FinalCatalog, [Resource]))
 
@@ -287,15 +288,15 @@ computeStats workingdir Options {..}
       allfiles = Set.fromList $ map Text.unpack $ Map.keys pStats
   when _optDeadcode $ findDeadCode workingdir allres allfiles
   -- compute statistics
-  let (parsing,    Just (wPName, wPMean)) = worstAndSum pStats
-      (cataloging, Just (wCName, wCMean)) = worstAndSum cStats
-      (templating, Just (wTName, wTMean)) = worstAndSum tStats
+  let (parsing,    (wPName, wPMean)) = worstAndSum pStats
+      (cataloging, (wCName, wCMean)) = worstAndSum cStats
+      (templating, (wTName, wTMean)) = worstAndSum tStats
       parserShare = 100 * parsing / cataloging
       templateShare = 100 * templating / cataloging
       formatDouble = Text.take 5 . show -- yeah, well ...
       nbnodes = length topnodes
       worstAndSum =   (_1 %~ getSum)
-                    . (_2 %~ fmap swap . getMaximum)
+                    . (_2 %~ swap . fromJust . getMaximum)
                     . ifoldMap (\k (StatsPoint cnt total _ _) -> (Sum total, Maximum $ Just (total / fromIntegral cnt, k)))
   putStr ("\nTested " ++ show nbnodes ++ " nodes. ")
   unless (nbnodes == 0) $ do

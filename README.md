@@ -47,7 +47,7 @@ There are 4 different modes:
   - `--node` will display all resources on screen in a nice
     user-friendly colored fashion.
 
-  - `--all` displays statitics and optionally shows dead code.
+  - `--all` displays statistics and optionally shows dead code.
 
   - `--parse` only goes as far as parsing. No interpretation.
 
@@ -167,7 +167,7 @@ PuppetDB (the official one with its HTTP API, the file-based backend and
 dummy ones). It can be used to:
 
   - export data from production PuppetDB to a file (in order to debug
-    some issue with `puppetresources**).
+    some issue with `puppetresources`).
   - query a Puppetdb
 
 **Command line arguments**

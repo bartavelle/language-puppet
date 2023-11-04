@@ -12,7 +12,6 @@ import qualified Data.FileCache             as Cache
 import qualified Data.List                  as List
 import qualified Data.List.Split            as List
 import qualified Data.Text                  as Text
-import           Data.Tuple.Strict          (Pair (..))
 import qualified Data.Vector                as Vector
 import           Debug.Trace
 import           Foreign.Ruby

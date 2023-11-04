@@ -77,7 +77,8 @@ data PValue
   | PHash !(Container PValue)
   | PNumber !Scientific
   | PType !DataType
-  | PRegexp !CompRegex
+  | PRegexp !CompRegex
+  | PSensitive !PValue
   deriving (Eq, Show)
 
 makePrisms ''PValue
@@ -93,6 +94,7 @@ instance Pretty PValue where
   pretty (PHash g) = containerComma g
   pretty (PType dt) = pretty dt
   pretty (PRegexp cr) = pretty cr
+  pretty (PSensitive _) = red "[SENSITIVE]"
 
 instance IsString PValue where
   fromString = PString . toS
@@ -140,6 +142,7 @@ instance ToJSON PValue where
   toJSON (PHash x) = Object (KM.fromHashMapText (fmap toJSON x))
   toJSON (PNumber n) = Number n
   toJSON (PRegexp r) = object [("regexp", toJSON r)]
+  toJSON (PSensitive x) = toJSON x
 
 instance ToRuby PValue where
     toRuby = toRuby . toJSON

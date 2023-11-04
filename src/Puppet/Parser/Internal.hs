@@ -223,6 +223,7 @@ specialFunctions :: Parser Text
 specialFunctions =
       chunk "Integer"
   <|> chunk "Numeric"
+  <|> chunk "Sensitive"
 
 -- The first argument defines if non-parenthesized arguments are acceptable
 genFunctionCall :: Bool -> Parser (Text, Vector Expression)
@@ -231,7 +232,7 @@ genFunctionCall nonparens = do
   let
       -- first check if the function arg is not a qualified name (ex.: include foo::bar)
       -- if it is not, then we expect an expression
-      qualif_param = (Terminal . UString) <$> qualif1 moduleName <* notFollowedBy (single '(') -- <* lookAhead (anySingleBut '(')
+      qualif_param = Terminal . UString <$> qualif1 moduleName <* notFollowedBy (single '(') -- <* lookAhead (anySingleBut '(')
       func_arg expr =  try qualif_param <|> expr <?> "Function argument"
       terminalF = terminalG FunctionWithoutParens
       expressionF = makeExprParser (lexeme terminalF) expressionTable <?> "Function expression"

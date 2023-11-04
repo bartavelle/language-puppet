@@ -51,6 +51,7 @@ eval r s (a :>>= k) =
     in
     case a of
       IsStrict                     -> runInstr (r ^. readerIsStrict)
+      ExternalFunction "Sensitive" [arg] -> interpretMonad r s (k (PSensitive arg))
       ExternalFunction name args  ->
         -- #271: namespace is currently ignored when looking up puppetlabs functions
         let (nsp, name') = Text.breakOnEnd "::" name
