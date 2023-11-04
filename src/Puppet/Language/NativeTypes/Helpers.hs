@@ -140,6 +140,9 @@ string' param rev res = case rev of
   PBoolean True  -> Right (res & rattributes . at param ?~ PString "true")
   PBoolean False -> Right (res & rattributes . at param ?~ PString "false")
   PNumber n      -> Right (res & rattributes . at param ?~ PString (scientific2text n))
+  PSensitive x   -> case string' param x res of
+                        Right v -> Right v
+                        Left _ -> perror $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
   x              -> perror $ "Parameter" <+> paramname param <+> "should be a string, and not" <+> pretty x
 
 -- | Makes sure that the parameter, if defined, has a value among this list.
