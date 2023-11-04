@@ -1,14 +1,12 @@
-module HieraSpec(spec) where
-
-import           XPrelude
+module HieraSpec (spec) where
 
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Vector         as Vector
-import qualified System.Log.Logger   as Log
-import           Test.Hspec
-
-import           Hiera.Server
-import           Puppet.Language
+import qualified Data.Vector as Vector
+import Hiera.Server
+import Puppet.Language
+import qualified System.Log.Logger as Log
+import Test.Hspec
+import XPrelude
 
 checkOutput :: (Eq a, Show rr, Show a) => a -> Either rr a -> Expectation
 checkOutput v (Right x) = x `shouldBe` v
@@ -16,7 +14,7 @@ checkOutput _ (Left rr) = expectationFailure (show rr)
 
 checkFail :: (Show a) => Either rr a -> Expectation
 checkFail (Right v) = expectationFailure ("Should have failed, but returned: " ++ show v)
-checkFail _         = return ()
+checkFail _ = return ()
 
 fqdn :: Text
 fqdn = "node.com"
@@ -34,19 +32,25 @@ configInterpolate :: FilePath
 configInterpolate = "./tests/hiera/interpolate/config/hiera.yaml"
 
 vars :: HM.HashMap Text PValue
-vars = HM.fromList [ ("::environment", "production")
-                   , ("::fqdn"       , PString fqdn)
-                   ]
+vars =
+  HM.fromList
+    [ ("::environment", "production"),
+      ("::fqdn", PString fqdn)
+    ]
 
 users :: HM.HashMap Text PValue
-users = HM.fromList [ ("pete", PHash (HM.singleton "uid" (PNumber 2000)))
-                    , ("tom" , PHash (HM.singleton "uid" (PNumber 2001)))
-                    ]
+users =
+  HM.fromList
+    [ ("pete", PHash (HM.singleton "uid" (PNumber 2000))),
+      ("tom", PHash (HM.singleton "uid" (PNumber 2001)))
+    ]
 
 pusers :: HM.HashMap Text PValue
-pusers = HM.fromList [ ("bob", PHash (HM.singleton "uid" (PNumber 100)))
-                     , ("tom" , PHash (HM.singleton "uid" (PNumber 12)))
-                     ]
+pusers =
+  HM.fromList
+    [ ("bob", PHash (HM.singleton "uid" (PNumber 100))),
+      ("tom", PHash (HM.singleton "uid" (PNumber 12)))
+    ]
 
 hash :: [(Text, PValue)] -> PValue
 hash = PHash . HM.fromList
@@ -65,11 +69,11 @@ spec = do
     interpolationSpec
     miscSpec
     describe "v5 lookup hierarchy" $
-      it "should override some values"  $ do
+      it "should override some values" $ do
         q5 vars "http_port" QFirst >>= checkOutput (Just (PNumber 9090))
         q5 vars "global" QFirst >>= checkOutput (Just "glob")
     describe "v5 ~" $
-      it "should read '~' as a Null/Nothing value"  $
+      it "should read '~' as a Null/Nothing value" $
         q5 vars "optional_value" QFirst >>= checkOutput (Just PUndef)
     describe "v3 lookup with no context variables" $ do
       it "should return nothing when called with an empty string" $
@@ -83,7 +87,7 @@ spec = do
       it "should return common data" $
         q3 mempty "http_port" QFirst >>= checkOutput (Just (PNumber 8080))
       it "should return arrays" $
-        q3 mempty "ntp_servers" QFirst >>= checkOutput (Just (array ["0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"]))
+        q3 mempty "ntp_servers" QFirst >>= checkOutput (Just (array ["0.ntp.puppetlabs.com", "1.ntp.puppetlabs.com"]))
       it "should return hashes" $
         q3 mempty "users" QFirst >>= checkOutput (Just (PHash users))
     describe "v3 lookup hierarchy" $ do
@@ -98,7 +102,7 @@ spec = do
       it "resolves in strings" $
         q3 vars "interp1" QFirst >>= checkOutput (Just (PString ("**" <> fqdn <> "**")))
       it "resolves in objects" $
-        q3 vars "testnode" QFirst >>= checkOutput (Just (hash [("1",PString ("**" <> fqdn <> "**")),("2",PString "nothing special")]))
+        q3 vars "testnode" QFirst >>= checkOutput (Just (hash [("1", PString ("**" <> fqdn <> "**")), ("2", PString "nothing special")]))
       it "resolves in arrays" $
         q3 vars "arraytest" QFirst >>= checkOutput (Just (array [PString "a", PString fqdn, PString "c"]))
       it "resolves aliases" $
@@ -109,7 +113,7 @@ spec = do
         q3 vars "aliased_lookup" QFirst >>= checkOutput (Just (PNumber 100))
     describe "v3 other merge modes" $ do
       it "catenates arrays" $
-        q3 vars "ntp_servers" QUnique >>= checkOutput (Just (array ["2.ntp.puppetlabs.com","3.ntp.puppetlabs.com","0.ntp.puppetlabs.com","1.ntp.puppetlabs.com"]))
+        q3 vars "ntp_servers" QUnique >>= checkOutput (Just (array ["2.ntp.puppetlabs.com", "3.ntp.puppetlabs.com", "0.ntp.puppetlabs.com", "1.ntp.puppetlabs.com"]))
       it "puts single values in arrays" $
         q3 vars "http_port" QUnique >>= checkOutput (Just (array [PNumber 9090, PNumber 8080]))
       it "merges hashes" $
@@ -142,7 +146,6 @@ interpolationSpec =
     describe "when not finding value for interpolated key" $
       it "should resolve the interpolation to an empty string" $
         q mempty "niltest" QFirst >>= checkFail -- puppet behavior: checkOutput (Just "Missing key ##. Key with nil ##")
-
     describe "when there are empty interpolations %{} in data" $ do
       it "should should produce an empty string for the interpolation" $ do
         pendingWith "Support empty interpolation"
@@ -190,21 +193,27 @@ interpolationSpec =
       it "split dq" $ varSplitter "\"ab\"" `shouldBe` HieraVar ("ab" :| [])
       it "split dq 2" $ varSplitter "\"ab.cd\"" `shouldBe` HieraVar ("ab.cd" :| [])
       it "split dq 2 mixed" $ varSplitter "\"ab.cd\".ef" `shouldBe` HieraVar ("ab.cd" :| ["ef"])
-      it "split dq 2 mixed 4" $ varSplitter "\"ab.cd\".ef.\"lol.cat\".bar" `shouldBe`
-            HieraVar ("ab.cd" :| ["ef", "lol.cat", "bar"])
+      it "split dq 2 mixed 4" $
+        varSplitter "\"ab.cd\".ef.\"lol.cat\".bar"
+          `shouldBe` HieraVar ("ab.cd" :| ["ef", "lol.cat", "bar"])
       it "split sq" $ varSplitter "'ab'" `shouldBe` HieraVar ("ab" :| [])
       it "split sq 2" $ varSplitter "'ab.cd'" `shouldBe` HieraVar ("ab.cd" :| [])
       it "split sq 2 mixed" $ varSplitter "'ab.cd'.ef" `shouldBe` HieraVar ("ab.cd" :| ["ef"])
-      it "split sq 2 mixed 4" $ varSplitter "'ab.cd'.ef.'lol.cat'.bar" `shouldBe`
-            HieraVar ("ab.cd" :| ["ef", "lol.cat", "bar"])
-      it "split all mixed" $ varSplitter "'a.b'.\"c.d\".e.f" `shouldBe`
-            HieraVar ("a.b" :| ["c.d", "e", "f"])
-      it "function f()" $ varSplitter "f()" `shouldBe`
-            HieraFunction ("f" :| []) []
-      it "function f('a')" $ varSplitter "f('a')" `shouldBe`
-            HieraFunction ("f" :| []) ["a"]
-      it "function f('a', 'b', 'c')" $ varSplitter "f('a', 'b', 'c')" `shouldBe`
-            HieraFunction ("f" :| []) ["a", "b", "c"]
+      it "split sq 2 mixed 4" $
+        varSplitter "'ab.cd'.ef.'lol.cat'.bar"
+          `shouldBe` HieraVar ("ab.cd" :| ["ef", "lol.cat", "bar"])
+      it "split all mixed" $
+        varSplitter "'a.b'.\"c.d\".e.f"
+          `shouldBe` HieraVar ("a.b" :| ["c.d", "e", "f"])
+      it "function f()" $
+        varSplitter "f()"
+          `shouldBe` HieraFunction ("f" :| []) []
+      it "function f('a')" $
+        varSplitter "f('a')"
+          `shouldBe` HieraFunction ("f" :| []) ["a"]
+      it "function f('a', 'b', 'c')" $
+        varSplitter "f('a', 'b', 'c')"
+          `shouldBe` HieraFunction ("f" :| []) ["a", "b", "c"]
 
     describe "when using dotted keys" $ do
       it "should find an entry using a quoted interpolation" $

@@ -1,8 +1,5 @@
-import           Test.Hspec
-
-import           Helpers
-
 import qualified ErbSpec
+import Helpers
 import qualified HieraSpec
 import qualified Interpreter.ClassSpec
 import qualified Interpreter.CollectorSpec
@@ -25,6 +22,7 @@ import qualified Parser.DT
 import qualified Parser.ExprSpec
 import qualified Parser.LexerSpec
 import qualified PuppetdbSpec
+import Test.Hspec
 
 main :: IO ()
 main = hspec spec

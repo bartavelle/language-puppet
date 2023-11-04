@@ -2,12 +2,10 @@
 
 module Interpreter.ClassSpec (spec) where
 
-import           Test.Hspec
-
-import           Control.Lens
-import qualified Data.Text         as Text
-
-import           Helpers
+import Control.Lens
+import qualified Data.Text as Text
+import Helpers
+import Test.Hspec
 
 spec = do
   describe "Class" $ do
@@ -16,7 +14,7 @@ spec = do
     it "should work when using class before include" $
       pureCatalog (Text.unlines ["class foo {}", "class { 'foo': }", "include foo"]) `shouldSatisfy` has _Right
     it "should fail when using include before class" $
-      pureCatalog (Text.unlines ["class foo {}", "include foo", "class { 'foo': }" ]) `shouldSatisfy` has _Left
+      pureCatalog (Text.unlines ["class foo {}", "include foo", "class { 'foo': }"]) `shouldSatisfy` has _Left
     it "should fail if the class is not defined" $
       pureCatalog (Text.unlines ["include foo"]) `shouldSatisfy` has _Left
   describe "Parameters" $ do
@@ -24,7 +22,7 @@ spec = do
       pureCatalog (Text.unlines ["class foo ($param0){}", "class {'foo': param1 => 1 }"]) `shouldSatisfy` has _Left
     it "should succeed when declaring a class with a correct param" $
       pureCatalog (Text.unlines ["class foo ($param0){}", "class {'foo': param0 => 1 }"]) `shouldSatisfy` has _Right
-    it "should fail when the type of the attribute is wrong"  $
+    it "should fail when the type of the attribute is wrong" $
       pureCatalog (Text.unlines ["class foo (String $param0){}", "class {'foo': param0 => 1 }"]) `shouldSatisfy` has _Left
     it "should fail when declaring with a missing param" $
       pureCatalog (Text.unlines ["class foo ($param0){}", "class {'foo': }"]) `shouldSatisfy` has _Left

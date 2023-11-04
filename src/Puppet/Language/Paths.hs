@@ -1,14 +1,20 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module Puppet.Language.Paths where
 
-import           XPrelude
+import XPrelude
 
 data PuppetDirPaths = PuppetDirPaths
-  { _baseDir       :: FilePath -- ^ Puppet base working directory
-  , _manifestPath  :: FilePath -- ^ The path to the manifests.
-  , _modulesPath   :: FilePath -- ^ The path to the modules.
-  , _templatesPath :: FilePath -- ^ The path to the template.
-  , _testPath      :: FilePath -- ^ The path to a tests folders to hold tests files such as the pdbfiles.
+  { -- | Puppet base working directory
+    _baseDir :: FilePath,
+    -- | The path to the manifests.
+    _manifestPath :: FilePath,
+    -- | The path to the modules.
+    _modulesPath :: FilePath,
+    -- | The path to the template.
+    _templatesPath :: FilePath,
+    -- | The path to a tests folders to hold tests files such as the pdbfiles.
+    _testPath :: FilePath
   }
 
 makeClassy ''PuppetDirPaths

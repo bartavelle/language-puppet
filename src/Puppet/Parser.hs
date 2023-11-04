@@ -1,25 +1,25 @@
-{-| Parse puppet source code from text. -}
-module Puppet.Parser (
-  -- * Runner
-    runPuppetParser
-  -- * Parsers
-  , puppetParser
-  , prettyParseError
-  -- * Pretty Print
-  , module Puppet.Parser.PrettyPrinter
-  , module Puppet.Parser.Types
-  , module Puppet.Parser.Lens
-) where
+-- | Parse puppet source code from text.
+module Puppet.Parser
+  ( -- * Runner
+    runPuppetParser,
 
-import           XPrelude
+    -- * Parsers
+    puppetParser,
+    prettyParseError,
 
-import           Text.Megaparsec
+    -- * Pretty Print
+    module Puppet.Parser.PrettyPrinter,
+    module Puppet.Parser.Types,
+    module Puppet.Parser.Lens,
+  )
+where
 
-import           Puppet.Parser.PrettyPrinter
-import           Puppet.Parser.Lens
-import           Puppet.Parser.Internal
-import           Puppet.Parser.Types
-
+import Puppet.Parser.Internal
+import Puppet.Parser.Lens
+import Puppet.Parser.PrettyPrinter
+import Puppet.Parser.Types
+import Text.Megaparsec
+import XPrelude
 
 -- | Build a 'PrettyError' from a 'ParseError' given the text source.
 -- The source is used to display the line on which the error occurs.

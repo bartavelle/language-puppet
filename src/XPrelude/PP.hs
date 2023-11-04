@@ -1,33 +1,43 @@
-{-# OPTIONS_HADDOCK ignore-exports #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE CPP #-}
-module XPrelude.PP (
-  module Exports
-  , PrettyError (..)
-  , ppline
-  , pplines
-  , pptext
-  , ppstring
-)
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_HADDOCK ignore-exports #-}
+
+module XPrelude.PP
+  ( module Exports,
+    PrettyError (..),
+    ppline,
+    pplines,
+    pptext,
+    ppstring,
+  )
 where
 
-import           Protolude
-
-import           Data.Scientific
-import           Data.Semigroup as Sem
-import           Data.String
-import qualified Data.Text                    as Text
-import           Text.PrettyPrint.ANSI.Leijen as Exports hiding (bool, cat,
-                                                          char, double, empty,
-                                                          float, group, int,
-                                                          integer, rational,
-                                                          string, text, (<$>))
-
-import           Text.PrettyPrint.ANSI.Leijen (string, text)
+import Data.Scientific
+import Data.Semigroup as Sem
+import Data.String
+import qualified Data.Text as Text
+import Protolude
+import Text.PrettyPrint.ANSI.Leijen (string, text)
+import Text.PrettyPrint.ANSI.Leijen as Exports hiding
+  ( bool,
+    cat,
+    char,
+    double,
+    empty,
+    float,
+    group,
+    int,
+    integer,
+    rational,
+    string,
+    text,
+    (<$>),
+  )
 
 newtype PrettyError = PrettyError
   { getError :: Doc
-  } deriving Show
+  }
+  deriving (Show)
 
 instance Sem.Semigroup PrettyError where
   a <> b = PrettyError $ align (vsep [getError a, getError b])
@@ -46,7 +56,6 @@ instance Pretty PrettyError where
 
 instance Pretty Scientific where
   pretty = text . show
-
 
 -- | pretty print multiple lines of text.
 pplines :: Text -> Doc

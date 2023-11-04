@@ -1,33 +1,37 @@
-{-| A quickly done module that exports utility functions used to collect various
-statistics. All statistics are stored in a MVar holding a HashMap.
-
-This is not accurate in the presence of lazy evaluation. Nothing is forced.
--}
+-- | A quickly done module that exports utility functions used to collect various
+-- statistics. All statistics are stored in a MVar holding a HashMap.
+--
+-- This is not accurate in the presence of lazy evaluation. Nothing is forced.
 module Puppet.Runner.Stats
-  ( measure
-  , newStats
-  , getStats
-  , StatsPoint(..)
-  , MStats
-  ) where
+  ( measure,
+    newStats,
+    getStats,
+    StatsPoint (..),
+    MStats,
+  )
+where
 
-import           XPrelude
-
-import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.HashMap.Strict as Map
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import XPrelude
 
 data StatsPoint = StatsPoint
-  { _statspointCount :: !Int -- ^ Total number of calls to a computation
-  , _statspointTotal :: !Double -- ^ Total time spent during this computation
-  , _statspointMin :: !Double -- ^ Minimum execution time
-  , _statspointMax :: !Double -- ^ Maximum execution time
-  } deriving (Show)
+  { -- | Total number of calls to a computation
+    _statspointCount :: !Int,
+    -- | Total time spent during this computation
+    _statspointTotal :: !Double,
+    -- | Minimum execution time
+    _statspointMin :: !Double,
+    -- | Maximum execution time
+    _statspointMax :: !Double
+  }
+  deriving (Show)
 
 -- | A table where keys are the names of the computations, and values are
 -- 'StatsPoint's.
 type StatsTable = HashMap Text StatsPoint
 
-newtype MStats = MStats { unMStats :: MVar StatsTable }
+newtype MStats = MStats {unMStats :: MVar StatsTable}
 
 -- | Returns the actual statistical values.
 getStats :: MStats -> IO StatsTable
@@ -38,10 +42,14 @@ newStats :: IO MStats
 newStats = MStats `fmap` newMVar Map.empty
 
 -- | Wraps a computation, and measures related execution statistics.
-measure :: MStats -- ^ Statistics container
-        -> Text   -- ^ Action identifier
-        -> IO a   -- ^ Computation
-        -> IO a
+measure ::
+  -- | Statistics container
+  MStats ->
+  -- | Action identifier
+  Text ->
+  -- | Computation
+  IO a ->
+  IO a
 measure (MStats mtable) statsname action = do
   (!tm, !out) <- time action
   !stats <- takeMVar mtable
@@ -49,9 +57,9 @@ measure (MStats mtable) statsname action = do
       !nstats = case stats ^. at statsname of
         Nothing -> stats & at statsname ?~ StatsPoint 1 tm tm tm
         Just (StatsPoint sc st smi sma) ->
-            let !nmax = max tm sma
-                !nmin = min tm smi
-            in stats & at statsname ?~ StatsPoint (sc+1) (st+tm) nmin nmax
+          let !nmax = max tm sma
+              !nmin = min tm smi
+           in stats & at statsname ?~ StatsPoint (sc + 1) (st + tm) nmin nmax
   putMVar mtable nstats
   return $! out
 

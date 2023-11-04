@@ -1,69 +1,67 @@
-{-# LANGUAGE TemplateHaskell   #-}
-module Puppet.Language.Value
+{-# LANGUAGE TemplateHaskell #-}
 
-where
+module Puppet.Language.Value where
 
-import           XPrelude
-
-import           Data.Aeson
-import qualified Data.Aeson.KeyMap                as KM
-import           Data.Aeson.TH
-import           Data.Scientific (isInteger)
-import           Foreign.Ruby.Helpers
-
-import           Puppet.Language.Core
+import Data.Aeson
+import qualified Data.Aeson.KeyMap as KM
+import Data.Aeson.TH
+import Data.Scientific (isInteger)
+import Foreign.Ruby.Helpers
+import Puppet.Language.Core
+import XPrelude
 
 data DataType
-    = DTType
-    | DTString (Maybe Int) (Maybe Int)
-    | DTInteger (Maybe Int) (Maybe Int)
-    | DTFloat (Maybe Double) (Maybe Double)
-    | DTBoolean
-    | DTArray DataType Int (Maybe Int)
-    | DTHash DataType DataType Int (Maybe Int)
-    | DTUndef
-    | DTScalar
-    | DTData
-    | DTOptional DataType
-    | NotUndef
-    | DTVariant (NonEmpty DataType)
-    | DTPattern (NonEmpty CompRegex)
-    | DTEnum (NonEmpty Text)
-    | DTAny
-    | DTCollection
-    | DTRegexp (Maybe CompRegex)
-    | DTDeferred
-    | DTSensitive DataType
-    deriving (Show, Eq)
+  = DTType
+  | DTString (Maybe Int) (Maybe Int)
+  | DTInteger (Maybe Int) (Maybe Int)
+  | DTFloat (Maybe Double) (Maybe Double)
+  | DTBoolean
+  | DTArray DataType Int (Maybe Int)
+  | DTHash DataType DataType Int (Maybe Int)
+  | DTUndef
+  | DTScalar
+  | DTData
+  | DTOptional DataType
+  | NotUndef
+  | DTVariant (NonEmpty DataType)
+  | DTPattern (NonEmpty CompRegex)
+  | DTEnum (NonEmpty Text)
+  | DTAny
+  | DTCollection
+  | DTRegexp (Maybe CompRegex)
+  | DTDeferred
+  | DTSensitive DataType
+  deriving (Show, Eq)
 
 instance Pretty DataType where
   pretty t = case t of
-    DTType              -> "Type"
-    DTString ma mb      -> bounded "String" ma mb
-    DTInteger ma mb     -> bounded "Integer" ma mb
-    DTFloat ma mb       -> bounded "Float" ma mb
-    DTBoolean           -> "Boolean"
-    DTArray dt mi mmx   -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
+    DTType -> "Type"
+    DTString ma mb -> bounded "String" ma mb
+    DTInteger ma mb -> bounded "Integer" ma mb
+    DTFloat ma mb -> bounded "Float" ma mb
+    DTBoolean -> "Boolean"
+    DTArray dt mi mmx -> "Array" <> list (pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
     DTHash kt dt mi mmx -> "Hash" <> list (pretty kt : pretty dt : pretty mi : maybe [] (pure . pretty) mmx)
-    DTUndef             -> "Undef"
-    DTScalar            -> "Scalar"
-    DTData              -> "Data"
-    DTOptional o        -> "Optional" <> brackets (pretty o)
-    NotUndef            -> "NotUndef"
-    DTVariant vs        -> "Variant" <> list (foldMap (pure . pretty) vs)
-    DTPattern vs        -> "Pattern" <> list (foldMap (pure . pretty) vs)
-    DTEnum tx           -> "Enum" <> list (foldMap (pure . ppline) tx)
-    DTAny               -> "Any"
-    DTCollection        -> "Collection"
-    DTRegexp mr         -> "Regex" <> foldMap (brackets . pretty) mr
-    DTDeferred          -> "Deferred"
-    DTSensitive o       -> "Sensitive" <> brackets (pretty o)
+    DTUndef -> "Undef"
+    DTScalar -> "Scalar"
+    DTData -> "Data"
+    DTOptional o -> "Optional" <> brackets (pretty o)
+    NotUndef -> "NotUndef"
+    DTVariant vs -> "Variant" <> list (foldMap (pure . pretty) vs)
+    DTPattern vs -> "Pattern" <> list (foldMap (pure . pretty) vs)
+    DTEnum tx -> "Enum" <> list (foldMap (pure . ppline) tx)
+    DTAny -> "Any"
+    DTCollection -> "Collection"
+    DTRegexp mr -> "Regex" <> foldMap (brackets . pretty) mr
+    DTDeferred -> "Deferred"
+    DTSensitive o -> "Sensitive" <> brackets (pretty o)
     where
       bounded :: (Pretty a, Pretty b) => Doc -> Maybe a -> Maybe b -> Doc
-      bounded s ma mb = s <> case (ma, mb) of
-        (Just a, Nothing) -> list [pretty a]
-        (Just a, Just b)  -> list [pretty a, pretty b]
-        _                 -> mempty
+      bounded s ma mb =
+        s <> case (ma, mb) of
+          (Just a, Nothing) -> list [pretty a]
+          (Just a, Just b) -> list [pretty a, pretty b]
+          _ -> mempty
 
 $(deriveJSON defaultOptions ''DataType)
 
@@ -116,9 +114,9 @@ _PValueNumber = prism num2PValue toNumber
 
 _ScientificInteger :: Prism' Scientific Integer
 _ScientificInteger = prism fromIntegral $ \n ->
-    if isInteger n
-      then Right (truncate n)
-      else Left n
+  if isInteger n
+    then Right (truncate n)
+    else Left n
 
 _PValueInteger :: Prism' PValue Integer
 _PValueInteger = _PValueNumber . _ScientificInteger
@@ -145,11 +143,12 @@ instance ToJSON PValue where
   toJSON (PSensitive x) = toJSON x
 
 instance ToRuby PValue where
-    toRuby = toRuby . toJSON
+  toRuby = toRuby . toJSON
+
 instance FromRuby PValue where
   fromRuby = fmap chk . fromRuby
     where
       chk (Left x) = Left x
       chk (Right x) = case fromJSON x of
-        Error rr    -> Left rr
+        Error rr -> Left rr
         Success suc -> Right suc

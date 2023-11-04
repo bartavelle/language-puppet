@@ -1,73 +1,75 @@
-{-# LANGUAGE PackageImports   #-}
-{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- | This module is all about converting and resolving foreign data into
 -- the fully exploitable corresponding data type.
 --
 -- The main use case is the conversion of 'Expression' to 'PValue'.
 module Puppet.Interpreter.Resolve
-    ( -- * Pure resolution functions
-      getVariable,
-      pValue2Bool,
-      -- * Monadic resolution functions
-      resolveVariable,
-      resolveExpression,
-      resolveValue,
-      resolvePValueString,
-      resolvePValueNumber,
-      resolveExpressionString,
-      resolveExpressionStrings,
-      resolveFunction',
-      resolveDataType,
-      runHiera,
-      isNativeType,
-      -- * Search expression management
-      resolveSearchExpression,
-      checkSearchExpression,
-      searchExpressionToPuppetDB,
-      -- * Higher order puppet functions handling
-      hfGenerateAssociations,
-      hfSetvars,
-      hfRestorevars,
-      fixResourceName,
-      datatypeMatch,
-      checkMatch,
-      typeOf
-    ) where
+  ( -- * Pure resolution functions
+    getVariable,
+    pValue2Bool,
 
-import           XPrelude.Extra
-import           XPrelude.PP
+    -- * Monadic resolution functions
+    resolveVariable,
+    resolveExpression,
+    resolveValue,
+    resolvePValueString,
+    resolvePValueNumber,
+    resolveExpressionString,
+    resolveExpressionStrings,
+    resolveFunction',
+    resolveDataType,
+    runHiera,
+    isNativeType,
 
-import qualified Control.Monad.Operational          as Operational
-import           "cryptonite" Crypto.Hash
-import qualified Data.Aeson                         as Aeson
-import qualified Data.ByteArray                     as ByteArray
-import qualified Data.ByteString                    as BS
-import qualified Data.ByteString.Base16             as B16
-import qualified Data.CaseInsensitive               as CaseInsensitive
-import qualified Data.Char                          as Char
-import qualified Data.HashMap.Strict                as HM
-import qualified Data.HashSet                       as HS
-import qualified Data.List                          as List
-import qualified Data.List.NonEmpty                 as NE
-import qualified Data.Maybe.Strict                  as S
-import qualified Data.Scientific                    as Scientific
-import qualified Data.Text                          as Text
-import qualified Data.Text.Encoding                 as Text
-import qualified Data.Tuple.Strict                  as Tuple
-import qualified Data.Vector                        as V
-import           Data.Version                       (Version (..), parseVersion)
-import           Text.ParserCombinators.ReadP       (readP_to_S)
-import qualified Text.Regex.PCRE.ByteString.Utils   as Regex
+    -- * Search expression management
+    resolveSearchExpression,
+    checkSearchExpression,
+    searchExpressionToPuppetDB,
 
-import           Hiera.Server
-import           Puppet.Interpreter.Helpers
-import           Puppet.Interpreter.PrettyPrinter   ()
-import           Puppet.Interpreter.Resolve.Sprintf (sprintf)
-import           Puppet.Interpreter.RubyRandom
-import           Puppet.Interpreter.Types
-import           Puppet.Parser
-import           PuppetDB
+    -- * Higher order puppet functions handling
+    hfGenerateAssociations,
+    hfSetvars,
+    hfRestorevars,
+    fixResourceName,
+    datatypeMatch,
+    checkMatch,
+    typeOf,
+  )
+where
+
+import qualified Control.Monad.Operational as Operational
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteArray as ByteArray
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base16 as B16
+import qualified Data.CaseInsensitive as CaseInsensitive
+import qualified Data.Char as Char
+import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
+import qualified Data.List as List
+import qualified Data.List.NonEmpty as NE
+import qualified Data.Maybe.Strict as S
+import qualified Data.Scientific as Scientific
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Tuple.Strict as Tuple
+import qualified Data.Vector as V
+import Data.Version (Version (..), parseVersion)
+import Hiera.Server
+import Puppet.Interpreter.Helpers
+import Puppet.Interpreter.PrettyPrinter ()
+import Puppet.Interpreter.Resolve.Sprintf (sprintf)
+import Puppet.Interpreter.RubyRandom
+import Puppet.Interpreter.Types
+import Puppet.Parser
+import PuppetDB
+import Text.ParserCombinators.ReadP (readP_to_S)
+import qualified Text.Regex.PCRE.ByteString.Utils as Regex
+import XPrelude.Extra
+import XPrelude.PP
+import "cryptonite" Crypto.Hash
 
 sha1 :: ByteString -> ByteString
 sha1 = ByteArray.convert . (hash :: ByteString -> Digest SHA1)
@@ -79,11 +81,14 @@ md5 = ByteArray.convert . (hash :: ByteString -> Digest MD5)
 type NumberPair = Pair Scientific Scientific
 
 -- | Converts class resource names to lowercase (fix for the jenkins plugin).
-fixResourceName :: Text -- ^ Resource type
-                -> Text -- ^ Resource name
-                -> Text
+fixResourceName ::
+  -- | Resource type
+  Text ->
+  -- | Resource name
+  Text ->
+  Text
 fixResourceName "class" x = Text.toLower $ fromMaybe x $ Text.stripPrefix "::" x
-fixResourceName _       x = x
+fixResourceName _ x = x
 
 -- | A hiera helper function, that will throw all Hiera errors and log
 -- messages to the main monad.
@@ -110,11 +115,11 @@ hieraCall _ _ _ _ (Just _) = throwPosError "Overriding the hierarchy is not supp
 hieraCall qt q df dt _ = do
   qs <- resolvePValueString q
   runHiera qs qt >>= \case
-    Just p  -> case dt of
+    Just p -> case dt of
       Just dt' | not (datatypeMatch dt' p) -> throwPosError ("Datatype mismatched :" <+> pretty dt' <+> "/" <+> pretty p)
-      _        -> pure p
+      _ -> pure p
     Nothing -> case df of
-      Just d  -> pure d
+      Just d -> pure d
       Nothing -> throwPosError ("Lookup for " <> ppline qs <> " failed")
 
 -- | Tries to convert a pair of 'PValue's into a 'NumberPair', as defined in
@@ -132,10 +137,14 @@ toNumbers _ _ = S.Nothing
 -- | This tries to run a numerical binary operation on two puppet
 -- expressions. It will try to resolve them, then convert them to numbers
 -- (using 'toNumbers'), and will finally apply the correct operation.
-binaryOperation :: Expression -- ^ left operand
-                -> Expression -- ^ right operand
-                -> (Scientific -> Scientific -> Scientific) -- ^ operation
-                -> InterpreterMonad PValue
+binaryOperation ::
+  -- | left operand
+  Expression ->
+  -- | right operand
+  Expression ->
+  -- | operation
+  (Scientific -> Scientific -> Scientific) ->
+  InterpreterMonad PValue
 binaryOperation a b opr = ((PNumber .) . opr) `fmap` resolveExpressionNumber a <*> resolveExpressionNumber b
 
 -- Just like 'binaryOperation', but for operations that only work on integers.
@@ -161,10 +170,14 @@ isNativeType :: Text -> InterpreterMonad Bool
 isNativeType t = has (ix t) `fmap` Operational.singleton GetNativeTypes
 
 -- | A pure function for resolving variables.
-getVariable :: Container ScopeInformation -- ^ The whole scope data.
-            -> Text -- ^ Current scope name.
-            -> Text -- ^ Full variable name.
-            -> Either Doc PValue
+getVariable ::
+  -- | The whole scope data.
+  Container ScopeInformation ->
+  -- | Current scope name.
+  Text ->
+  -- | Full variable name.
+  Text ->
+  Either Doc PValue
 getVariable scps scp fullvar = do
   (varscope, varname) <- case Text.splitOn "::" fullvar of
     [] -> Left "This doesn't make any sense in resolveVariable"
@@ -173,7 +186,8 @@ getVariable scps scp fullvar = do
   let extractVariable ((varval :!: _) :!: _) = pure varval
   case scps ^? ix varscope . scopeVariables . ix varname of
     Just pp -> extractVariable pp
-    Nothing -> -- check top level scope
+    Nothing ->
+      -- check top level scope
       case scps ^? ix "::" . scopeVariables . ix varname of
         Just pp -> extractVariable pp
         Nothing -> Left ("Could not resolve variable" <+> pretty (UVariableReference fullvar) <+> "in context" <+> ppline varscope <+> "or root")
@@ -188,15 +202,15 @@ puppetEquality ra rb =
   case toNumbers ra rb of
     (S.Just (na :!: nb)) -> na == nb
     _ -> case (ra, rb) of
-      (PUndef , PBoolean x)         -> not x
-      (PString "true", PBoolean x)  -> x
+      (PUndef, PBoolean x) -> not x
+      (PString "true", PBoolean x) -> x
       (PString "false", PBoolean x) -> not x
-      (PBoolean x, PString "true")  -> x
+      (PBoolean x, PString "true") -> x
       (PBoolean x, PString "false") -> not x
-      (PString sa, PString sb)      -> CaseInsensitive.mk sa == CaseInsensitive.mk sb
+      (PString sa, PString sb) -> CaseInsensitive.mk sa == CaseInsensitive.mk sb
       -- TODO, check if array / hash equality should be recursed
       -- for case insensitive matching
-      _                             -> ra == rb
+      _ -> ra == rb
 
 -- Match a left expression with a regex
 -- Return a contextual True/False or Error after executing against the regex
@@ -204,15 +218,15 @@ matchExpression :: Expression -> (Regex, Expression) -> InterpreterMonad PValue
 matchExpression a (rv, rexpr) = do
   ra <- Text.encodeUtf8 <$> resolveExpressionString a
   case Regex.execute' rv ra of
-    Left (_,rr)    -> throwPosError ("Error when executing regex" <+> pretty rexpr <+> ":" <+> pretty rr)
-    Right Nothing  -> pure $ PBoolean False
+    Left (_, rr) -> throwPosError ("Error when executing regex" <+> pretty rexpr <+> ":" <+> pretty rr)
+    Right Nothing -> pure $ PBoolean False
     Right (Just matches) -> do
       -- A bit of logic to save the capture variables.
       -- Note that this will pollute the namespace, as it should only
       -- happen in conditional expressions ...
       p <- use curPos
       ctype <- view cctype <$> getCurContainer
-      let captures = zip (map (Text.pack . show) [(0 :: Int)..]) (map mkMatch (toList matches))
+      let captures = zip (map (Text.pack . show) [(0 :: Int) ..]) (map mkMatch (toList matches))
           mkMatch (offset, len) = (PString (Text.decodeUtf8 (BS.take len (BS.drop offset ra))) :!: p) :!: ctype
       scp <- getScopeName
       scopes . ix scp . scopeVariables %= HM.union (HM.fromList captures)
@@ -258,8 +272,8 @@ resolveExpression (Contains idx a) =
     PHash h -> do
       ridx <- resolveExpressionString idx
       case h ^. at ridx of
-          Just _  -> pure (PBoolean True)
-          Nothing -> pure (PBoolean False)
+        Just _ -> pure (PBoolean True)
+        Nothing -> pure (PBoolean False)
     PArray ar -> do
       ridx <- resolveExpression idx
       pure (PBoolean (ridx `V.elem` ar))
@@ -295,9 +309,9 @@ resolveExpression stmt@(ConditionalValue e conds) = do
       checkCond ((SelectorValue v@(URegexp (CompRegex _ rg)) :!: ce) : xs) = do
         rs <- fmap Text.encodeUtf8 (resolvePValueString rese)
         case Regex.execute' rg rs of
-            Left (_,rr)    -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> ppstring rr)
-            Right Nothing  -> checkCond xs
-            Right (Just _) -> resolveExpression ce
+          Left (_, rr) -> throwPosError ("Could not match" <+> pretty v <+> ":" <+> ppstring rr)
+          Right Nothing -> checkCond xs
+          Right (Just _) -> resolveExpression ce
       checkCond ((SelectorType udt :!: ce) : xs) = do
         dt <- resolveDataType udt
         if datatypeMatch dt rese
@@ -313,29 +327,29 @@ resolveExpression (Addition a b) = do
   ra <- resolveExpression a
   rb <- resolveExpression b
   case (ra, rb) of
-    (PHash ha, PHash hb)   -> pure (PHash (ha <> hb))
+    (PHash ha, PHash hb) -> pure (PHash (ha <> hb))
     (PArray ha, PArray hb) -> pure (PArray (ha <> hb))
-    _                      -> binaryOperation a b (+)
-resolveExpression (Substraction a b)   = binaryOperation a b (-)
-resolveExpression (Division a b)       = do
+    _ -> binaryOperation a b (+)
+resolveExpression (Substraction a b) = binaryOperation a b (-)
+resolveExpression (Division a b) = do
   ra <- resolveExpressionNumber a
   rb <- resolveExpressionNumber b
   case rb of
-      0 -> throwPosError "Division by 0"
-      _ -> case (,) `fmap` preview _ScientificInteger ra <*> preview _ScientificInteger rb of
-             Just (ia, ib) -> pure $ PNumber $ fromIntegral (ia `div` ib)
-             _             -> pure $ PNumber $ ra / rb
+    0 -> throwPosError "Division by 0"
+    _ -> case (,) `fmap` preview _ScientificInteger ra <*> preview _ScientificInteger rb of
+      Just (ia, ib) -> pure $ PNumber $ fromIntegral (ia `div` ib)
+      _ -> pure $ PNumber $ ra / rb
 resolveExpression (Multiplication a b) = binaryOperation a b (*)
-resolveExpression (Modulo a b)         = integerOperation a b mod
-resolveExpression (RightShift a b)     = integerOperation a b (\x -> shiftR x . fromIntegral)
+resolveExpression (Modulo a b) = integerOperation a b mod
+resolveExpression (RightShift a b) = integerOperation a b (\x -> shiftR x . fromIntegral)
 resolveExpression (LeftShift a b) = do
   ra <- resolveExpression a
   rb <- resolveExpression b
   case (ra, rb) of
-      (PArray ha, v) -> pure (PArray (V.snoc ha v))
-      _              -> integerOperation a b (\x -> shiftL x . fromIntegral)
+    (PArray ha, v) -> pure (PArray (V.snoc ha v))
+    _ -> integerOperation a b (\x -> shiftL x . fromIntegral)
 resolveExpression (FunctionApplication e (Terminal (UHOLambdaCall hol))) =
-    resolveValue (UHOLambdaCall (hol & hoLambdaExpr <>~ V.singleton e))
+  resolveValue (UHOLambdaCall (hol & hoLambdaExpr <>~ V.singleton e))
 resolveExpression (FunctionApplication _ x) = throwPosError ("Expected function application here, not" <+> pretty x)
 resolveExpression (Negate x) = PNumber . negate <$> resolveExpressionNumber x
 
@@ -352,7 +366,7 @@ resolveValue (UResourceReference t e) = do
   r <- resolveExpressionStrings e
   case r of
     [s] -> pure (PResourceReference t (fixResourceName t s))
-    _   -> pure (PArray (V.fromList (map (PResourceReference t . fixResourceName t) r)))
+    _ -> pure (PArray (V.fromList (map (PResourceReference t . fixResourceName t) r)))
 resolveValue (UArray a) = fmap PArray (V.mapM resolveExpression a)
 resolveValue (UHash a) =
   fmap (PHash . HM.fromList) (mapM resPair (V.toList a))
@@ -375,13 +389,13 @@ resolvePValueString PUndef = do
     "Resolving the keyword `undef` to the string \"undef\""
     "Strict mode won't convert the keyword `undef` to the string \"undef\""
   pure "undef"
-resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <> line <>  pretty x)
+resolvePValueString x = throwPosError ("Don't know how to convert this to a string:" <> line <> pretty x)
 
 -- | Turns everything it can into a number, or throws an error
 resolvePValueNumber :: PValue -> InterpreterMonad Scientific
 resolvePValueNumber x =
   case x ^? _PValueNumber of
-    Just n  -> pure n
+    Just n -> pure n
     Nothing -> throwPosError ("Don't know how to convert this to a number:" <> line <> pretty x)
 
 -- | > resolveExpressionString = resolveExpression >=> resolvePValueString
@@ -401,10 +415,10 @@ resolveExpressionStrings x =
 
 -- | Turns a 'PValue' into a 'Bool' as explained in the reference documentation.
 pValue2Bool :: PValue -> Bool
-pValue2Bool PUndef       = False
+pValue2Bool PUndef = False
 pValue2Bool (PString "") = True
 pValue2Bool (PBoolean x) = x
-pValue2Bool _            = True
+pValue2Bool _ = True
 
 -- | This resolve function calls at the expression level.
 resolveFunction :: Text -> V.Vector Expression -> InterpreterMonad PValue
@@ -412,62 +426,66 @@ resolveFunction "fqdn_rand" args = do
   let nbargs = V.length args
   when (nbargs < 1 || nbargs > 2) (throwPosError "fqdn_rand(): Expects one or two arguments")
   fqdn <- resolveVariable "::fqdn" >>= resolvePValueString
-  (mx:targs) <- mapM resolveExpressionString (V.toList args)
+  (mx : targs) <- mapM resolveExpressionString (V.toList args)
   curmax <- case PString mx ^? _PValueInteger of
     Just x -> pure x
     _ -> throwPosError ("fqdn_rand(): the first argument must be an integer, not" <+> ppline mx)
-  let rargs = if null targs
-                then [fqdn, ""]
-                else fqdn : targs
+  let rargs =
+        if null targs
+          then [fqdn, ""]
+          else fqdn : targs
       val = fromIntegral (fst (limitedRand (randInit myhash) (fromIntegral curmax)))
       myhash = toint (md5 (Text.encodeUtf8 fullstring)) :: Integer
-      toint = BS.foldl' (\c nx -> c*256 + fromIntegral nx) 0
+      toint = BS.foldl' (\c nx -> c * 256 + fromIntegral nx) 0
       fullstring = Text.intercalate ":" rargs
   pure (_PValueInteger # val)
 resolveFunction fname args =
   mapM resolveExpression (V.toList args) >>= resolveFunction' fname . map undefEmptyString
   where
     undefEmptyString PUndef = PString ""
-    undefEmptyString x      = x
+    undefEmptyString x = x
 
 resolveFunction' :: Text -> [PValue] -> InterpreterMonad PValue
 resolveFunction' "defined" [PResourceReference "class" cn] = do
-  checkStrict "The use of the 'defined' function is a code smell"
-              "The 'defined' function is not allowed in strict mode."
+  checkStrict
+    "The use of the 'defined' function is a code smell"
+    "The 'defined' function is not allowed in strict mode."
   fmap (PBoolean . has (ix cn)) (use loadedClasses)
 resolveFunction' "defined" [PResourceReference rt rn] = do
-  checkStrict "The use of the 'defined' function is a code smell"
-              "The 'defined' function is not allowed in strict mode."
+  checkStrict
+    "The use of the 'defined' function is a code smell"
+    "The 'defined' function is not allowed in strict mode."
   fmap (PBoolean . has (ix (RIdentifier rt rn))) (use definedResources)
 resolveFunction' "defined" [ut] = do
-  checkStrict "The use of the 'defined' function is a code smell."
-              "The 'defined' function is not allowed in strict mode."
+  checkStrict
+    "The use of the 'defined' function is a code smell."
+    "The 'defined' function is not allowed in strict mode."
   t <- resolvePValueString ut
   if not (Text.null t) && Text.head t == '$' -- variable test
     then do
       scps <- use scopes
       scp <- getScopeName
       pure $ PBoolean $ case getVariable scps scp (Text.tail t) of
-        Left _  -> False
+        Left _ -> False
         Right _ -> True
-    else do -- resource test
+    else do
+      -- resource test
       -- case 1, nested thingie
       nestedStuff <- use nestedDeclarations
       if has (ix (TopDefine, t)) nestedStuff || has (ix (TopClass, t)) nestedStuff
         then pure (PBoolean True)
-        else do -- case 2, loaded class
+        else do
+          -- case 2, loaded class
           lc <- use loadedClasses
           if has (ix t) lc
             then pure (PBoolean True)
             else fmap PBoolean (isNativeType t)
-
 resolveFunction' "defined" x = throwPosError ("defined(): expects a single resource reference, type or class name, and not" <+> pretty x)
 resolveFunction' "fail" x = throwPosError ("fail:" <+> pretty x)
 resolveFunction' "inline_template" [] = throwPosError "inline_template(): Expects at least one argument"
 resolveFunction' "inline_template" templates =
   let compute = fmap Inline . resolvePValueString >=> calcTemplate
-  in
-  PString . mconcat <$> traverse compute templates
+   in PString . mconcat <$> traverse compute templates
 resolveFunction' "md5" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . md5 . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "md5" _ = throwPosError "md5(): Expects a single argument"
 resolveFunction' "regsubst" [ptarget, pregexp, preplacement] = resolveFunction' "regsubst" [ptarget, pregexp, preplacement, PString "G"]
@@ -475,7 +493,7 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
   -- TODO handle all the flags
   -- http://docs.puppetlabs.com/references/latest/function.html#regsubst
   when (pflags /= "G") (use curPos >>= \p -> warn ("regsubst(): Currently only supports a single flag (G) " <> showPos (Tuple.fst p)))
-  regexp      <- fmap Text.encodeUtf8 (resolvePValueString pregexp)
+  regexp <- fmap Text.encodeUtf8 (resolvePValueString pregexp)
   replacement <- fmap Text.encodeUtf8 (resolvePValueString preplacement)
   let sub t = do
         t' <- fmap Text.encodeUtf8 (resolvePValueString t)
@@ -484,45 +502,46 @@ resolveFunction' "regsubst" [ptarget, pregexp, preplacement, pflags] = do
           Right x -> fmap PString (safeDecodeUtf8 x)
   case ptarget of
     PArray a -> fmap PArray (traverse sub a)
-    s        -> sub s
+    s -> sub s
 resolveFunction' "regsubst" _ = throwPosError "regsubst(): Expects 3 or 4 arguments"
 resolveFunction' "split" [psrc, psplt] = do
-  src  <- fmap Text.encodeUtf8 (resolvePValueString psrc)
+  src <- fmap Text.encodeUtf8 (resolvePValueString psrc)
   splt <- fmap Text.encodeUtf8 (resolvePValueString psplt)
   case Regex.splitCompile' splt src of
     Left err -> throwPosError ("splitCompile():" <+> ppstring err)
-    Right x  -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
+    Right x -> fmap (PArray . V.fromList) (mapM (fmap PString . safeDecodeUtf8) x)
 resolveFunction' "sha1" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . sha1 . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "sha1" _ = throwPosError "sha1(): Expects a single argument"
 resolveFunction' "shellquote" args = do
   sargs <- for args $ \arg ->
     case arg of
       PArray vals -> mapM resolvePValueString vals
-      _           -> V.singleton <$> resolvePValueString arg
-  let escape str | Text.all isSafe str            = str
-                 | not (Text.any isDangerous str) = between "\"" str
-                 | Text.any (== '\'') str          = between "\"" (Text.concatMap escapeDangerous str)
-                 | otherwise                   = between "'" str
+      _ -> V.singleton <$> resolvePValueString arg
+  let escape str
+        | Text.all isSafe str = str
+        | not (Text.any isDangerous str) = between "\"" str
+        | Text.any (== '\'') str = between "\"" (Text.concatMap escapeDangerous str)
+        | otherwise = between "'" str
       isSafe x = Char.isAlphaNum x || x `elem` ("@%_+=:,./-" :: String)
       isDangerous x = x `elem` ("!\"`$\\" :: String)
-      escapeDangerous x | isDangerous x = Text.snoc "\\" x
-                        | otherwise = Text.singleton x
+      escapeDangerous x
+        | isDangerous x = Text.snoc "\\" x
+        | otherwise = Text.singleton x
       between c s = c <> s <> c
   pure $ PString $ Text.unwords $ V.toList (escape <$> mconcat sargs)
-
 resolveFunction' "mysql_password" [pstr] = fmap (PString . Text.decodeUtf8 . B16.encode . sha1 . sha1 . Text.encodeUtf8) (resolvePValueString pstr)
 resolveFunction' "mysql_password" _ = throwPosError "mysql_password(): Expects a single argument"
 resolveFunction' "file" args = do
   rebasefile <- fmap Text.pack <$> Operational.singleton RebaseFile
-  let fixFilePath s | Text.null s = let rr = "Empty file path passed to the 'file' function" in checkStrict rr rr >> pure s
-                    | Text.head s == '/' = pure (maybe s (<> s) rebasefile)
-                    | otherwise = case Text.splitOn "/" s of
-                                      (md:x:rst) -> do
-                                          moduledir <- view modulesPath <$> getPuppetPaths
-                                          pure (Text.intercalate "/" (Text.pack moduledir : md : "files" : x : rst))
-                                      _ -> throwPosError ("file() argument invalid: " <> ppline s)
+  let fixFilePath s
+        | Text.null s = let rr = "Empty file path passed to the 'file' function" in checkStrict rr rr >> pure s
+        | Text.head s == '/' = pure (maybe s (<> s) rebasefile)
+        | otherwise = case Text.splitOn "/" s of
+            (md : x : rst) -> do
+              moduledir <- view modulesPath <$> getPuppetPaths
+              pure (Text.intercalate "/" (Text.pack moduledir : md : "files" : x : rst))
+            _ -> throwPosError ("file() argument invalid: " <> ppline s)
   mapM (resolvePValueString >=> fixFilePath) args >>= fmap PString . Operational.singleton . ReadFile
-
 resolveFunction' "tagged" ptags = do
   tags <- fmap HS.fromList (mapM resolvePValueString ptags)
   scp <- getScopeName
@@ -534,15 +553,14 @@ resolveFunction' "epp" _ = pure $ PString "<< -- EPP templates are not supported
 resolveFunction' "template" [] = throwPosError "template(): Expects at least one argument"
 resolveFunction' "template" templates =
   let compute = fmap (Filename . Text.unpack) . resolvePValueString >=> calcTemplate
-  in
-  PString . mconcat <$> traverse compute templates
-resolveFunction' "versioncmp" [pa,pb] = do
+   in PString . mconcat <$> traverse compute templates
+resolveFunction' "versioncmp" [pa, pb] = do
   a <- resolvePValueString pa
   b <- resolvePValueString pb
   let parser x =
         case filter (null . snd) (readP_to_S parseVersion (Text.unpack x)) of
-          ( (v, _) : _ ) -> v
-          _              -> Version [] [] -- fallback :(
+          ((v, _) : _) -> v
+          _ -> Version [] [] -- fallback :(
       va = parser a
       vb = parser b
   pure $ PString $ case compare va vb of
@@ -550,30 +568,29 @@ resolveFunction' "versioncmp" [pa,pb] = do
     LT -> "-1"
     GT -> "1"
 resolveFunction' "versioncmp" _ = throwPosError "versioncmp(): Expects two arguments"
--- | Simplified implementation of sprintf
-resolveFunction' "sprintf" (PString str:args) = sprintf str args
+-- \| Simplified implementation of sprintf
+resolveFunction' "sprintf" (PString str : args) = sprintf str args
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
-resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
-resolveFunction' "pdbresourcequery" [q,k] = resolvePValueString k >>= pdbresourcequery q . Just
-resolveFunction' "pdbresourcequery" _     = throwPosError "pdbresourcequery(): Expects one or two arguments"
-resolveFunction' "hiera"       [q]     = hieraCall QFirst   q Nothing Nothing Nothing
-resolveFunction' "hiera"       [q,d]   = hieraCall QFirst   q (Just d) Nothing Nothing
-resolveFunction' "hiera"       [q,d,o] = hieraCall QFirst   q (Just d) Nothing (Just o)
-resolveFunction' "hiera_array" [q]     = hieraCall QUnique q Nothing  Nothing Nothing
-resolveFunction' "hiera_array" [q,d]   = hieraCall QUnique q (Just d) Nothing Nothing
-resolveFunction' "hiera_array" [q,d,o] = hieraCall QUnique q (Just d) Nothing (Just o)
-resolveFunction' "hiera_hash"  [q]     = hieraCall QHash  q Nothing  Nothing Nothing
-resolveFunction' "hiera_hash"  [q,d]   = hieraCall QHash  q (Just d) Nothing Nothing
-resolveFunction' "hiera_hash"  [q,d,o] = hieraCall QHash  q (Just d) Nothing (Just o)
-resolveFunction' "lookup"      [q]                        = hieraCall QFirst   q Nothing  Nothing Nothing
-resolveFunction' "lookup"      [q, PType dt]              = hieraCall QFirst   q Nothing (Just dt) Nothing
-resolveFunction' "lookup"      [q, PType dt, PString qt, def] =
+resolveFunction' "pdbresourcequery" [q] = pdbresourcequery q Nothing
+resolveFunction' "pdbresourcequery" [q, k] = resolvePValueString k >>= pdbresourcequery q . Just
+resolveFunction' "pdbresourcequery" _ = throwPosError "pdbresourcequery(): Expects one or two arguments"
+resolveFunction' "hiera" [q] = hieraCall QFirst q Nothing Nothing Nothing
+resolveFunction' "hiera" [q, d] = hieraCall QFirst q (Just d) Nothing Nothing
+resolveFunction' "hiera" [q, d, o] = hieraCall QFirst q (Just d) Nothing (Just o)
+resolveFunction' "hiera_array" [q] = hieraCall QUnique q Nothing Nothing Nothing
+resolveFunction' "hiera_array" [q, d] = hieraCall QUnique q (Just d) Nothing Nothing
+resolveFunction' "hiera_array" [q, d, o] = hieraCall QUnique q (Just d) Nothing (Just o)
+resolveFunction' "hiera_hash" [q] = hieraCall QHash q Nothing Nothing Nothing
+resolveFunction' "hiera_hash" [q, d] = hieraCall QHash q (Just d) Nothing Nothing
+resolveFunction' "hiera_hash" [q, d, o] = hieraCall QHash q (Just d) Nothing (Just o)
+resolveFunction' "lookup" [q] = hieraCall QFirst q Nothing Nothing Nothing
+resolveFunction' "lookup" [q, PType dt] = hieraCall QFirst q Nothing (Just dt) Nothing
+resolveFunction' "lookup" [q, PType dt, PString qt, def] =
   case readQueryType qt of
     Nothing -> throwPosError ("Unknown merge strategy " <> ppline qt)
     Just qt' -> hieraCall qt' q (Just def) (Just dt) Nothing
-resolveFunction' "lookup" _                               =  throwPosError "lookup(): Wrong set of arguments"
-
+resolveFunction' "lookup" _ = throwPosError "lookup(): Wrong set of arguments"
 -- user functions
 resolveFunction' fname args = Operational.singleton (ExternalFunction fname args)
 
@@ -581,7 +598,7 @@ pdbresourcequery :: PValue -> Maybe Text -> InterpreterMonad PValue
 pdbresourcequery q mkey = do
   rrv <- case fromJSON (toJSON q) of
     Aeson.Success rq -> Operational.singleton (PDBGetResources rq)
-    Aeson.Error rr   -> throwPosError ("Invalid resource query:" <+> ppstring rr)
+    Aeson.Error rr -> throwPosError ("Invalid resource query:" <+> ppstring rr)
   rv <- case fromJSON (toJSON rrv) of
     Aeson.Success x -> pure x
     Aeson.Error rr -> throwPosError ("For some reason we could not convert a resource list to Puppet internal values!!" <+> ppstring rr <+> pretty rrv)
@@ -592,9 +609,8 @@ pdbresourcequery q mkey = do
           Nothing -> throwPosError ("pdbresourcequery strange error, could not find key" <+> ppline k <+> "in" <+> pretty (PHash h))
       extractSubHash _ x = throwPosError ("pdbresourcequery strange error, expected a hash, had" <+> pretty x)
   case mkey of
-    Nothing  -> pure (PArray rv)
+    Nothing -> pure (PArray rv)
     (Just k) -> fmap PArray (V.mapM (extractSubHash k) rv)
-
 
 calcTemplate :: TemplateSource -> InterpreterMonad Text
 calcTemplate tplsrc = do
@@ -621,16 +637,16 @@ resolveSearchExpression (OrSearch e1 e2) = ROrSearch `fmap` resolveSearchExpress
 -- be used in a PuppetDB query.
 searchExpressionToPuppetDB :: Text -> RSearchExpression -> Query ResourceField
 searchExpressionToPuppetDB rtype res =
-  QAnd ( QEqual RType (capitalizeRT rtype) : mkSE res )
+  QAnd (QEqual RType (capitalizeRT rtype) : mkSE res)
   where
-    mkSE (RAndSearch a b)                = [QAnd (mkSE a ++ mkSE b)]
-    mkSE (ROrSearch a b)                 = [QOr (mkSE a ++ mkSE b)]
-    mkSE (RNonEqualitySearch a b)        = fmap QNot (mkSE (REqualitySearch a b))
+    mkSE (RAndSearch a b) = [QAnd (mkSE a ++ mkSE b)]
+    mkSE (ROrSearch a b) = [QOr (mkSE a ++ mkSE b)]
+    mkSE (RNonEqualitySearch a b) = fmap QNot (mkSE (REqualitySearch a b))
     mkSE (REqualitySearch a (PString b)) = [QEqual (mkFld a) b]
-    mkSE _                               = []
-    mkFld "tag"   = RTag
+    mkSE _ = []
+    mkFld "tag" = RTag
     mkFld "title" = RTitle
-    mkFld z       = RParameter z
+    mkFld z = RParameter z
 
 -- | Checks whether a given 'Resource' matches a 'RSearchExpression'.
 -- Note that the expression doesn't check for type, so you must filter the
@@ -645,54 +661,54 @@ checkSearchExpression (REqualitySearch "title" v) r =
   let nameequal = puppetEquality v (PString (r ^. rid . iname))
       aliasequal =
         case r ^. rattributes . at "alias" of
-          Just a  -> puppetEquality v a
+          Just a -> puppetEquality v a
           Nothing -> False
-  in nameequal || aliasequal
+   in nameequal || aliasequal
 checkSearchExpression (REqualitySearch attributename v) r =
   case r ^. rattributes . at attributename of
-    Nothing         -> False
+    Nothing -> False
     Just (PArray x) -> any (`puppetEquality` v) x
-    Just x          -> puppetEquality x v
+    Just x -> puppetEquality x v
 checkSearchExpression (RNonEqualitySearch attributename v) r
-  | attributename  == "tag" = True
-  | attributename  == "title" = not (checkSearchExpression (REqualitySearch attributename v) r)
+  | attributename == "tag" = True
+  | attributename == "title" = not (checkSearchExpression (REqualitySearch attributename v) r)
   | otherwise =
       case r ^. rattributes . at attributename of
-        Nothing         -> True
+        Nothing -> True
         Just (PArray x) -> not (all (`puppetEquality` v) x)
-        Just x          -> not (puppetEquality x v)
+        Just x -> not (puppetEquality x v)
 
 resolveDataType :: UDataType -> InterpreterMonad DataType
-resolveDataType ud
-  = case ud of
-      UDTType             -> pure DTType
-      UDTString a b       -> pure (DTString a b)
-      UDTInteger a b      -> pure (DTInteger a b)
-      UDTFloat a b        -> pure (DTFloat a b)
-      UDTBoolean          -> pure DTBoolean
-      UDTArray dt a b     -> DTArray <$> resolveDataType dt <*> pure a <*> pure b
-      UDTHash dt1 dt2 a b -> DTHash <$> resolveDataType dt1 <*> resolveDataType dt2 <*> pure a <*> pure b
-      UDTUndef            -> pure DTUndef
-      UDTScalar           -> pure DTScalar
-      UDTData             -> pure DTData
-      UDTOptional dt      -> DTOptional <$> resolveDataType dt
-      UNotUndef           -> pure NotUndef
-      UDTVariant vrs      -> DTVariant <$> traverse resolveDataType vrs
-      UDTPattern a        -> pure (DTPattern a)
-      -- will not crash as ens is nonempty
-      UDTEnum ens         -> DTEnum . NE.fromList . sconcat <$> traverse resolveExpressionStrings ens
-      UDTAny              -> pure DTAny
-      UDTCollection       -> pure DTCollection
-      UDTRegexp mr        -> pure (DTRegexp mr)
-      UDTDeferred         -> pure DTDeferred
-      UDTSensitive dt     -> DTOptional <$> resolveDataType dt
+resolveDataType ud =
+  case ud of
+    UDTType -> pure DTType
+    UDTString a b -> pure (DTString a b)
+    UDTInteger a b -> pure (DTInteger a b)
+    UDTFloat a b -> pure (DTFloat a b)
+    UDTBoolean -> pure DTBoolean
+    UDTArray dt a b -> DTArray <$> resolveDataType dt <*> pure a <*> pure b
+    UDTHash dt1 dt2 a b -> DTHash <$> resolveDataType dt1 <*> resolveDataType dt2 <*> pure a <*> pure b
+    UDTUndef -> pure DTUndef
+    UDTScalar -> pure DTScalar
+    UDTData -> pure DTData
+    UDTOptional dt -> DTOptional <$> resolveDataType dt
+    UNotUndef -> pure NotUndef
+    UDTVariant vrs -> DTVariant <$> traverse resolveDataType vrs
+    UDTPattern a -> pure (DTPattern a)
+    -- will not crash as ens is nonempty
+    UDTEnum ens -> DTEnum . NE.fromList . sconcat <$> traverse resolveExpressionStrings ens
+    UDTAny -> pure DTAny
+    UDTCollection -> pure DTCollection
+    UDTRegexp mr -> pure (DTRegexp mr)
+    UDTDeferred -> pure DTDeferred
+    UDTSensitive dt -> DTOptional <$> resolveDataType dt
 
 -- | Generates variable associations for evaluation of blocks.
 -- Each item corresponds to an iteration in the calling block.
 hfGenerateAssociations :: HOLambdaCall -> InterpreterMonad [[(Text, PValue)]]
 hfGenerateAssociations hol = do
   sourceexpression <- case hol ^.. hoLambdaExpr . folded of
-    [x]  -> pure x
+    [x] -> pure x
     [] -> throwPosError ("No expression to run the function on" <+> pretty hol)
     _ -> throwPosError ("Too many expressions to run the function on" <+> pretty hol)
   sourcevalue <- resolveExpression sourceexpression
@@ -701,20 +717,20 @@ hfGenerateAssociations hol = do
         dtype <- resolveDataType udtype
         mapM_ (\v -> unless (datatypeMatch dtype v) (throwPosError (pretty v <+> "isn't of type" <+> pretty dtype))) tocheck
   case (sourcevalue, V.toList (hol ^. hoLambdaParams)) of
-     (PArray pr, [LambdaParam mvtype varname]) -> do
-       check mvtype pr
-       pure (map (\x -> [(varname, x)]) (V.toList pr))
-     (PArray pr, [LambdaParam _ idx, LambdaParam mvtype var] ) -> do
-       check mvtype pr
-       pure [ [(idx,PString (Text.pack (show i))),(var,v)]  |  (i,v) <- zip ([0..] :: [Int]) (V.toList pr) ]
-     (PHash hh, [LambdaParam mvtype varname]) -> do
-       check mvtype hh
-       pure [ [(varname, PArray (V.fromList [PString k,v]))]  |  (k,v) <- HM.toList hh]
-     (PHash hh, [LambdaParam midxtype idx, LambdaParam mvtype var]) -> do
-       check mvtype hh
-       check midxtype (PString <$> HM.keys hh)
-       pure [ [(idx,PString k),(var,v)]  |  (k,v) <- HM.toList hh]
-     (invalid, _) -> throwPosError ("Can't iterate on this data type:" <+> pretty invalid)
+    (PArray pr, [LambdaParam mvtype varname]) -> do
+      check mvtype pr
+      pure (map (\x -> [(varname, x)]) (V.toList pr))
+    (PArray pr, [LambdaParam _ idx, LambdaParam mvtype var]) -> do
+      check mvtype pr
+      pure [[(idx, PString (Text.pack (show i))), (var, v)] | (i, v) <- zip ([0 ..] :: [Int]) (V.toList pr)]
+    (PHash hh, [LambdaParam mvtype varname]) -> do
+      check mvtype hh
+      pure [[(varname, PArray (V.fromList [PString k, v]))] | (k, v) <- HM.toList hh]
+    (PHash hh, [LambdaParam midxtype idx, LambdaParam mvtype var]) -> do
+      check mvtype hh
+      check midxtype (PString <$> HM.keys hh)
+      pure [[(idx, PString k), (var, v)] | (k, v) <- HM.toList hh]
+    (invalid, _) -> throwPosError ("Can't iterate on this data type:" <+> pretty invalid)
 
 -- | Sets the proper variables, and returns the scope variables the way
 -- they were before being modified. This is a hack that ensures that
@@ -755,10 +771,13 @@ transformPureHf hol =
         then throwPosError ("The statement block must not be empty" <+> pretty hol)
         else case V.last statements of
           (MainFunctionDeclaration (MainFuncDecl fn args _)) ->
-             let expr = Terminal (UFunctionCall fn args)
-             in  pure (hol & hoLambdaStatements %~ V.init
-                           & hoLambdaLastExpr .~ S.Just expr
-                      , expr)
+            let expr = Terminal (UFunctionCall fn args)
+             in pure
+                  ( hol
+                      & hoLambdaStatements %~ V.init
+                      & hoLambdaLastExpr .~ S.Just expr,
+                    expr
+                  )
           _ -> throwPosError ("The statement block must end with an expression" <+> pretty hol)
 
 -- | All the "higher order function" stuff, for "value" mode. In this case
@@ -768,11 +787,11 @@ evaluateHFCPure hol' = do
   (hol, finalexpression) <- transformPureHf hol'
   let runblock :: [(Text, PValue)] -> InterpreterMonad PValue
       runblock assocs = do
-          saved <- hfSetvars assocs
-          V.mapM_ evalPureStatement (hol ^. hoLambdaStatements)
-          r <- resolveExpression finalexpression
-          hfRestorevars  saved
-          pure r
+        saved <- hfSetvars assocs
+        V.mapM_ evalPureStatement (hol ^. hoLambdaStatements)
+        r <- resolveExpression finalexpression
+        hfRestorevars saved
+        pure r
   case hol ^. hoLambdaFunc of
     LambdaFunc "each" -> throwPosError "The 'each' function can't be used at the value level in language-puppet. Please use map."
     LambdaFunc "map" -> do
@@ -781,7 +800,8 @@ evaluateHFCPure hol' = do
     LambdaFunc "with" -> do
       let expressions = hol ^. hoLambdaExpr
           parameters = hol ^. hoLambdaParams
-      unless (V.length expressions == V.length parameters)
+      unless
+        (V.length expressions == V.length parameters)
         (throwPosError ("Mismatched number of arguments and lambda parameters in" <> pretty hol))
       assocs <- forM (V.zip expressions parameters) $ \(uval, LambdaParam mt name) -> do
         val <- resolveExpression uval
@@ -796,19 +816,19 @@ evaluateHFCPure hol' = do
       res <- mapM (fmap pValue2Bool . runblock) varassocs
       sourcevalue <- case hol ^.. hoLambdaExpr . folded of
         [x] -> resolveExpression x
-        _   -> throwPosError "Internal error evaluateHFCPure 1"
+        _ -> throwPosError "Internal error evaluateHFCPure 1"
       case sourcevalue of
         PArray ar -> pure $ PArray $ V.map fst $ V.filter snd $ V.zip ar (V.fromList res)
-        PHash  hh -> pure $ PHash  $ HM.fromList $ map fst $ filter snd $ zip (HM.toList hh) res
-        x         -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
+        PHash hh -> pure $ PHash $ HM.fromList $ map fst $ filter snd $ zip (HM.toList hh) res
+        x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
     LambdaFunc "reduce" ->
       case hol ^.. hoLambdaExpr . folded of
         [zero', foldable'] -> do
           zero'' <- resolveExpression zero'
           foldable'' <- resolveExpression foldable'
           (accname, curname) <- case hol ^.. hoLambdaParams . folded of
-                                  [an, cn] -> pure (an, cn)
-                                  _ -> throwPosError ("Reduce requires two parameters in its block expression, in" <+> pretty hol)
+            [an, cn] -> pure (an, cn)
+            _ -> throwPosError ("Reduce requires two parameters in its block expression, in" <+> pretty hol)
           let runStep acc cur = do
                 accName <- mCheckType acc accname
                 curName <- mCheckType cur curname
@@ -821,7 +841,7 @@ evaluateHFCPure hol' = do
           case foldable'' of
             PArray ar -> foldM runStep zero'' ar
             PHash hs -> foldM runStep zero'' $ do
-              (k,v) <- HM.toList hs
+              (k, v) <- HM.toList hs
               return (PArray (V.fromList [PString k, v]))
             x -> throwPosError ("Can't iterate on this data type:" <+> pretty x)
         _ -> throwPosError ("Reduce requires two arguments and a lambda block, in" <+> pretty hol)
@@ -831,39 +851,39 @@ evaluateHFCPure hol' = do
 datatypeMatch :: DataType -> PValue -> Bool
 datatypeMatch dt v =
   case dt of
-    DTType               -> has _PType v
-    DTUndef              -> v == PUndef
-    NotUndef             -> v /= PUndef
-    DTString mmin mmax   -> boundedBy _PString Text.length mmin mmax
-    DTInteger mmin mmax  -> boundedBy (_PNumber . to Scientific.toBoundedInteger . _Just) identity mmin mmax
-    DTFloat mmin mmax    -> boundedBy _PNumber Scientific.toRealFloat mmin mmax
-    DTBoolean            -> has _PBoolean v
-    DTArray sdt mi mmx   -> container (_PArray . to V.toList) (datatypeMatch sdt) mi mmx
-    DTHash kt sdt mi mmx -> container (_PHash . to itoList) (\(k,a) -> datatypeMatch kt (PString k) && datatypeMatch sdt a) mi mmx
-    DTScalar             -> datatypeMatch (DTVariant (DTInteger Nothing Nothing :| [DTString Nothing Nothing, DTBoolean])) v
-    DTData               -> datatypeMatch (DTVariant (DTScalar :| [DTArray DTData 0 Nothing, DTHash DTScalar DTData 0 Nothing])) v
-    DTOptional sdt       -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
-    DTVariant sdts       -> any (`datatypeMatch` v) sdts
-    DTEnum lst           -> maybe False (`elem` lst) (v ^? _PString)
-    DTAny                -> True
-    DTCollection         -> datatypeMatch (DTVariant (DTArray DTData 0 Nothing :| [DTHash DTScalar DTData 0 Nothing])) v
-    DTPattern patterns   -> maybe False (\str -> any (checkPattern (Text.encodeUtf8 str)) patterns) (v ^? _PString)
-    DTRegexp mr          -> case v ^? _PRegexp of
-                              Nothing -> False
-                              Just cr -> maybe True (== cr) mr
-    DTDeferred           -> True
-    DTSensitive sdt      -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
+    DTType -> has _PType v
+    DTUndef -> v == PUndef
+    NotUndef -> v /= PUndef
+    DTString mmin mmax -> boundedBy _PString Text.length mmin mmax
+    DTInteger mmin mmax -> boundedBy (_PNumber . to Scientific.toBoundedInteger . _Just) identity mmin mmax
+    DTFloat mmin mmax -> boundedBy _PNumber Scientific.toRealFloat mmin mmax
+    DTBoolean -> has _PBoolean v
+    DTArray sdt mi mmx -> container (_PArray . to V.toList) (datatypeMatch sdt) mi mmx
+    DTHash kt sdt mi mmx -> container (_PHash . to itoList) (\(k, a) -> datatypeMatch kt (PString k) && datatypeMatch sdt a) mi mmx
+    DTScalar -> datatypeMatch (DTVariant (DTInteger Nothing Nothing :| [DTString Nothing Nothing, DTBoolean])) v
+    DTData -> datatypeMatch (DTVariant (DTScalar :| [DTArray DTData 0 Nothing, DTHash DTScalar DTData 0 Nothing])) v
+    DTOptional sdt -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
+    DTVariant sdts -> any (`datatypeMatch` v) sdts
+    DTEnum lst -> maybe False (`elem` lst) (v ^? _PString)
+    DTAny -> True
+    DTCollection -> datatypeMatch (DTVariant (DTArray DTData 0 Nothing :| [DTHash DTScalar DTData 0 Nothing])) v
+    DTPattern patterns -> maybe False (\str -> any (checkPattern (Text.encodeUtf8 str)) patterns) (v ^? _PString)
+    DTRegexp mr -> case v ^? _PRegexp of
+      Nothing -> False
+      Just cr -> maybe True (== cr) mr
+    DTDeferred -> True
+    DTSensitive sdt -> datatypeMatch (DTVariant (DTUndef :| [sdt])) v
   where
     checkPattern str (CompRegex _ ptrn) =
       case Regex.execute' ptrn str of
         Right (Just _) -> True
-        _              -> False
+        _ -> False
     container :: Fold PValue [a] -> (a -> Bool) -> Int -> Maybe Int -> Bool
     container f c mi mmx =
       let lst = v ^. f
           ln = length lst
-      in  ln >= mi && (fmap (ln <=) mmx /= Just False) && all c lst
-    boundedBy :: Ord b => Fold PValue a -> (a -> b) -> Maybe b -> Maybe b -> Bool
+       in ln >= mi && (fmap (ln <=) mmx /= Just False) && all c lst
+    boundedBy :: (Ord b) => Fold PValue a -> (a -> b) -> Maybe b -> Maybe b -> Bool
     boundedBy prm f mmin mmax =
       fromMaybe False $ do
         vr <- f <$> v ^? prm
@@ -874,16 +894,17 @@ checkMatch dt pv = unless (datatypeMatch dt pv) (throwPosError (pretty pv <+> "d
 
 typeOf :: PValue -> DataType
 typeOf pv =
-    case pv of
-      PSensitive x           -> typeOf x
-      PBoolean _             -> DTBoolean
-      PUndef                 -> DTUndef
-      PString _              -> DTString Nothing Nothing
-      PResourceReference _ _ -> DTType -- ???
-      PArray _               -> DTArray DTAny 0 Nothing
-      PHash _                -> DTHash DTAny DTAny 0 Nothing
-      PType _                -> DTType
-      PRegexp _              -> DTRegexp Nothing
-      PNumber n              -> if Scientific.isInteger n
-                                  then DTInteger Nothing Nothing
-                                  else DTFloat Nothing Nothing
+  case pv of
+    PSensitive x -> typeOf x
+    PBoolean _ -> DTBoolean
+    PUndef -> DTUndef
+    PString _ -> DTString Nothing Nothing
+    PResourceReference _ _ -> DTType -- ???
+    PArray _ -> DTArray DTAny 0 Nothing
+    PHash _ -> DTHash DTAny DTAny 0 Nothing
+    PType _ -> DTType
+    PRegexp _ -> DTRegexp Nothing
+    PNumber n ->
+      if Scientific.isInteger n
+        then DTInteger Nothing Nothing
+        else DTFloat Nothing Nothing

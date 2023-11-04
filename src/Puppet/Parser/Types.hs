@@ -1,61 +1,65 @@
-{-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE TypeFamilies #-}
+
 -- | All the types used for parsing, and helpers working on these types.
 module Puppet.Parser.Types
- ( -- ** Expressions
-   Expression(..),
-   SelectorCase(..),
-   UnresolvedValue(..),
-   LambdaFunc(..),
-   HOLambdaCall(..),
-   ChainableRes(..),
-   HasHOLambdaCall(..),
-   LambdaParameter(..),
-   LambdaParameters,
-   CompRegex(..),
-   CollectorType(..),
-   Virtuality(..),
-   NodeDesc(..),
-   LinkType(..),
-   -- ** Synonyms
-   Parser,
-   PuppetParseError,
-   -- ** Datatypes
-   UDataType(..),
-   -- ** Search Expressions
-   SearchExpression(..),
-   -- ** Declaration
-   AttributeDecl(..),
-   ArrowOp(..),
-   ConditionalDecl(..),
-   ClassDecl(..),
-   ResDefaultDecl(..),
-   DepDecl(..),
-   Statement(..),
-   ResDecl(..),
-   ResOverrideDecl(..),
-   DefineDecl(..),
-   NodeDecl(..),
-   VarAssignDecl(..),
-   MainFuncDecl(..),
-   HigherOrderLambdaDecl(..),
-   ResCollDecl(..),
-   Parameters
-   ) where
+  ( -- ** Expressions
+    Expression (..),
+    SelectorCase (..),
+    UnresolvedValue (..),
+    LambdaFunc (..),
+    HOLambdaCall (..),
+    ChainableRes (..),
+    HasHOLambdaCall (..),
+    LambdaParameter (..),
+    LambdaParameters,
+    CompRegex (..),
+    CollectorType (..),
+    Virtuality (..),
+    NodeDesc (..),
+    LinkType (..),
 
-import           XPrelude           hiding (show)
+    -- ** Synonyms
+    Parser,
+    PuppetParseError,
 
-import qualified Data.Maybe.Strict  as S
-import qualified Data.Text          as Text
-import qualified Data.Vector        as V
-import qualified GHC.Exts           as Exts
-import           Text.Megaparsec
+    -- ** Datatypes
+    UDataType (..),
 
-import           Puppet.Language
+    -- ** Search Expressions
+    SearchExpression (..),
 
+    -- ** Declaration
+    AttributeDecl (..),
+    ArrowOp (..),
+    ConditionalDecl (..),
+    ClassDecl (..),
+    ResDefaultDecl (..),
+    DepDecl (..),
+    Statement (..),
+    ResDecl (..),
+    ResOverrideDecl (..),
+    DefineDecl (..),
+    NodeDecl (..),
+    VarAssignDecl (..),
+    MainFuncDecl (..),
+    HigherOrderLambdaDecl (..),
+    ResCollDecl (..),
+    Parameters,
+  )
+where
+
+import qualified Data.Maybe.Strict as S
+import qualified Data.Text as Text
+import qualified Data.Vector as V
+import qualified GHC.Exts as Exts
+import Puppet.Language
+import Text.Megaparsec
+import XPrelude hiding (show)
 
 type PuppetParseError = ParseError Char Void
+
 type Parser = Parsec Void Text
 
 -- | /High Order lambdas/.
@@ -69,14 +73,14 @@ data LambdaParameter
   deriving (Eq, Show)
 
 -- The description of the /higher level lambda/ call.
-data HOLambdaCall
-  = HOLambdaCall
-  { _hoLambdaFunc       :: !LambdaFunc
-  , _hoLambdaExpr       :: !(Vector Expression)
-  , _hoLambdaParams     :: !LambdaParameters
-  , _hoLambdaStatements :: !(Vector Statement)
-  , _hoLambdaLastExpr   :: !(S.Maybe Expression)
-  } deriving (Eq,Show)
+data HOLambdaCall = HOLambdaCall
+  { _hoLambdaFunc :: !LambdaFunc,
+    _hoLambdaExpr :: !(Vector Expression),
+    _hoLambdaParams :: !LambdaParameters,
+    _hoLambdaStatements :: !(Vector Statement),
+    _hoLambdaLastExpr :: !(S.Maybe Expression)
+  }
+  deriving (Eq, Show)
 
 data ChainableRes
   = ChainResColl !ResCollDecl
@@ -90,20 +94,28 @@ data AttributeDecl
   deriving (Show, Eq)
 
 data ArrowOp
-  = AppendArrow -- ^ `+>`
-  | AssignArrow -- ^ `=>`
+  = -- | `+>`
+    AppendArrow
+  | -- | `=>`
+    AssignArrow
   deriving (Show, Eq)
 
 -- | An unresolved value, typically the parser's output.
 data UnresolvedValue
-  = UBoolean !Bool -- ^ Special tokens generated when parsing the @true@ or @false@ literals.
-  | UString !Text -- ^ Raw string.
-  | UInterpolable !(Vector Expression) -- ^ A string that might contain variable references. The type should be refined at one point.
-  | UUndef -- ^ Special token that is generated when parsing the @undef@ literal.
-  | UResourceReference !Text !Expression -- ^ Alike @Resource[reference]@
+  = -- | Special tokens generated when parsing the @true@ or @false@ literals.
+    UBoolean !Bool
+  | -- | Raw string.
+    UString !Text
+  | -- | A string that might contain variable references. The type should be refined at one point.
+    UInterpolable !(Vector Expression)
+  | -- | Special token that is generated when parsing the @undef@ literal.
+    UUndef
+  | -- | Alike @Resource[reference]@
+    UResourceReference !Text !Expression
   | UArray !(Vector Expression)
   | UHash !(Vector (Pair Expression Expression))
-  | URegexp !CompRegex -- ^ The regular expression compilation is performed during parsing.
+  | -- | The regular expression compilation is performed during parsing.
+    URegexp !CompRegex
   | UVariableReference !Text
   | UFunctionCall !Text !(Vector Expression)
   | UHOLambdaCall !HOLambdaCall
@@ -112,11 +124,11 @@ data UnresolvedValue
   deriving (Show, Eq)
 
 instance Exts.IsList UnresolvedValue where
-  type Item UnresolvedValue  = Expression
+  type Item UnresolvedValue = Expression
   fromList = UArray . V.fromList
   toList u = case u of
     UArray lst -> V.toList lst
-    _          -> [Terminal u]
+    _ -> [Terminal u]
 
 instance IsString UnresolvedValue where
   fromString = UString . Text.pack
@@ -148,11 +160,15 @@ data Expression
   | Modulo !Expression !Expression
   | RightShift !Expression !Expression
   | LeftShift !Expression !Expression
-  | Lookup !Expression !Expression -- ^ Hash lookup @$var[\'key0\'][\'key1\']@
+  | -- | Hash lookup @$var[\'key0\'][\'key1\']@
+    Lookup !Expression !Expression
   | Negate !Expression
-  | ConditionalValue !Expression !(Vector (Pair SelectorCase Expression)) -- ^ All conditionals are stored in this format.
-  | FunctionApplication !Expression !Expression -- ^ This is for /higher order functions/.
-  | Terminal !UnresolvedValue -- ^ Terminal object contains no expression
+  | -- | All conditionals are stored in this format.
+    ConditionalValue !Expression !(Vector (Pair SelectorCase Expression))
+  | -- | This is for /higher order functions/.
+    FunctionApplication !Expression !Expression
+  | -- | Terminal object contains no expression
+    Terminal !UnresolvedValue
   deriving (Eq, Show)
 
 data UDataType
@@ -186,7 +202,7 @@ instance Exts.IsList Expression where
   fromList = Terminal . Exts.fromList
   toList u = case u of
     Terminal t -> Exts.toList t
-    _          -> [u]
+    _ -> [u]
 
 instance Num Expression where
   (+) = Addition
@@ -194,9 +210,15 @@ instance Num Expression where
   (*) = Multiplication
   fromInteger = Terminal . UNumber . fromInteger
   abs x = ConditionalValue (MoreEqualThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: x, SelectorDefault :!: negate x])
-  signum x = ConditionalValue (MoreThan x 0) (V.fromList [SelectorValue (UBoolean True) :!: 1, SelectorDefault :!:
-                                                         ConditionalValue (Equal x 0) (V.fromList [SelectorValue (UBoolean True) :!: 0, SelectorDefault :!: (-1)])
-                                                         ])
+  signum x =
+    ConditionalValue
+      (MoreThan x 0)
+      ( V.fromList
+          [ SelectorValue (UBoolean True) :!: 1,
+            SelectorDefault
+              :!: ConditionalValue (Equal x 0) (V.fromList [SelectorValue (UBoolean True) :!: 0, SelectorDefault :!: (-1)])
+          ]
+      )
 
 instance Fractional Expression where
   (/) = Division
@@ -216,8 +238,10 @@ data SearchExpression
   deriving (Eq, Show)
 
 data CollectorType
-  = Collector -- ^ Single angle brackets @\<|   |>@
-  | ExportedCollector -- ^ Double angle brackets @\<\<|   |>>@
+  = -- | Single angle brackets @\<|   |>@
+    Collector
+  | -- | Double angle brackets @\<\<|   |>>@
+    ExportedCollector
   deriving (Eq, Show)
 
 data NodeDesc
@@ -225,7 +249,6 @@ data NodeDesc
   | NodeMatch !CompRegex
   | NodeDefault
   deriving (Show, Eq)
-
 
 -- | Resource declaration:
 --
@@ -259,7 +282,7 @@ data ConditionalDecl = ConditionalDecl !(Vector (Pair Expression (Vector Stateme
 -- * an optional inherits
 -- * a list of statements
 -- * a position
-data ClassDecl  = ClassDecl !Text  !Parameters !(S.Maybe Text) !(Vector Statement) !PPosition deriving (Eq, Show)
+data ClassDecl = ClassDecl !Text !Parameters !(S.Maybe Text) !(Vector Statement) !PPosition deriving (Eq, Show)
 
 -- | Declare a define with
 -- * a name
@@ -274,15 +297,15 @@ type Parameters = Vector (Pair (Pair Text (S.Maybe UDataType)) (S.Maybe Expressi
 data NodeDecl = NodeDecl !NodeDesc !(Vector Statement) !(S.Maybe NodeDesc) !PPosition deriving (Eq, Show)
 
 -- | @ $newvar = 'world' @
-data VarAssignDecl
-  = VarAssignDecl
-  { _vadtype  :: Maybe UDataType
-  , _vadnames  :: [Text]
-  , _vadvalue :: !Expression
-  , _vadpos   :: !PPosition
-  } deriving (Eq, Show)
+data VarAssignDecl = VarAssignDecl
+  { _vadtype :: Maybe UDataType,
+    _vadnames :: [Text],
+    _vadvalue :: !Expression,
+    _vadpos :: !PPosition
+  }
+  deriving (Eq, Show)
 
-data MainFuncDecl    = MainFuncDecl !Text !(Vector Expression) !PPosition deriving (Eq, Show)
+data MainFuncDecl = MainFuncDecl !Text !(Vector Expression) !PPosition deriving (Eq, Show)
 
 -- | /Higher order function/ call.
 data HigherOrderLambdaDecl = HigherOrderLambdaDecl !HOLambdaCall !PPosition deriving (Eq, Show)
@@ -310,7 +333,8 @@ data Statement
   | MainFunctionDeclaration !MainFuncDecl
   | HigherOrderLambdaDeclaration !HigherOrderLambdaDecl
   | DependencyDeclaration !DepDecl
-  | TopContainer !(Vector Statement) !Statement -- ^ Special statement used to include the expressions that are top level. Certainly buggy, but probably just like the original implementation.
+  | -- | Special statement used to include the expressions that are top level. Certainly buggy, but probably just like the original implementation.
+    TopContainer !(Vector Statement) !Statement
   deriving (Eq, Show)
 
 makeClassy ''HOLambdaCall

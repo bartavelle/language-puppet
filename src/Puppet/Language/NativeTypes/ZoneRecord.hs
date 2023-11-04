@@ -1,7 +1,6 @@
 module Puppet.Language.NativeTypes.ZoneRecord (nativeZoneRecord) where
 
-import           Puppet.Language.NativeTypes.Helpers
-
+import Puppet.Language.NativeTypes.Helpers
 
 nativeZoneRecord :: (NativeTypeName, NativeTypeMethods)
 nativeZoneRecord = ("zone_record", nativetypemethods parameterfunctions validateMandatories)
@@ -10,21 +9,21 @@ nativeZoneRecord = ("zone_record", nativetypemethods parameterfunctions validate
 -- If Puppet is managing any parent directories of a file, the file resource will autorequire them.
 parameterfunctions :: [(Text, [Text -> NativeTypeValidate])]
 parameterfunctions =
-  [("name"                , [nameval])
-  ,("owner"               , [string])
-  ,("dest"                , [string])
-  ,("ensure"              , [defaultvalue "present", string, values ["present","absent"]])
-  ,("rtype"               , [string, defaultvalue "A", values ["SOA", "A", "AAAA", "MX", "NS", "CNAME", "PTR", "SRV"]])
-  ,("rclass"              , [defaultvalue "IN", string])
-  ,("ttl"                 , [defaultvalue "2d", string])
-  ,("target"              , [string, mandatory])
-  ,("nsname"              , [string])
-  ,("serial"              , [string])
-  ,("slave_refresh"       , [string])
-  ,("slave_retry"         , [string])
-  ,("slave_expiration"    , [string])
-  ,("min_ttl"             , [string])
-  ,("email"               , [string])
+  [ ("name", [nameval]),
+    ("owner", [string]),
+    ("dest", [string]),
+    ("ensure", [defaultvalue "present", string, values ["present", "absent"]]),
+    ("rtype", [string, defaultvalue "A", values ["SOA", "A", "AAAA", "MX", "NS", "CNAME", "PTR", "SRV"]]),
+    ("rclass", [defaultvalue "IN", string]),
+    ("ttl", [defaultvalue "2d", string]),
+    ("target", [string, mandatory]),
+    ("nsname", [string]),
+    ("serial", [string]),
+    ("slave_refresh", [string]),
+    ("slave_retry", [string]),
+    ("slave_expiration", [string]),
+    ("min_ttl", [string]),
+    ("email", [string])
   ]
 
 validateMandatories :: NativeTypeValidate

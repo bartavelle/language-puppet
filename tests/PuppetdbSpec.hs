@@ -1,14 +1,12 @@
-module PuppetdbSpec(spec) where
+module PuppetdbSpec (spec) where
 
-import           XPrelude
+import qualified Data.Text as Text
+import PuppetDB
+import System.IO.Temp as Temp
+import Test.Hspec
+import XPrelude
 
-import qualified Data.Text      as Text
-import           System.IO.Temp as Temp
-import           Test.Hspec
-
-import           PuppetDB
-
-checkPanicE :: Show x => Text -> ExceptT x IO a -> IO a
+checkPanicE :: (Show x) => Text -> ExceptT x IO a -> IO a
 checkPanicE msg = runExceptT >=> either (panic . ((msg <> " ") <>) . show) return
 
 fqdn = "node.site.com"
