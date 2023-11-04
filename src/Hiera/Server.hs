@@ -172,14 +172,11 @@ instance FromJSON HieraConfigFile where
           Just (String dir) -> pure dir
           Just _            -> fail "datadir should be a string"
           Nothing           -> pure $ Object v ^. key "defaults" . key "datadir" . _String
-        HieraConfigFile
-            <$> pure 5
-            <*> pure [ YamlBackend (toS datadir) ] -- TODO: support other backends if needed
-            <*> mapM parseJSON (paths <> path)
+        HieraConfigFile 5 [ YamlBackend (toS datadir) ] -- TODO: support other backends if needed
+            <$> mapM parseJSON (paths <> path)
       mkHiera3 v =
-        HieraConfigFile
-            <$> pure 3
-            <*> (v .:? ":backends" .!= ["yaml"] >>= mapM mkBackend3)
+        HieraConfigFile 3
+            <$> (v .:? ":backends" .!= ["yaml"] >>= mapM mkBackend3)
             <*> (v .:? ":hierarchy" .!= [InterpolableHieraString [HPString "common"]])
        where
          mkBackend3 :: Text -> Yaml.Parser Backend

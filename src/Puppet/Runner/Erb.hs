@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 -- | Internal module used to initialize the erb template daemon.
 module Puppet.Runner.Erb (
      initTemplateDaemon
@@ -134,10 +133,7 @@ computeTemplate rubyintp srcinfo intpstate intpreader mstats filecache = do
 getRubyScriptPath :: String -> IO String
 getRubyScriptPath rubybin = do
   let checkpath :: FilePath -> IO FilePath -> IO FilePath
-      checkpath fp nxt =
-        ifM (fileExist fp)
-          (pure fp)
-          nxt
+      checkpath fp = ifM (fileExist fp) (pure fp)
       withExecutablePath = do
         path <- fmap takeDirectory getExecutablePath
         let fullpath = path </> rubybin

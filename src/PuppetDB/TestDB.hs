@@ -1,5 +1,4 @@
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE TemplateHaskell        #-}
 
 -- | A stub implementation of PuppetDB, backed by a YAML file.
@@ -148,9 +147,7 @@ getFcts db f = fmap (filter (resolveQuery factQuery f) . toFactInfo) (liftIO $ r
 resourceQuery :: ResourceField -> Resource -> Extracted
 resourceQuery RTag r = r ^. rtags . to ESet
 resourceQuery RCertname r = r ^. rnode . to EText
-resourceQuery (RParameter p) r = case r ^? rattributes . ix p . _PString of
-                                     Just s  -> EText s
-                                     Nothing -> ENil
+resourceQuery (RParameter p) r = maybe ENil EText (r ^? rattributes . ix p . _PString)
 resourceQuery RType r = r ^. rid . itype . to EText
 resourceQuery RTitle r = r ^. rid . iname . to EText
 resourceQuery RExported r = if r ^. rvirtuality == Exported
@@ -174,7 +171,7 @@ getResNode db nn f = do
 
 commit :: DB -> ExceptT PrettyError IO ()
 commit db = do
-    dbc <- liftIO $ atomically $ readTVar db
+    dbc <- liftIO $ readTVarIO db
     case dbc ^. backingFile of
         Nothing -> throwError "No backing file defined"
         Just bf -> liftIO (Yaml.encodeFile bf dbc `catches` [ ])
@@ -186,6 +183,6 @@ getNds db QEmpty = fmap toNodeInfo (liftIO $ readTVarIO db)
         toNodeInfo = fmap g . HM.keys . _dbcontentFacts
              where
                 g :: NodeName -> NodeInfo
-                g = \n -> NodeInfo n False S.Nothing S.Nothing S.Nothing
+                g n = NodeInfo n False S.Nothing S.Nothing S.Nothing
 
 getNds _ _ = throwError "getNds with query not implemented"

@@ -35,8 +35,7 @@ import           PuppetDB              (dummyPuppetDB)
 pureEval :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map
          -> InterpreterMonad a -- ^ The action to evaluate
          -> (Either PrettyError a, InterpreterState, InterpreterWriter)
-pureEval stmap action =
-  pureEval' stmap dummyInitialState Nothing action
+pureEval stmap = pureEval' stmap dummyInitialState Nothing
 
 -- | More flexible version of 'pureEval'
 pureEval' :: HM.HashMap (TopLevelType, Text) Statement -- ^ A top-level map

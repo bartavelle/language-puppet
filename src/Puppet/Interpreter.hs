@@ -265,7 +265,7 @@ makeEdgeMap ct = do
     defs' <- fmap (view rpos) <$> use definedResources
     clss' <- use loadedClasses
     let defs = defs' <> classes' <> aliases' <> names'
-        names' = (view rpos) <$> ct
+        names' = view rpos <$> ct
         -- generate fake resources for all extra aliases
         aliases' = ifromList $ do
             r <- ct ^.. traversed :: [Resource]
@@ -470,7 +470,7 @@ evaluateStatement (VarAssignmentDeclaration (VarAssignDecl mt varnames varexpr p
   curPos .= p
   varval <- resolveExpression varexpr
   mapM_ (resolveDataType >=> (`checkMatch` varval)) mt
-  mapM_ (flip loadVariable varval) varnames
+  mapM_ (`loadVariable` varval) varnames
   pure []
 evaluateStatement (ConditionalDeclaration (ConditionalDecl conds p)) = do
   curPos .= p
@@ -586,7 +586,7 @@ loadVariable varname varval = do
     (False, _) -> throwPosError ("Internal error: trying to save a variable in unknown scope" <+> ppline scp)
     (_, Just ((_ :!: pp) :!: ctx)) -> isParent scp (curcont ^. cctype) >>= \case
       True -> do
-          debug("The variable"
+          debug ("The variable"
                <+> pretty (UVariableReference varname)
                <+> "had been overriden because of some arbitrary inheritance rule that was set up to emulate puppet behaviour. It was defined at"
                <+> showPPos pp
@@ -683,8 +683,9 @@ enterScope secontext cont modulename p = do
       basescope <- case secontext of
         SEChild prt -> do
             parentscope <- use (scopes . at prt)
-            when (isNothing parentscope) (throwPosError ("Internal error: could not find parent scope" <+> ppline prt))
-            let Just psc = parentscope
+            psc <- case parentscope of
+              Just x -> pure x
+              Nothing -> throwPosError ("Internal error: could not find parent scope" <+> ppline prt)
             pure (psc & scopeParent .~ S.Just prt)
         _ -> do
             curdefs <- use (scopes . ix scp . scopeResDefaults)
@@ -937,7 +938,7 @@ mainFunctionCall "tag" args = do
   let addTag x = scopes . ix scp . scopeExtraTags . contains x .= True
   mapM_ (resolvePValueString >=> addTag) args
   pure []
-mainFunctionCall "fail" [x] = ("fail:" <+>) . dullred . ppline <$> resolvePValueString x >>= throwPosError
+mainFunctionCall "fail" [x] = resolvePValueString x >>= throwPosError . ("fail:" <+>) . dullred . ppline
 mainFunctionCall "fail" _ = throwPosError "fail(): This function takes a single argument"
 -- hiera_include does a unique merge lookup for the requested key, then calls the include function on the resulting array.
 mainFunctionCall "hiera_include" [x] = do

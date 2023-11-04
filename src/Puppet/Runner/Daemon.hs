@@ -1,5 +1,7 @@
 {-# LANGUAGE GADTs         #-}
 {-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use <$>" #-}
 module Puppet.Runner.Daemon (
     Daemon(..)
   , initDaemon
@@ -120,7 +122,7 @@ getCatalog' pref parsingfunc getTemplate stats hquery node facts = do
     Left _ -> pure stmts -- no catalog so we can't do the extra tests
     Right r@(c,_,_,_) -> do
       if pref ^. prefExtraTests
-        then second (const r) <$> (testCatalog pref c)
+        then second (const r) <$> testCatalog pref c
         else pure stmts
 
 -- Build the 'HieraQueryLayers' needed by the interpreter to lookup hiera values.
@@ -143,7 +145,7 @@ hieraQuery pref = do
       let ignored_modules = pref^.prefIgnoredmodules
           modpath = pref^.prefPuppetPaths.modulesPath
       dirs <- Directory.listDirectory modpath
-      (HM.fromList . catMaybes) <$>
+      HM.fromList . catMaybes <$>
         for dirs (\dir -> runMaybeT $ do
           let modname = toS dir
               fp = modpath <> "/" <> dir <> "/hiera.yaml"

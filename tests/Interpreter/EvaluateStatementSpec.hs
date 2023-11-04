@@ -13,7 +13,7 @@ shouldNotify s expected = do
       Left rr -> fail rr
       Right (x,_) -> pure x
     let msg  = catalog ^? at (RIdentifier "notify" "test")._Just.rattributes. ix "message"
-    msg `shouldBe` (Just expected)
+    msg `shouldBe` Just expected
 
 
 spec :: Spec

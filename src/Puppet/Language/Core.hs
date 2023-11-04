@@ -81,7 +81,7 @@ capitalizeRT = Text.intercalate "::" . map capitalize' . Text.splitOn "::"
 containerComma'' :: Pretty a => [(Doc, a)] -> Doc
 containerComma'' x = indent 4 ins
   where
-    ins = mconcat $ intersperse (comma <> line <> mempty) (fmap showC x)
+    ins = mconcat $ intersperse (comma <> line) (fmap showC x)
     showC (a,b) = a <+> "=>" <+> pretty b
 
 containerComma' :: Pretty a => [(Doc, a)] -> Doc

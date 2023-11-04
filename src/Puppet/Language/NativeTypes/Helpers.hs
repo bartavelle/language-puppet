@@ -229,11 +229,11 @@ fullyQualifieds param = runarray param fullyQualified'
 fullyQualified' :: Text -> PValue -> NativeTypeValidate
 fullyQualified' param path res =
   case path of
-    PString ("") -> perror $ "Empty path for parameter" <+> paramname param
-    PString p    -> if Text.head p == '/'
-                      then Right res
-                      else perror $ "Path must be absolute, not" <+> ppline p <+> "for parameter" <+> paramname param
-    x            -> perror $ "SHOULD NOT HAPPEN: path is not a resolved string, but" <+> pretty x <+> "for parameter" <+> paramname param
+    PString "" -> perror $ "Empty path for parameter" <+> paramname param
+    PString p  -> if Text.head p == '/'
+                    then Right res
+                    else perror $ "Path must be absolute, not" <+> ppline p <+> "for parameter" <+> paramname param
+    x          -> perror $ "SHOULD NOT HAPPEN: path is not a resolved string, but" <+> pretty x <+> "for parameter" <+> paramname param
 
 rarray :: Text -> NativeTypeValidate
 rarray param res = case res ^. rattributes . at param of

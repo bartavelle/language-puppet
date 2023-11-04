@@ -29,7 +29,7 @@ spec =
         checkPanicE "replaceFacts" (replaceFacts pdb [(fqdn, nfacts)])
         checkPanicE "commitDB" (commitDB pdb)
         -- check that our custom fact was indeed saved
-        dblines <- (fmap Text.strip . Text.lines) <$> readFile pdbfile
+        dblines <- fmap Text.strip . Text.lines <$> readFile pdbfile
         dblines `shouldContain` ["customfact: MyCustomFactValue"]
         -- initiate a new puppetdbapi
         fpdb <- loadTestDB pdbfile >>= unwrapError "loadTestDB"
@@ -38,5 +38,5 @@ spec =
         checkPanicE "replaceCatalog" (replaceCatalog fpdb (generateWireCatalog fqdn mempty mempty))
         checkPanicE "commit 2" (commitDB fpdb)
         -- check our facts again
-        fdblines <- (fmap (Text.strip) . Text.lines) `fmap` readFile pdbfile
+        fdblines <- (fmap Text.strip . Text.lines) `fmap` readFile pdbfile
         fdblines `shouldContain` ["customfact: MyCustomFactValue"]

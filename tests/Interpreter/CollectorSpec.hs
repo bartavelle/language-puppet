@@ -118,7 +118,7 @@ spec0 = do
         , "@notify { \"other\": tag => [\"why\"], message => \"the way it works\" }"
         , "Notify <| tag != \"why\" |>"
         ] `shouldNotify` ["wanted message", "the way it works"]
-    it "does not collect classes" $ shouldFail $
+    it "does not collect classes" $ shouldFail
         [ "class theclass {"
         , "    @notify { \"testing\": message => \"good message\" }"
         , "}"
@@ -126,7 +126,7 @@ spec0 = do
         ]
     it "does not collect resources that don't exist" $ do
         pending
-        shouldFail $
+        shouldFail
             [ "class theclass {"
             , "    @notify { \"testing\": message => \"good message\" }"
             , "}"
@@ -162,10 +162,10 @@ spec1 = do
       getResAttr (computeWith "=>") ^. at "uid" `shouldBe` Just (PNumber 1000)
   describe "AppendArrow in AttributeDecl" $
     it "should add 'docker' to the 'groups' attribute of the user resource" $ do
-      getResAttr (computeWith "+>") ^. at "groups" `shouldBe` Just (PArray $ ["ci", "docker"])
+      getResAttr (computeWith "+>") ^. at "groups" `shouldBe` Just (PArray ["ci", "docker"])
   describe "AssignArrow in AttributeDecl" $
     it "should override the 'groups' attributes from the user resource" $
-      getResAttr (computeWith "=>") ^. at "groups" `shouldBe` Just (PArray $ ["docker"])
+      getResAttr (computeWith "=>") ^. at "groups" `shouldBe` Just (PArray ["docker"])
   where
     getResAttr :: Either String (FinalCatalog, InterpreterWriter) -> Container PValue
     getResAttr s = s ^. _Right . _1 . at (RIdentifier "user" "jenkins")._Just.rattributes

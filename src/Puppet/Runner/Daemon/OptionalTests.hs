@@ -62,7 +62,7 @@ testFileSources basedir c = do
                       Just (PString "true") -> True
                       Just (PBoolean b) -> b
                       _ -> False
-        getsource = mapMaybe (\r -> (,,) <$> pure r <*> r ^. rattributes . at "source" <*> pure (recurse r))
+        getsource = mapMaybe (\r -> (,,) r <$> r ^. rattributes . at "source" <*> pure (recurse r))
     checkAllSources basedir $ (getsource . getfiles) c
 
 -- | Check source for all file resources and append failures along.
@@ -79,10 +79,10 @@ checkAllSources fp fs =
         Right () -> runExceptT $ go xs es
         Left err ->
           runExceptT
-          $ go xs ((PrettyError $ align (vsep [ "Could not find" <+> pretty filesrc
-                                              , getError err
-                                              , showPos (res^.rpos^._1)
-                                              ])):es)
+          $ go xs (PrettyError (align (vsep [ "Could not find" <+> pretty filesrc
+                                            , getError err
+                                            , showPos (res ^. (rpos . _1))
+                                            ])) : es)
     go [] [] = pure ()
     go [] es = throwE (mconcat es)
 

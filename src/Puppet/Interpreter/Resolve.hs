@@ -1,6 +1,5 @@
 {-# LANGUAGE PackageImports   #-}
 {-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE TupleSections    #-}
 
 -- | This module is all about converting and resolving foreign data into
 -- the fully exploitable corresponding data type.
@@ -556,7 +555,7 @@ resolveFunction' "sprintf" (PString str:args) = sprintf str args
 resolveFunction' "sprintf" _ = throwPosError "sprintf(): Expects a string as its first argument"
 -- some custom functions
 resolveFunction' "pdbresourcequery" [q]   = pdbresourcequery q Nothing
-resolveFunction' "pdbresourcequery" [q,k] = fmap Just (resolvePValueString k) >>= pdbresourcequery q
+resolveFunction' "pdbresourcequery" [q,k] = resolvePValueString k >>= pdbresourcequery q . Just
 resolveFunction' "pdbresourcequery" _     = throwPosError "pdbresourcequery(): Expects one or two arguments"
 resolveFunction' "hiera"       [q]     = hieraCall QFirst   q Nothing Nothing Nothing
 resolveFunction' "hiera"       [q,d]   = hieraCall QFirst   q (Just d) Nothing Nothing
@@ -613,8 +612,8 @@ resolveExpressionSE e =
 -- resolved 'RSearchExpression'.
 resolveSearchExpression :: SearchExpression -> InterpreterMonad RSearchExpression
 resolveSearchExpression AlwaysTrue = pure RAlwaysTrue
-resolveSearchExpression (EqualitySearch a e) = REqualitySearch `fmap` pure a <*> resolveExpressionSE e
-resolveSearchExpression (NonEqualitySearch a e) = RNonEqualitySearch `fmap` pure a <*> resolveExpressionSE e
+resolveSearchExpression (EqualitySearch a e) = REqualitySearch a <$> resolveExpressionSE e
+resolveSearchExpression (NonEqualitySearch a e) = RNonEqualitySearch a <$> resolveExpressionSE e
 resolveSearchExpression (AndSearch e1 e2) = RAndSearch `fmap` resolveSearchExpression e1 <*> resolveSearchExpression e2
 resolveSearchExpression (OrSearch e1 e2) = ROrSearch `fmap` resolveSearchExpression e1 <*> resolveSearchExpression e2
 

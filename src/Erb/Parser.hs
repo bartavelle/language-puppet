@@ -120,7 +120,7 @@ objectterm :: Parser Expression
 objectterm = do
   arobase <- optional (char '@')
   methodname' <- toS <$> identifier
-  let methodname = Value (Literal $ maybe methodname' (\a -> Text.cons a methodname') arobase)
+  let methodname = Value (Literal $ maybe methodname' (`Text.cons` methodname') arobase)
   lookAhead anyChar >>= \case
     '[' -> do
         hr <- many (symbol "[" *> rubyexpression <* symbol "]")

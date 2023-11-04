@@ -7,6 +7,7 @@ import           Text.Megaparsec (parse)
 import qualified Text.Regex.PCRE.ByteString.Utils as Regex
 
 import           Puppet.Parser.Internal
+import GHC.Base (error)
 
 spec :: Spec
 spec = do
@@ -19,7 +20,9 @@ spec = do
     "String[5]" `parsed` UDTString (Just 5) Nothing
     "String[5,8]" `parsed` UDTString (Just 5) (Just 8)
     "Regexp" `parsed` UDTRegexp Nothing
-    let Right foore = Regex.compile' Regex.compBlank Regex.execBlank "foo"
+    let foore = case Regex.compile' Regex.compBlank Regex.execBlank "foo" of
+            Right ok -> ok
+            Left rr -> error (show rr)
     "Regexp[/foo/]" `parsed` UDTRegexp (Just (CompRegex "foo" foore))
     it "accepts variables" $ pendingWith "to be fixed" *> parse datatype "?" "String[$var]" `shouldParse` UDTString (Just 5) Nothing
   describe "Stdlib::" $ do

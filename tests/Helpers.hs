@@ -13,7 +13,6 @@ module Helpers ( module Exports
 
 import           XPrelude            as Exports
 
-import           Control.Monad.Fail  as Exports (MonadFail)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Maybe.Strict   as S
 import qualified Data.Vector         as Vector

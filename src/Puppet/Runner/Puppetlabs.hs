@@ -12,7 +12,7 @@ import qualified Data.Text.Encoding  as Text
 import           Formatting          (scifmt, sformat, (%), (%.))
 import qualified Formatting          as FMT
 import qualified System.Directory    as Directory
-import           System.FilePath     ((</>), (<.>))
+import           System.FilePath     ((<.>), (</>))
 import           System.Random       (mkStdGen, randomRs)
 
 import           Puppet.Interpreter
@@ -56,19 +56,19 @@ extFunctions modpath = foldlM f Map.empty extFun
           funcpath2 = funcpath1 </> "parser/functions"
           funcpath3 = funcpath1 </> "functions"
       in
-      isJust <$> Directory.findFile [ funcpath0 </> "functions"] (toS funcname <.> "pp")
-      ||^
-      isJust <$> Directory.findFile [ funcpath2
-                                    , funcpath3
-                                    , funcpath2 </> nspath
-                                    , funcpath3 </> nspath
-                                    ] (toS funcname <.> "rb")
+      (\a b -> isJust a || isJust b)
+        <$> Directory.findFile [ funcpath0 </> "functions"] (toS funcname <.> "pp")
+        <*> Directory.findFile [ funcpath2
+                               , funcpath3
+                               , funcpath2 </> nspath
+                               , funcpath3 </> nspath
+                               ] (toS funcname <.> "rb")
 
 apacheBool2httpd :: MonadThrowPos m => [PValue] -> m PValue
 apacheBool2httpd [PBoolean True]  = pure $ PString "On"
 apacheBool2httpd [PString "true"] = pure $ PString "On"
 apacheBool2httpd [_]              = pure $ PString "Off"
-apacheBool2httpd arg@_            = throwPosError $ "expect one single argument" <+> pretty arg
+apacheBool2httpd arg            = throwPosError $ "expect one single argument" <+> pretty arg
 
 pgPassword :: MonadThrowPos m => [PValue] -> m PValue
 pgPassword [PString username, PString pwd] =
@@ -88,16 +88,16 @@ randomPassword _ = throwPosError "expect one single string arguments"
 -- To be implemented if needed.
 mockJenkinsPrefix :: MonadThrowPos m => [PValue] -> m PValue
 mockJenkinsPrefix []    = return $ PString ""
-mockJenkinsPrefix arg@_ = throwPosError $ "expect no argument" <+> pretty arg
+mockJenkinsPrefix arg = throwPosError $ "expect no argument" <+> pretty arg
 
 -- To be implemented if needed.
 mockJenkinsPort :: MonadThrowPos m => [PValue] -> m PValue
 mockJenkinsPort []    = return $ PString "8080"
-mockJenkinsPort arg@_ = throwPosError $ "expect no argument" <+> pretty arg
+mockJenkinsPort arg = throwPosError $ "expect no argument" <+> pretty arg
 
 mockCacheData :: MonadThrowPos m => [PValue] -> m PValue
 mockCacheData [_, _, b] = return b
-mockCacheData arg@_     = throwPosError $ "expect 3 string arguments" <+> pretty arg
+mockCacheData arg     = throwPosError $ "expect 3 string arguments" <+> pretty arg
 
 -- | Simple implemenation that does not handle all cases.
 -- For instance 'auth_option' is currently not implemented.
@@ -144,37 +144,37 @@ aclToHash acl _ = throwPosError $ "Unable to parse acl line" <+> squotes (ppline
 -- faked implementation, replace by the correct one if you need so.
 mockDockerRunFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerRunFlags arg@[PHash _]= (pure . PString . show . head) arg
-mockDockerRunFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+mockDockerRunFlags  arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- faked implementation, replace by the correct one if you need so.
 mockDockerStackFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerStackFlags arg@[PHash _]= (pure . PString . show . head) arg
-mockDockerStackFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+mockDockerStackFlags  arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- faked implementation, replace by the correct one if you need so.
 mockDockerSecretsFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerSecretsFlags arg@[PHash _]= (pure . PString . show . head) arg
-mockDockerSecretsFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+mockDockerSecretsFlags  arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- faked implementation, replace by the correct one if you need so.
 mockDockerSwarmJoinFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerSwarmJoinFlags arg@[PHash _]= (pure . PString . show . head) arg
-mockDockerSwarmJoinFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+mockDockerSwarmJoinFlags  arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- faked implementation, replace by the correct one if you need so.
 mockDockerSwarmInitFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockDockerSwarmInitFlags arg@[PHash _]= (pure . PString . show . head) arg
-mockDockerSwarmInitFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+mockDockerSwarmInitFlags  arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- faked implementation, replace by the correct one if you need so.
 mockKubernetesInitFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockKubernetesInitFlags arg@[PHash _]= (pure . PString . show . head) arg
-mockKubernetesInitFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+mockKubernetesInitFlags  arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- faked implementation, replace by the correct one if you need so.
 mockKubernetesJoinFlags :: MonadThrowPos m => [PValue] -> m PValue
 mockKubernetesJoinFlags arg@[PHash _]= (pure . PString . show . head) arg
-mockKubernetesJoinFlags  arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+mockKubernetesJoinFlags  arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
 
 -- utils
 scientificToInt :: MonadThrowPos m => Scientific -> m Int
@@ -190,11 +190,11 @@ puppetdbCreateSubsettingResourceHash [PHash s, PHash args] = do
                  , let h = [ ( "subsetting", PString k) , ("value", v)] `Map.union` args
                  ]
   pure $ PHash (Map.fromList res_hash)
-puppetdbCreateSubsettingResourceHash arg@_ = throwPosError $ "Expect 2 hashes as arguments but was" <+> pretty arg
+puppetdbCreateSubsettingResourceHash arg = throwPosError $ "Expect 2 hashes as arguments but was" <+> pretty arg
 
 -- To be implemented if needed.
 dockerSanitisedName :: MonadThrowPos m => [PValue] -> m PValue
 dockerSanitisedName [PString s] =
   -- ruby implementation: regsubst($name, '[^0-9A-Za-z.\-_]', '-', 'G')
   pure $ PString s
-dockerSanitisedName arg@_ = throwPosError $ "Expect an hash as argument but was" <+> pretty arg
+dockerSanitisedName arg = throwPosError $ "Expect an hash as argument but was" <+> pretty arg

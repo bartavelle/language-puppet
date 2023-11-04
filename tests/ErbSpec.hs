@@ -6,6 +6,7 @@ import           Test.Hspec
 
 import           Erb
 import           Puppet.Runner
+import GHC.Base (error)
 
 parsingtests :: [(String, [RubyStatement])]
 parsingtests =
@@ -63,7 +64,9 @@ parsingspec =
 
 resolvespec =
   let state0 = initialState dummyFacts mempty
-      Just (scope_name, scope) = extractScope state0
+      (scope_name, scope) = case extractScope state0 of
+        Just p -> p
+        Nothing -> error "should not happen"
   in
   for_ resolvetests $ \(s, e) ->
     let item = it ("should resolve " <> show s) in

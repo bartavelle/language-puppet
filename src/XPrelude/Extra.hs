@@ -145,7 +145,7 @@ logDebugStr = Log.debugM "language-puppet"
 unwrapError :: Doc -> Either PrettyError a -> IO a
 unwrapError desc = either exit pure
     where
-      exit = \err -> putDoc (display err) >> exitFailure
+      exit err = putDoc (display err) >> exitFailure
       display err = red desc <> ":" <+> getError err
 
 avalues :: IndexedTraversal' Int Value Value

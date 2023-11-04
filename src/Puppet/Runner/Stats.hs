@@ -39,7 +39,7 @@ newStats = MStats `fmap` newMVar Map.empty
 
 -- | Wraps a computation, and measures related execution statistics.
 measure :: MStats -- ^ Statistics container
-        -> Text -- ^ Action identifier
+        -> Text   -- ^ Action identifier
         -> IO a   -- ^ Computation
         -> IO a
 measure (MStats mtable) statsname action = do
@@ -49,12 +49,8 @@ measure (MStats mtable) statsname action = do
       !nstats = case stats ^. at statsname of
         Nothing -> stats & at statsname ?~ StatsPoint 1 tm tm tm
         Just (StatsPoint sc st smi sma) ->
-            let !nmax = if tm > sma
-                          then tm
-                          else sma
-                !nmin = if tm < smi
-                          then tm
-                          else smi
+            let !nmax = max tm sma
+                !nmin = min tm smi
             in stats & at statsname ?~ StatsPoint (sc+1) (st+tm) nmin nmax
   putMVar mtable nstats
   return $! out

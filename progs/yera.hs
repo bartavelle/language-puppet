@@ -3,7 +3,7 @@
 {-# LANGUAGE StrictData        #-}
 module Main (main) where
 
-import           XPrelude            hiding (option)
+import           XPrelude
 
 import qualified Data.HashMap.Strict as Map
 import qualified Data.List           as List

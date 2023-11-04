@@ -1,4 +1,7 @@
 {-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use id" #-}
+{-# HLINT ignore "Use <$>" #-}
 module Puppet.Parser.Internal
 where
 
@@ -154,7 +157,7 @@ genericModuleName isReference = do
       firstletter = if isReference
                       then fmap Char.toLower (satisfy Char.isAsciiUpper)
                       else satisfy Char.isAsciiLower
-  (Text.cons) <$> firstletter <*> takeWhileP Nothing acceptable
+  Text.cons <$> firstletter <*> takeWhileP Nothing acceptable
 
 -- | Variable expression
 varExpression :: Parser Expression
@@ -297,32 +300,32 @@ terminal = terminalG StandardMode
 
 expressionTable :: [[Operator Parser Expression]]
 expressionTable = [ [ Postfix indexLookupChain ] -- http://stackoverflow.com/questions/10475337/parsec-expr-repeated-prefix-postfix-operator-not-supported
-                  , [ Prefix ( symbolic '-'   *> pure Negate           ) ]
-                  , [ Prefix ( symbolic '!'   *> pure Not              ) ]
-                  , [ InfixL ( symbolic '.'   *> pure FunctionApplication ) ]
-                  , [ InfixL ( reserved "in"  *> pure Contains         ) ]
-                  , [ InfixL ( symbolic '/'   *> pure Division         )
-                    , InfixL ( symbolic '*'   *> pure Multiplication   )
+                  , [ Prefix ( symbolic '-'   $> Negate           ) ]
+                  , [ Prefix ( symbolic '!'   $> Not              ) ]
+                  , [ InfixL ( symbolic '.'   $> FunctionApplication ) ]
+                  , [ InfixL ( reserved "in"  $> Contains         ) ]
+                  , [ InfixL ( symbolic '/'   $> Division         )
+                    , InfixL ( symbolic '*'   $> Multiplication   )
                     ]
-                  , [ InfixL ( symbolic '+'   *> pure Addition     )
-                    , InfixL ( symbolic '-'   *> pure Substraction )
+                  , [ InfixL ( symbolic '+'   $> Addition     )
+                    , InfixL ( symbolic '-'   $> Substraction )
                     ]
-                  , [ InfixL ( symbol "<<"    *> pure LeftShift  )
-                    , InfixL ( symbol ">>"    *> pure RightShift )
+                  , [ InfixL ( symbol "<<"    $> LeftShift  )
+                    , InfixL ( symbol ">>"    $> RightShift )
                     ]
-                  , [ InfixL ( symbol "=="    *> pure Equal     )
-                    , InfixL ( symbol "!="    *> pure Different )
+                  , [ InfixL ( symbol "=="    $> Equal     )
+                    , InfixL ( symbol "!="    $> Different )
                     ]
-                  , [ InfixL ( symbol "=~"    *> pure RegexMatch    )
-                    , InfixL ( symbol "!~"    *> pure NotRegexMatch )
+                  , [ InfixL ( symbol "=~"    $> RegexMatch    )
+                    , InfixL ( symbol "!~"    $> NotRegexMatch )
                     ]
-                  , [ InfixL ( symbol ">="    *> pure MoreEqualThan )
-                    , InfixL ( symbol "<="    *> pure LessEqualThan )
-                    , InfixL ( symbol ">"     *> pure MoreThan      )
-                    , InfixL ( symbol "<"     *> pure LessThan      )
+                  , [ InfixL ( symbol ">="    $> MoreEqualThan )
+                    , InfixL ( symbol "<="    $> LessEqualThan )
+                    , InfixL ( symbol ">"     $> MoreThan      )
+                    , InfixL ( symbol "<"     $> LessThan      )
                     ]
-                  , [ InfixL ( reserved "and" *> pure And )
-                    , InfixL ( reserved "or"  *> pure Or  )
+                  , [ InfixL ( reserved "and" $> And )
+                    , InfixL ( reserved "or"  $> Or  )
                     ]
                   ]
 
@@ -334,9 +337,9 @@ indexLookupChain = List.foldr1 (flip (.)) <$> some checkLookup
 
 stringExpression :: Parser Expression
 stringExpression =
-      (Terminal . UInterpolable) <$> interpolableString
+      Terminal . UInterpolable <$> interpolableString
   <|> (reserved "undef" $> Terminal UUndef)
-  <|> (Terminal . UBoolean) <$> puppetBool
+  <|> Terminal . UBoolean <$> puppetBool
   <|> varExpression
   <|> Terminal <$> literalValue
 
@@ -405,9 +408,7 @@ unlessCondition = do
   reserved "unless"
   (cond :!: stmts) <- puppetIfStyleCondition
   elsecond <- option V.empty (reserved "else" *> braces statementList)
-  let ec = if V.null elsecond
-               then []
-               else [Terminal (UBoolean True) :!: elsecond]
+  let ec = [Terminal (UBoolean True) :!: elsecond | not (V.null elsecond)]
   pe <- getSourcePos
   pure (ConditionalDecl (V.fromList ((Not cond :!: stmts) : ec )) (p :!: pe))
 
@@ -418,9 +419,7 @@ ifCondition = do
   maincond <- puppetIfStyleCondition
   others   <- many (reserved "elsif" *> puppetIfStyleCondition)
   elsecond <- option V.empty (reserved "else" *> braces statementList)
-  let ec = if V.null elsecond
-               then []
-               else [Terminal (UBoolean True) :!: elsecond]
+  let ec = [Terminal (UBoolean True) :!: elsecond | not (V.null elsecond)]
   pe <- getSourcePos
   pure (ConditionalDecl (V.fromList (maincond : others ++ ec)) (p :!: pe))
 
@@ -496,8 +495,8 @@ resCollDecl p restype = do
     searchExpression :: Parser SearchExpression
     searchExpression =
       let searchTable :: [[Operator Parser SearchExpression]]
-          searchTable = [ [ InfixL ( reserved "and" *> pure AndSearch )
-                          , InfixL ( reserved "or"  *> pure OrSearch  )
+          searchTable = [ [ InfixL ( reserved "and" $> AndSearch )
+                          , InfixL ( reserved "or"  $> OrSearch  )
                           ] ]
           searchterm = parens searchExpression <|> check
           check = do

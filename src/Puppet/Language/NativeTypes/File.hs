@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Puppet.Language.NativeTypes.File (nativeFile) where
 
 import qualified Data.Attoparsec.Text                as AT
@@ -96,14 +97,14 @@ modestring = Map.fromList . mconcat <$> (modepart `AT.sepBy` AT.char ',')
 -- TODO suid, sticky and other funky things are not yet supported
 modepart :: AT.Parser [(PermParts, Set PermSet)]
 modepart = do
-    let permpart =   (AT.char 'u' *> pure [User])
-                 <|> (AT.char 'g' *> pure [Group])
-                 <|> (AT.char 'o' *> pure [Other])
-                 <|> (AT.char 'a' *> pure [User,Group,Other])
-        permission =   (AT.char 'r' *> pure R)
-                   <|> (AT.char 'w' *> pure W)
-                   <|> (AT.char 'x' *> pure X)
+    let permpart =   (AT.char 'u' $> [User])
+                 <|> (AT.char 'g' $> [Group])
+                 <|> (AT.char 'o' $> [Other])
+                 <|> (AT.char 'a' $> [User,Group,Other])
+        permission =   (AT.char 'r' $> R)
+                   <|> (AT.char 'w' $> W)
+                   <|> (AT.char 'x' $> X)
     pp <- mconcat <$> some permpart
     void $ AT.char '='
     pr <- Set.fromList <$> some permission
-    return (map (\p -> (p, pr)) pp)
+    return (map (, pr) pp)

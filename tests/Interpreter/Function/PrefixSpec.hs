@@ -32,8 +32,8 @@ spec = withStdlibFunction fname $ \tester -> do
       checkSuccess [ PArray ["one"], "pre" ] (PArray ["preone"])
       checkSuccess [ PArray ["one","two","three"], "pre" ] (PArray ["preone","pretwo","prethree"])
     it "should work with hashes" $ do
-      checkSuccess [(PHash mempty)] (PHash mempty)
-      checkSuccess [(PHash mempty), ""] (PHash mempty)
-      checkSuccess [(PHash [("one", PNumber 5)] ), "pre" ] (PHash [("preone", PNumber 5)])
-      checkSuccess [(PHash [("one", PNumber 5), ("two", "lol"), ("three", PNumber 7)]), "pre" ] (PHash [("preone", PNumber 5), ("pretwo", "lol"), ("prethree", PNumber 7)])
+      checkSuccess [PHash mempty] (PHash mempty)
+      checkSuccess [PHash mempty, ""] (PHash mempty)
+      checkSuccess [PHash [("one", PNumber 5)], "pre" ] (PHash [("preone", PNumber 5)])
+      checkSuccess [PHash [("one", PNumber 5), ("two", "lol"), ("three", PNumber 7)], "pre" ] (PHash [("preone", PNumber 5), ("pretwo", "lol"), ("prethree", PNumber 7)])
 

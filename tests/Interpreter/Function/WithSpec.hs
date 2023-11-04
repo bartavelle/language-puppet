@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
 module Interpreter.Function.WithSpec where
 
 import           Helpers

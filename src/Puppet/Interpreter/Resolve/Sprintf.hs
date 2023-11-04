@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use <$>" #-}
 module Puppet.Interpreter.Resolve.Sprintf (
   sprintf
 ) where
@@ -48,7 +50,7 @@ parseFormat t | Text.null t = []
                   (Raw nt : nxt') -> Raw (Text.cons '%' nt) : nxt'
                   nxt'            -> Raw (Text.singleton '%') : nxt'
     rformat = case parse format nxt of
-                  Fail _ _ _       -> tryNext
+                  Fail {}          -> tryNext
                   Partial _        -> tryNext
                   Done remaining f -> Format f : parseFormat remaining
 

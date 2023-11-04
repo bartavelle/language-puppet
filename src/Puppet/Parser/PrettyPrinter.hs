@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Functor law" #-}
 module Puppet.Parser.PrettyPrinter
   ( ppStatements
   ) where
@@ -142,7 +144,10 @@ showAss vx = folddoc (\a b -> a <> pretty ',' <$> b) prettyDecl (V.toList vx)
   where
     folddoc _ _ [] = mempty
     folddoc acc docGen (x:xs) = foldl acc (docGen x) (map docGen xs)
-    maxlen = maximum (fmap (\(AttributeDecl k _ _) -> Text.length k) vx)
+    maxlen = maximum (fmap attributeLength vx)
+    attributeLength ad = case ad of
+      AttributeDecl k _ _ -> Text.length k
+      AttributeWildcard _ -> 0
     prettyDecl (AttributeDecl k op v) = dullblue (fill maxlen (ppline k)) <+> pretty op <+> pretty v
     prettyDecl (AttributeWildcard v) = dullblue "*" <+> pretty AssignArrow <+> pretty v
 
@@ -173,14 +178,13 @@ instance Pretty VarAssignDecl where
 
 instance Pretty Statement where
     pretty (HigherOrderLambdaDeclaration (HigherOrderLambdaDecl c p)) = pretty c <+> showPPos p
-    pretty (ConditionalDeclaration (ConditionalDecl conds p))
-        | V.null conds = mempty
-        | otherwise = "if" <+> pretty firstcond <+> showPPos p <+> braceStatements firststts <$> vcat (map rendernexts xs)
-        where
-            ( (firstcond :!: firststts) : xs ) = V.toList conds
-            rendernexts (Terminal (UBoolean True) :!: st) = "else" <+> braceStatements st
-            rendernexts (c :!: st) | V.null st = mempty
-                                   | otherwise = "elsif" <+> pretty c <+> braceStatements st
+    pretty (ConditionalDeclaration (ConditionalDecl conds p)) = case V.toList conds of
+        [] -> mempty
+        (firstcond :!: firststts): xs ->
+            let rendernexts (Terminal (UBoolean True) :!: st) = "else" <+> braceStatements st
+                rendernexts (c :!: st) | V.null st = mempty
+                                      | otherwise = "elsif" <+> pretty c <+> braceStatements st
+            in  "if" <+> pretty firstcond <+> showPPos p <+> braceStatements firststts <$> vcat (map rendernexts xs)
     pretty (MainFunctionDeclaration (MainFuncDecl funcname args p)) = showFunc funcname args <+> showPPos p
     pretty (ResourceDefaultDeclaration (ResDefaultDecl rtype defaults p)) = capitalizeR rtype <+> nest 2 (pretty '{' <+> showPPos p <$> showAss defaults) <$> pretty '}'
     pretty (ResourceOverrideDeclaration (ResOverrideDecl rtype rnames overs p)) = pretty (UResourceReference rtype rnames) <+> nest 2 (pretty '{' <+> showPPos p <$> showAss overs) <$> pretty '}'
