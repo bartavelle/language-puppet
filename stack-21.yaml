@@ -6,3 +6,4 @@ resolver: lts-21.16
 extra-deps:
 - filecache-0.4.1@sha256:cc1a1e816a7435564c7bd35f87f8f3818ccf987b9b02f7f749d2ef64480d6b71,1779
 - fsnotify-0.3.0.1@sha256:fbec8cddd3f991d5b905df16895c67717b0f580e1ef33de34d93de814af1a08a,2988
+- hruby-0.5.1.0

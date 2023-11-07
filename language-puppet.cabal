@@ -118,7 +118,7 @@ library
                      , hashable             >= 1.2     && < 1.5
                      , http-api-data        >= 0.2     && < 0.6
                      , http-client          >= 0.4.30  && < 0.8
-                     , hruby                >= 0.3.5   && < 0.6
+                     , hruby                >= 0.5.1   && < 0.6
                      , hslogger             >= 1.2     && < 1.4
                      , lens                 >= 4.12    && < 6
                      , lens-aeson           >= 1.2
