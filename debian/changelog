@@ -1,3 +1,21 @@
+language-puppet (1.5.1) jammy; urgency=medium
+
+  * Version bumps
+
+ -- Bartavelle <bartavelle@gmail.com>  Tue, 07 Nov 2023 16:50:57 +0100
+
+language-puppet (1.4.6.4) artful; urgency=medium
+
+  * Version bumps
+
+ -- Bartavelle <bartavelle@gmail.com>  Fri, May 29 2020 11:21:49 +0100
+
+language-puppet (1.4.6.1) artful; urgency=medium
+
+  * Version bumps
+
+ -- Bartavelle <bartavelle@gmail.com>  Thu, 16 Jan 2020 06:57:39 +0100
+
 language-puppet (1.4.6) artful; urgency=medium
 
   * Support GHC 8.8
@@ -14,7 +32,7 @@ language-puppet (1.4.5) artful; urgency=medium
   * Fix #277 (hiera lookup in multiple layers)
   * Allow servant 0.16
 
- -- Pierre Radermecker <pierrer@pi3r.be>  Mo, 17 June 2019 16:12:48 +0100
+ -- Pierre Radermecker <pierrer@pi3r.be>  Mon, 17 June 2019 16:12:48 +0100
 
 language-puppet (1.4.4) artful; urgency=medium
 
